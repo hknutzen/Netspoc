@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2022 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2023 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -30,7 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,14 +71,8 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 
 func printNetworkIp(n *network) string {
 	pIP := n.ipp.Addr().String()
-	var pMask string
-	bits := n.ipp.Bits()
-	if n.ipV6 {
-		pMask = strconv.Itoa(bits)
-	} else {
-		pMask = net.IP(net.CIDRMask(bits, 32)).String()
-	}
-	return pIP + "/" + pMask
+	bits := strconv.Itoa(n.ipp.Bits())
+	return pIP + "/" + bits
 }
 
 type jsonMap map[string]interface{}

@@ -274,7 +274,7 @@ service:s1 = {
 -- objects
 {
  "any:[network:n3]": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "a",
   "zone": "any:[network:n3]"
@@ -288,12 +288,12 @@ service:s1 = {
   "owner": "a"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "a",
   "zone": "any:[network:n3]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "a",
   "zone": "any:[network:n3]"
  }
@@ -325,23 +325,23 @@ service:s1 = {
 -- objects
 {
  "any:[ip=10.0.0.0/14 & network:n1]": {
-  "ip": "10.0.0.0/255.252.0.0",
+  "ip": "10.0.0.0/14",
   "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
  },
  "any:[ip=10.1.0.0/23 & network:n1]": {
-  "ip": "10.1.0.0/255.255.254.0",
+  "ip": "10.1.0.0/23",
   "owner": "a",
   "zone": "any:[network:n1]"
  },
  "any:[ip=10.2.0.0/23 & network:n1]": {
-  "ip": "10.2.0.0/255.255.254.0",
+  "ip": "10.2.0.0/23",
   "owner": "b",
   "zone": "any:[network:n1]"
  },
  "any:a-8": {
-  "ip": "10.0.0.0/255.0.0.0",
+  "ip": "10.0.0.0/8",
   "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
@@ -350,12 +350,12 @@ service:s1 = {
   "ip": "10.1.1.1"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "a",
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "zone": "any:[network:n2]"
  }
 }
@@ -380,7 +380,7 @@ owner:b = { admins = b@example.com; }
 -- objects
 {
  "any:a": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "zone": "any:a"
  },
  "interface:r.n1": {
@@ -396,17 +396,17 @@ owner:b = { admins = b@example.com; }
   "owner": "b"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "a",
   "zone": "any:a"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "a",
   "zone": "any:a"
  },
  "network:n3": {
-  "ip": "10.1.3.0/255.255.255.0",
+  "ip": "10.1.3.0/24",
   "owner": "b",
   "zone": "any:a"
  }
@@ -446,7 +446,7 @@ owner:b = { admins = b@example.com; }
 -- objects
 {
  "any:a": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "zone": "any:a"
  },
@@ -465,12 +465,12 @@ owner:b = { admins = b@example.com; }
   "owner": "b"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "a",
   "zone": "any:a"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "b",
   "zone": "any:a"
  }
@@ -555,17 +555,17 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
   "owner": "x"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "z",
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.2.2.0/255.255.255.0",
+  "ip": "10.2.2.0/24",
   "owner": "x",
   "zone": "any:[network:n2]"
  },
  "network:n3": {
-  "ip": "10.3.3.0/255.255.255.0",
+  "ip": "10.3.3.0/24",
   "owner": "y",
   "zone": "any:[network:n3]"
  }
@@ -901,12 +901,12 @@ service:test = {
 --objects
 {
  "any:[ip=10.140.0.0/16 & network:t1]": {
-  "ip": "10.140.0.0/255.255.0.0",
+  "ip": "10.140.0.0/16",
   "is_supernet": 1,
   "zone": "any:[network:t1]"
  },
  "any:c2": {
-  "ip": "10.140.0.0/255.255.0.0",
+  "ip": "10.140.0.0/16",
   "is_supernet": 1,
   "zone": "any:[network:t2]"
  },
@@ -914,7 +914,7 @@ service:test = {
   "ip": "10.1.54.163"
  },
  "network:n1": {
-  "ip": "10.1.54.0/255.255.255.0",
+  "ip": "10.1.54.0/24",
   "owner": "o",
   "zone": "any:[network:n1]"
  }
@@ -1054,20 +1054,20 @@ network:Internet = { ip = 0.0.0.0/0; has_subnets; }
   "owner": "x"
  },
  "network:Big": {
-  "ip": "10.1.0.0/255.255.0.0",
+  "ip": "10.1.0.0/16",
   "nat": {
-   "inet": "1.1.0.0/255.255.0.0"
+   "inet": "1.1.0.0/16"
   },
   "owner": "x",
   "zone": "any:[network:Big]"
  },
  "network:DMZ": {
-  "ip": "10.9.9.0/255.255.255.0",
+  "ip": "10.9.9.0/24",
   "owner": "x",
   "zone": "any:[network:DMZ]"
  },
  "network:Internet": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "x",
   "zone": "any:[network:DMZ]"
@@ -1373,7 +1373,7 @@ service:s1 = {
 --objects
 {
  "any:n1": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "owner": "n1",
   "zone": "any:n1"
  },
@@ -1382,7 +1382,7 @@ service:s1 = {
   "owner": "r1"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "n1",
   "zone": "any:n1"
  }
@@ -1445,23 +1445,23 @@ router:r3 = {
   "owner": "all"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "all",
   "zone": "any:[network:n1]"
  },
  "network:n2/left": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n1]"
  },
  "network:n2/right": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "all",
   "zone": "any:[network:n2/right]"
  },
  "network:n3": {
-  "ip": "10.1.3.0/255.255.255.0",
+  "ip": "10.1.3.0/24",
   "owner": "all",
   "zone": "any:[network:n2/right]"
  }
@@ -1535,19 +1535,19 @@ service:s2 = {
 --objects
 {
  "any:[ip=10.9.0.0/21 & network:v1]": {
-  "ip": "10.9.0.0/255.255.248.0",
+  "ip": "10.9.0.0/21",
   "is_supernet": 1,
   "owner": "v1",
   "zone": "any:[network:v1]"
  },
  "any:[ip=10.9.0.0/21 & network:v2]": {
-  "ip": "10.9.0.0/255.255.248.0",
+  "ip": "10.9.0.0/21",
   "is_supernet": 1,
   "owner": "Extern_VPN",
   "zone": "any:[network:v2]"
  },
  "any:[ip=10.9.0.0/21 & network:v3]": {
-  "ip": "10.9.0.0/255.255.248.0",
+  "ip": "10.9.0.0/21",
   "is_supernet": 1,
   "owner": "Extern_VPN",
   "zone": "any:[network:v3]"
@@ -1564,21 +1564,21 @@ service:s2 = {
   "owner": "Extern_VPN"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "zone": "any:[network:n1]"
  },
  "network:v1": {
-  "ip": "10.9.1.0/255.255.255.0",
+  "ip": "10.9.1.0/24",
   "owner": "v1",
   "zone": "any:[network:v1]"
  },
  "network:v2": {
-  "ip": "10.9.2.0/255.255.255.0",
+  "ip": "10.9.2.0/24",
   "owner": "Extern_VPN",
   "zone": "any:[network:v2]"
  },
  "network:v3": {
-  "ip": "10.9.3.0/255.255.255.0",
+  "ip": "10.9.3.0/24",
   "owner": "Extern_VPN",
   "zone": "any:[network:v3]"
  }
@@ -2258,7 +2258,7 @@ service:s2 = {
 -- objects
 {
  "any:[network:n1]": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "o",
   "zone": "any:[network:n1]"
@@ -2278,12 +2278,12 @@ service:s2 = {
   "owner": "o"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "o",
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "o",
   "zone": "any:[network:n1]"
  }
@@ -2440,7 +2440,7 @@ service:s3 = {
   "ip": "10.1.1.10",
   "nat": {
    "D1": "10.9.9.10",
-   "D2": "10.9.9.0/255.255.255.192",
+   "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.10"
   }
@@ -2448,8 +2448,8 @@ service:s3 = {
  "host:h2": {
   "ip": "10.1.1.11",
   "nat": {
-   "D1": "10.9.9.0/255.255.255.192",
-   "D2": "10.9.9.0/255.255.255.192",
+   "D1": "10.9.9.0/26",
+   "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.11"
   }
@@ -2458,23 +2458,23 @@ service:s3 = {
   "ip": "10.1.1.1",
   "nat": {
    "D1": "10.9.9.1",
-   "D2": "10.9.9.0/255.255.255.192",
+   "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.1"
   }
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "nat": {
-   "D1": "10.9.9.0/255.255.255.192",
-   "D2": "10.9.9.0/255.255.255.192",
+   "D1": "10.9.9.0/26",
+   "D2": "10.9.9.0/26",
    "H": "hidden",
-   "S": "10.8.8.0/255.255.255.0"
+   "S": "10.8.8.0/24"
   },
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "zone": "any:[network:n2]"
  }
 }
@@ -2534,14 +2534,14 @@ service:s2 = {
   }
  },
  "network:n1": {
-  "ip": "192.168.1.0/255.255.255.0",
+  "ip": "192.168.1.0/24",
   "nat": {
-   "n1": "10.1.1.0/255.255.255.0"
+   "n1": "10.1.1.0/24"
   },
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "zone": "any:[network:n2]"
  }
 }
@@ -2567,10 +2567,10 @@ service:s1 = {
 --objects
 {
  "interface:r1.n1": {
-  "ip": "10.1.1.0/255.255.255.0"
+  "ip": "10.1.1.0/24"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "zone": "any:[network:n2]"
  }
 }
@@ -2641,12 +2641,12 @@ service:s1 = {
   "owner": "all"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "all",
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "all",
   "zone": "any:[network:n2]"
  }
@@ -2723,7 +2723,7 @@ service:s1 = {
   "ip": "10.1.1.10-10.1.1.17"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "zone": "any:[network:n2]"
  }
 }
@@ -2861,12 +2861,12 @@ service:s1 = {
 --objects
 {
  "any:[ip=10.1.3.0/24 & network:n3]": {
-  "ip": "10.1.3.0/255.255.255.0",
+  "ip": "10.1.3.0/24",
   "owner": "all",
   "zone": "any:[network:n3]"
  },
  "any:a1": {
-  "ip": "0.0.0.0/0.0.0.0",
+  "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "a1",
   "zone": "any:a1"
@@ -2883,12 +2883,12 @@ service:s1 = {
   "ip": "10.1.4.1"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "a1",
   "zone": "any:a1"
  },
  "network:n4": {
-  "ip": "10.1.4.0/255.255.255.0",
+  "ip": "10.1.4.0/24",
   "owner": "all",
   "zone": "any:[network:n4]"
  }
@@ -3012,12 +3012,12 @@ service:s1 = {
   "owner": "all"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "all",
   "zone": "any:[network:n1]"
  },
  "network:n2": {
-  "ip": "10.1.2.0/255.255.255.0",
+  "ip": "10.1.2.0/24",
   "owner": "all",
   "zone": "any:[network:n2]"
  }
@@ -3102,7 +3102,7 @@ service:s1 = {
   "owner": "nms"
  },
  "network:n1": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "owner": "all",
   "zone": "any:[network:n1]"
  }
@@ -3964,7 +3964,7 @@ network:n1-super = {
   "owner": "all"
  },
  "network:n1-super": {
-  "ip": "10.1.0.0/255.255.0.0",
+  "ip": "10.1.0.0/16",
   "nat": {
    "hide_b": "hidden"
   },
@@ -3972,7 +3972,7 @@ network:n1-super = {
   "zone": "any:[network:n1b]"
  },
  "network:n1a": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "nat": {
    "hide_a": "hidden"
   },
@@ -3980,7 +3980,7 @@ network:n1-super = {
   "zone": "any:[network:n1a]"
  },
  "network:n1b": {
-  "ip": "10.1.1.0/255.255.255.0",
+  "ip": "10.1.1.0/24",
   "nat": {
    "hide_b": "hidden"
   },
