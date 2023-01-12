@@ -336,11 +336,10 @@ func findVisibility(owners, uowners stringList) string {
 	}
 
 	// No known owner or owner of users.
-	if len(owners) == 0 && len(uowners) == 0 {
-		// Default: private
-	} else if len(DAExtra) == 0 && len(otherExtra) == 0 {
+	if len(DAExtra) == 0 && len(otherExtra) == 0 {
 		// Set of uowners is subset of owners.
-		// Default: private
+		// This also true, if both owners and uoners are empty.
+		// Visibility: private
 	} else if len(otherExtra) <= 2 {
 		// Restricted visibility
 		if len(DAExtra) >= 3 {
