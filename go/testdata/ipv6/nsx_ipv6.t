@@ -833,7 +833,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Without rules
+=TITLE=Without rules but log_deny with tag
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
@@ -846,6 +846,7 @@ router:r1 = {
 router:r1@v1 = {
  model = NSX, T1;
  managed;
+ log_deny = tag:r1@v1;
  interface:n1 = { ip = ::a01:102; hardware = IN; }
  interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
@@ -866,6 +867,7 @@ router:r1@v1 = {
      "direction": "OUT",
      "id": "v6r1",
      "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -879,7 +881,8 @@ router:r1@v1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "r1@v1"
     },
     {
      "action": "DROP",
@@ -889,6 +892,7 @@ router:r1@v1 = {
      "direction": "IN",
      "id": "v6r2",
      "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -902,7 +906,8 @@ router:r1@v1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "r1@v1"
     }
    ]
   }
@@ -912,7 +917,7 @@ router:r1@v1 = {
 =END=
 
 ############################################################
-=TITLE=ICMP and numeric protocol
+=TITLE=ICMP and numeric protocol with mixed logging
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
@@ -925,12 +930,16 @@ router:r1 = {
 router:r1@v1 = {
  model = NSX, T0;
  managed;
+ log_default;
+ log_deny = tag:T0;
+ log:x = tag:x;
  interface:n1 = { ip = ::a01:102; hardware = IN; }
  interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 service:s1 = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = icmpv6 8, icmpv6 5/0, proto 52;
+ permit src = user; dst = network:n2; prt = icmpv6 8, proto 52;
+ permit src = user; dst = network:n2; prt = icmpv6 5/0; log = x;
 }
 =OUTPUT=
 --ipv6/r1
@@ -949,6 +958,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "v6r1",
      "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -972,29 +982,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "v6r2",
      "ip_protocol": "IPV6",
-     "profiles": [
-      "ANY"
-     ],
-     "resource_type": "Rule",
-     "scope": [
-      "/infra/tier-0s/v1"
-     ],
-     "sequence_number": 20,
-     "services": [
-      "/infra/services/Netspoc-icmpv6_5/0"
-     ],
-     "source_groups": [
-      "::a01:100/120"
-     ]
-    },
-    {
-     "action": "ALLOW",
-     "destination_groups": [
-      "::a01:200/120"
-     ],
-     "direction": "OUT",
-     "id": "v6r3",
-     "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -1011,6 +999,31 @@ service:s1 = {
      ]
     },
     {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a01:200/120"
+     ],
+     "direction": "OUT",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-icmpv6_5/0"
+     ],
+     "source_groups": [
+      "::a01:100/120"
+     ],
+     "tag": "x"
+    },
+    {
      "action": "DROP",
      "destination_groups": [
       "ANY"
@@ -1018,6 +1031,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "v6r4",
      "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -1031,7 +1045,8 @@ service:s1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "T0"
     },
     {
      "action": "DROP",
@@ -1041,6 +1056,7 @@ service:s1 = {
      "direction": "IN",
      "id": "v6r5",
      "ip_protocol": "IPV6",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -1054,7 +1070,8 @@ service:s1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "T0"
     }
    ]
   }
