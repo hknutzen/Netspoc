@@ -4460,6 +4460,64 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
+=TITLE=Sort AH rules only
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101;   hardware = n1; }
+ interface:n2 = { ip = ::a01:281; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, tcp 22, proto 50;
+}
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:281
+ permit 50 ::a01:100/120 ::a01:200/120
+ permit tcp ::a01:100/120 ::a01:200/120 eq 80
+ permit tcp ::a01:100/120 ::a01:200/120 eq 22
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Sort ESP rules only
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101;   hardware = n1; }
+ interface:n2 = { ip = ::a01:281; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, proto 51, tcp 22;
+}
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:281
+ permit 51 ::a01:100/120 ::a01:200/120
+ permit tcp ::a01:100/120 ::a01:200/120 eq 80
+ permit tcp ::a01:100/120 ::a01:200/120 eq 22
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=ASA with unencrypted spoke using AH
 =TEMPL=input
 ipsec:aes256SHA = {

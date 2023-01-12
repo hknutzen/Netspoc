@@ -4351,6 +4351,62 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=Sort AH rules only
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1;   hardware = n1; }
+ interface:n2 = { ip = 10.1.2.129; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, tcp 22, proto 50;
+}
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.129
+ permit 50 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Sort ESP rules only
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1;   hardware = n1; }
+ interface:n2 = { ip = 10.1.2.129; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, proto 51, tcp 22;
+}
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.129
+ permit 51 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=ASA with unencrypted spoke using AH
 =TEMPL=input
 ipsec:aes256SHA = {
