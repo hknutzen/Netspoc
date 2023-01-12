@@ -1,7 +1,5 @@
 package pass1
 
-import ()
-
 //#############################################################################
 // Mark rules for secondary filtering.
 // A rule is implemented at a device
@@ -22,29 +20,29 @@ import ()
 // Otherwise a rules is implemented typical.
 //#############################################################################
 
-// Mark security zone zone and additionally mark all security zones
-// which are connected with zone by secondary packet filters.
+// Mark security zone z and additionally mark all security zones
+// which are connected with z by secondary packet filters.
 func markSecondary(z *zone, mark int) {
 	z.secondaryMark = mark
 
-	//	debug("%d %s", mark, z.name);
-	for _, inIntf := range z.interfaces {
-		r := inIntf.router
-		if m := r.managed; m != "" {
-			if m != "secondary" && m != "local" {
-				continue
-			}
-		}
-		z.hasSecondary = true
-		if r.secondaryMark != 0 {
+	//	debug("%d %s", mark, z);
+	for _, in := range z.interfaces {
+		r := in.router
+		managed := r.managed
+		if managed != "" && managed != "secondary" && managed != "local" {
 			continue
 		}
-		r.secondaryMark = mark
-		for _, outIntf := range r.interfaces {
-			if outIntf == inIntf {
+		z.hasSecondary = true
+		if r.activePath {
+			continue
+		}
+		r.activePath = true
+		defer func() { r.activePath = false }()
+		for _, out := range r.interfaces {
+			if out == in {
 				continue
 			}
-			next := outIntf.zone
+			next := out.zone
 			if next.secondaryMark == 0 {
 				markSecondary(next, mark)
 			}
@@ -52,26 +50,27 @@ func markSecondary(z *zone, mark int) {
 	}
 }
 
-// Mark security zone zone with mark and
+// Mark security zone z with mark and
 // additionally mark all security zones
-// which are connected with zone by non-primary packet filters.
+// which are connected with z by non-primary packet filters.
 func markPrimary(z *zone, mark int) {
 	z.primaryMark = mark
-	for _, inIntf := range z.interfaces {
-		r := inIntf.router
+	for _, in := range z.interfaces {
+		r := in.router
 		if r.managed == "primary" {
 			continue
 		}
 		z.hasNonPrimary = true
-		if r.primaryMark != 0 {
+		if r.activePath {
 			continue
 		}
-		r.primaryMark = mark
-		for _, outIntf := range r.interfaces {
-			if outIntf == inIntf {
+		r.activePath = true
+		defer func() { r.activePath = false }()
+		for _, out := range r.interfaces {
+			if out == in {
 				continue
 			}
-			next := outIntf.zone
+			next := out.zone
 			if next.primaryMark == 0 {
 				markPrimary(next, mark)
 			}
@@ -155,7 +154,7 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 
 // Disable secondary optimization for conflicting rules.
 //
-//## Case A:
+// ## Case A:
 // Topology:
 // src--R1--any--R2--dst,
 // with R1 is "managed=secondary"
@@ -169,13 +168,13 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // permit any net:dst telnet
 // permit host:src host:dst http
 // Problem:
-// - src would be able to access dst with telnet, but only http was permitted,
-// - the whole network of src would be able to access dst, even if
-//   only a single host of src was permitted.
-// - src would be able to access the whole network of dst, even if
-//   only a single host of dst was permitted.
+//   - src would be able to access dst with telnet, but only http was permitted,
+//   - the whole network of src would be able to access dst, even if
+//     only a single host of src was permitted.
+//   - src would be able to access the whole network of dst, even if
+//     only a single host of dst was permitted.
 //
-//## Case B:
+// ## Case B:
 // Topology:
 // src--R1--any--R2--dst,
 // with R2 is "managed=secondary"

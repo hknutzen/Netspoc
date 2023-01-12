@@ -305,10 +305,8 @@ type router struct {
 	noInAcl              *routerIntf
 	hardware             []*hardware
 	origRouter           *router
-	primaryMark          int
 	radiusAttributes     map[string]string
 	routingOnly          bool
-	secondaryMark        int
 	trustPoint           string
 	ipvMembers           []*router
 	vrfMembers           []*router
