@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -47,10 +48,7 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
 	for _, n := range c.allNetworks {
-		tags := make(stringList, 0)
-		for tag := range n.nat {
-			tags.push(tag)
-		}
+		tags := maps.Keys(n.nat)
 		sort.Strings(tags)
 		for _, tag := range tags {
 			getTyp := func(natNet *network) string {
@@ -196,13 +194,9 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 
 	for _, n := range c.allNetworks {
 		map1 := n.nat
-		tags := make(stringList, 0)
-		for tag := range map1 {
-			tags.push(tag)
-		}
+		tags := maps.Keys(map1)
 		sort.Strings(tags)
 		//debug("%s nat=%s", n, strings.Join(tags, ","))
-
 	NAT_TAG:
 		for _, tag := range tags {
 			if list := multi[tag]; list != nil {
@@ -979,10 +973,7 @@ func (c *spoc) checkNatCompatibility() {
 			if nat == nil {
 				return
 			}
-			var tags stringList
-			for tag := range obj.nat {
-				tags.push(tag)
-			}
+			tags := maps.Keys(obj.nat)
 			sort.Strings(tags)
 			for _, tag := range tags {
 				objIP := nat[tag]
