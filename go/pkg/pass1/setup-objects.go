@@ -1118,12 +1118,10 @@ func (c *spoc) setupRouter(v *ast.Router) {
 			r.noGroupCode = c.getFlag(a, name)
 		case "no_protect_self":
 			noProtectSelf = c.getFlag(a, name)
-		case "log_deny":
-			modList := c.getLogModifiers(a, name)
-			r.logDeny = c.transformLog(a.Name, modList, r)
 		case "log_default":
-			modList := c.getLogModifiers(a, name)
-			r.logDefault = c.transformLog(a.Name, modList, r)
+			r.logDefault = c.getLogModifiers(a, name)
+		case "log_deny":
+			r.logDeny = c.getLogModifiers(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1298,6 +1296,17 @@ func (c *spoc) setupRouter(v *ast.Router) {
 				"Ignoring attribute 'filter_only' at %s;"+
 					" only valid with 'managed = local'", name)
 			r.filterOnly = nil
+		}
+
+		for name, modList := range r.log {
+			c.symTable.knownLog[name] = true
+			r.log[name] = c.transformLog("log:"+name, modList, r)
+		}
+		if modList := r.logDefault; modList != "" {
+			r.logDefault = c.transformLog("log_default", modList, r)
+		}
+		if modList := r.logDeny; modList != "" {
+			r.logDeny = c.transformLog("log_deny", modList, r)
 		}
 
 		if noProtectSelf && !r.model.needProtect {
@@ -2344,14 +2353,16 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 
 var routerInfo = map[string]*model{
 	"IOS": &model{
-		routing:          "IOS",
-		filter:           "IOS",
-		stateless:        true,
-		statelessSelf:    true,
-		statelessICMP:    true,
-		inversedACLMask:  true,
-		canVRF:           true,
-		logModifiers:     map[string]string{"": "log", "log-input": "log-input"},
+		routing:         "IOS",
+		filter:          "IOS",
+		stateless:       true,
+		statelessSelf:   true,
+		statelessICMP:   true,
+		inversedACLMask: true,
+		canVRF:          true,
+		logModifiers: map[string]string{
+			"<empty>":   "log",
+			"log-input": "log-input"},
 		hasOutACL:        true,
 		needProtect:      true,
 		crypto:           "IOS",
@@ -2369,7 +2380,7 @@ var routerInfo = map[string]*model{
 		inversedACLMask:  true,
 		usePrefix:        true,
 		canVRF:           true,
-		logModifiers:     map[string]string{"": "log"},
+		logModifiers:     map[string]string{"<empty>": "log"},
 		hasOutACL:        true,
 		needProtect:      true,
 		printRouterIntf:  true,
@@ -2380,7 +2391,7 @@ var routerInfo = map[string]*model{
 		routing: "ASA",
 		filter:  "ASA",
 		logModifiers: map[string]string{
-			"":              "log",
+			"<empty>":       "log",
 			"emergencies":   "log 0",
 			"alerts":        "log 1",
 			"critical":      "log 2",
@@ -2422,8 +2433,8 @@ var routerInfo = map[string]*model{
 		routing: "",
 		filter:  "NSX",
 		logModifiers: map[string]string{
-			"":     "logged",
-			"tag:": ":insert",
+			"<empty>": "logged",
+			"tag:":    ":insert",
 		},
 		canObjectgroup:         true,
 		canVRF:                 true,
@@ -3180,7 +3191,7 @@ func (c *spoc) getGeneralPermit(
 
 func (c *spoc) getLogModifiers(a *ast.Attribute, ctx string) string {
 	if emptyAttr(a) {
-		return ""
+		return "<empty>"
 	}
 	return strings.Join(c.getValueList(a, ctx), " ")
 }
@@ -3196,25 +3207,24 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	}
 	name := a.Name[len("log:"):]
 	c.symTable.knownLog[name] = true
-	modList := c.getLogModifiers(a, r.name)
-	m[name] = c.transformLog(a.Name, modList, r)
+	m[name] = c.getLogModifiers(a, r.name)
 	return true
 }
 
 // Check log modifiers and transform to log code.
 func (c *spoc) transformLog(name, modList string, r *router) string {
-	l := strings.Split(modList, " ")
-	if r.model.logModifiers == nil {
+	knownMod := r.model.logModifiers
+	if knownMod == nil {
 		c.err("Must not use attribute '%s' at %s of model %s",
 			name, r.name, r.model.name)
 		return ""
 	}
+	l := strings.Split(modList, " ")
 	if len(l) > 1 && !r.model.canMultiLog {
 		c.err("Must not use multiple values for %s in %s of model %s",
 			name, r.name, r.model.name)
 		return ""
 	}
-	knownMod := r.model.logModifiers
 	for i, mod := range l {
 		k := mod
 		// Check for KEY:VALUE
@@ -3238,23 +3248,13 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 		// Show error message for unknown log tag.
 		what := fmt.Sprintf("'%s = %s' at %s of model %s",
 			name, mod, r.name, r.model.name)
-		if len(knownMod) == 1 && knownMod[""] != "" {
-			c.err("Unexpected %s\n Use '%s;' only.",
-				what, name)
+		if len(knownMod) == 1 && knownMod["<empty>"] != "" {
+			c.err("Unexpected %s\n Use '%s;' only.", what, name)
 			continue
 		}
-		var valid stringList
-		for k := range knownMod {
-			if k == "" {
-				k = "<empty>"
-			}
-			valid.push(k)
-		}
+		valid := maps.Keys(knownMod)
 		sort.Strings(valid)
-		oneOf := ""
-		if !r.model.canMultiLog {
-			oneOf = " one of"
-		}
+		oneOf := cond(r.model.canMultiLog, "", " one of")
 		c.err("Invalid %s\n Expected%s: %s",
 			what, oneOf, strings.Join(valid, "|"))
 	}

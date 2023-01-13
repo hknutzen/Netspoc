@@ -148,7 +148,7 @@ router:r1@v1 = {
 }
 =END=
 =ERROR=
-Error: Invalid 'log:a = ' at router:r1@v1 of model PAN-OS
+Error: Invalid 'log:a = <empty>' at router:r1@v1 of model PAN-OS
  Expected: end|setting:|start
 =END=
 
