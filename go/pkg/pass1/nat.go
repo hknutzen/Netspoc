@@ -139,20 +139,16 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 			if len(multiNatMap) == count {
 				continue
 			}
-			var missing stringList
-			for tag := range union {
-				if multiNatMap[tag] == nil {
-					missing.push(tag)
-				}
-			}
 			for tag1, natNet := range multiNatMap {
 				m := result[tag1]
 				if m == nil {
 					m = make(natTagMap)
 					result[tag1] = m
 				}
-				for _, tag2 := range missing {
-					m[tag2] = natNet
+				for tag2 := range union {
+					if multiNatMap[tag2] == nil {
+						m[tag2] = natNet
+					}
 				}
 			}
 		}
