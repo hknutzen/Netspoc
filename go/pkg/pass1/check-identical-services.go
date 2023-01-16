@@ -81,6 +81,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 		}
 		svcInfo2svcList := make(map[svcInfo][]*service)
 		for svc, riList := range svc2ruleInfoList {
+			// Sort riList, because we use attributes of first element
+			// to build hash key from.
 			sort.Slice(riList, func(i, j int) bool {
 				if riList[i].deny != riList[j].deny {
 					return riList[i].deny
