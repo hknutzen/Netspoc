@@ -40,17 +40,10 @@ func (c *spoc) linkImplicitAggregateToZone(
 
 	// Collect all aggregates, networks and subnets of current zone.
 	// Get aggregates in deterministic order.
-	var objects netList
-	keys := maps.Keys(ipPrefix2aggregate)
-	sort.Slice(keys, func(i, j int) bool {
-		if cmp := keys[i].Addr().Compare(keys[j].Addr()); cmp != 0 {
-			return cmp == -1
-		}
-		return keys[i].Bits() > keys[j].Bits()
+	var objects netList = maps.Values(ipPrefix2aggregate)
+	sort.Slice(objects, func(i, j int) bool {
+		return objects[i].name < objects[j].name
 	})
-	for _, k := range keys {
-		objects.push(ipPrefix2aggregate[k])
-	}
 	processWithSubnetworks(z.networks, func(n *network) {
 		objects.push(n)
 	})
