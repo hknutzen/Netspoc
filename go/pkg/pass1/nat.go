@@ -176,8 +176,8 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 //	NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 //	active at a time. As NAT:A can not be active (n2) and inactive
 //	(n1) in the same NAT domain, this restriction is needed.
-func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][]natTagMap {
-	multi := make(map[string][]natTagMap)
+func (c *spoc) generateMultinatDefLookup(
+	natType map[string]string) map[string][]natTagMap {
 
 	// Check if two natTagMaps contain the same keys. Values can be different.
 	keysEq := func(m1, m2 natTagMap) bool {
@@ -191,16 +191,24 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 		}
 		return true
 	}
+	// Get number of common keys of two natTagMaps.
+	commonKeysCount := func(m1, m2 natTagMap) int {
+		count := 0
+		for tag := range m1 {
+			if m2[tag] != nil {
+				count++
+			}
+		}
+		return count
+	}
 
+	multi := make(map[string][]natTagMap)
 	for _, n := range c.allNetworks {
 		map1 := n.nat
-		tags := maps.Keys(map1)
-		sort.Strings(tags)
-		//debug("%s nat=%s", n, strings.Join(tags, ","))
 	NAT_TAG:
-		for _, tag := range tags {
-			if list := multi[tag]; list != nil {
-
+		for tag := range map1 {
+			list := multi[tag]
+			if list != nil {
 				// Do not add same group twice.
 				if natType[tag] != "hidden" {
 					for _, map2 := range list {
@@ -209,33 +217,25 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 						}
 					}
 				} else {
-
 					// Check for subset relation. Keep superset only.
 					for i, map2 := range list {
-						var common stringList
-						for tag := range map1 {
-							if map2[tag] != nil {
-								common.push(tag)
-							}
-						}
-						if len(common) == len(map1) {
-
-							// Ignore new natTagMap, because it is subset.
+						switch commonKeysCount(map1, map2) {
+						case len(map1):
+							// map1 is subset, ignore.
 							continue NAT_TAG
-						} else if len(common) == len(map2) {
-
-							// Replace previous natTagMap by new superset.
+						case len(map2):
+							// map1 is superset, replace previous entry.
 							list[i] = map1
 							continue NAT_TAG
 						}
 					}
 				}
 			}
-			multi[tag] = append(multi[tag], map1)
+			multi[tag] = append(list, map1)
 		}
 	}
 
-	// Remove entry if nat tag never occurs in multi nat definitions (grouped).
+	// Remove entry if NAT tag never occurs grouped in multi NAT definitions.
 	for tag, list := range multi {
 		if len(list) == 1 && len(list[0]) == 1 {
 			delete(multi, tag)
