@@ -368,14 +368,19 @@ Warning: These services have identical rule definitions.
 [[topo]]
 service:s1 = {
  user = host:h10;
+ permit src = network:n2; dst = user; prt = tcp 80;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 service:s2 = {
  user = host:h11;
+ permit src = user; dst = network:n2; prt = tcp 80;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
-=WARNING=NONE
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
