@@ -4076,6 +4076,50 @@ Error: Must not use network:n1 in rule
 =END=
 
 ############################################################
+=TITLE=Valid NAT for supernet with hidden transient network
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; has_subnets; }
+network:n1a = {
+ ip = ::a01:180/121;
+ nat:n = { hidden; }
+}
+network:n1b = {
+ ip = ::a01:1c0/122;
+ nat:n = { identity; }
+ subnet_of = network:n1a;
+}
+router:u1 = {
+ interface:n1a;
+ interface:n1b;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n; }
+}
+network:n2 = { ip = ::a01:200/120; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1b;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+=OUTPUT=
+-- ipv6/r1
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:201
+ permit tcp ::a01:100/120 ::a01:200/120 eq 80
+ permit tcp ::a01:1c0/122 ::a01:200/120 eq 81
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Identical IP from dynamic NAT is valid as subnet relation
 =PARAMS=--ipv6
 =INPUT=

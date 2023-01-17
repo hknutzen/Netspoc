@@ -3958,6 +3958,49 @@ Error: Must not use network:n1 in rule
 =END=
 
 ############################################################
+=TITLE=Valid NAT for supernet with hidden transient network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_subnets; }
+network:n1a = {
+ ip = 10.1.1.128/25;
+ nat:n = { hidden; }
+}
+network:n1b = {
+ ip = 10.1.1.192/26;
+ nat:n = { identity; }
+ subnet_of = network:n1a;
+}
+router:u1 = {
+ interface:n1a;
+ interface:n1b;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1b;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+=OUTPUT=
+-- r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.192 0.0.0.63 10.1.2.0 0.0.0.255 eq 81
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Identical IP from dynamic NAT is valid as subnet relation
 =INPUT=
 network:n1  = { ip = 10.1.1.0/24; nat:t2 = { ip = 10.9.2.64/26; dynamic; } }
