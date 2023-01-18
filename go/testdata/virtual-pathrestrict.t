@@ -22,7 +22,6 @@ service:test = {
         dst = user;
         prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended e0_in
@@ -71,7 +70,6 @@ service:test = {
         dst = interface:r1.b;
         prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended e0_in
@@ -129,7 +127,6 @@ service:test = {
  user = network:a;
  permit src = user; dst = network:x, network:b; prt = ip;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended E1_in
@@ -240,7 +237,6 @@ service:test = {
  user = network:u;
  permit src = user; dst = network:b; prt = ip;
 }
-=END=
 =OUTPUT=
 --g
 ip route 10.2.2.0 255.255.255.0 10.1.1.2
@@ -292,7 +288,6 @@ service:test = {
         dst = network:b;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended E1_in
@@ -345,7 +340,6 @@ router:r4 = {
 }
 network:b1 = { ip = 10.2.2.0/24; }
 network:b2 = { ip = 10.3.3.0/24; }
-=END=
 =INPUT=
 [[topo]]
 router:g = {
@@ -361,7 +355,6 @@ service:test2 = {
  user = interface:g.a;
  permit src = user; dst = network:b2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Pathrestriction ambiguously affects generation of static routes
        to interfaces with virtual IP 10.1.1.9:
@@ -429,7 +422,6 @@ ip access-list extended E8_in
  deny ip any host 10.3.3.4
  permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
  deny ip any any
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -508,7 +500,6 @@ service:x = {
  user = interface:L.K.virtual, interface:Z.K.virtual;
  permit src = network:M; dst = user; prt = icmp 17;
 }
-=END=
 =OUTPUT=
 --L
 ip access-list extended Ethernet2_in
@@ -562,7 +553,6 @@ service:test = {
         dst = network:c;
         prt = tcp 80;
 }
-=END=
 =TEMPL=router5
 router:r5 = {
  managed;
@@ -570,7 +560,6 @@ router:r5 = {
  interface:a = {ip = 10.1.1.2; hardware = E8;}
  interface:b = {ip = 10.2.2.5; hardware = E9;}
 }
-=END=
 =INPUT=
 [[input]]
 [[router5]]
@@ -685,7 +674,6 @@ service:test = {
         dst = network:x;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input "interface:r3.c,"]]
 =OUTPUT=
 --r1
@@ -748,7 +736,6 @@ pathrestriction:p =
  interface:r1.b,
  interface:r3.c,
 ;
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --r2
@@ -773,7 +760,6 @@ service:test = {
         dst = network:c;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended E1_in
@@ -863,7 +849,6 @@ service:test1 = {
         dst = network:n5;
         prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Ambiguous static routes for network:n5 at interface:r1.n2 via
  - interface:r2.n2.virtual

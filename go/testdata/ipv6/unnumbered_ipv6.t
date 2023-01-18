@@ -9,7 +9,6 @@ network:u = {
  host:h = { ip = ::a01:10a; }
  has_subnets;
 }
-=END=
 =ERROR=
 Error: Unnumbered network:u must not have NAT definition
 Error: Unnumbered network:u must not have attribute 'has_subnets'
@@ -24,7 +23,6 @@ network:u = { unnumbered; }
 router:r1 = {
   interface:u = { unnumbered; virtual = { ip = ::a01:16f; } }
 }
-=END=
 =ERROR=
 Error: No virtual IP supported for unnumbered interface:r1.u
 =END=
@@ -39,7 +37,6 @@ router:r1 = {
  model = IOS;
   interface:u = { unnumbered; hardware = u; routing = OSPF; }
 }
-=END=
 =ERROR=
 Error: Routing 'OSPF' not supported for unnumbered interface:r1.u
 =END=
@@ -54,7 +51,6 @@ network:u = {
 router:r1 = {
   interface:u = { ip = ::a01:101; }
 }
-=END=
 =ERROR=
 Error: interface:r1.u must not be linked to unnumbered network:u
 =END=
@@ -67,7 +63,6 @@ network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
   interface:n1 = { unnumbered; }
 }
-=END=
 =ERROR=
 Error: Unnumbered interface:r1.n1 must not be linked to network:n1
 =END=
@@ -80,7 +75,6 @@ network:u = { unnumbered; }
 router:r1 = { interface:u = { unnumbered; } }
 router:r2 = { interface:u = { unnumbered; } }
 router:r3 = { interface:u = { unnumbered; } }
-=END=
 =ERROR=
 Error: Unnumbered network:u is connected to more than two interfaces:
  - interface:r1.u
@@ -104,7 +98,6 @@ service:test = {
  user = network:n1, interface:r.un;
  permit src = user; dst = network:un; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Ignoring unnumbered interface:r.un in src of rule in service:test
 Warning: Ignoring unnumbered network:un in dst of rule in service:test
@@ -133,14 +126,12 @@ service:test = {
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
-=END=
 =TEMPL=output
 --ipv6/r
 ipv6 access-list eth2_in
  deny ipv6 any host ::a01:721
  permit tcp any ::a01:720/123 eq 80
  deny ipv6 any any
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input clients]]
 =OUTPUT=
@@ -177,7 +168,6 @@ service:Test = {
         dst = user;
         prt = icmpv6 8;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input user]]
 =OUTPUT=
@@ -232,7 +222,6 @@ service:s1 = {
         dst = user;
 	prt = tcp 22;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input ";"]]
 =ERROR=
@@ -281,7 +270,6 @@ service:s1  = {
         dst = network:n1, network:n2;
         prt = tcp 49;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in

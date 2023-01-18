@@ -8,7 +8,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; dhcp_server; }
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -25,7 +24,6 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; dhcp_client; }
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -42,7 +40,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = OSPF; }
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -61,7 +58,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = EIGRP; }
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -79,7 +75,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = RIPv2; }
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -113,7 +108,6 @@ router:R2 = {
  }
  interface:V = { ip = 10.2.2.2; hardware = e1;}
 }
-=END=
 =OUTPUT=
 --R1
 ip access-list extended e0_in
@@ -152,7 +146,6 @@ router:R = {
   hardware = e0;
  }
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in

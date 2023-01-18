@@ -11,7 +11,6 @@ network:n1 = {
 router:r1 = {
  interface:n1 = { ip = ::a01:203; }
 }
-=END=
 =ERROR=
 Error: Invalid CIDR address: ::a01:100/154 in 'ip' of network:n1
 =END=
@@ -24,7 +23,6 @@ network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  interface:n1 = { ip = ::a01:203.4.5; }
 }
-=END=
 =ERROR=
 Error: Invalid IP address in 'ip' of interface:r1.n1
 =END=
@@ -37,7 +35,6 @@ network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  interface:n1 = { ip = ::a01:203; }
 }
-=END=
 =ERROR=
 Error: interface:r1.n1's IP doesn't match network:n1's IP/mask
 =END=
@@ -51,7 +48,6 @@ network:n1 = {
  host:h1 = { ip = ::a01:203; }
  host:r1 = { range = ::a01:103-::a01:11d; }
 }
-=END=
 =ERROR=
 Error: IP of host:h1 doesn't match IP/mask of network:n1
 Error: IP range of host:r1 doesn't match IP/mask of network:n1
@@ -66,7 +62,6 @@ network:n1 = {
  host:r2 = { range = ::a01:101-::a01:103-::a01:105; }
  host:r3 = { range = ::a01:102; }
 }
-=END=
 =ERROR=
 Error: Invalid IP range in host:r2
 Error: Invalid IP range in host:r3
@@ -80,7 +75,6 @@ network:n1 = {
  ip = ::a01:100/124;
  host:r1 = { range = ::a01:109-::a01:103; }
 }
-=END=
 =ERROR=
 Error: Invalid IP range in host:r1
 =END=
@@ -114,7 +108,6 @@ service:s2 = {
  user = host:r1;
  permit src = user; dst = interface:r2.t1; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Use network:n1 instead of host:r1
  because both have identical address
@@ -136,7 +129,6 @@ network:n1 = {
 router:r1 = {
  interface:n1 = { ip = ::a01:10b; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r1.n1 and host:r1
 Error: Duplicate IP address for interface:r1.n1 and host:r2
@@ -191,7 +183,6 @@ service:s1 = {
  user = host:r1, host:r2;
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =WARNING=
 Warning: host:r2 and host:r1 overlap in src of service:s1
 =END=
@@ -209,7 +200,6 @@ router:r1 = {
  interface:n2;
 }
 network:n2 = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's IP/mask
 =END=
@@ -227,7 +217,6 @@ router:r1 = {
  interface:n2;
 }
 network:n2 = { unnumbered; }
-=END=
 =ERROR=
 Error: Unnumbered network:n2 must not be referenced from attribute 'subnet_of'
  of network:n1
@@ -257,7 +246,6 @@ network:n3 = {
  host:h3 = { range = ::a01:11e-::a01:132; }
  host:h4 = { range = ::a01:123-::a01:12d; }
 }
-=END=
 =WARNING=
 Warning: IP of interface:r1.n3 overlaps with subnet network:n1
 Warning: IP of host:h1 overlaps with subnet network:n1
@@ -274,7 +262,6 @@ network:n1 = {
  ip = ::a01:100/120;
  subnet_of = network:n2;
 }
-=END=
 =WARNING=
 Warning: Referencing undefined network:n2 in 'subnet_of' of network:n1
 =END=

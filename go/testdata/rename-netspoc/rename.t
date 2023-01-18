@@ -114,7 +114,6 @@ pathrestriction:P = interface:r1.Test, interface:r2.Test;
 router:r = {
  interface:Test = { reroute_permit = network:Test; }
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
@@ -146,7 +145,6 @@ router:r = {
   reroute_permit = network:Toast;
  }
 }
-=END=
 =PARAMS=network:Test network:Toast
 
 ############################################################
@@ -159,7 +157,6 @@ group:b = network:Test;
 =WARNING=
 Changed a
 Changed b
-=END=
 =OPTIONS=--quiet=0
 =PARAMS=network:Test network:Toast
 
@@ -178,7 +175,6 @@ group:G = interface:r.Test,
     network:Test/b,
     interface:r.Test/b,
     ;
-=END=
 =OUTPUT=
 network:Toast/a = { ip = 10.9.1.0/24; }
 network:Toast/b = { ip = 10.9.1.0/24; }
@@ -193,7 +189,6 @@ group:G =
  interface:r.Toast,
  interface:r.Toast/b,
 ;
-=END=
 =PARAMS=network:Test network:Toast
 
 ############################################################
@@ -204,14 +199,12 @@ group:G =
     host:id:h@dom.top.top,
     host:id:dom.top.Test,
     ;
-=END=
 =OUTPUT=
 group:G =
  host:id:a.b.c.Test,
  host:id:xx@yy.zz.Test,
  host:id:xx@yy.zz.top,
 ;
-=END=
 =PARAMS=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
 
 ############################################################
@@ -221,13 +214,11 @@ group:G =
     host:id:h@dom.top.Test,
     host:id:h@dom.top.top,
     ;
-=END=
 =OUTPUT=
 group:G =
  host:id:xx@yy.zz.Toast,
  host:id:xx@yy.zz.top,
 ;
-=END=
 =PARAMS=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
 
 ############################################################
@@ -238,7 +229,6 @@ group:G = interface:r.Test,
     host:id:h@dom.top.Test,
     network:Test,
     ;
-=END=
 =OUTPUT=
 network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
 group:G =
@@ -246,7 +236,6 @@ group:G =
  interface:r.1_2_3_0_Test,
  host:id:h@dom.top.1_2_3_0_Test,
 ;
-=END=
 =PARAMS=network:Test network:1_2_3_0_Test
 
 ############################################################
@@ -255,7 +244,6 @@ group:G =
 router:R = { interface:NN = { ip = 10.9.1.1; } }
 network:NN = { ip = 10.9.1.0/24; }
 group:g = interface:R.NN;
-=END=
 =TEMPL=output
 router:RR = {
  interface:N = { ip = 10.9.1.1; }
@@ -264,7 +252,6 @@ network:N = { ip = 10.9.1.0/24; }
 group:g =
  interface:RR.N,
 ;
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[output]]
@@ -285,7 +272,6 @@ router:R@vrf = { interface:n = { ip = 10.9.1.2; } }
 group:G =
 interface:R.n,
 interface:R@vrf.n;
-=END=
 =OUTPUT=
 router:RR = {
  interface:n = { ip = 10.9.1.1; }
@@ -297,7 +283,6 @@ group:G =
  interface:r@vrf.n,
  interface:RR.n,
 ;
-=END=
 =PARAMS=router:R router:RR router:R@vrf router:r@vrf
 
 ############################################################
@@ -308,7 +293,6 @@ group:g =
  interface:[managed & network:n1].[all],
  group:g2 &! host:[network:n1],
 ;
-=END=
 =OUTPUT=
 group:g =
  group:g2
@@ -317,7 +301,6 @@ group:g =
  any:[ip = 10.99.0.0/16 & network:NN],
  interface:[managed & network:NN].[all],
 ;
-=END=
 =PARAMS=network:n1 network:NN
 
 ############################################################
@@ -335,7 +318,6 @@ interface:n4 = {bind_nat
 = NAT-1;
 }
 }
-=END=
 =OUTPUT=
 network:N = {
  ip = 1.2.3.0/24;
@@ -359,7 +341,6 @@ router:r = {
   bind_nat = NAT-2;
  }
 }
-=END=
 =PARAMS=nat:NAT-1 nat:NAT-2
 
 ############################################################
@@ -401,7 +382,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:x1 = {
  identical_body = service:x3;
@@ -414,7 +394,6 @@ service:x1 = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =PARAMS=service:s1 service:x1 service:s3 service:x3
 
 ############################################################
@@ -425,7 +404,6 @@ router:r2 = { interface:Loopback_4 = { ip = 10.9.1.2; loopback; } }
 group:G = interface:r1.Loopback_4,
           interface:r2.Loopback_4,
     ;
-=END=
 =OUTPUT=
 router:r1 = {
  interface:Loopback = { ip = 10.9.1.1; loopback; }
@@ -437,7 +415,6 @@ group:G =
  interface:r1.Loopback,
  interface:r2.Loopback,
 ;
-=END=
 =PARAMS=network:Loopback_4 network:Loopback
 
 ############################################################
@@ -448,7 +425,6 @@ owner:Wittmuess = { admins = a@b.c; }
 network:n1 = {
  owner = Maaß, Wittmuess;
 }
-=END=
 =OUTPUT=
 owner:Maass = {
  admins = a@b.c;
@@ -457,7 +433,6 @@ owner:Wittmüß = {
  admins = a@b.c;
 }
 network:n1 = { owner = Maass, Wittmüß; }
-=END=
 =PARAMS=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
 
 ############################################################
@@ -477,7 +452,6 @@ group:g =
  host:abc,
  network:net,
 ;
-=END=
 =OUTPUT=
 router:r = {
  interface:xxxx = {
@@ -499,7 +473,6 @@ group:g =
  network:xxxx,
  host:a1,
 ;
-=END=
 =FOPTION=
 host:abc host:a1
 owner:foo owner:büro
@@ -514,7 +487,6 @@ network:net network:xxxx
 =INPUT=#
 =ERROR=
 Error: open missing.file: no such file or directory
-=END=
 =OPTIONS=-f missing.file
 
 ############################################################

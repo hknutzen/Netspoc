@@ -44,7 +44,6 @@ group:G = interface:r.Test, # comment
     network:Test,
 host:x, network:Test, host:y,
     ;
-=END=
 =OUTPUT=
 ################# Comment in first line must not be appended to added item.
 network:Test = { ip = 10.9.1.0/24; }
@@ -58,7 +57,6 @@ group:G =
  host:x,
  host:y,
 ;
-=END=
 =PARAMS=network:Test host:Toast
 
 ############################################################
@@ -68,14 +66,12 @@ group:abc =
  any:[ ip = 10.1.0.0/16 & network:def ],
  host:xyz,
 ;
-=END=
 =OUTPUT=
 group:abc =
  any:[ip = 10.1.0.0/16 & network:def],
  host:h,
  host:xyz,
 ;
-=END=
 =PARAMS=host:xyz host:h
 
 ############################################################
@@ -85,14 +81,12 @@ group:abc =
  interface:r1@vrf.[auto],
  network:xyz,
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:xyz,
  interface:r1@vrf.[auto],
  host:h,
 ;
-=END=
 =PARAMS=interface:r1@vrf.[auto] host:h
 
 ############################################################
@@ -102,14 +96,12 @@ group:abc =
  host:h,
  network:xyz,
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:xyz,
  interface:r1@vrf.[auto],
  host:h,
 ;
-=END=
 =PARAMS=host:h interface:r1@vrf.[auto]
 
 ############################################################
@@ -119,7 +111,6 @@ group:abc =
  group:g &! host:xyz,
  network:def,
 ;
-=END=
 =OUTPUT=
 group:abc =
  group:g
@@ -128,7 +119,6 @@ group:abc =
  network:def,
  network:n,
 ;
-=END=
 =PARAMS=network:def network:n
 
 ############################################################
@@ -141,7 +131,6 @@ group:abc =
 =TITLE=Group with intersection
 =INPUT=
 group:g3 = group:g1, group:g2 &! network:n2;
-=END=
 =OUTPUT=
 group:g3 =
  group:g1,
@@ -150,7 +139,6 @@ group:g3 =
  ,
  group:g3,
 ;
-=END=
 =PARAMS=group:g1 group:g3
 
 ############################################################
@@ -160,7 +148,6 @@ group:abc =
  any:[ ip = 10.1.0.0/16 & network:n1, network:n2,
        network:n3, ],
 ;
-=END=
 =OUTPUT=
 group:abc =
  any:[ip = 10.1.0.0/16 &
@@ -171,7 +158,6 @@ group:abc =
   network:n4,
  ],
 ;
-=END=
 =PARAMS=network:n1 network:n1a network:n3 network:n4
 
 ############################################################
@@ -180,7 +166,6 @@ group:abc =
 group:abc =
  network:[area:a1],
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:[
@@ -188,7 +173,6 @@ group:abc =
   area:a2,
  ],
 ;
-=END=
 =PARAMS=area:a1 area:a2
 
 ############################################################
@@ -197,7 +181,6 @@ group:abc =
 group:abc =
  interface:[network:n1].[all],
 ;
-=END=
 =OUTPUT=
 group:abc =
  interface:[
@@ -205,7 +188,6 @@ group:abc =
   network:n2,
  ].[all],
 ;
-=END=
 =PARAMS=network:n1 network:n2
 
 ############################################################
@@ -224,7 +206,6 @@ pathrestriction:p =
 area:a = {
  border = interface:r.x;
 }
-=END=
 =OUTPUT=
 service:x = {
  user = interface:r.x,
@@ -249,7 +230,6 @@ pathrestriction:p =
 area:a = {
  border = interface:r.x;
 }
-=END=
 =PARAMS=interface:r.x host:y any:x group:y
 
 ############################################################
@@ -263,7 +243,6 @@ group:x =
   host:e ###
   , host:f,
   host:g;
-=END=
 =OUTPUT=
 group:x =
  host:a,
@@ -280,7 +259,6 @@ group:x =
  host:g,
  host:g1,
 ;
-=END=
 =PARAMS=host:a host:a1 host:b host:b1 host:d host:d1 host:e host:e1 host:f host:f1 host:g host:g1
 
 ############################################################
@@ -288,13 +266,11 @@ group:x =
 =INPUT=
 group:g-1 = host:a,
           ;
-=END=
 =OUTPUT=
 group:g-1 =
  host:a,
  host:a1,
 ;
-=END=
 =PARAMS=host:a host:a1
 
 ############################################################
@@ -305,7 +281,6 @@ group:g =
  host:a,
  host:b,
 ;
-=END=
 =PARAMS=host:a host:b
 
 ############################################################
@@ -318,7 +293,6 @@ group:g =
 =TITLE=Find and change umlauts
 =INPUT=
 group:BÖSE = host:Müß, host:Mass;
-=END=
 =OUTPUT=
 group:BÖSE =
  host:Mass,
@@ -326,7 +300,6 @@ group:BÖSE =
  host:Muess,
  host:Müß,
 ;
-=END=
 =PARAMS=host:Müß host:Muess host:Mass host:Maß
 
 ############################################################
@@ -336,7 +309,6 @@ group:g =
 interface:r.n, interface:r.n.sec,
 any:aaa, network:xyz,
 host:abc;
-=END=
 =OUTPUT=
 group:g =
  group:bbb,
@@ -349,7 +321,6 @@ group:g =
  host:abc,
  host:id:xyz@dom,
 ;
-=END=
 =FOPTION=
 host:abc network:abx
 network:xyz host:id:xyz@dom
@@ -372,7 +343,6 @@ service:s = {
  user = group:g;
  permit src = user; dst = host:x; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s = {
  user = group:g,
@@ -383,57 +353,46 @@ service:s = {
         dst = host:x;
         prt = tcp 80;
 }
-=END=
 =PARAMS=group:g host:a group:g host:b
 
 ############################################################
 =TITLE=Incomplete pair
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Missing 2nd. element for 'host:a'
-=END=
 =PARAMS=host:a
 
 ############################################################
 =TITLE=Invalid type (1)
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of command line, near "--HERE-->name1"
-=END=
 =PARAMS=name1 name2
 
 ############################################################
 =TITLE=Invalid type (2)
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
-=END=
 =PARAMS=host:a name2
 
 ############################################################
 =TITLE=Invalid type (3)
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
-=END=
 =PARAMS=service:b host:a
 
 ############################################################
 =TITLE=Invalid type (4)
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
-=END=
 =PARAMS= host:a service:b
 
 ############################################################
@@ -442,10 +401,8 @@ Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
 group:g1 =
  any:[ip=10.1.1.0/24&network:n1],
 ;
-=END=
 =ERROR=
 Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
-=END=
 =PARAMS=any:[ip=10.1.1.0/24&network:n1] network:n2
 
 ############################################################

@@ -34,7 +34,6 @@ router:r = {
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Duplicate attribute 'nat:n' in network:n1
 Error: Duplicate attribute 'nat:n' in host:h1
@@ -56,7 +55,6 @@ router:r = {
  interface:n2 = { bind_nat = n; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Hidden NAT must not use other attributes in nat:n of network:n1
 Error: Identity NAT must not use other attributes in nat:n of network:n1
@@ -75,7 +73,6 @@ router:r = {
  interface:n2 = { bind_nat = n; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
@@ -93,7 +90,6 @@ router:r = {
  interface:n2 = { bind_nat = n; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: No NAT supported for interface:r.n1 without IP
 =END=
@@ -119,7 +115,6 @@ network:n1b = {
  ip = ::a01:100/120;
  nat:t2 = { ip = ::a09:200/120; }
 }
-=END=
 =ERROR=
 Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
 =END=
@@ -134,7 +129,6 @@ router:r = {
  interface:n2;
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: network:n1 is translated by nat:x,
  but is located inside the translation domain of x.
@@ -167,7 +161,6 @@ service:test = {
  permit src = host:H; dst = user;         prt = tcp 80;
  permit src = user;   dst = network:Test; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ! inside_in
@@ -206,7 +199,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n2_in
@@ -239,7 +231,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: IP of interface:r1.n2 overlaps with subnet network:n1 in nat_domain:[network:n2]
 =END=
@@ -268,7 +259,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n2_in
@@ -504,7 +494,6 @@ router:r1 = {
  interface:l = { ip = ::a01:909; loopback; hardware = l; }
  interface:n1sub = { ip = ::a01:17e; bind_nat = n1;  hardware = n1sub; }
 }
-=END=
 =WARNING=
 Warning: IP of host:h65 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
 Warning: IP of host:h66 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
@@ -524,7 +513,6 @@ router:filter = {
  interface:X = { ip = ::a08:301; hardware = outside; bind_nat = C; }
 }
 network:X = { ip = ::a08:300/120; }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {ip: "::a08:3f0/124", sub: ""}]]
 =WARNING=
@@ -582,7 +570,6 @@ router:r3 = {
 }
 network:n2 = { ip = ::a01:100/120; nat:h2 = { hidden; } }
 network:n2sub = { ip = ::a01:140/122; }
-=END=
 =WARNING=
 Warning: network:n1sub is subnet of network:n1
  in nat_domain:[network:t1].
@@ -624,7 +611,6 @@ service:s2 = {
     user = network:n1;
     permit src = network:n2; dst = user; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 -- ipv6/asa1
 ! n2_in
@@ -680,7 +666,6 @@ router:r = {
  interface:n1c = { ip = ::a00:181; hardware = n1; }
  interface:n2 = { ip = ::a00:201; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: interface:r.n1a and interface:r.n1b using identical 'hardware = n1'
  must also use identical NAT binding
@@ -703,7 +688,6 @@ router:filter = {
  interface:X = { ip = ::a08:301; hardware = outside; bind_nat = D, E/F, D; }
 }
 network:X = { ip = ::a08:300/120; }
-=END=
 =WARNING=
 Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
@@ -730,7 +714,6 @@ router:r3 = {
  interface:n3 = { bind_nat = h; }
  interface:n1;
 }
-=END=
 =WARNING=
 Warning: Ignoring useless nat:i bound at interface:r1.n2
 Warning: Ignoring useless nat:h bound at interface:r2.n3
@@ -747,7 +730,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Mask for non dynamic nat:x must be equal to mask of network:n1
 =END=
@@ -766,7 +748,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: nat:x: IP of host:h1 doesn't match IP/mask of network:n1
 Error: nat:x: IP of interface:r1.n1 doesn't match IP/mask of network:n1
@@ -786,7 +767,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =WARNING=
 Warning: Ignoring nat:x at host:h1 because network:n1 has static NAT definition
 Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT definition
@@ -806,7 +786,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Expecting exactly one attribute 'ip' in nat:x of host:h1
 =END=
@@ -825,7 +804,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: No NAT supported for host:h1 with 'range'
 =END=
@@ -846,7 +824,6 @@ router:r1 = {
  interface:n2 = { bind_nat = d; }
 }
 network:n2 = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Inconsistent NAT definition for host:h1 and host:h2
 Error: Inconsistent NAT definition for host:h3 and host:h1
@@ -876,7 +853,6 @@ service:s = {
  user = interface:r1.[all];
  permit src = user; dst = network:n2; prt = udp 123;
 }
-=END=
 =ERROR=
 Error: interface:r1.n1.2 needs static translation for nat:x at router:filter to be valid in rule
  permit src=interface:r1.n1.2; dst=network:n2; prt=udp 123; of service:s
@@ -892,7 +868,6 @@ router:r1 = {
  interface:n2 = { bind_nat = x; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =WARNING=
 Warning: Ignoring nat:x without effect, bound at every interface of router:r1
 =END=
@@ -912,7 +887,6 @@ router:r1 = {
  interface:n3 = { bind_nat = n1, n2; }
 }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =WARNING=
 Warning: Ignoring nat:n1 without effect, bound at every interface of router:r1
 =END=
@@ -949,7 +923,6 @@ service:s1 = {
  permit src = user;    dst = host:h3, host:h5; prt = tcp 80;
  permit src = host:h4; dst = user;             prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input managed;]]
 =ERROR=
@@ -1041,7 +1014,6 @@ service:s1 = {
  permit src = host:h33; dst = user;         prt = tcp 80;
  permit src = host:h34; dst = user;         prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/S
 ! inside_in
@@ -1087,7 +1059,6 @@ service:test = {
  user = network:a;
  permit src = user; dst = host:b10; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ ACL ]
@@ -1142,7 +1113,6 @@ service:s1 = {
  user = network:a, network:c;
  permit src = user; dst = host:b10; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list a_in
@@ -1215,7 +1185,6 @@ service:s2 = {
  user = network:d;
  permit src = user; dst = network:c; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list a_in
@@ -1266,7 +1235,6 @@ service:n1 = {
  user = host:h1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1316,7 +1284,6 @@ service:n1 = {
  user = host:h1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1369,7 +1336,6 @@ service:n1 = {
  user = host:h1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1420,7 +1386,6 @@ service:n1 = {
  user = host:h1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input ""]]
 =OUTPUT=
@@ -1475,7 +1440,6 @@ service:s1 = {
  user = network:n1sub;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r3
 ! [ Routing ]
@@ -1527,7 +1491,6 @@ service:test = {
  user = network:a1, network:a2, network:b1, network:b2;
  permit src = network:X; dst = user; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=
 [[input
@@ -1616,7 +1579,6 @@ service:s1 = {
 # inherit from network:n, ::b09:100/120
  permit src = user; dst = network:t1; prt = tcp 85;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list X_in
@@ -1663,7 +1625,6 @@ service:n1 = {
  user = network:n0, network:n1;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n2_in
@@ -1698,7 +1659,6 @@ router:filter = {
  interface:y = { ip = ::a08:301; hardware = outside; bind_nat = C; }
 }
 network:y = { ip = ::a08:300/120; }
-=END=
 =WARNING=
 Warning: Useless nat:C of any:x,
  it was already inherited from area:x
@@ -1746,7 +1706,6 @@ router:r2 = {
  interface:n3 = { ip = ::a01:301; hardware = n3; bind_nat = n; }
 }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =WARNING=
 Warning: Useless nat:n of network:n2,
  it was already inherited from area:a12
@@ -1790,7 +1749,6 @@ router:r1 = {
  interface:n4 = { ip = ::a01:401; hardware = n4; }
  interface:n5 = { ip = ::a01:501; hardware = n5; bind_nat = n; }
 }
-=END=
 =WARNING=
 Warning: Useless nat:n of any:n1,
  it was already inherited from area:a1
@@ -1827,7 +1785,6 @@ router:r1 = {
  interface:n3 = { ip = ::a01:301; hardware = n3; bind_nat = h2; }
  interface:n4 = { ip = ::a01:401; hardware = n4; bind_nat = h1; }
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1848,7 +1805,6 @@ router:r2 = {
  interface:n2= { ip = ::a02:202; }
  interface:n3 = { bind_nat = h; }
 }
-=END=
 =WARNING=
 Warning: Useless nat:h of network:n1,
  it was already inherited from any:n2
@@ -1871,7 +1827,6 @@ router:r2 = {
  interface:n2= { ip = ::a01:102; }
  interface:n3 = { bind_nat = h; }
 }
-=END=
 =WARNING=
 Warning: Useless nat:h of network:n2,
  it was already inherited from network:n1
@@ -1895,7 +1850,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =WARNING=
 Warning: Useless identity nat:n of network:n1
 =END=
@@ -1933,7 +1887,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2a; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -1985,7 +1938,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2a; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -2016,7 +1968,6 @@ router:r2 = {
 }
 network:n2a = { ip = f000::ac12:200/120; }
 area:a2 = { border = interface:r1.n2; nat:a2 = { ip = f000::c0a8:0/112; } }
-=END=
 =ERROR=
 Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical IP/mask
  in nat_domain:[network:n1]
@@ -2035,7 +1986,6 @@ router:r1 = {
 }
 network:n2 = { ip = f000::ac11:200/120; }
 area:a2 = { border = interface:r1.n2; nat:a2 = { ip = f000::c0a8:180/121; } }
-=END=
 =ERROR=
 Error: Must not inherit nat:a2 of area:a2 at network:n2
  because NAT network must be larger than translated network
@@ -2065,7 +2015,6 @@ service:s = {
  user = interface:asa1.n2;
  permit src = host:h3; dst = user; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: interface:asa1.n2 needs static translation for nat:dyn at router:asa2 to be valid in rule
  permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
@@ -2092,7 +2041,6 @@ service:test = {
  user = interface:r2.b;
  permit src = user; dst = network:a; prt = udp 445;
 }
-=END=
 =ERROR=
 Error: interface:r2.b needs static translation for nat:b at router:r1 to be valid in reversed rule for
  permit src=interface:r2.b; dst=network:a; prt=udp 445; of service:test
@@ -2197,7 +2145,6 @@ service:s4 = {
  user = host:h14;
  permit src = user; dst = host:h44; prt = tcp 84;
 }
-=END=
 =ERROR=
 Error: host:h13 needs static translation for nat:n1 at router:r2 to be valid in rule
  permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s2
@@ -2234,7 +2181,6 @@ service:test = {
  user = network:a;
  permit src = user; dst = interface:r2.b; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: interface:r2.b needs static translation for nat:b at router:r2 to be valid in rule
  permit src=network:a; dst=interface:r2.b; prt=tcp 80; of service:test
@@ -2294,7 +2240,6 @@ router:r2 =  {
  interface:k = { ip = ::a02:202; hardware = k; bind_nat = t2; }
 }
 network:k = { ip = ::a02:200/120; }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input nat:t1]]
 =ERROR=
@@ -2358,7 +2303,6 @@ router:r2 =  {
 }
 network:k1 = { ip = ::a02:100/120; }
 network:k2 = { ip = ::a02:200/120; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2397,7 +2341,6 @@ router:r2 =  {
 }
 network:k1 = { ip = ::a02:100/120; }
 network:k2 = { ip = ::a02:200/120; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2440,7 +2383,6 @@ network:k1 = { ip = ::a02:300/120; }
 # h2 active
 # t1 ambiguous: still active for n2, no longer active for n1
 network:k2 = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:h1 at router:r2.
  Reason: Both NAT tags are used grouped at network:n1
@@ -2493,7 +2435,6 @@ router:r3 = {
  interface:k = { bind_nat = h; }
 }
 network:k = { ip = ::a02:300/120; }
-=END=
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
  Reason: Both NAT tags are used grouped at network:n3
@@ -2528,7 +2469,6 @@ router:r22 = {
  interface:b = { bind_nat = a1; }
 }
 network:b = {ip = ::a09:900/120;}
-=END=
 =ERROR=
 Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
  - interface:r12.b
@@ -2568,7 +2508,6 @@ router:r22 = {
  interface:b = { bind_nat = a1; }
 }
 network:b = {ip = ::a09:900/120;}
-=END=
 =ERROR=
 Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
  - interface:r1.n0
@@ -2647,7 +2586,6 @@ router:r2 = {
  interface:n2 = { bind_nat = n; }
 }
 network:n2 = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = n' at
  - interface:r1.tr
@@ -2676,7 +2614,6 @@ router:R2 = {
  interface:K = { ip = ::a02:201; hardware = K; bind_nat = t2; }
 }
 network:K = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Must not change dynamic nat:t1 to static using nat:t2
  for network:U1 at router:R2
@@ -2703,7 +2640,6 @@ router:R2 = {
  interface:K = { ip = ::a02:201; hardware = K; bind_nat = t2; }
 }
 network:K = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Must not change hidden nat:t1 using nat:t2
  for network:U1 at router:R2
@@ -2730,7 +2666,6 @@ router:R2 = {
  interface:K = { ip = ::a02:201; hardware = K; bind_nat = t2; }
 }
 network:K = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Must not change hidden nat:t1 using nat:t2
  for network:U1 at router:R2
@@ -2769,7 +2704,6 @@ network:n4 = {
  nat:h = { hidden; }
  nat:F = { ip = ::a02:400/120; }
 }
-=END=
 =ERROR=
 Error: Must not change hidden nat:h using nat:F
  for network:n4 at router:r1
@@ -2797,7 +2731,6 @@ service:test = {
  user =	network:n1;
  permit src = user; dst = network:n2; prt = proto 50;
 }
-=END=
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=proto 50; of service:test
@@ -2835,7 +2768,6 @@ service:test = {
  user =	network:n1;
  permit src = user; dst = any:10_1; prt = proto 50;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ Routing ]
@@ -2871,7 +2803,6 @@ service:test = {
  user =	network:n1;
  permit src = user; dst = any:10_1; prt = proto 50;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! outside_in
@@ -2915,7 +2846,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -2970,7 +2900,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {h: hidden;, r1: managed;, r3: managed;}]]
 =ERROR=
@@ -3069,7 +2998,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 81;
 }
-=END=
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n3; prt=tcp 81; of service:s2
@@ -3124,7 +3052,6 @@ service:s3 = {
  user = network:n3;
  permit src = user; dst = network:n1; prt = tcp 83;
 }
-=END=
 =ERROR=
 Error: Must not apply dynamic NAT 'd' to dst of rule
  permit src=network:n3; dst=network:n1; prt=tcp 83; of service:s3
@@ -3151,7 +3078,6 @@ router:r2 = {
  interface:b;
 }
 network:b = {ip = ::a9c:5a0/124;}
-=END=
 =ERROR=
 Error: Inconsistent NAT in loop at router:r1:
  nat:(none) vs. nat:h
@@ -3179,7 +3105,6 @@ router:r3 = {
  interface:n3;
  interface:n4 = { bind_nat = x; }
 }
-=END=
 =ERROR=
 Error: Inconsistent NAT in loop at router:r2:
  nat:(none) vs. nat:x
@@ -3205,7 +3130,6 @@ router:r2 = {
  interface:t2 = { bind_nat = n2; }
 }
 network:t2 = { ip = ::a07:200/120; }
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = n1' at
  - interface:r1.t1
@@ -3237,7 +3161,6 @@ router:r3 = {
  interface:t3 = { bind_nat = n2; }
 }
 network:t3 = { ip = ::a07:300/120; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3289,7 +3212,6 @@ router:r7 = {
  interface:n4 = { bind_nat = n2; }
  interface:n5;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {b: "bind_nat = n5;", n: n5}]]
 =WARNING=NONE
@@ -3369,7 +3291,6 @@ router:r6 = {
  interface:n4 = { bind_nat = n2; }
  interface:n5;
 }
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = n5' at
  - interface:r1.n1
@@ -3424,7 +3345,6 @@ router:r7 = {
  interface:n1;
  interface:n6 = { bind_nat = n1b; }
 }
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = n1a' at
  - interface:r1.n2
@@ -3482,7 +3402,6 @@ router:r7 = {
  interface:n6 = { bind_nat = n5; }
  interface:n8 = { bind_nat = n7; }
 }
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = n0' at
  - interface:r1.n1
@@ -3524,7 +3443,6 @@ router:r3 = {
  interface:n3 = { ip = ::a01:301; hardware = n3; }
 }
 pathrestriction:p1 = interface:r2.n2, interface:r3.n3;
-=END=
 =ERROR=
 Error: Incomplete 'bind_nat = hx' at
  - interface:r2.n1
@@ -3557,7 +3475,6 @@ service:test = {
  permit src = user;           dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user;           prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/filter
 ! inside_in
@@ -3591,7 +3508,6 @@ service:test = {
  permit src = network:n1; dst = user; prt = tcp 80;
  permit src = user; dst = network:n1; prt = tcp 25;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -3647,7 +3563,6 @@ service:test = {
  permit src = user; dst = network:n4; prt = tcp 25;
  permit src = network:n4; dst = user; prt = tcp 80;
  }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n2_in
@@ -3733,7 +3648,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = network:n1; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -3789,7 +3703,6 @@ service:test = {
  permit src = network:extern; dst = user; prt = tcp 80;
  permit src = user; dst = network:extern; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -3854,7 +3767,6 @@ service:test = {
  permit src = user; dst = network:n1, network:n2; prt = tcp 80;
  permit src = network:n1, network:n2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -3915,7 +3827,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = host:h2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -3947,7 +3858,6 @@ service:s1 = {
     user = interface:r1.lo;
     permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input "::a01:6363"]]
 =OUTPUT=
@@ -3990,7 +3900,6 @@ service:s1 = {
     user = interface:r1.lo;
     permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: interface:r1.lo is hidden by nat:N in rule
  permit src=network:n2; dst=interface:r1.lo; prt=tcp 80; of service:s1
@@ -4013,7 +3922,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = N, N2; }
 }
 network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:20a; } }
-=END=
 =ERROR=
 Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
  - interface:r1.n2
@@ -4033,7 +3941,6 @@ router:r2 = {
 router:r3 = {
  interface:n1 = { ip = ::a01:101; nat:N = { ip = ::909:909; dynamic; } }
 }
-=END=
 =ERROR=
 Error: Only 'ip' allowed in nat:N of interface:r1.n1
 Error: Only 'ip' allowed in nat:N of interface:r2.n1
@@ -4066,7 +3973,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Must not use network:n1 in rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1,
@@ -4141,7 +4047,6 @@ service:s1 = {
  user = network:n1;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n2_in
@@ -4175,7 +4080,6 @@ service:s1 = {
  user = any:[ip = ::a01:100/120 & network:n1];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Must not use any:[ip=::a01:100/120 & network:n1] in rule
  permit src=any:[ip=::a01:100/120 & network:n1]; dst=network:n2; prt=tcp 80; of service:s1,
@@ -4208,7 +4112,6 @@ service:s1 = {
  user = network:n1;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Must not use network:n1 in rule
  permit src=network:n2; dst=network:n1; prt=tcp 80; of service:s1,
@@ -4263,7 +4166,6 @@ service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: network:n2-sub2 is subnet of network:n2
  in nat_domain:[network:n3].
@@ -4303,7 +4205,6 @@ service:s1 = {
  user = any:a;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n2_in
@@ -4340,7 +4241,6 @@ service:s1 = {
  user = any:[ ip = ::a00:0/104 & network:n1 ];
  permit src = user; dst = network:n4; prt = tcp;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -4358,7 +4258,6 @@ router:r1 = {
  interface:lo = { ip = ::a01:500; loopback; nat:x = { hidden; } }
  interface:n4 = { bind_nat = x; }
 }
-=END=
 =ERROR=
 Error: All definitions of nat:x must have equal type.
  But found
@@ -4400,7 +4299,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n2_in
@@ -4427,7 +4325,6 @@ service:s1 = {
  user = any:n1;
  permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =ERROR=
 Error: any:n1 and network:n1 have identical IP/mask in any:[network:n1]
 =END=
@@ -4448,7 +4345,6 @@ service:s1 = {
  user = any:[ ip = ::a01:100/120 & network:n1 ];
  permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =ERROR=
 Error: Must not use any:[ip = ::a01:100/120 & ..] in user of service:s1
  because it has address of network:n1 which is translated by nat:a
@@ -4470,7 +4366,6 @@ service:s1 = {
  user = network:[any:[ ip = ::a01:100/120 & network:n1 ]];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=NONE
@@ -4485,7 +4380,6 @@ service:s2 = {
  user = any:[ ip = ::a01:100/120 & network:n1 ];
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-=END=
 =ERROR=
 Error: Must not use any:[ip = ::a01:100/120 & ..] in user of service:s2
  because it has address of network:n1 which is translated by nat:a
@@ -4573,7 +4467,6 @@ network:n3 = { ip = ::a01:300/120; partition = part2; }
 router:r2 = {
  interface:n3;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -4594,7 +4487,6 @@ router:r1 = {
  interface:n1 = { bind_nat = h2; }
  interface:n2 = { bind_nat = h1; }
 }
-=END=
 =WARNING=
 Warning: Useless 'subnet_of = network:n2' at network:n1
 =END=
@@ -4625,7 +4517,6 @@ router:r1 = {
  interface:n3 = { ip = ::a01:111; bind_nat = h2; hardware = n3; }
  interface:n4 = { ip = ::a01:121; bind_nat = h2; hardware = n4; }
 }
-=END=
 =WARNING=
 Warning: network:n3 is subnet of network:n2
  in nat_domain:[network:n2].

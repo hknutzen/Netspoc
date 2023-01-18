@@ -16,7 +16,6 @@ router:r1 = {
  interface:n5;
  interface:n6;
 }
-=END=
 =ERROR=
 Error: Invalid CIDR address: 999.1.1.0/24 in 'ip' of network:n1
 Error: Invalid CIDR address: 10.888.1.0/24 in 'ip' of network:n2
@@ -30,7 +29,6 @@ Error: Invalid CIDR address: ip-address/32 in 'ip' of network:n6
 =TITLE=Unicode digits in IPv4 address
 =INPUT=
 network:n1 = { ip = १.२.३.४/32; } # 1.2.3.4 in DEVANAGARI
-=END=
 =ERROR=
 Error: Invalid CIDR address: १.२.३.४/32 in 'ip' of network:n1
 =END=
@@ -52,7 +50,6 @@ service:test1 = {
  dst = network:n2;
  prt = tcp 80-90;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended n1_in
@@ -68,7 +65,6 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.0; }
 }
-=END=
 =ERROR=
 Error: interface:r1.n1 has address of its network
 =END=
@@ -80,7 +76,6 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.255; }
 }
-=END=
 =ERROR=
 Error: interface:r1.n1 has broadcast address
 =END=
@@ -91,7 +86,6 @@ Error: interface:r1.n1 has broadcast address
 network:n1 = { ip = 10.1.1.0/31; }
 router:r1 = { interface:n1 = { ip = 10.1.1.0; } }
 router:r2 = { interface:n1 = { ip = 10.1.1.1; } }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -110,7 +104,6 @@ service:test1 = {
  dst = interface:r1.n1;
  prt = protocol:ICMP;
 }
-=END=
 =ERROR=
 Error: 'proto 1' must not be used in service:test1, use 'icmp' instead
 =END=
@@ -131,7 +124,6 @@ service:test1 = {
  dst = interface:r1.n1;
  prt = protocol:ICMPv6;
 }
-=END=
 =ERROR=
 Error: protocol:ICMPv6 must not be used in IPv4 service:test1
 =END=
@@ -151,7 +143,6 @@ area:a = {
  anchor = network:n1;
  router_attributes = { general_permit = icmpv6; }
 }
-=END=
 =ERROR=
 Error: icmpv6 must not be used in IPv4 general_permit of router_attributes of area:a
 =END=

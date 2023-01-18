@@ -17,7 +17,6 @@ service:test1 = {
  dst = network:n2;
  prt = tcp 80-90, icmpv6 128;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -25,7 +24,6 @@ access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 rang
 access-list n1_in extended permit icmp6 1000::abcd:1:0/112 1000::abcd:2:0/112 128
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -55,7 +53,6 @@ ipv6 access-list n1_in
  permit tcp 1000:0:0:8::/63 host 1000::1 eq 22
  permit tcp host 1000:0:0:a:: host 1000::1 eq 22
  deny ipv6 any any
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -83,7 +80,6 @@ service:test1 = {
  dst = host:h;
  prt = tcp 80-90;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -96,7 +92,6 @@ ipv6 access-list n1_in
  permit tcp 1000::1:0/126 2000::fff0/124 range 80 90
  permit tcp host 1000::1:4 2000::fff0/124 range 80 90
  deny ipv6 any any
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -120,7 +115,6 @@ service:test1 = {
  dst = host:a, host:b;
  prt = tcp 80-90;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 object-group ip address v6g0
@@ -145,7 +139,6 @@ interface E1
 interface E2
  ipv6 address 1000::abcd:2:1/112
  ipv6 traffic-filter E2_in in
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -187,7 +180,6 @@ router:r2 = {
   routing = EIGRP;
  }
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -214,7 +206,6 @@ interface n2
  ipv6 address 1000::abcd:2:2/112
  ip inspect X in
  ipv6 traffic-filter n2_in in
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -246,7 +237,6 @@ service:test1 = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -258,7 +248,6 @@ ipv6 route 1000::abcd:4:0/112 1000::abcd:3:2
 --ipv6/r3
 ! [ Routing ]
 ipv6 route n3 1000::abcd:1:0/112 1000::abcd:3:1
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -310,7 +299,6 @@ service:s1 = {
  user = host:id:foo@domain.x.clients;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
@@ -320,7 +308,6 @@ ipv6 route n1 ::a09:100/120 ::a01:102
 access-list n1_in extended permit tcp host ::a09:10a ::a01:100/120 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -340,7 +327,6 @@ service:test1 = {
  dst = network:n2;
  prt = tcp 80-90;
 }
-=END=
 =ERROR=
 Error: IPv4 address expected in 'ip' of network:n2
 Error: IPv4 address expected in 'ip' of interface:r1.n2
@@ -363,11 +349,9 @@ service:test1 = {
  dst = network:n2;
  prt = tcp 80-90;
 }
-=END=
 =ERROR=
 Error: IPv6 address expected in 'ip' of network:n2
 Error: IPv6 address expected in 'ip' of interface:r1.n2
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -386,10 +370,8 @@ service:test1 = {
  dst = interface:r1.n1;
  prt = protocol:ICMPv6;
 }
-=END=
 =ERROR=
 Error: 'proto 58' must not be used in service:test1, use 'icmpv6' instead
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -408,10 +390,8 @@ service:test1 = {
  dst = interface:r1.n1;
  prt = protocol:ICMP;
 }
-=END=
 =ERROR=
 Error: protocol:ICMP must not be used in IPv6 service:test1
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -429,13 +409,11 @@ area:a = {
  anchor = network:n1;
  router_attributes = { general_permit = icmpv6; }
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
  permit icmp any any
  deny ipv6 any any
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -465,13 +443,11 @@ service:test = {
         dst = host:h3;
         prt = icmpv6;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 :n1_n2 -
 -A n1_n2 -j ACCEPT -s 1000::abcd:1:0/112 -d 1000::abcd:2:3 -p ipv6-icmp
 -A FORWARD -j n1_n2 -i n1 -o n2
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -514,7 +490,6 @@ router:r1 = {
 =ERROR=
 Error: Can't mkdir out/ipv6: file exists
 Aborted
-=END=
 =OPTIONS=--ipv6
 
 ############################################################

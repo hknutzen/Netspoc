@@ -8,7 +8,6 @@ network:u = {
  host:h = { ip = 10.1.1.10; }
  has_subnets;
 }
-=END=
 =ERROR=
 Error: Unnumbered network:u must not have NAT definition
 Error: Unnumbered network:u must not have attribute 'has_subnets'
@@ -22,7 +21,6 @@ network:u = { unnumbered; }
 router:r1 = {
   interface:u = { unnumbered; virtual = { ip = 10.1.1.111; } }
 }
-=END=
 =ERROR=
 Error: No virtual IP supported for unnumbered interface:r1.u
 =END=
@@ -36,7 +34,6 @@ router:r1 = {
  model = IOS;
   interface:u = { unnumbered; hardware = u; routing = OSPF; }
 }
-=END=
 =ERROR=
 Error: Routing 'OSPF' not supported for unnumbered interface:r1.u
 =END=
@@ -50,7 +47,6 @@ network:u = {
 router:r1 = {
   interface:u = { ip = 10.1.1.1; }
 }
-=END=
 =ERROR=
 Error: interface:r1.u must not be linked to unnumbered network:u
 =END=
@@ -62,7 +58,6 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
   interface:n1 = { unnumbered; }
 }
-=END=
 =ERROR=
 Error: Unnumbered interface:r1.n1 must not be linked to network:n1
 =END=
@@ -74,7 +69,6 @@ network:u = { unnumbered; }
 router:r1 = { interface:u = { unnumbered; } }
 router:r2 = { interface:u = { unnumbered; } }
 router:r3 = { interface:u = { unnumbered; } }
-=END=
 =ERROR=
 Error: Unnumbered network:u is connected to more than two interfaces:
  - interface:r1.u
@@ -97,7 +91,6 @@ service:test = {
  user = network:n1, interface:r.un;
  permit src = user; dst = network:un; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Ignoring unnumbered interface:r.un in src of rule in service:test
 Warning: Ignoring unnumbered network:un in dst of rule in service:test
@@ -126,14 +119,12 @@ service:test = {
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
-=END=
 =TEMPL=output
 --r
 ip access-list extended eth2_in
  deny ip any host 10.1.7.33
  permit tcp any 10.1.7.32 0.0.0.31 eq 80
  deny ip any any
-=END=
 =INPUT=[[input clients]]
 =OUTPUT=
 [[output]]
@@ -168,7 +159,6 @@ service:Test = {
         dst = user;
         prt = icmp 8;
 }
-=END=
 =INPUT=[[input user]]
 =OUTPUT=
 --L
@@ -221,7 +211,6 @@ service:s1 = {
         dst = user;
 	prt = tcp 22;
 }
-=END=
 =INPUT=[[input ";"]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
@@ -267,7 +256,6 @@ service:s1  = {
         dst = network:n1, network:n2;
         prt = tcp 49;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in

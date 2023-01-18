@@ -9,7 +9,6 @@ router:r1 = {
   virtual = { ip = 10.1.1.1; }
  }
 }
-=END=
 =ERROR=
 Error: No virtual IP supported for negotiated interface:r1.n1
 =END=
@@ -24,7 +23,6 @@ router:r1 = {
   virtual = { ip = 10.1.1.1; type = XYZ; id = ff; }
  }
 }
-=END=
 =ERROR=
 Error: Unknown redundancy protocol in 'virtual' of interface:r1.n1
 Error: Redundancy ID must be numeric in 'virtual' of interface:r1.n1
@@ -41,7 +39,6 @@ router:r1 = {
   virtual = { ip = 10.1.1.1; type = HSRP; id = 1000; }
  }
 }
-=END=
 =ERROR=
 Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
 =END=
@@ -73,7 +70,6 @@ router:r2 = {
  }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n; }
 }
-=END=
 =ERROR=
 Error: interface:r1.n1 with virtual interface must not use attribute 'nat'
 Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
@@ -116,7 +112,6 @@ service:s1 = {
  user = interface:r1.[auto], interface:r2.[auto];
  permit src = user; dst = network:n2; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: interface:r1.n1.virtual must be located inside cyclic sub-graph
 Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
@@ -203,7 +198,6 @@ service:s1 = {
  user = network:n3;
  permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n3]
@@ -237,7 +231,6 @@ router:r2 = {
  }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: Must use identical redundancy protocol at
  - interface:r1.n1.virtual
@@ -292,7 +285,6 @@ router:r4 = {
  }
  interface:n2 = { ip = 10.1.2.4; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: Must use different ID at unrelated
  - interface:r1.n1.virtual
@@ -336,7 +328,6 @@ service:test = {
         dst = network:n4;
         prt = tcp 80;
 }
-=END=
 =INPUT=
 [[input
 v1: "virtual = {ip = 10.3.3.9;}"

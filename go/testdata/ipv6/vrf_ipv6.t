@@ -25,7 +25,6 @@ router:r@v3 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
  interface:n4 = { ip = ::a01:401; hardware = n4; }
 }
-=END=
 =ERROR=
 Error: All instances of router:r must have identical model
 Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
@@ -53,7 +52,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -100,7 +98,6 @@ service:test = {
  user = host:h10, host:h20, host:h30;
  permit src = user; dst = network:m; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 object-group ip address v6g0
@@ -160,7 +157,6 @@ service:test = {
  permit src = user; dst = network:n; prt = tcp 80;
  permit src = network:n; dst = user; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list e0_in
@@ -240,7 +236,6 @@ router:r1@v2 = {
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
-=END=
 =WARNING=
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
@@ -269,7 +264,6 @@ service:admin = {
  user = interface:r1@v2.[auto];
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ IP = ::a01:102 ]
@@ -298,7 +292,6 @@ service:admin = {
  user = interface:r1@v1.[auto], interface:r1@v2.[auto];
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ IP = ::a01:101,::a01:102 ]
@@ -321,11 +314,9 @@ router:r1@v2 = {
  model = NX-OS;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Missing attribute 'policy_distribution_point' for 1 devices:
  - at least one instance of router:r1
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -348,7 +339,6 @@ router:r1@v2 = {
  policy_distribution_point = host:h9;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Instances of router:r1 must not use different 'policy_distribution_point':
  -host:h8
@@ -356,7 +346,6 @@ Error: Instances of router:r1 must not use different 'policy_distribution_point'
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
  - router:r1@v2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -388,7 +377,6 @@ service:admin = {
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
  - router:r1@v2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -436,7 +424,6 @@ router:r1@v2 = {
  model = ASA;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Must not use VRF at router:r1@v1 of model ASA
 Error: Must not use VRF at router:r1@v2 of model ASA

@@ -8,7 +8,6 @@ router:r = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'owner' at unmanaged router:r
 =END=
@@ -34,7 +33,6 @@ router:r = {
  interface:n1 = { ip = 10.1.1.1; hub = crypto:c; }
 }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'hub' at unmanaged interface:r.n1
 Warning: No hub has been defined for crypto:c
@@ -49,7 +47,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: network:n1/right and network:n1/left must be connected by bridge
 Error: network:n1/left and network:n1/right have identical IP/mask in any:[network:n1/left]
@@ -106,7 +103,6 @@ service:test = {
  user = interface:[area:g1].[all];
  permit src = user; dst = network:D; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --FW
 object-group network g0

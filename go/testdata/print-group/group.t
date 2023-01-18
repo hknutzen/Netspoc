@@ -45,7 +45,6 @@ invalid
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
 Aborted
-=END=
 =PARAMS=network:n1
 
 ############################################################
@@ -71,11 +70,9 @@ Aborted
 =TITLE=Unexpected content after ";"
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
 Aborted
-=END=
 =PARAM=network:n1; INVALID
 
 ############################################################
@@ -125,12 +122,10 @@ service:s = {
  user = host:h3a, host:h3c;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.26	host:h3b
 10.1.3.65-10.1.3.67	host:h3d
-=END=
 =OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
@@ -144,14 +139,12 @@ service:s = {
  user = network:[host:h3a], any:[host:h3c];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.10-10.1.3.15	host:h3a
 10.1.3.26	host:h3b
 10.1.3.66	host:h3c
 10.1.3.65-10.1.3.67	host:h3d
-=END=
 =OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
@@ -165,12 +158,10 @@ service:s = {
  user = group:g &! host:h3b;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.26	host:h3b
 10.1.3.65-10.1.3.67	host:h3d
-=END=
 =OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
@@ -180,7 +171,6 @@ service:s = {
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.10-10.1.3.15	host:h3a
-=END=
 =PARAM=host:[network:n1, host:h3a]
 
 ############################################################
@@ -189,7 +179,6 @@ service:s = {
 =OUTPUT=
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
-=END=
 =PARAM=network:[network:n3]
 
 ############################################################
@@ -197,11 +186,9 @@ service:s = {
 =INPUT=
 [[topo]]
 group:g1 = network:[network:n3];
-=END=
 =OUTPUT=
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
-=END=
 =PARAM=group:g1
 
 ############################################################
@@ -210,7 +197,6 @@ group:g1 = network:[network:n3];
 =OUTPUT=
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
-=END=
 =PARAM=network:[any:[network:n3sub]]
 
 ############################################################
@@ -220,7 +206,6 @@ group:g1 = network:[network:n3];
 10.1.1.10	host:h1
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
-=END=
 =PARAM=host:[network:n1],network:[network:n3]
 
 ############################################################
@@ -236,7 +221,6 @@ group:g1 =
  host:h3c,
  host:h3d,
 ;
-=END=
 =OUTPUT=
 10.1.1.0/24	network:n1
 10.1.2.0/24	network:n2
@@ -245,7 +229,6 @@ group:g1 =
 10.1.3.26	host:h3b
 10.1.3.66	host:h3c
 10.1.3.65-10.1.3.67	host:h3d
-=END=
 =PARAM=group:g1
 
 ############################################################
@@ -257,14 +240,12 @@ owner:o2 = { admins = a2@example.com; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
 area:a2 = { border = interface:r1.n2; owner = o2; }
 group:g1 = area:a1, area:a2, network:[area:a2];
-=END=
 =OUTPUT=
 	area:a1	owner:o1
 	area:a2	owner:o2
 10.1.2.0/24	network:n2	owner:o2
 10.1.3.0/24	network:n3	owner:o2
 10.1.3.64/27	network:n3sub	owner:o2
-=END=
 =OPTIONS=--owner --name --ip
 =PARAM=group:g1
 
@@ -274,10 +255,8 @@ group:g1 = area:a1, area:a2, network:[area:a2];
 [[topo]]
 group:g1 = network:n1, network:n2;
 group:g2 = network:n2, network:n3;
-=END=
 =OUTPUT=
 10.1.2.0/24	network:n2
-=END=
 =PARAM=group:g1 & group:g2
 
 ############################################################
@@ -285,10 +264,8 @@ group:g2 = network:n2, network:n3;
 =INPUT=
 [[topo]]
 group:g1 = network:n1, network:n2;
-=END=
 =OUTPUT=
 10.1.1.0/24	network:n1
-=END=
 =PARAM=group:g1 &! network:n2
 
 ############################################################
@@ -296,10 +273,8 @@ group:g1 = network:n1, network:n2;
 =INPUT=
 [[topo]]
 group:g1 = host:h1, network:n2, network:n3;
-=END=
 =OUTPUT=
 10.1.2.0/24	network:n2
-=END=
 =PARAM=group:g1 &! network:n3 &! host:h1
 
 ############################################################
@@ -307,10 +282,8 @@ group:g1 = host:h1, network:n2, network:n3;
 =INPUT=
 [[topo]]
 group:Über = network:n1;
-=END=
 =OUTPUT=
 10.1.1.0/24	network:n1
-=END=
 =PARAM=group:Über
 
 ############################################################
@@ -324,7 +297,6 @@ service:s1 = {
 }
 =OUTPUT=
 10.1.3.64/27	network:n3sub
-=END=
 =OPTIONS=-u
 =PARAM=network:[area:all]
 
@@ -333,7 +305,6 @@ service:s1 = {
 =INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24	network:n1
-=END=
 =OPTIONS=-u
 =PARAM=network:[any:[network:n1]]
 
@@ -379,7 +350,6 @@ network:k1 = { ip = 10.2.2.0/24; }
 10.9.1.0/28	network:n1
 10.9.1.10	host:h1s
 10.9.1.0/28	host:h1d
-=END=
 =OPTIONS=--nat k1
 =PARAM=network:n1, host:h1s, host:h1d
 
@@ -389,7 +359,6 @@ network:k1 = { ip = 10.2.2.0/24; }
 =OUTPUT=
 10.9.2.0/24	network:n2
 10.9.2.10	host:h2
-=END=
 =OPTIONS=--nat k1
 =PARAM=network:n2,host:h2
 
@@ -399,7 +368,6 @@ network:k1 = { ip = 10.2.2.0/24; }
 =OUTPUT=
 hidden	network:n3
 hidden	host:h3
-=END=
 =OPTIONS=--nat k1
 =PARAM=network:n3,host:h3
 
@@ -408,7 +376,6 @@ hidden	host:h3
 =INPUT=[[input]]
 =OUTPUT=
 unnumbered	network:t1
-=END=
 =OPTIONS=--nat k1
 =PARAM=network:t1
 
@@ -421,7 +388,6 @@ unnumbered	network:t1
 hidden	interface:r1.n3
 unnumbered	interface:r1.t1
 unknown	interface:r1.[auto]
-=END=
 =OPTIONS=--nat k1
 =PARAM=interface:r1.[all],interface:r1.[auto]
 
@@ -431,7 +397,6 @@ unknown	interface:r1.[auto]
 =OUTPUT=
 short	interface:r2.t1
 short	interface:r2.k1
-=END=
 =PARAM=interface:r2.[all]
 
 ############################################################
@@ -439,7 +404,6 @@ short	interface:r2.k1
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
  group:g1 = ;
-=END=
 =WARNING=NONE
 =PARAM=group:g1
 
@@ -458,11 +422,9 @@ network:n1/right = { ip = 10.1.1.0/24; }
 router:r = {
  interface:n1/right = { ip = 10.1.1.2; }
 }
-=END=
 =OUTPUT=
 bridged	interface:bridge.n1/right
 10.1.1.2	interface:r.n1/right
-=END=
 =PARAM=interface:[network:n1/right].[all]
 
 ############################################################
@@ -475,12 +437,10 @@ router:r = {
  interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
-=END=
 =INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24	network:n1	owner:o
 10.1.2.0/24	network:n2	none
-=END=
 =OPTIONS=--owner
 =PARAM=network:n1, network:n2
 
@@ -490,7 +450,6 @@ network:n2 = { ip = 10.1.2.0/24; }
 =OUTPUT=
 network:n1	owner:o
 network:n2	none
-=END=
 =OPTIONS=-n -o
 =PARAM=network:[any:[network:n1]]
 
@@ -500,7 +459,6 @@ network:n2	none
 =OUTPUT=
 network:n1
 network:n2
-=END=
 =OPTIONS=--name
 =PARAM=network:[any:[network:n1]]
 
@@ -510,7 +468,6 @@ network:n2
 =OUTPUT=
 10.1.1.0/24
 10.1.2.0/24
-=END=
 =OPTIONS=--ip
 =PARAM=network:[any:[network:n1]]
 
@@ -529,13 +486,11 @@ router:r = {
  interface:n3;
  interface:n3a;
 }
-=END=
 =INPUT=[[topo]]
 =OUTPUT=
 network:n1	owner:o1	o1@b.c
 network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
 network:n3a	owner:o1	o1@b.c
-=END=
 =OPTIONS=--name --owner --admins
 =PARAM=network:n1, network:n2, network:n3a
 
@@ -546,7 +501,6 @@ network:n3a	owner:o1	o1@b.c
 network:n1	o1@b.c
 network:n2	o2a@d.e.f,o2b@g.h.i
 network:n3a	o1@b.c
-=END=
 =OPTIONS=--name -a
 =PARAM=network:n1, network:n2, network:n3a
 
@@ -573,12 +527,10 @@ router:r2 = {
  interface:n5;
 }
 group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
-=END=
 =OUTPUT=
 10.1.4.0	network:n4
 10.1.3.0	interface:r2.n3
 10.7.7.0	interface:r2.n5
-=END=
 =OPTIONS=--nat n1
 =PARAM=group:g1
 
@@ -598,10 +550,8 @@ router:r2 = {
  interface:n2;
  interface:lo = { ip = 10.1.3.1; loopback; }
 }
-=END=
 =OUTPUT=
 0.0.0.0/0	any:[network:n2]
-=END=
 =PARAM=any:[area:n2-lo]
 
 ############################################################

@@ -38,7 +38,6 @@ service:s = {
  user = host:[network:n3sub];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:s compared to service:s:
   permit src=network:n1; dst=host:h3c; prt=tcp 80; of service:s
@@ -53,7 +52,6 @@ service:s1 = {
  user = host:[network:n3] &!host:h3c;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r2
 ! n3_in
@@ -76,7 +74,6 @@ service:s1 = {
  user = network:[any:[network:n3sub]];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r2
 ! n3_in
@@ -93,7 +90,6 @@ service:s1 = {
  user = host:[interface:r1.n1];
 permit src = user; dst = network:n1; prt = ip;
 }
-=END=
 =ERROR=
 Error: Unexpected 'interface:r1.n1' in host:[..] of user of service:s1
 =END=
@@ -106,7 +102,6 @@ service:s1 = {
  user = ! network:n1 & ! network:n2;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Intersection needs at least one element which is not complement in user of service:s1
 =END=
@@ -119,7 +114,6 @@ service:s1 = {
  user = ! network:n1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Complement (!) is only supported as part of intersection in user of service:s1
 =END=
@@ -135,7 +129,6 @@ service:s1 = {
  user = group:g1;
  permit src = user; dst = group:g2; prt = tcp 22;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -150,7 +143,6 @@ service:s1 = {
  user = group:g2;
  permit src = user; dst = group:g2; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: unused group:g1
 =END=
@@ -165,7 +157,6 @@ service:s1 = {
  user = network:n;
  permit src = user; dst = group:g1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Found recursion in definition of group:g2
 =END=
@@ -179,7 +170,6 @@ service:s1 = {
  user = network:n;
  permit src = user; dst = group:g1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't resolve host:h1 in group:g1
 =END=
@@ -195,7 +185,6 @@ service:s1 = {
  user = network:n;
  permit src = user; dst = group:g1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Unknown element type at line 3 of INPUT, near "group:g1 = --HERE-->foo:bar"
 Aborted
@@ -212,7 +201,6 @@ service:s1 = {
  user = network:n;
  permit src = user; dst = group:g1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Unexpected automatic group at line 3 of INPUT, near "group:g1 = --HERE-->area:[network:n]"
 Aborted
@@ -236,7 +224,6 @@ service:s1 = {
  user = group:g1;
  permit src = user; dst = network:n3; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Duplicate elements in group:g1:
  - network:n2
@@ -263,7 +250,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = group:g2; prt = icmp;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -308,7 +294,6 @@ service:s3 = {
  user = interface:[network:n1].[all] &! interface:u.n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Empty intersection in group:g1:
 interface:r1.[all]
@@ -367,7 +352,6 @@ service:s2 = {
  user = interface:r1.lo;
  permit src = user; dst = host:h6, host:h7; prt = tcp 25;
 }
-=END=
 =OUTPUT=
 -- r2
 ! n3_in

@@ -50,7 +50,6 @@ service:s1 = {
         dst = network:n3, network:n4, network:n5;
         prt = tcp 80, udp 53;
 }
-=END=
 =OUTPUT=
 -- sec
 ! n1_in
@@ -211,7 +210,6 @@ service:test = {
         dst = host:server, interface:r2.loop;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r2
 ip access-list extended Ethernet5_in
@@ -257,7 +255,6 @@ service:test = {
         dst = host:server;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input router:u]]
 =TEMPL=output
 --r1
@@ -316,7 +313,6 @@ service:s1 = {
  user = host:h1;
  permit src = user; dst = host:h2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r2
 ! n2_in
@@ -355,7 +351,6 @@ service:test2 = {
  user = network:A;
  permit src = user; dst = host:B; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --secondary
 ! [ ACL ]
@@ -396,7 +391,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = protocol:p1, protocol:p2;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -428,7 +422,6 @@ service:n1 = {
  user = interface:r2.n2;
  permit src = host:h1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -459,7 +452,6 @@ service:n1 = {
  user = interface:r2.n3;
  permit src = host:h1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -491,7 +483,6 @@ service:n1 = {
  user = interface:r2.n2, interface:r2.n3;
  permit src = host:h1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -525,7 +516,6 @@ service:n1 = {
  user = interface:r2.n3, interface:r2.n4;
  permit src = host:h1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -563,7 +553,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = interface:r2.lo, interface:r2.n3; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -605,7 +594,6 @@ service:any = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -703,7 +691,6 @@ service:any = {
  user = network:n1;
  permit src = user; dst = any:[ip = 10.2.0.0/16 & network:n2]; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -747,7 +734,6 @@ service:s2 = {
  # Optimization is disabled, even if no network rule is present.
  permit src = user; dst = interface:r2.n2, interface:r2.n3; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --r2
 ! [ ACL ]
@@ -790,7 +776,6 @@ service:any = {
  user = any:[ip=10.0.0.0/8 & network:n3];
  permit src = user; dst = network:n4; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -827,7 +812,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r2
 ip access-list extended n3_in
@@ -861,7 +845,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = ip;
 }
-=END=
 =OUTPUT=
 --r2
 ! n2_in
@@ -900,7 +883,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r3
 ! n2_in
@@ -945,7 +927,6 @@ service:s2 = {
  user = any:[network:n2], any:[network:t1];
  permit src = user; dst = host:h4; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -992,7 +973,6 @@ service:any = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = protocol:Ping;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -1023,14 +1003,12 @@ service:n1 = {
  user = host:h1, any:[network:n2];
  permit src = user; dst = host:h3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
 access-list n1_in extended permit ip host 10.1.1.4 10.1.3.0 255.255.255.0
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
-=END=
 =TODO=Should optimize protocol and destination
 
 ############################################################

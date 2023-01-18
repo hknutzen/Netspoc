@@ -17,7 +17,6 @@ service:s1 = {
  deny src = host:h10, host:h12; dst = user; prt = ip;
  permit src = network:n1; dst = user; prt = ip;
 }
-=END=
 =OUTPUT=
 --r1
 # [ BEGIN r1 ]
@@ -83,7 +82,6 @@ service:s1 = {
         ;
  permit src = network:n2; dst = user; prt = udp 1 - 65535;
 }
-=END=
 =OUTPUT=
 --r1
 # [ ACL ]
@@ -130,7 +128,6 @@ service:s1 = {
         prt = protocol:p1, protocol:p2, protocol:p3, protocol:p4, protocol:p5;
  permit src = network:n2; dst = user; prt = protocol:p6;
 }
-=END=
 =OUTPUT=
 --r1
 # [ ACL ]
@@ -236,7 +233,6 @@ service:p10-60 = {
         dst = network:Hosting;
         prt = tcp 10-49, tcp 50-60;
 }
-=END=
 =INPUT=[[input "tcp 30-37, tcp 51-53"]]
 =OUTPUT=
 --nak
@@ -314,7 +310,6 @@ service:B = {
         dst = network:Hosting;
         prt = tcp 50-60;
 }
-=END=
 =OUTPUT=
 --nak
 :eth0_br0 -
@@ -345,7 +340,6 @@ service:s1 = {
         dst = host:h12;
         prt = proto 112, proto 111;
 }
-=END=
 =OUTPUT=
 --r1
 # [ ACL ]
@@ -404,7 +398,6 @@ service:test = {
 	dst = interface:r2.Mail;
 	prt = tcp 25;
 }
-=END=
 =OUTPUT=
 --r2
 :c1 -
@@ -461,7 +454,6 @@ service:s3 = {
  user = interface:r2.lo;
  permit src = host:h; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 # [ ACL ]
@@ -502,7 +494,6 @@ service:t1 = {
  user = network:n1;
  permit src = user; dst = network:k1, network:k2; prt = tcp 80, tcp 82;
 }
-=END=
 =OUTPUT=
 -- r1
 # [ ACL ]
@@ -563,7 +554,6 @@ service:s4 = {
  user = network:n2, network:n3;
  permit src = user; dst = host:h47; prt = tcp 25;
 }
-=END=
 =OUTPUT=
 -- r1
 # [ ACL ]
@@ -633,7 +623,6 @@ service:s4 = {
  user =  any:[ip = 10.1.1.8/30 & network:n2];
  permit src = user; dst = network:n4; prt = udp 22-23;
 }
-=END=
 =OUTPUT=
 -- r2
 # [ ACL ]
@@ -709,7 +698,6 @@ service:test3 = {
  user = network:n3;
  permit src = user; dst = network:n1; prt = tcp 21;
 }
-=END=
 =OUTPUT=
 -- r1
 # [ ACL ]
@@ -752,7 +740,6 @@ service:t1 = {
  user = network:n1, network:n2;
  permit src = network:n3; dst = user; prt = tcp 80, icmp 8;
 }
-=END=
 =OUTPUT=
 -- r1
 # [ ACL ]
@@ -794,7 +781,6 @@ service:test = {
         dst =  user;
         prt = icmp 5/0, icmp 5/1, icmp 5/2, icmp 5/3;
 }
-=END=
 =OUTPUT=
 --r1
 # [ ACL ]
@@ -841,7 +827,6 @@ service:test = {
         dst = user;
         prt = icmp 5;
 }
-=END=
 =OUTPUT=
 --r1
 # [ ACL ]
@@ -882,7 +867,6 @@ service:test = {
         dst = host:h3;
         prt = icmp;
 }
-=END=
 =OUTPUT=
 --r1
 :n1_n2 -

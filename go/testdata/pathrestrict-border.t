@@ -57,7 +57,6 @@ service:s1 = {
  user = interface:r2.n3;
  permit src = user; dst = network:n4; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --r3
 ip access-list extended n3_in
@@ -78,7 +77,6 @@ service:s2 = {
  user = interface:r3.n4;
  permit src = user; dst = network:n3; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --r3
 ip access-list extended n3_in
@@ -127,7 +125,6 @@ service:s1 = {
  user = interface:r4.[auto];
  permit src = user; dst = network:n4; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -193,7 +190,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --filter
 ip access-list extended GigabitEthernet0/1_in
@@ -228,7 +224,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --filter
 ip access-list extended GigabitEthernet0/1_in
@@ -258,7 +253,6 @@ service:test = {
 	dst = any:[network:Test];
 	prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --filter
 ip access-list extended GigabitEthernet0/1_in
@@ -324,7 +318,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --Kunde
 ip route 10.9.1.0 255.255.255.0 10.5.6.1
@@ -376,7 +369,6 @@ service:intra = {
         dst = user;
         prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --c1
 ip access-list extended Vlan13_in
@@ -435,7 +427,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = interface:r3.[auto]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r2
 ! [ ACL ]
@@ -481,7 +472,6 @@ service:s1 = {
  permit src = user; dst = interface:r1.n2; prt = icmp 8;
  permit src = interface:r1.n2; dst = user; prt = icmp 8;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
@@ -538,7 +528,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n1; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
@@ -591,7 +580,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = interface:r4.n4; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r2
 ! n2_in
@@ -636,7 +624,6 @@ router:r2 = {
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 pathrestriction:r = interface:u1.n2, interface:u2.n2;
-=END=
 =INPUT=[[input managed;]]
 =WARNING=NONE
 
@@ -815,7 +802,6 @@ service:test = {
         dst =   network:n4;
         prt =   ip;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended E1_in
@@ -868,7 +854,6 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = proto 50;
  permit src = network:n2; dst = user; prt = proto 50;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in

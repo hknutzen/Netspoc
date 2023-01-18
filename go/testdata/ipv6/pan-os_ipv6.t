@@ -319,7 +319,6 @@ router:r2 = {
 Error: Missing attribute 'policy_distribution_point' for 2 devices:
  - router:r1
  - router:r2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################

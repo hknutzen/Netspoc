@@ -65,7 +65,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -100,7 +99,6 @@ service:s3= {
     user = host:h10;
     permit src = user; dst = network:n2; prt = tcp 82;
 }
-=END=
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -119,7 +117,6 @@ service:s2 = {
         dst = network:n2;
         prt = tcp 81;
 }
-=END=
 =PARAMS=s2 service:s3
 
 ############################################################
@@ -138,7 +135,6 @@ service:test = {
     user = host:h11, host:h12;
     permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -170,7 +166,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = interface:asa1.n1; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
@@ -194,7 +189,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = interface:asa1.n1; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -253,7 +247,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = protocolgroup:g2;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -287,7 +280,6 @@ service:test = {
     permit src = user; dst = network:n2; prt = protocol:http;
     permit src = user; dst = network:n3; prt = protocol:www;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -331,7 +323,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = any:n3; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -372,7 +363,6 @@ service:test = {
     user = host:h10;
     permit src = user; dst = any:[ip=10.0.0.0/8 & network:n3]; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -415,7 +405,6 @@ service:test = {
     user = interface:asa2.n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -468,7 +457,6 @@ service:test = {
         dst = network:n1;
         prt = tcp;
 }
-=END=
 =OPTIONS=--owner
 
 ############################################################
@@ -480,7 +468,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -528,7 +515,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -605,7 +591,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -639,7 +624,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -696,7 +680,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =OUTPUT=
 service:test = {
  user = network:n1;
@@ -725,7 +708,6 @@ service:test = {
         dst = network:n4;
         prt = ip;
 }
-=END=
 =OUTPUT=
 service:test = {
  user = network:n3;
@@ -1000,7 +982,6 @@ service:test = {
         dst = network:n2;
         prt = tcp;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1060,7 +1041,6 @@ service:test = {
         dst = network:n2;
         prt = tcp;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1120,7 +1100,6 @@ any:n4 = {
  link = network:n4;
  nat:n3-4 = { ip = 10.1.0.0/16; }
 }
-=END=
 =INPUT=
 [[input]]
 =OUTPUT=
@@ -1164,7 +1143,6 @@ service:s1 = {
  user = network:[area:a2] &! network:[area:a4];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1290,7 +1268,6 @@ service:s1 = {
         dst = network:n4;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1351,7 +1328,6 @@ service:s1 = {
         dst = user;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -1386,7 +1362,6 @@ service:s1 = {
         dst = network:n4;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -1431,7 +1406,6 @@ service:s1 = {
         dst = network:n1;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -1467,7 +1441,6 @@ service:test = {
         dst = user;
         prt = tcp 22;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -1555,7 +1528,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.16/28; }
 router:r1 = {
@@ -1638,7 +1610,6 @@ service:s1 = {
  user = network:n1;
  permit src = network:n2; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1692,7 +1663,6 @@ service:test = {
  user = network:u;
  permit src = user; dst = network:b; prt = ip;
 }
-=END=
 =OUTPUT=
 network:u = { ip = 10.9.9.0/24; }
 router:g = {
@@ -1742,7 +1712,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = interface:r1.lo; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
@@ -1780,7 +1749,6 @@ service:test = {
     user = network:n2;
     permit src = user; dst = any:n1; prt = tcp;
 }
-=END=
 =OUTPUT=
 any:n1 = {
  link = network:n1;
@@ -1827,7 +1795,6 @@ service:test = {
     user = host:h11;
     permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -1864,7 +1831,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1915,7 +1881,6 @@ service:test = {
     user = network:n1, network:n2;
     permit src = user; dst = network:n3; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1973,7 +1938,6 @@ service:test = {
     user = network:n1b;
     permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1b = {
  ip = 10.1.1.96/27;
@@ -2027,7 +1991,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2079,7 +2042,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2149,7 +2111,6 @@ service:test = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n2 = {
  ip = 10.1.2.0/24;
@@ -2207,7 +2168,6 @@ service:test = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -2262,7 +2222,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n8; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2356,7 +2315,6 @@ network:internet = {
  ip = 0.0.0.0/0;
  has_subnets;
 }
-=END=
 =TEMPL=clients1
 router:softclients1 = {
  interface:internet = {
@@ -2377,7 +2335,6 @@ network:customers1 = {
   }
  }
 }
-=END=
 =TEMPL=clients2
 router:softclients2 = {
  interface:internet = {
@@ -2406,7 +2363,6 @@ network:customers2 = {
   }
  }
 }
-=END=
 =TEMPL=clients3
 router:softclients3 = {
  interface:internet = {
@@ -2456,7 +2412,6 @@ service:test2 = {
         dst = network:intern;
         prt = tcp 81;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -2471,7 +2426,6 @@ service:test1 = {
         dst = network:intern;
         prt = tcp 80;
 }
-=END=
 =INPUT=
 [[topo]]
 [[clients1]]
@@ -2509,7 +2463,6 @@ service:test1 = {
         dst = network:intern;
         prt = tcp 80;
 }
-=END=
 =INPUT=
 [[topo]]
 [[clients1]]
@@ -2550,7 +2503,6 @@ service:test1 = {
         dst = network:intern;
         prt = tcp 80;
 }
-=END=
 =INPUT=
 [[topo]]
 [[clients1]]
@@ -2628,7 +2580,6 @@ service:test1 = {
         dst = network:intern;
         prt = tcp 80;
 }
-=END=
 =INPUT=
 [[topo]]
 [[clients1]]
@@ -2761,7 +2712,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80-90;
 }
-=END=
 =OUTPUT=
 network:n1 = {
  description = network:n1
@@ -2821,7 +2771,6 @@ service:s2 = {
         dst = network:n4;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -2854,7 +2803,6 @@ service:s1 = {
               ;
         prt = tcp 22;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -2877,7 +2825,6 @@ service:s1 = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -2920,7 +2867,6 @@ service:s1 = {
         dst = network:n1;
         prt = udp 123;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3097,7 +3043,6 @@ service:s1 = {
         dst = network:n1;
         prt = udp 123;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 [[input]]
@@ -3122,7 +3067,6 @@ service:s1 = {
         dst = network:n1;
         prt = tcp 22;
 }
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3175,7 +3119,6 @@ pathrestriction:A =
  &! interface:unnütz.n4
  ,
 ;
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }

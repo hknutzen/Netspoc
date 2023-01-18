@@ -20,7 +20,6 @@ router:r1 = {
   reroute_permit = host:h1, group:g, network:n2;
  }
 }
-=END=
 =ERROR=
 Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
 Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
@@ -35,7 +34,6 @@ network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 router:r1 = {
  interface:n1 = { ip = ::a01:101; reroute_permit = network:n1; }
 }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'reroute_permit' at unmanaged interface:r1.n1
 =END=
@@ -56,7 +54,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Invalid reroute_permit for network:n2 at interface:r1.n1: different security zones
 =END=
@@ -82,7 +79,6 @@ router:r1 = {
  }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -107,7 +103,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =OUTPUT=
 --ipv6/r1
 :n1_n1 -
@@ -136,7 +131,6 @@ router:r1 = {
  interface:n3 = { ip = ::a01:301; hardware = n3; no_in_acl; }
 }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =ERROR=
 Error: Must not use attributes no_in_acl and reroute_permit together at router:r1
  Add incoming and outgoing ACL line in raw file instead.
@@ -155,7 +149,6 @@ router:r1 = {
  no_in_acl; }
 }
 network:n2 = { ip = ::a01:200/120; }
-=END=
 =WARNING=
 Warning: Useless use of attribute 'reroute_permit' together with 'no_in_acl' at interface:r1.n2
 =END=

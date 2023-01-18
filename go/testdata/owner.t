@@ -9,7 +9,6 @@ network:n1 = { ip = 10.1.1.0/24; owner = o2; }
 router:r1 = {
  interface:n1;
 }
-=END=
 =INPUT=[[input]]
 =WARNING=
 Warning: Unused owner:a1
@@ -31,7 +30,6 @@ Error: Unused owner:o1
 owner:o = { admins = a@b.c; }
 network:n1 = { ip = 10.1.1.0/24; }
 any:n1 = { link = network:n1; owner = o; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -45,7 +43,6 @@ owner:y = {
  admins = a@b.c;
  watchers = b@b.c;
 }
-=END=
 =ERROR=
 Error: Duplicates in admins of owner:x: a@b.c
 Error: Duplicates in watchers of owner:x: b@b.c
@@ -74,7 +71,6 @@ service:test = {
         dst = interface:asa.VLAN_40_41;
         prt = ip;
 }
-=END=
 =INPUT=[[input ""]]
 =WARNING=NONE
 
@@ -112,7 +108,6 @@ router:asa2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
-=END=
 =WARNING=
 Warning: Useless owner:x at area:a1,
  it was already inherited from area:all
@@ -144,7 +139,6 @@ service:test = {
     user = network:n1;
     permit src = user; dst = interface:R.V, interface:R.n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: service:test has multiple owners:
  x, y
@@ -162,7 +156,6 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; owner = y; }
  interface:V = { ip = 10.3.3.3; loopback; hardware = lo1; owner = y; }
 }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'owner' at managed interface:r1.n1
 Warning: Ignoring attribute 'owner' at managed interface:r1.V
@@ -180,7 +173,6 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = e0; }
  interface:V  = { ip = 10.3.3.3; hardware = lo; vip; }
 }
-=END=
 =ERROR=
 Error: Must not use attribute 'vip' at interface:r1.V of managed router
 =END=
@@ -240,7 +232,6 @@ service:s1 = {
 =WARNING=
 Warning: Ignoring attribute 'owner' at managed interface:r2.n2
 Warning: Unknown owner for interface:r2.n2 in service:s1
-=END=
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
@@ -250,7 +241,6 @@ owner:x = { watchers = x@a.b; }
 owner:y = { watchers = y@a.b; }
 area:all = { owner = x; anchor = network:n1; }
 network:n1 = { owner = y; ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Missing attribute 'admins' in owner:y of network:n1
 =END=
@@ -260,7 +250,6 @@ Error: Missing attribute 'admins' in owner:y of network:n1
 =INPUT=
 owner:o1 = { admins = [all]@example.com; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
-=END=
 =ERROR=
 Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.com
 =END=
@@ -269,7 +258,6 @@ Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.c
 =TITLE=Invalid email address
 =INPUT=
 owner:o1 = { watchers = abc.example.com; }
-=END=
 =ERROR=
 Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.com
 =END=
@@ -279,7 +267,6 @@ Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.c
 =INPUT=
 owner:o1 = { admins = abc@example.com; watchers = [all]@...; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
-=END=
 =ERROR=
 Error: Invalid email address (ASCII only) in watchers of owner:o1: [all]@...
 =END=
@@ -295,7 +282,6 @@ network:n1 = {
  owner = y; ip = 10.1.1.0/24;
  host:h1 = { owner = z; ip = 10.1.1.1; }
 }
-=END=
 =ERROR=
 Error: owner:y with attribute 'only_watch' must only be used at area,
  not at network:n1
@@ -323,7 +309,6 @@ router:asa1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-=END=
 =ERROR=
 Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
  Missing:
@@ -408,7 +393,6 @@ router:asa1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =WARNING=
 Warning: Ignoring undefined owner:xx of area:a1
 Warning: Ignoring undefined owner:xx of router_attributes of area:a1
@@ -444,7 +428,6 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'owner' at router:r2,
  it was already inherited from router_attributes of area:a2
@@ -493,7 +476,6 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-=END=
 =WARNING=
 Warning: Useless owner:o at any:n1,
  it was already inherited from area:a1
@@ -529,7 +511,6 @@ router:asa1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =WARNING=
 Warning: Inconsistent owner definition for host:h1 and host:h2
 Warning: Inconsistent owner definition for host:h1 and host:h2
@@ -556,7 +537,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless use of attribute 'multi_owner' at service:s1
 Warning: Useless use of attribute 'unknown_owner' at service:s1
@@ -591,12 +571,10 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = host:h2; prt = tcp 83;
 }
-=END=
 =WARNING=
 Warning: Unknown owner for host:h1 in service:s2
 Warning: Unknown owner for host:h2 in service:s3
 Warning: Unknown owner for network:n2 in service:s1, service:s2
-=END=
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
@@ -620,7 +598,6 @@ service:s1 = {
  user = network:n1, host:h1, host:h2;
  permit src = user; dst = user; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Unknown owner for host:h1 in service:s1
 =OPTIONS=--check_service_unknown_owner=warn
@@ -645,11 +622,9 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2, network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'unknown_owner' is blocked at service:s1
 Warning: Unknown owner for network:n3 in service:s1
-=END=
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
@@ -672,7 +647,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2, network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -692,7 +666,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -722,7 +695,6 @@ service:s1 = {
  user = interface:asa1.n1;
  permit src = user; dst = host:h5, host:h10, host:h11; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: service:s1 has multiple owners:
  o1, o2, o3
@@ -742,7 +714,6 @@ service:s1 = {
  user = interface:asa1.n1;
  permit src = any:[network:n1]; dst = user; prt = icmp 8;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -765,7 +736,6 @@ service:s1 = {
  user = interface:r2.n2;
  permit src = any:[network:n1]; dst = user; prt = icmp 8;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -789,11 +759,9 @@ service:s1 = {
  user = interface:r2.n2;
  permit src = any:[network:n1]; dst = user; prt = icmp 8;
 }
-=END=
 =WARNING=
 Warning: Unknown owner for any:[network:n1] in service:s1
 Warning: Unknown owner for any:[network:n1] in service:s1
-=END=
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
@@ -826,7 +794,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = host:h1, host:h2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: service:s1 has multiple owners:
  o1, o2
@@ -858,7 +825,6 @@ service:s1 = {
  permit src = host:h1, host:h2; dst = user; prt = tcp 81;
  permit src = group:g1; dst = user; prt = tcp 82;
 }
-=END=
 =WARNING=
 Warning: Useless use of attribute 'multi_owner' at service:s1
  All 'user' objects belong to single owner:o3.
@@ -887,7 +853,6 @@ service:s1 = {
  user = group:g1;
  permit src = user; dst = host:h1, host:h2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -914,7 +879,6 @@ service:s1 = {
  user = network:n1, interface:asa1.n2;
  permit src = host:h1, host:h2; dst = user; prt = tcp 81;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -940,7 +904,6 @@ service:s1 = {
  user = network:n1;
  permit src = host:h1, host:h2; dst = user; prt = tcp 81;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -966,7 +929,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = host:h1, host:h2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'multi_owner' is blocked at service:s1
 Warning: service:s1 has multiple owners:
@@ -995,7 +957,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = host:h1, host:h2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 
 ############################################################

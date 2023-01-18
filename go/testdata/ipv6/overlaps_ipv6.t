@@ -33,7 +33,6 @@ service:test2 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=
 Warning: Duplicate rules in service:test1b and service:test1a:
@@ -79,7 +78,6 @@ service:test3b = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = udp 123;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=
 DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of service:test1b
@@ -96,7 +94,6 @@ service:test1a = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Warning: Unknown 'service:test2' in attribute 'overlaps' of service:test1a
 Error: Expected type 'service:' in attribute 'overlaps' of service:test1a
@@ -121,7 +118,6 @@ service:test2 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = protocol:tcp;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=
 DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=protocol:ssh; of service:test1b
@@ -145,7 +141,6 @@ service:test2 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=
 Warning: Duplicate rules in service:test1b and service:test1a:
@@ -175,7 +170,6 @@ service:s2 = {
 	dst = host:h2;
 	prt = tcp 80, protocol:Ping_Net;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=
 Warning: Useless 'overlaps = service:s2' in service:s1
@@ -201,7 +195,6 @@ service:s2 = {
 	dst = host:h1;
 	prt = tcp 81;
 }
-=END=
 =SHOW_DIAG=
 =WARNING=NONE
 
@@ -219,7 +212,6 @@ service:test2 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test compared to service:test:
   permit src=host:h1; dst=network:n1; prt=tcp 22; of service:test
@@ -372,7 +364,6 @@ service:s18 = {
  user = network:n3;
  permit src = user; dst = host:h8; prt = tcp;
 }
-=END=
 =WARNING=
 Warning: Attribute 'overlaps' is blocked at service:s15
 Warning: Attribute 'overlaps' is blocked at service:s5

@@ -17,7 +17,6 @@ service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = icmpv6;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input NX-OS]]
 =OUTPUT=
@@ -100,7 +99,6 @@ router:r = {
  interface:lo = { ip = ::a09:902; hardware = lo; loopback; }
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e0_in
@@ -140,7 +138,6 @@ router:r = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ipv6 access-list n1_in
@@ -164,7 +161,6 @@ area:all = {
 }
 network:n = { ip = ::a01:100/120; }
 protocol:ftp-data = tcp 20:1024-65535;
-=END=
 =ERROR=
 Error: Must not use 'protocol:ftp-data' with ports in general_permit of router_attributes of area:all
 Error: Must not use 'tcp 80' with ports in general_permit of router_attributes of area:all
@@ -178,7 +174,6 @@ Error: Must not use 'udp 1' with ports in general_permit of router_attributes of
 area:all = { anchor = network:n; router_attributes = { general_permit = protocol:ping-net; } }
 network:n = { ip = ::a01:100/120; }
 protocol:ping-net = icmpv6 8, src_net, dst_net;
-=END=
 =ERROR=
 Error: Must not use 'protocol:ping-net' with modifiers in general_permit of router_attributes of area:all
 =END=
@@ -193,7 +188,6 @@ area:all = {
  router_attributes = { general_permit = icmpv6 3, udp, protocol:UDP, icmpv6 3; }
  }
 network:n = { ip = ::a01:100/120; }
-=END=
 =WARNING=
 Warning: Ignoring duplicate 'udp' in general_permit of router_attributes of area:all
 Warning: Ignoring duplicate 'icmpv6 3' in general_permit of router_attributes of area:all
@@ -214,7 +208,6 @@ router:r = {
  general_permit = tcp, icmpv6;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'general_permit' at router:r,
  it was already inherited from router_attributes of area:all
@@ -235,7 +228,6 @@ router:asa1 = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'general_permit' at area:a1,
  it was already inherited from router_attributes of area:all
@@ -256,7 +248,6 @@ router:r = {
  general_permit = icmpv6;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e1_in
@@ -279,7 +270,6 @@ router:r = {
  general_permit = icmpv6 3, icmpv6 4;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e1_in

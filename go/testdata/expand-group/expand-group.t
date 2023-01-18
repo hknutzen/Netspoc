@@ -57,7 +57,6 @@ group:g2 =
  group:g1,
  host:a,
  host:b;
-=END=
 =ERROR=
 Error: No defintion found for 'group:g1'
 =PARAMS=group:g1
@@ -84,7 +83,6 @@ group:g2 =
 group:g1 = host:a;
 group:g2 = group:g1, host:b;
 group:g3 = group:g2, host:c;
-=END=
 =OUTPUT=
 group:g3 =
  host:a,
@@ -99,7 +97,6 @@ group:g3 =
 group:g1 = host:a;
 group:g2 = group:g1, host:b;
 group:g3 = group:g2, host:c;
-=END=
 =OUTPUT=
 group:g3 =
  host:a,
@@ -122,7 +119,6 @@ group:g4 =
  any:[ip=10.99.0.0/16 & group:g2],
  interface:[managed & group:g3].[auto],
 ;
-=END=
 =OUTPUT=
 group:g4 =
  any:[ip = 10.99.0.0/16 &
@@ -155,7 +151,6 @@ group:g5 = !group:g1 & host:[network:n] &! group:g2;
 group:g6 =
  group:g3 &! interface:r1.[auto] &! interface:r2.n2 &! interface:r3.[all];
  group:g7 = group:g1 &! host:a &! host:b;
-=END=
 =OUTPUT=
 group:g4 =
  host:b,
@@ -255,7 +250,6 @@ area:a = {
  border = interface:r3.n3, group:g1;
  inclusive_border = group:g2;
 }
-=END=
 =OUTPUT=
 area:a = {
  border = interface:r1.[all]
@@ -275,7 +269,6 @@ pathrestriction:p =
  interface:r3.n3,
  group:g1,
 ;
-=END=
 =OUTPUT=
 pathrestriction:p =
  interface:r1.[all]

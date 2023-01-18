@@ -28,7 +28,6 @@ service:s1 = {
  # implicitly add any:[network:n2]
  permit src = user; dst = any:[network:n3]; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -70,7 +69,6 @@ router:Kunde = {
 pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
 owner:t1 = { admins = guest; }
 any:Trans1 = { link = network:Trans1; owner = t1; }
-=END=
 =WARNING=
 Warning: Useless owner:t1 at network:Trans2,
  it was already inherited from any:Trans1
@@ -114,7 +112,6 @@ service:s1 = {
  user = network:A;
  permit src = user; dst = interface:filter1.Trans; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: network:B and network:A have identical IP/mask in any:[network:Trans]
 =END=
@@ -148,7 +145,6 @@ service:test = {
  user = network:Customer;
  permit src = user; dst = host:h; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/secondary
 ipv6 access-list Trans_in
@@ -197,7 +193,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:sub1; prt = tcp 49;
 }
-=END=
 =OUTPUT=
 --ipv6/secondary
 ipv6 access-list n1_in
@@ -251,7 +246,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = network:sub2; prt = tcp 49;
 }
-=END=
 =OUTPUT=
 --ipv6/secondary
 ipv6 access-list n1_in
@@ -288,7 +282,6 @@ service:s1 = {
  user = host:[network:n2];
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n2_in
@@ -324,7 +317,6 @@ service:s1 = {
  user = host:[area:n1-2];
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n2_in
@@ -369,7 +361,6 @@ service:s1 = {
  user = any:n1;
  permit src = user; dst = network:n4; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! [ Routing ]
@@ -395,7 +386,6 @@ router:r2 = {
  interface:n2 = { ip = ::a01:202; hardware = n2; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
-=END=
 =ERROR=
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2
@@ -422,7 +412,6 @@ router:r2 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
 pathrestriction:p = interface:r1.n2, interface:r2.n2;
-=END=
 =ERROR=
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2
@@ -448,7 +437,6 @@ router:r2 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
 pathrestriction:p = interface:r1.n2, interface:r2.n3;
-=END=
 =ERROR=
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2

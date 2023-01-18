@@ -58,7 +58,6 @@ service:s1 = {
  user = interface:r2.n3;
  permit src = user; dst = network:n4; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --ipv6/r3
 ipv6 access-list n3_in
@@ -80,7 +79,6 @@ service:s2 = {
  user = interface:r3.n4;
  permit src = user; dst = network:n3; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --ipv6/r3
 ipv6 access-list n3_in
@@ -130,7 +128,6 @@ service:s1 = {
  user = interface:r4.[auto];
  permit src = user; dst = network:n4; prt = udp 514;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -197,7 +194,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list GigabitEthernet0/1_in
@@ -233,7 +229,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list GigabitEthernet0/1_in
@@ -264,7 +259,6 @@ service:test = {
 	dst = any:[network:Test];
 	prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list GigabitEthernet0/1_in
@@ -331,7 +325,6 @@ service:test = {
 	dst = network:Test;
 	prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --ipv6/Kunde
 ipv6 route ::a09:100/120 ::a05:601
@@ -384,7 +377,6 @@ service:intra = {
         dst = user;
         prt = protocol:IP;
 }
-=END=
 =OUTPUT=
 --ipv6/c1
 ipv6 access-list Vlan13_in
@@ -444,7 +436,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = interface:r3.[auto]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! [ ACL ]
@@ -491,7 +482,6 @@ service:s1 = {
  permit src = user; dst = interface:r1.n2; prt = icmpv6 8;
  permit src = interface:r1.n2; dst = user; prt = icmpv6 8;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n2_in
@@ -549,7 +539,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n1; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n2_in
@@ -603,7 +592,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = interface:r4.n4; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! n2_in
@@ -648,7 +636,6 @@ router:r2 = {
  interface:n4 = { ip = ::a01:402; hardware = n4; }
 }
 pathrestriction:r = interface:u1.n2, interface:u2.n2;
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input managed;]]
 =WARNING=NONE
@@ -833,7 +820,6 @@ service:test = {
         dst =   network:n4;
         prt =   ip;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list E1_in
@@ -887,7 +873,6 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = proto 50;
  permit src = network:n2; dst = user; prt = proto 50;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in

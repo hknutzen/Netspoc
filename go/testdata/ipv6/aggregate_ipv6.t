@@ -30,7 +30,6 @@ service:test = {
  permit src = user; dst = network:Customer; prt = tcp 80;
  permit src = network:[user]; dst = network:Customer; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list VLAN1_in
@@ -51,7 +50,6 @@ service:test = {
  permit src = user; dst = network:Customer; prt = tcp 80;
  permit src = network:[user]; dst = network:Customer; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list VLAN1_in
@@ -76,7 +74,6 @@ service:test2 = {
  user = network:sub;
  permit src = user; dst = network:Customer; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list VLAN1_in
@@ -196,7 +193,6 @@ service:s2 = {
   user = network:n1_20_00;
   permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:s1 compared to service:s2:
   permit src=any:[ip=::a01:0/118 & network:n1_20_16]; dst=network:n2; prt=tcp 80; of service:s1
@@ -217,7 +213,6 @@ router:r1 = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:1; hardware = n2; }
 }
-=END=
 =WARNING=
 Warning: IP of host:h1 overlaps with subnet network:n1 in nat_domain:[network:n1]
 Warning: network:n1 is subnet of network:n2
@@ -271,7 +266,6 @@ service:test = {
 }
 # if any:trans is defined, a rule must be present.
 any:Trans = { link = network:Trans; }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
@@ -306,7 +300,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = any:[network:n3]; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:[network:n3]; prt=tcp 80; of service:s1
@@ -371,7 +364,6 @@ service:test = {
 =PARAMS=--ipv6
 =INPUT=
 [[input]]
-=END=
 =OUTPUT=
 --ipv6/filter1
 access-list Vlan2_in extended permit tcp ::a00:0/104 ::a09:100/120 eq 80
@@ -393,7 +385,6 @@ router:T = {
  interface:N1;
 }
 network:N1 = { ip = ::ac0:0/120; }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=any:[ip=::a00:0/104 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
@@ -436,7 +427,6 @@ service:s1 = {
 =PARAMS=--ipv6
 =INPUT=
 [[input]]
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=network:n3; prt=icmpv6 8; of service:s1
@@ -456,7 +446,6 @@ Warning: This supernet rule would permit unexpected access:
 =INPUT=
 [[input]]
 any:n3x = { ip = ::a01:300/120; link = network:n3a; }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=network:n3; prt=icmpv6 8; of service:s1
@@ -495,7 +484,6 @@ service:s1 = {
  user = network:n3, network:n3a, network:n3b;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -528,7 +516,6 @@ service:s1 = {
         any:[ network:n2 ];
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -562,7 +549,6 @@ service:s1 = {
  user = any:[network:n2], any:[network:n3];
  permit src = user; dst = user; prt = protocol:oneway_IP;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -616,7 +602,6 @@ service:test = {
  user = any:[network:Test];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 access-list Vlan5_in extended permit tcp any6 ::a01:100/120 eq 80
@@ -675,7 +660,6 @@ service:test3 = {
  user = any:[ip=::a01:0/112 & network:Trans];
  permit src = user; dst = network:Test; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test1 compared to service:test3:
   permit src=any:[ip=::a01:0/119 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
@@ -715,7 +699,6 @@ service:test2 = {
  user = network:[any:[ip=::a01:0/113 & network:Trans]];
  permit src = user; dst = network:Test; prt = tcp 82;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 access-list Vlan2_in extended permit tcp ::a01:0/120 ::a09:100/120 eq 80
@@ -744,7 +727,6 @@ service:test = {
         ;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test compared to service:test:
   permit src=any:[ip=::a01:0/113 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
@@ -770,7 +752,6 @@ service:test = {
         ;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test compared to service:test:
   permit src=any:[ip=::a01:0/113 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
@@ -798,7 +779,6 @@ service:test2 = {
  user = any:[ip=::a09:100/121 & network:Test];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test1 compared to service:test1:
   permit src=any:[ip=::a09:100/122 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
@@ -832,7 +812,6 @@ service:test2 = {
  user = any:[ip=::a00:0/104 & network:Test];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=any:[ip=::a01:100/122 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
@@ -857,7 +836,6 @@ service:test1 = {
  user = any:[network:Test];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 access-list Vlan1_in extended permit tcp any6 ::a01:100/120 eq 80
@@ -881,7 +859,6 @@ service:test = {
  user = any:[ip=::a01:0/112 & any:[network:Test]];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 access-list Vlan1_in extended permit tcp ::a01:0/112 ::a01:100/120 eq 80
@@ -905,7 +882,6 @@ service:test = {
  user = any:[interface:filter.[all]] &! any:[network:Customer];
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Empty intersection in user of service:test:
 any:[..]
@@ -933,7 +909,6 @@ service:test = {
  user = any:[area:n1-lo] &! any:[network:Trans];
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Empty intersection in user of service:test:
 any:[..]
@@ -958,7 +933,6 @@ service:test = {
  user = network:[interface:filter.[all]] &! network:Customer;
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/filter
 ipv6 access-list VLAN2_in
@@ -996,7 +970,6 @@ network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 network:n4 = { ip = ::a01:400/120; }
 network:n128 = { ip = ::a80:100/120; }
-=END=
 =PARAMS=--ipv6
 =INPUT=
 [[topo {no: "", mod: "IOS, FW"}]]
@@ -1009,7 +982,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:Customer; dst=any:[ip=::a00:0/105 & network:n1]; prt=ip; of service:test
@@ -1056,7 +1028,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:Customer; dst=any:[ip=::a00:0/105 & network:n1]; prt=ip; of service:test
@@ -1103,7 +1074,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = any:[network:n4]; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:[network:n4]; prt=tcp 80; of service:s1
@@ -1134,7 +1104,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list VLAN9_in
@@ -1265,7 +1234,6 @@ service:test = {
  user = any:[network:n1];
  permit src = network:Customer; dst = user; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
@@ -1323,7 +1291,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = network:sub-29; prt = tcp 81;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:sub-28; prt=tcp 80; of service:s1
@@ -1373,7 +1340,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = any:sub-29; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1411,7 +1377,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 81;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1440,7 +1405,6 @@ service:s1 = {
         dst = user;
         prt = tcp 3000;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1477,7 +1441,6 @@ service:s1 = {
         dst = user;
         prt = tcp 3000;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1511,7 +1474,6 @@ service:s1 = {
         dst = user;
         prt = tcp 3000;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1545,7 +1507,6 @@ service:s1 = {
         dst = user;
         prt = tcp 3000;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:[ip=::a01:0/112 & network:n2]; prt=tcp 3000; of service:s1
@@ -1675,7 +1636,6 @@ service:s2 = {
  user = interface:u.n3;
  permit src = user; dst = any:[network:n1]; prt = tcp 23;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=interface:u.n3; dst=any:[network:n1]; prt=tcp 23; of service:s2
@@ -1728,7 +1688,6 @@ service:test = {
  user = any:[ ip = ::a00:0/104 & network:n1 ];
  permit src = user; dst = interface:r2.n3; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=any:[ip=::a00:0/104 & network:n1]; dst=interface:r2.n3; prt=udp 123; of service:test
@@ -1769,7 +1728,6 @@ service:test = {
  ;
  permit src = user; dst = network:n4; prt = udp 123;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {fw1: "", fw2: ""}]]
 =WARNING=
@@ -1849,7 +1807,6 @@ service:test = {
  user = any:[ ip = ::a00:0/104 & network:n1 ];
  permit src = user; dst = network:n3; prt = udp 123;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -1880,7 +1837,6 @@ service:test = {
  ;
  permit src = user; dst = interface:r2.n3; prt = udp 123;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n3_in
@@ -1936,7 +1892,6 @@ service:test = {
  user = any:[ network:n1 ];
  permit src = user; dst = interface:u.n2; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
@@ -1987,7 +1942,6 @@ service:test = {
  user = any:[ network:n1 ];
  permit src = user; dst = network:n3; prt = udp 123;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2047,7 +2001,6 @@ service:test = {
  user = any:[ network:n1 ];
  permit src = user; dst = network:n3; prt = udp 123;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2088,7 +2041,6 @@ service:test = {
  user = any:[ ip = ::a00:0/104 & network:n1 ];
  permit src = user; dst = interface:u.n4; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=::a00:0/104 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
@@ -2129,7 +2081,6 @@ service:s = {
  user = any:[ ip = ::a01:0/112 & network:n2 ];
  permit src = network:n3; dst = user; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input ""]]
 =WARNING=NONE
@@ -2192,7 +2143,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = ip;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n2_in
@@ -2251,7 +2201,6 @@ service:s1 = {
  permit src = user; dst = network:n4; prt = ip;
  permit src = network:n4; dst = user; prt = ip;
 }
-=END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=network:n4; prt=ip; of service:s1
@@ -2294,7 +2243,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = host:h3; prt = icmpv6 4/4, tcp 80-90;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2332,7 +2280,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = host:h3; prt = icmpv6 3/13;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2462,7 +2409,6 @@ service:s6 = {
  user = any:[network:n2];
  permit src = user; dst = host:h1b, host:h3b; prt = tcp 82;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2518,7 +2464,6 @@ service:s2 = {
  user = any:[ip=::a00:0/104 & network:n2];
  permit src = user; dst = network:n3; prt = ip;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2556,7 +2501,6 @@ service:s2 = {
  user = any:[ip=::a00:0/104 & network:n2];
  permit src = user; dst = network:n3; prt = udp;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2594,7 +2538,6 @@ service:s2 = {
  user = any:[ip = ::a01:400/119 & network:n4];
  permit src = user; dst = network:n5; prt = udp;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2626,7 +2569,6 @@ service:s2 = {
  user = any:[ip=::a00:0/104 & network:n2];
  permit src = user; dst = network:n4; prt = ip;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2654,7 +2596,6 @@ service:s2 = {
  user = interface:r2.n2;
  permit src = any:[user]; dst = user; prt = proto 50;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2699,7 +2640,6 @@ service:s2 = {
  user = any:[network:n2b];
  permit src = user; dst = network:n3; prt = icmpv6;
 }
-=END=
 =WARNING=
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
@@ -2822,7 +2762,6 @@ service:s1 = {
 	dst = any:[area:all] &! any:[user];
 	prt = protocol:oneway_IP;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -2872,7 +2811,6 @@ service:s2 = {
  user = any:n2;
  permit src = user; dst = host:h3; prt = tcp 80-90;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2903,7 +2841,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = host:h3; prt = ip;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2933,7 +2870,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = host:h3; prt = tcp 80-90;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -2982,7 +2918,6 @@ service:s4 = {
         dst = network:n3;
         prt = tcp 81 - 89;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3015,7 +2950,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = network:n1; prt = icmpv6;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -3060,7 +2994,6 @@ service:s2 = {
  user = any:[network:n1];
  permit src = user; dst = network:n3; prt = tcp;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 # [ ACL ]
@@ -3112,7 +3045,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = icmpv6 3;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3160,7 +3092,6 @@ service:s2 = {
  user = any:[network:n3];
  permit src = user; dst = network:n4; prt = udp;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3197,7 +3128,6 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = udp;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3241,7 +3171,6 @@ service:s2 = {
  user = any:[network:n3];
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -3296,7 +3225,6 @@ service:s2 = {
  user = any:[network:n3];
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -3330,7 +3258,6 @@ service:s2 = {
  user = any:n1;
  permit src = user; dst = network:n2; prt = tcp 445;
 }
-=END=
 =WARNING=
 Warning: Some source/destination pairs of service:s1 don't affect any firewall:
  src=network:n1; dst=any:n1
@@ -3364,7 +3291,6 @@ service:test = {
  user = network:intern;
  permit src = user; dst = network:[area:internet]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/asa
 ! inside_in
@@ -3382,7 +3308,6 @@ router:r1 = {
  interface:n1;
 }
 any:Trans = { link = router:r1; }
-=END=
 =ERROR=
 Error: Must only use network name in 'link' of any:Trans
 =END=
@@ -3393,7 +3318,6 @@ Error: Must only use network name in 'link' of any:Trans
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 any:Trans = { link = network:n2; }
-=END=
 =ERROR=
 Error: Referencing undefined network:n2 in 'link' of any:Trans
 =END=
@@ -3410,7 +3334,6 @@ router:r = {
  interface:n1;
  interface:n2;
 }
-=END=
 =ERROR=
 Error: Duplicate any:a1 and any:a2 in any:[network:n1]
 =END=
@@ -3443,7 +3366,6 @@ router:r2 = {
  interface:n2 = { ip = ::a01:202; hardware = n2; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
-=END=
 =ERROR=
 Error: Duplicate any:a1 and any:a2 in any:[network:n2]
 =END=
@@ -3454,7 +3376,6 @@ Error: Duplicate any:a1 and any:a2 in any:[network:n2]
 =INPUT=
 any:a1 = { ip = ::a00:0/104; link = network:n1; }
 network:n1 = { ip = ::a00:0/104; }
-=END=
 =ERROR=
 Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
 =END=
@@ -3470,7 +3391,6 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
 =END=
@@ -3502,7 +3422,6 @@ router:r2 = {
  interface:n2 = { ip = ::a01:202; hardware = n2; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
-=END=
 =ERROR=
 Error: any:a1 and network:n2 have identical IP/mask in any:[network:n1]
 =END=
@@ -3534,7 +3453,6 @@ service:s1 = {
  user = any:[ ip = ::a01:0/112 & group:clients ];
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r2
 ! n3_in
@@ -3572,7 +3490,6 @@ service:NTP-local = {
  user = foreach any:[ip = ::a01:200/119 & network:n3];
  permit src = network:[user]; dst = interface:[any:[user]].[all]; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: Some source/destination pairs of service:NTP-local don't affect any firewall:
  src=network:n2; dst=interface:r2.n2

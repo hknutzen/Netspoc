@@ -9,7 +9,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = ::a01:101; hardware = e0; dhcp_server; }
 }
-=END=
 =OUTPUT=
 --ipv6/R
 ipv6 access-list e0_in
@@ -27,7 +26,6 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = ::a01:101; hardware = n1; dhcp_client; }
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -45,7 +43,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = ::a01:101; hardware = e0; routing = OSPF; }
 }
-=END=
 =OUTPUT=
 --ipv6/R
 ipv6 access-list e0_in
@@ -65,7 +62,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = ::a01:101; hardware = e0; routing = EIGRP; }
 }
-=END=
 =OUTPUT=
 --ipv6/R
 ipv6 access-list e0_in
@@ -84,7 +80,6 @@ router:R = {
  model = IOS;
  interface:U = { ip = ::a01:101; hardware = e0; routing = RIPv2; }
 }
-=END=
 =OUTPUT=
 --ipv6/R
 ipv6 access-list e0_in
@@ -119,7 +114,6 @@ router:R2 = {
  }
  interface:V = { ip = ::a02:202; hardware = e1;}
 }
-=END=
 =OUTPUT=
 --ipv6/R1
 ipv6 access-list e0_in
@@ -159,7 +153,6 @@ router:R = {
   hardware = e0;
  }
 }
-=END=
 =OUTPUT=
 --ipv6/R
 ipv6 access-list e0_in

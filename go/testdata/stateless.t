@@ -32,7 +32,6 @@ service:test2 = {
  # permit src = user; dst = host:y; prt = ip; stateless;
  # This internal rule is globally redundant to rule of service:test1
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -54,7 +53,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 389, udp 1024-65535;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -78,7 +76,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 1-65535;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -100,7 +97,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 1-65534;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -123,7 +119,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -146,7 +141,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -169,7 +163,6 @@ service:test = {
  user = network:x, network:y;
  permit src = user; dst = user; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -196,7 +189,6 @@ service:s = {
                 tcp 3389,
                 ;
 }
-=END=
 =OUTPUT=
 --r
 ! [ ACL ]

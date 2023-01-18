@@ -3,7 +3,6 @@
 =TITLE=Single router
 =INPUT=
 router:r = {}
-=END=
 =ERROR=
 Error: router:r isn't connected to any network
 Error: topology seems to be empty
@@ -15,7 +14,6 @@ Aborted
 =INPUT=
 router:r = { interface:n2; }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Referencing undefined network:n2 from interface:r.n2
 =END=
@@ -24,7 +22,6 @@ Error: Referencing undefined network:n2 from interface:r.n2
 =TITLE=Single network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -40,7 +37,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
@@ -68,7 +64,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
@@ -116,7 +111,6 @@ router:r3 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
-=END=
 =INPUT=[[input]]
 =ERROR=
 Error: IPv4 topology has unconnected parts:
@@ -135,7 +129,6 @@ router:fw = {
  interface:t  = { ip = 10.9.1.3; hardware = t; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
 }
-=END=
 =INPUT=[[input2]]
 =ERROR=
 Error: IPv4 topology has unconnected parts:
@@ -152,7 +145,6 @@ service:test = {
  user = interface:r1.[auto], interface:r3.[auto];
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
@@ -220,7 +212,6 @@ service:s1 = {
  user = network:t1;
  permit src = user; dst = network:t2; prt = tcp;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:t1]
@@ -266,7 +257,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:{{.d}}; prt = tcp 80;
 }
-=END=
 =INPUT=
 [[input
 p1: "partition = part1;"
@@ -371,7 +361,6 @@ service:s1 = {
  permit src = user; dst = network:n4; prt = tcp 80;
  permit src = network:n4; dst = user; prt = tcp 80 ;
 }
-=END=
 =ERROR=
 Error: No valid path
  from interface:r2.n3
@@ -434,14 +423,12 @@ router:r5 = {
  interface:n7 = { ip = 10.1.7.2; hardware = n2; }
  interface:n8 = { ip = 10.1.8.1; hardware = n2; }
 }
-=END=
 =TEMPL=output
 -- r1
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
-=END=
 =INPUT=
 [[input]]
 service:s = {
@@ -507,7 +494,6 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-=END=
 =INPUT=[[input]]
 =WARNING=
 Warning: Spare partition name for single partition any:[network:n1]: part1.
@@ -526,7 +512,6 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: Only one partition name allowed in zone any:[network:n2], but found:
  - part4
@@ -559,7 +544,6 @@ service:s2 = {
  user = interface:r2.[auto];
  permit src = host:h2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in

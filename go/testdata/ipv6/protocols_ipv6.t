@@ -20,7 +20,6 @@ router:r1 = {
 =PARAMS=--ipv6
 =INPUT=
 protocol:p = tcp
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
@@ -32,7 +31,6 @@ Aborted
 =INPUT=
 protocol:test = xyz;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown protocol in protocol:test
 =END=
@@ -43,7 +41,6 @@ Error: Unknown protocol in protocol:test
 =INPUT=
 protocol:test = ip v6;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected details after protocol:test
 =END=
@@ -53,7 +50,6 @@ Error: Unexpected details after protocol:test
 =PARAMS=--ipv6
 =INPUT=
 protocol:test = tcp 80 -
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
@@ -74,7 +70,6 @@ protocol:p8 = tcp 1 - 2 - 3;
 protocol:p9 = tcp 1 - 2 : 3 : 4;
 protocol:p10 = tcp -;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected port number > 0 in protocol:p1
 Error: Expected port number < 65536 in protocol:p2
@@ -88,7 +83,6 @@ Error: Invalid port range in protocol:p7
 Error: Invalid port range in protocol:p8
 Error: Invalid port range in protocol:p9
 Error: Expected number in protocol:p10: -
-=END=
 =OPTIONS=--max_errors=20
 
 ############################################################
@@ -101,7 +95,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = user; prt = protocolgroup:g1;
 }
-=END=
 =ERROR=
 Error: Expected port number < 65536 in 'tcp 77777' of protocolgroup:g1
 Error: Invalid port range in 'udp - 1' of protocolgroup:g1
@@ -118,7 +111,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 1-1023, udp 1024-65535;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -153,7 +145,6 @@ Error: Must not use source port in 'udp 2000 - 2050 : 2020' of service:test.
 =INPUT=
 protocol:test = tcp 80, src_xyz;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown modifier 'src_xyz' in protocol:test
 =END=
@@ -181,7 +172,6 @@ service:test = {
  permit src = user; dst = network:n2; prt = protocolgroup:tftp, udp 123;
  permit src = user; dst = network:n3; prt = icmpv6 3, protocolgroup:Ping_Net_both;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -220,7 +210,6 @@ service:test = {
  permit src = user; dst = network:n4; prt = tcp 21;
 }
 protocol:TCP_21_Reply = tcp 21, reversed;
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -248,7 +237,6 @@ service:test = {
 # is joined in pass2.
  permit src = user; dst = network:n2; prt = tcp 90 - 94;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -268,7 +256,6 @@ ipv6 access-list n1_in
 =INPUT=
 protocol:test = icmpv6 3000;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected number < 256 in protocol:test
 =END=
@@ -278,7 +265,6 @@ Error: Expected number < 256 in protocol:test
 =PARAMS=--ipv6
 =INPUT=
 protocol:test = icmpv6 3 /
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
@@ -291,7 +277,6 @@ Aborted
 protocol:p1 = icmpv6 3 - 4;
 protocol:p2 = icmpv6 3@4;
 protocol:p3 = icmpv6 3.4;
-=END=
 =ERROR=
 Error: Expected [TYPE [ / CODE]] in protocol:p1
 Error: Expected number in protocol:p2: 3@4
@@ -304,7 +289,6 @@ Error: Expected number in protocol:p3: 3.4
 =INPUT=
 protocol:test = icmpv6 3 / 999;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected number < 256 in protocol:test
 =END=
@@ -320,7 +304,6 @@ service:test = {
         dst = network:n2;
         prt = icmpv6 3/2, icmpv6 3/1, icmpv6 3/0, icmpv6 3/13, icmpv6 3/3;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -339,7 +322,6 @@ ipv6 access-list n1_in
 =PARAMS=--ipv6
 =INPUT=
 protocol:test = proto
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
@@ -350,7 +332,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 protocol:test = proto -1;
-=END=
 =ERROR=
 Error: Expected single protocol number in protocol:test
 =END=
@@ -363,7 +344,6 @@ protocol:test1 = proto 0;
 protocol:test2 = proto 300;
 protocol:test3 = proto foo;
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Invalid protocol number '0' in protocol:test1
 Error: Expected number < 256 in protocol:test2
@@ -382,7 +362,6 @@ service:s1 = {
         dst = network:n2;
         prt = proto 50, protocol:test;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -404,7 +383,6 @@ service:s1 = {
         dst = network:n2;
         prt = protocol:test, ip;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:s1 compared to service:s1:
   permit src=network:n1; dst=network:n2; prt=protocol:test; of service:s1
@@ -418,7 +396,6 @@ Warning: Redundant rules in service:s1 compared to service:s1:
 network:n1 = { ip = ::a01:100/120; }
 protocol:TCP  = proto 4;
 protocol:UDP  = proto 17;
-=END=
 =ERROR=
 Error: Must not use 'proto 4', use 'tcp' instead in protocol:TCP
 Error: Must not use 'proto 17', use 'udp' instead in protocol:UDP
@@ -443,7 +420,6 @@ service:s2 = {
         dst = user;
         prt = udp 69;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -489,7 +465,6 @@ service:s1 = {
  user =  interface:u1.n2;
  permit src = user; dst = network:n1; prt = protocol:Ping_Netz;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ipv6 access-list n2_in
@@ -519,7 +494,6 @@ service:s1 = {
  user = interface:u.lo, interface:r1.n2;
  permit src = network:n1; dst = user; prt = protocol:Ping_Netz;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -550,7 +524,6 @@ service:s1 = {
  user = host:h1;
  permit src = user; dst = host:h2; prt = protocol:tftp_net, udp 68;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -573,11 +546,9 @@ ipv6 access-list n2_in
 network:n1 = { ip = ::a01:100/120; }
 protocol:http = tcp 80;
 protocol:ping = icmpv6 8;
-=END=
 =WARNING=
 Warning: unused protocol:http
 Warning: unused protocol:ping
-=END=
 =OPTIONS=--check_unused_protocols=warn
 
 ############################################################
@@ -587,11 +558,9 @@ Warning: unused protocol:ping
 network:n1 = { ip = ::a01:100/120; }
 protocolgroup:g1 = tcp 80, icmpv6 8, protocolgroup:g2;
 protocolgroup:g2 = udp 123, udp 69;
-=END=
 =WARNING=
 Warning: unused protocolgroup:g1
 Warning: unused protocolgroup:g2
-=END=
 =OPTIONS=--check_unused_groups=warn
 
 ############################################################
@@ -614,7 +583,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = protocolgroup:g1, protocolgroup:g2;
 }
-=END=
 =WARNING=
 Warning: Ignoring duplicate 'tcp 80' in protocolgroup:g1
 Warning: Ignoring duplicate 'udp 123' in protocolgroup:g1
@@ -639,7 +607,6 @@ service:s1 = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = protocolgroup:g1, protocol:p1;
 }
-=END=
 =ERROR=
 Error: Can't resolve reference to protocol:p1 in protocolgroup:g1
 Error: Can't resolve reference to protocolgroup:g2 in protocolgroup:g1
@@ -665,7 +632,6 @@ service:s1 = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = protocolgroup:g1;
 }
-=END=
 =ERROR=
 Error: Found recursion in definition of protocolgroup:g2
 =END=

@@ -188,7 +188,6 @@ router:u = {
 }
 network:b3 = { ip = 10.1.3.0/24; }
 any:b = { link = network:b1; }
-=END=
 =INPUT=
 [[topo]]
 service:test1 = {

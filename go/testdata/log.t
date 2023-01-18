@@ -35,7 +35,6 @@ service:t = {
  permit src = user; dst = network:n3; prt = tcp 84;
  permit src = user; dst = network:n3; prt = tcp 85; log = a, b, c;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ ACL ]
@@ -65,7 +64,6 @@ router:r1 = {
  log:a = foo;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model ASA
  Expected one of: <empty>|alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
@@ -81,7 +79,6 @@ router:r1 = {
  log:a = alerts, errors;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Must not use multiple values for log:a in router:r1 of model ASA
 =END=
@@ -96,7 +93,6 @@ router:r1 = {
  log:a = foo;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model IOS
  Expected one of: <empty>|log-input
@@ -112,7 +108,6 @@ router:r1 = {
  log:a = foo;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
  Use 'log:a;' only.
@@ -128,7 +123,6 @@ router:r1@v1 = {
  log:a = foo, bar;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1@v1 of model PAN-OS
  Expected: end|setting:|start
@@ -146,7 +140,6 @@ router:r1@v1 = {
  log:a;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Invalid 'log:a = <empty>' at router:r1@v1 of model PAN-OS
  Expected: end|setting:|start
@@ -162,7 +155,6 @@ router:r1@v1 = {
  log:a = setting:;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Must give some value after ':' in 'setting:' of log:a in router:r1@v1
 =END=
@@ -177,7 +169,6 @@ router:r1 = {
  log:a;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Must not use attribute 'log:a' at router:r1 of model Linux
 =END=
@@ -190,7 +181,6 @@ service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = d, e/f;
 }
-=END=
 =WARNING=
 Warning: Ignoring unknown 'd' in log of service:t
 Warning: Ignoring unknown 'e/f' in log of service:t
@@ -204,7 +194,6 @@ service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = b,a,a,c,b,c,b;
 }
-=END=
 =WARNING=
 Warning: Duplicate 'a' in log of service:t
 Warning: Duplicate 'b' in log of service:t
@@ -224,7 +213,6 @@ service:t2 = {
  user = any:[network:n1], any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:t1 compared to service:t2:
   permit src=network:n1; dst=network:n3; prt=tcp 80; log=a; of service:t1
@@ -243,7 +231,6 @@ service:t2 = {
  user = any:[network:n1], any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = b;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ ACL ]
@@ -272,7 +259,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
 }
-=END=
 =ERROR=
 Error: Duplicate rules must have identical log attribute:
  permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
@@ -291,7 +277,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
 }
-=END=
 =OUTPUT=
 -- asa2
 ! n2_in
@@ -309,7 +294,6 @@ service:t = {
  user = network:n1, any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ ACL ]
@@ -335,7 +319,6 @@ service:t2 = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = b;
 }
-=END=
 =OUTPUT=
 -- asa2
 ! n2_in
@@ -372,7 +355,6 @@ service:t = {
  permit src = user; dst = host:h3; prt = tcp 80; log = c;
  permit src = user; dst = host:h4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- asa
 ! n1_in
@@ -412,7 +394,6 @@ service:t = {
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
  permit src = user; dst = network:n3; prt = tcp 81; log = b;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ ACL ]
@@ -445,7 +426,6 @@ service:t = {
  deny src = user; dst = network:n2; prt = tcp 22;
  permit src = user; dst = network:n2; prt = tcp;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ ACL ]

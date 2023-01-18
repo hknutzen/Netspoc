@@ -30,13 +30,11 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -51,13 +49,11 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 81, tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -72,13 +68,11 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = host:h11, host:h10; prt = tcp 80, tcp 81;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -93,13 +87,11 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 80; log = l2, l1;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -114,13 +106,11 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -135,13 +125,11 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:[host:h11, host:h10]; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -158,13 +146,11 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = group:g2 & !group:g1; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -185,7 +171,6 @@ Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -208,7 +193,6 @@ Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -227,7 +211,6 @@ service:s2 = {
         dst = host:h10, host:h11;
         prt = tcp 90;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -247,7 +230,6 @@ service:s2 = {
         dst = host:h10, host:h11;
         prt = tcp 90, tcp 99;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -267,7 +249,6 @@ service:s2 = {
         dst = host:h10, host:h11;
         prt = tcp 80, tcp 90, tcp 99;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -287,7 +268,6 @@ service:s2 = {
         dst = host:h10, host:h11;
         prt = tcp 81, tcp 90, tcp 99;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -305,7 +285,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = group:g1 & group:g2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -327,13 +306,11 @@ service:s2 = {
  permit src = network:n1; dst = user; prt = tcp 22;
  deny   src = host:h10; dst = user; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn --check_duplicate_rules=0
 
 ############################################################
@@ -353,13 +330,11 @@ service:s2 = {
  permit src = network:n1; dst = user; prt = tcp 23;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -396,7 +371,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -412,7 +386,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 80; log = l1;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -430,7 +403,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -446,7 +418,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = any:[ip=10.1.0.0/16 & network:n2]; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -462,7 +433,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -478,7 +448,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = interface:[network:n2].[all]; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -494,7 +463,6 @@ service:s2 = {
  user = host:h11;
  permit src = user; dst = interface:[network:n2].[auto]; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -510,7 +478,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:[host:h10]; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -532,7 +499,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -553,7 +519,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -576,7 +541,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -598,7 +562,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
@@ -625,14 +588,12 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
  - service:s3
-=END=
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -653,7 +614,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'identical_body' in service:s3
 Warning: service:s1 has useless service:s3 in attribute 'identical_body'
@@ -677,7 +637,6 @@ service:s3 = {
  user = host:h12;
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'identical_body' in service:s3
 =OPTIONS=--check_identical_services=warn
@@ -703,7 +662,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'identical_body' in service:s1
 =OPTIONS=--check_identical_services=warn
@@ -734,7 +692,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = host:h10, host:h11; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
@@ -762,7 +719,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n2, network:n3, network:n4; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
@@ -793,7 +749,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n2, network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'identical_body' is blocked at service:s1
 =OPTIONS=--check_identical_services=warn
@@ -821,7 +776,6 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'identical_body' is blocked at service:s1
 Warning: Useless attribute 'identical_body' in service:s1
@@ -856,7 +810,6 @@ service:s2 = {
  permit src = user; dst = interface:r1.[auto]; prt = udp 162;
  permit src = user; dst = interface:r1.[auto]; prt = udp 161;
 }
-=END=
 =WARNING=
 Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
@@ -887,7 +840,6 @@ service:s2 = {
  user = network:n2, network:n3, network:n4;
  permit src = user; dst = user; prt = ip;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn --check_duplicate_rules=0
 
@@ -939,6 +891,5 @@ service:s4 = {
         dst = host:h30, host:h33, interface:u.n2;
         prt = tcp 80, tcp 90;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn

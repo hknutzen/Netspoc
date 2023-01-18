@@ -193,7 +193,6 @@ router:u = {
 }
 network:b3 = { ip = ::a01:300/120; }
 any:b = { link = network:b1; }
-=END=
 =PARAMS=--ipv6
 =INPUT=
 [[topo]]

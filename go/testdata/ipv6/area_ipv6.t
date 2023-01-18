@@ -128,7 +128,6 @@ service:pdp3 = {
 ! [ IP = ::a01:101 ]
 --ipv6/asa2
 ! [ IP = ::a01:302 ]
-=END=
 =OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################
@@ -154,7 +153,6 @@ service:pdp3 = {
 =WARNING=
 Warning: Missing attribute 'policy_distribution_point' for 1 devices:
  - router:asa1
-=END=
 =OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################

@@ -9,7 +9,6 @@ router:d32 = {
  filter_only =  10.62.0.0/8;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: IP and mask of 10.62.0.0/8 don't match in 'filter_only' of router:d32
 =END=
@@ -37,7 +36,6 @@ router:d32 = {
  filter_only =  10.62.0.0/16;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'managed = local'
 =END=
@@ -52,7 +50,6 @@ router:d32 = {
  filter_only =  10.62.0.0/16;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Must not use 'managed = local' at router:d32 of model Linux
 =END=
@@ -95,7 +92,6 @@ router:r1 = {
  interface:n2 = { ip = 10.62.2.33; hardware = n2; }
 }
 network:n2 = { ip = 10.62.2.32/27; }
-=END=
 =WARNING=
 Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:r1
 =END=
@@ -112,7 +108,6 @@ router:d32 = {
  interface:n2 = { ip = 10.62.2.1; hardware = n2; bind_nat = n1;}
 }
 network:n2 = { ip = 10.62.2.0/27; }
-=END=
 =ERROR=
 Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
 =END=
@@ -145,7 +140,6 @@ router:r3 = {
  interface:n4 = { ip = 10.62.242.3; hardware = n4; }
  interface:n3 = { ip = 10.62.3.65; hardware = n3; }
 }
-=END=
 =ERROR=
 Error: router:r1 and router:r2 must have identical values in attribute 'filter_only'
 Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
@@ -231,7 +225,6 @@ service:Test = {
  user = network:n1;
  permit src = user; dst = network:extern; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -257,7 +250,6 @@ service:Test = {
  permit src = network:n1; dst = user; prt = tcp 80;
  permit src = user; dst = network:n1; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -299,7 +291,6 @@ service:Test = {
         dst = network:extern;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -321,7 +312,6 @@ service:Test = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -344,7 +334,6 @@ service:Test = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -381,7 +370,6 @@ service:Test = {
         dst = user;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n2_in
@@ -421,7 +409,6 @@ service:Test = {
         dst = user;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! n2_in
@@ -458,7 +445,6 @@ service:Test = {
         dst = network:n1, network:n2;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --d32
 ! intern_in
@@ -513,7 +499,6 @@ service:Test = {
         dst = network:n1;
         prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --d32
 ! intern_in
@@ -552,7 +537,6 @@ service:Mail = {
         dst = network:extern;
         prt = tcp 25;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --d31
@@ -595,7 +579,6 @@ service:test = {
  permit src = user; dst = network:n2; prt = tcp 80;
  permit src = network:n2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --d32
 ! n1_in
@@ -657,7 +640,6 @@ service:test = {
  permit src = user; dst = network:n2; prt = tcp 80;
  permit src = network:n2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --d1
 ip access-list extended n1_in
@@ -711,7 +693,6 @@ service:Mail = {
         dst = network:extern, network:n1;
         prt = tcp 25;
 }
-=END=
 =OUTPUT=
 --ex
 ! inside_in
@@ -764,7 +745,6 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
-=END=
 =OUTPUT=
 --r2
 ! outside_in
@@ -815,7 +795,6 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
-=END=
 =OUTPUT=
 --r2
 ! outside_in
@@ -869,7 +848,6 @@ service:s1 = {
  user = network:n1, network:n4;
  permit src = user; dst = network:n5; prt = tcp 25;
 }
-=END=
 =OUTPUT=
 -- r1
 ! n1_in
@@ -901,7 +879,6 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = inside; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
-=END=
 =OUTPUT=
 --r1
 ! outside_in
@@ -930,7 +907,6 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = inside; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
-=END=
 =OUTPUT=
 --r1
 ! outside_in

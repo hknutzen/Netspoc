@@ -21,7 +21,6 @@ isakmp:aes256SHA = {
 crypto:vpn = {
  type = ipsec:aes256SHA;
 }
-=END=
 =TEMPL=crypto_sts
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -50,7 +49,6 @@ crypto:sts = {
 isakmp:aes256SHA = {
  nat_traversal = additional;
 }
-=END=
 =ERROR=
 Error: Missing 'authentication' for isakmp:aes256SHA
 Error: Missing 'encryption' for isakmp:aes256SHA
@@ -70,7 +68,6 @@ isakmp:aes256SHA = {
  lifetime = 500 hours;
  foo;
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in isakmp:aes256SHA: foo
 =END=
@@ -85,7 +82,6 @@ isakmp:aes256SHA = {
  group = 3;
  lifetime = 500 hours;
 }
-=END=
 =ERROR=
 Error: Invalid value in 'authentication' of isakmp:aes256SHA: rsa-signature
 Error: Invalid value in 'group' of isakmp:aes256SHA: 3
@@ -101,7 +97,6 @@ isakmp:aes256SHA = {
  group = 2;
  lifetime = 500;
 }
-=END=
 =ERROR=
 Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 =END=
@@ -116,7 +111,6 @@ isakmp:aes256SHA = {
  group = 2;
  lifetime = many sec;
 }
-=END=
 =ERROR=
 Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 =END=
@@ -131,7 +125,6 @@ isakmp:aes256SHA = {
  group = 2;
  lifetime = 500 years;
 }
-=END=
 =ERROR=
 Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 =END=
@@ -142,7 +135,6 @@ Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 ipsec:aes256SHA = {
  esp_encryption = aes256;
 }
-=END=
 =ERROR=
 Error: Missing 'lifetime' for ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -155,7 +147,6 @@ ipsec:aes256SHA = {
  lifetime = 100 sec;
  foo = 21;
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in ipsec:aes256SHA: foo
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -168,7 +159,6 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 100 foo;
 }
-=END=
 =ERROR=
 Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -181,7 +171,6 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = many seconds;
 }
-=END=
 =ERROR=
 Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -194,7 +183,6 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 3 hours many kilobytes;
 }
-=END=
 =ERROR=
 Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -207,7 +195,6 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 3 hours 1000000 bytes;
 }
-=END=
 =ERROR=
 Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -220,7 +207,6 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 1;
 }
-=END=
 =ERROR=
 Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -235,7 +221,6 @@ ipsec:aes256SHA = {
  lifetime = 600 sec;
 }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Expected type 'isakmp:' in 'key_exchange' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -250,7 +235,6 @@ ipsec:aes256SHA = {
  lifetime = 600 sec;
 }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Can't resolve reference to isakmp:abc in ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -260,7 +244,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 =TITLE=Missing type of crypto definition
 =INPUT=
 crypto:c = {}
-=END=
 =ERROR=
 Error: Missing 'type' for crypto:c
 =END=
@@ -270,7 +253,6 @@ Error: Missing 'type' for crypto:c
 =INPUT=
 crypto:c = { type = xyz:abc; }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Expected type 'ipsec:' in 'type' of crypto:c
 Error: Missing 'type' for crypto:c
@@ -281,7 +263,6 @@ Error: Missing 'type' for crypto:c
 =INPUT=
 crypto:c = { type = ipsec:abc; }
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =ERROR=
 Error: Can't resolve reference to ipsec:abc in crypto:c
 Error: Missing 'type' for crypto:c
@@ -292,7 +273,6 @@ Error: Missing 'type' for crypto:c
 =INPUT=
 [[crypto_vpn]]
 network:n1 = { ip = 10.1.1.0/24; }
-=END=
 =WARNING=
 Warning: No hub has been defined for crypto:vpn
 =END=
@@ -393,7 +373,6 @@ network:clients = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Crypto hub interface:asavpn.n1 must have IP address
 =END=
@@ -452,7 +431,6 @@ router:softclients = {
  interface:other;
 }
 network:other = { ip = 10.99.9.0/24; }
-=END=
 =ERROR=
 Error: Networks behind crypto tunnel to router:asavpn of model 'ASA, VPN' need to have ID hosts:
  - network:other
@@ -526,7 +504,6 @@ network:clients = {
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 network:other = { ip = 10.99.9.0/24; }
-=END=
 =ERROR=
 Error: Must not use networks having ID hosts and other networks having no ID hosts
  together at router:softclients:
@@ -565,7 +542,6 @@ router:u = {
  interface:other;
 }
 network:other = { ip = 10.99.9.0/24; }
-=END=
 =ERROR=
 Error: Exactly one network must be located behind unmanaged interface:softclients.clients of crypto router
 =END=
@@ -604,7 +580,6 @@ network:clients = {
   radius_attributes = { trust-point = ASDM_TrustPoint1; }
  }
 }
-=END=
 =ERROR=
 Error: Invalid radius_attribute 'invalid' at network:clients
 Error: Must not use radius_attribute 'trust-point' at host:id:foo@domain.x.clients
@@ -641,7 +616,6 @@ network:clients = {
  }
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Attribute 'authentication-server-group' at network:clients must only be used together with attribute 'ldap_id' at host
 =END=
@@ -673,7 +647,6 @@ network:clients = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Attribute 'authentication-server-group' at router:asavpn must only be used together with attribute 'ldap_id' at host
 =END=
@@ -688,7 +661,6 @@ network:clients = {
   ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
  }
 }
-=END=
 =ERROR=
 Warning: Ignoring attribute 'ldap_id' at host:id:foo@domain.x.clients
 Error: network:clients having ID hosts must be connected to router with crypto spoke
@@ -702,7 +674,6 @@ network:clients = {
  cert_id = cert99;
  ldap_append = ,OU=VPN,DC=example,DC=com;
 }
-=END=
 =WARNING=
 Warning: Ignoring 'ldap_append' at network:clients
 Warning: Ignoring 'cert_id' at network:clients
@@ -717,7 +688,6 @@ network:clients = {
   trust-point = ASDM_TrustPoint1;
  }
 }
-=END=
 =WARNING=
 Warning: Ignoring 'radius_attributes' at network:clients
 =END=
@@ -748,7 +718,6 @@ network:clients = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Don't use attribute 'no_in_acl' together with crypto tunnel at router:asavpn
 =END=
@@ -810,7 +779,6 @@ network:customers1 = {
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
-=END=
 =ERROR=
 Error: Must use 'hub = crypto:vpn' exactly once, not at both
  - interface:asavpn1.dmz
@@ -860,7 +828,6 @@ network:customers1 = {
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
-=END=
 =ERROR=
 Error: interface:softclients.trans with attribute 'spoke' must not have secondary interfaces
 =END=
@@ -935,7 +902,6 @@ router:asavpn1 = {
  }
 }
 network:dmz = { ip = 192.168.0.0/24; }
-=END=
 =ERROR=
 Error: interface:asavpn1.dmz with virtual interface must not use attribute 'hub'
 =END=
@@ -955,7 +921,6 @@ router:asavpn1 = {
  }
 }
 network:dmz = { ip = 192.168.0.0/24; }
-=END=
 =ERROR=
 Error: interface:asavpn1.dmz with attribute 'spoke' must not have attribute 'hub'
 =END=
@@ -1015,7 +980,6 @@ network:customers1 = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Must not define crypto spoke at more than one interface:
  - interface:softclients.intern1
@@ -1057,7 +1021,6 @@ network:customers1 = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Must not define crypto spoke at more than one interface:
  - interface:softclients.intern1
@@ -1078,7 +1041,6 @@ network:n = {
  host:id:boo@domain.y = { range = 10.99.1.1-10.99.1.63; }
  host:id:b1@domain.y = { range = 10.99.1.1-10.99.1.1; }
 }
-=END=
 =ERROR=
 Error: ID of host:id:@domain.x.n must not start with character '@'
 Error: ID of host:id:domain.x.n must contain character '@'
@@ -1113,7 +1075,6 @@ network:clients = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
-=END=
 =ERROR=
 Error: Can't resolve reference to crypto:vpn in 'hub' of interface:asavpn.n1
 Error: Can't resolve reference to crypto:vpn in 'spoke' of interface:softclients.n1
@@ -1498,7 +1459,6 @@ service:s2 = {
  user = host:id:bar@domain.x.customers1, network:customers2;
  permit src = user; dst = network:intern; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --asavpn
 ! VPN traffic is filtered at interface ACL
@@ -1818,7 +1778,6 @@ network:customers1 = {
   range = 10.99.1.32 - 10.99.1.47;
  }
 }
-=END=
 =ERROR=
 Error: Attribute 'authentication-server-group' must not be used directly at host:example1
 Error: Missing attribute 'authentication-server-group' at network:customers1 having host with 'ldap_id'
@@ -1915,7 +1874,6 @@ service:test2 = {
  user = host:example2a, host:example2b;
  permit src = user; dst = network:intern; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --asavpn
 ! vpn-filter-1
@@ -2043,11 +2001,9 @@ network:customers3 = {
  host:id:bar@domain.z = { ip = 10.99.3.11;
   radius_attributes = { check-extended-key-usage = foo; }}
 }
-=END=
 =ERROR=
 Error: All ID hosts having domain '@domain.x' must use identical value from 'check-extended-key-usage'
 Error: All ID hosts having domain '@domain.y' must use identical value from 'check-extended-key-usage'
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -2105,7 +2061,6 @@ service:test1 = {
  permit src = user; dst = network:intern; prt = tcp 80, protocol:ping_net;
  permit src = network:intern; dst = user; prt = protocol:ping_net;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --r
@@ -2170,7 +2125,6 @@ access-list outside_in extended permit tcp 10.99.1.10 255.255.255.254 10.1.2.0 2
 access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 8
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -2184,7 +2138,6 @@ router:gw2 = {
  interface:trans = { ip = 10.9.9.4; hardware = e0; }
  interface:dmz = { ip = 192.168.0.4; hardware = e1; }
 }
-=END=
 =ERROR=
 Error: Can't determine next hop to reach network:trans while moving routes
  of interface:asavpn.tunnel:softclients to interface:asavpn.dmz.
@@ -2340,7 +2293,6 @@ service:s1 = {
  user = host:id:foo@domain.x.soft1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 -- asavpn
@@ -2463,7 +2415,6 @@ network:n2 = {
  nat:n = { ip = 10.1.2.0/24; dynamic; }
  nat:x = { ip = 99.99.99.0/24; dynamic; }
 }
-=END=
 =OUTPUT=
 -- asavpn
 ! [ Routing ]
@@ -2525,7 +2476,6 @@ service:s1 = {
  user = network:lan1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Two static routes for network:internet
  via interface:asavpn.dmz and interface:asavpn.n1
@@ -2594,7 +2544,6 @@ service:test = {
  user = network:lan1;
  permit src = user; dst = network:intern; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- asavpn
 ! crypto-1.1.1.1
@@ -2649,7 +2598,6 @@ service:s1 = {
  user = host:id:foo@domain.x.clients;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 -- asavpn
@@ -2726,7 +2674,6 @@ service:s1 = {
  permit src = user; dst = host:h1; prt = tcp 80;
  permit src = host:h1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- asavpn
 ! n2_in
@@ -2762,7 +2709,6 @@ network:dmz = { ip = 192.168.0.0/24; }
 router:softclients = {
  interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
 }
-=END=
 =OUTPUT=
 -- asavpn
 ! outside_in
@@ -2806,7 +2752,6 @@ service:test1 = {
  user = any:[network:customers1];
  permit src = user; dst = network:intern; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
 =END=
@@ -2881,7 +2826,6 @@ service:test1 = {
  ;
  permit src = user; dst = network:intern; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Duplicate ID-host foo@domain.x from network:customers1 and network:customers2 at router:asavpn
 Error: Duplicate ID-host foo@domain.x from network:customers3 and network:customers1 at router:asavpn
@@ -2986,7 +2930,6 @@ service:test = {
  user = network:lan1, network:lan2, network:lan2a;
  permit src = user; dst = host:netspoc; prt = protocol:http;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --asavpn
@@ -3216,7 +3159,6 @@ service:test = {
  user = network:lan1, network:lan2, network:lan2a;
  permit src = user; dst = host:netspoc; prt = protocol:http;
 }
-=END=
 =INPUT=[[input]]
 # Use individual routes to VPN peers, even if all have same next hop.
 =OUTPUT=
@@ -3341,7 +3283,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --asavpn
 ! crypto-192.168.1.2
@@ -3400,7 +3341,6 @@ router:vpn1 = {
  }
 }
 network:lan1 = { ip = 10.99.2.0/24; }
-=END=
 =ERROR=
 Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
 =END=
@@ -3461,7 +3401,6 @@ service:test = {
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --asavpn
@@ -3632,7 +3571,6 @@ service:test = {
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --vpn1
@@ -3755,7 +3693,6 @@ network:lan1 = {
 =TITLE=Create crypto ACL even if no rule is defined
 =INPUT=
 [[topo]]
-=END=
 =OUTPUT=
 --asavpn
 ! crypto-1.2.3.129
@@ -3783,7 +3720,6 @@ service:test = {
  user = host:netspoc;
  permit src = user; dst = interface:vpn1.lan1; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --vpn1
 ip access-list extended crypto-1.2.3.2
@@ -3809,7 +3745,6 @@ service:test = {
  permit src = user; dst = host:netspoc; prt = tcp 80;
  permit src = host:netspoc; dst = user; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --asavpn
 ! crypto-1.2.3.129
@@ -4083,7 +4018,6 @@ router:vpn1 = {
  interface:lan1;
 }
 network:lan1 = { ip = 10.99.1.0/24; }
-=END=
 =INPUT=[[input]]
 =ERROR=
 Error: interface:vpn1.tunnel:vpn1 needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
@@ -4258,7 +4192,6 @@ service:mgmt = {
  user = interface:softclients.[auto];
  permit src = network:intern; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --asavpn
 ! inside_in
@@ -4323,7 +4256,6 @@ service:s5 = {
         dst = interface:r1.n1;
         prt = tcp 22, proto 50;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n0_in
@@ -4465,7 +4397,6 @@ service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 --asavpn
