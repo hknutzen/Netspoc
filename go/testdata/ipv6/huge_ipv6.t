@@ -2112,7 +2112,6 @@ service:s-hub = {
  permit src = user; dst = network:n1; prt = tcp 81;
 }
 
-=END=
 =OUTPUT=
 --ipv6/r1a
 ! [ Routing ]

@@ -49,7 +49,6 @@ service:s1 = {
         ;
  permit src = user; dst = network:n0; prt = ip;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in

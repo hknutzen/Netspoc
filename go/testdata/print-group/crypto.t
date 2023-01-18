@@ -135,12 +135,10 @@ service:s1 = {
  permit src = user; dst = network:intern; prt = tcp 80;
 }
 area:all = { anchor = network:intern; }
-=END=
 =OUTPUT=
 10.99.2.0-10.99.2.63	host:id:domain.x.customers2
 10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
 10.99.2.128-10.99.2.191	host:id:zzz.customers2
-=END=
 =OPTIONS=--unused
 =PARAM=host:[area:all]
 # No IPv6 test
@@ -154,12 +152,10 @@ service:s2 = {
  permit src = user; dst = network:intern; prt = tcp 81;
 }
 area:all = { anchor = network:intern; }
-=END=
 =OUTPUT=
 10.99.1.10	host:id:foo@domain.x.customers1
 10.99.1.12	host:id:baz@domain.x.customers1
 10.99.1.254	host:id:unused@domain.x.customers1
-=END=
 =OPTIONS=--unused
 =PARAM=host:[area:all]
 

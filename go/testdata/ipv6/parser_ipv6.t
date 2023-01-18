@@ -34,7 +34,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100o/24; }
-=END=
 =ERROR=
 Error: Invalid CIDR address: ::a01:100o/24 in 'ip' of network:n1
 =END=
@@ -53,7 +52,6 @@ service:s1 = {
  user = any:[ ip = ::a01:0 & network:n1];
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Invalid CIDR address: ::a01:0 in any:[ip = ...] of user of service:s1
 =END=
@@ -72,7 +70,6 @@ service:s1 = {
  user = any:[ ip = ::a01:100/112 & network:n1];
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: IP and mask don't match in any:[ip = ...] of user of service:s1
 =END=
@@ -87,7 +84,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown model in router:R: foo
 =END=
@@ -101,7 +97,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Missing 'model' for managed router:R
 =END=
@@ -116,7 +111,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown extension in 'model' of router:R: foo
 Error: Unknown extension in 'model' of router:R: bar
@@ -132,7 +126,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown extension in 'model' of router:R: VPN
 =END=
@@ -147,7 +140,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown extension in 'model' of router:R: xyz
 =END=
@@ -162,7 +154,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; no_check; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =WARNING=
 Warning: Ignoring attribute 'no_check' at interface:R.N
 =END=
@@ -178,7 +169,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in router:R: xyz
 =END=
@@ -194,7 +184,6 @@ router:R = {
  x:y;
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in router:R: x:y
 =END=
@@ -209,7 +198,6 @@ router:R = {
  interface:N = { ip = ::a01:101; hardware = e0#3; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected ';' at line 5 of INPUT, near "--HERE-->}"
 Aborted
@@ -227,7 +215,6 @@ router:R = {
  interface:N = { ip = ::a01:101; no_in_acl; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Missing 'hardware' for interface:R.N
 =END=
@@ -242,7 +229,6 @@ router:R = {
  interface:N = { ip = ::a01:101; no_in_acl; hardware = N; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: router:R doesn't support outgoing ACL
 =END=
@@ -259,7 +245,6 @@ router:R = {
  interface:N1 = { ip = ::a01:101; no_in_acl; hardware = n1; }
  interface:N2 = { ip = ::a01:201; no_in_acl; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: At most one interface of router:R may use flag 'no_in_acl'
 =END=
@@ -276,7 +261,6 @@ router:R = {
  interface:N1 = { ip = ::a01:101; no_in_acl; hardware = x; }
  interface:N2 = { ip = ::a01:201; no_in_acl; hardware = x; }
 }
-=END=
 =ERROR=
 Error: Only one logical interface allowed at hardware 'x' of router:R
  because of attribute 'no_in_acl'
@@ -290,7 +274,6 @@ router:R = {
  interface:N = { ip = ::a01:101; foo }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected '=' at line 2 of INPUT, near "foo --HERE-->}"
 Aborted
@@ -304,7 +287,6 @@ router:R = {
  interface:N = { ip = ::a01:101; primary:p = {} }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in interface:R.N: primary:p
 =END=
@@ -319,7 +301,6 @@ router:R = {
  interface:N = { hardware = inside; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Short definition of interface:R.N not allowed
 =END=
@@ -332,7 +313,6 @@ router:R = {
  interface:N = { ip = ; }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: List of values expected in 'ip' of interface:R.N
 =END=
@@ -345,7 +325,6 @@ router:R = {
  interface:N = { ip = ::a01:101; secondary:second = {} }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Missing IP in secondary:second of interface:R.N
 =END=
@@ -358,7 +337,6 @@ router:R = {
  interface:N = { ip = ::a01:101; secondary:second = { foo; } }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in secondary:second of interface:R.N: foo
 Error: Missing IP in secondary:second of interface:R.N
@@ -372,7 +350,6 @@ router:R = {
  interface:N = { unnumbered; secondary:second = { ip = ::a01:101; } }
 }
 network:N = { unnumbered; }
-=END=
 =ERROR=
 Error: interface:R.N without IP address must not have secondary address
 =END=
@@ -385,7 +362,6 @@ router:R = {
  interface:N = { negotiated; secondary:second = { ip = ::a01:101; } }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: interface:R.N without IP address must not have secondary address
 =END=
@@ -398,7 +374,6 @@ router:R = {
  interface:N = { secondary:second = { ip = ::a01:101; } }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: interface:R.N without IP address must not have secondary address
 =END=
@@ -411,7 +386,6 @@ router:R = {
  interface:N = { ip = ::a01:101; virtual = { foo; } }
 }
 network:N = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in 'virtual' of interface:R.N: foo
 Error: Missing IP in 'virtual' of interface:R.N
@@ -419,10 +393,10 @@ Error: Missing IP in 'virtual' of interface:R.N
 
 ############################################################
 =TITLE=Typed name expected
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network = {
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "--HERE-->network"
 Aborted
@@ -430,10 +404,10 @@ Aborted
 
 ############################################################
 =TITLE=Unknown global definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 networkX:n1 = {
-=END=
 =ERROR=
 Error: Unknown global definition at line 1 of INPUT, near "--HERE-->networkX:n1"
 Aborted
@@ -449,7 +423,6 @@ network:n1 = {
  FOO = BAR;
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =ERROR=
 Error: Expected '}' at line 5 of INPUT, near "--HERE-->network:n2"
 Aborted
@@ -457,12 +430,12 @@ Aborted
 
 ############################################################
 =TITLE=Missing '}' after owner definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o1 = {
  admins = a1@b.c;
 owner:o2 = { admins = a2@b.c; }
-=END=
 =ERROR=
 Error: Expected '}' at line 3 of INPUT, near "--HERE-->owner:o2"
 Aborted
@@ -477,7 +450,6 @@ group:g1 =
  host:h2,
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =ERROR=
 Error: Expected ';' at line 4 of INPUT, near "network:n2 --HERE-->= { ip"
 Aborted
@@ -485,10 +457,10 @@ Aborted
 
 ############################################################
 =TITLE=Invalid character in network name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1@vrf123 = {}
-=END=
 =ERROR=
 Error: Invalid identifier in definition of 'network:n1@vrf123'
 Error: Missing IP address for network:n1@vrf123
@@ -499,17 +471,16 @@ Error: Missing IP address for network:n1@vrf123
 =PARAMS=--ipv6
 =INPUT=
 router:r1/bridged-part = {}
-=END=
 =ERROR=
 Error: Invalid identifier in definition of 'router:r1/bridged-part'
 =END=
 
 ############################################################
 =TITLE=Invalid character in area name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 area:a1@vrf123 = {}
-=END=
 =ERROR=
 Error: Invalid identifier in definition of 'area:a1@vrf123'
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a1@vrf123
@@ -517,10 +488,10 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 
 ############################################################
 =TITLE=Unexpected end of file
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1
-=END=
 =ERROR=
 Error: Expected '=' at line 1 of INPUT, at EOF
 Aborted
@@ -528,10 +499,10 @@ Aborted
 
 ############################################################
 =TITLE=Identifier expected  at EOF
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { owner =
-=END=
 =ERROR=
 Error: Expected something at line 1 of INPUT, at EOF
 Aborted
@@ -542,7 +513,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { owner = }
-=END=
 =ERROR=
 Error: Unexpected separator '}' at line 1 of INPUT, near "owner = --HERE-->}"
 Aborted
@@ -553,7 +523,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; owner = a/b; }
-=END=
 =WARNING=
 Warning: Ignoring undefined owner:a/b of network:n1
 =END=
@@ -563,18 +532,16 @@ Warning: Ignoring undefined owner:a/b of network:n1
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; partition = a/b; }
-=END=
 =ERROR=
 Error: Invalid identifier in 'partition' of network:n1: a/b
 =END=
 
 ############################################################
 =TITLE=String expected
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = ; }
-network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: List of values expected in 'admins' of owner:o1
 =END=
@@ -584,7 +551,6 @@ Error: List of values expected in 'admins' of owner:o1
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120, ::a01:200/120; }
-=END=
 =ERROR=
 Error: Single value expected in 'ip' of network:n1
 Error: Invalid CIDR address:  in 'ip' of network:n1
@@ -595,7 +561,6 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; host:h1 = ::a01:10a; host:h2; }
-=END=
 =ERROR=
 Error: Structured value expected in 'host:h1'
 Error: host:h1 needs exactly one of attributes 'ip' and 'range'
@@ -608,17 +573,16 @@ Error: host:h2 needs exactly one of attributes 'ip' and 'range'
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; has_subnets = yes; }
-=END=
 =ERROR=
 Error: No value expected for flag 'has_subnets' of network:n1
 =END=
 
 ############################################################
 =TITLE=Comma expected in union of values (1)
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = host:h1 host:h2;
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, near "host:h1 --HERE-->host:h2"
 Aborted
@@ -626,10 +590,10 @@ Aborted
 
 ############################################################
 =TITLE=Comma expected in list of values (2)
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o = { admins = a@b.c x@y.z; }
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, near "a@b.c --HERE-->x@y.z"
 Aborted
@@ -640,7 +604,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = host:;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->host:"
 Aborted
@@ -648,10 +611,10 @@ Aborted
 
 ############################################################
 =TITLE=Missing type
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = :n1;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->:n1"
 Aborted
@@ -666,7 +629,6 @@ network:n1 = {
  host:id: = { ip = ::a01:10a; }
  host:@h11 = { ip = ::a01:10b; }
 }
-=END=
 =ERROR=
 Error: Invalid name in definition of 'host:id:'
 Error: Invalid identifier in definition of 'host:@h11'
@@ -681,7 +643,6 @@ service:s1 = {
  permit src = user; dst = user; prt = ip;
 }
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Can't resolve host:id: in user of service:s1
 =END=
@@ -691,7 +652,6 @@ Error: Can't resolve host:id: in user of service:s1
 =PARAMS=--ipv6
 =INPUT=
 network:n1@vrf = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Invalid identifier in definition of 'network:n1@vrf'
 =END=
@@ -705,17 +665,16 @@ service:s1 = {
  permit src = user; dst = user; prt = ip;
 }
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Can't resolve network:n1@vrf: in user of service:s1
 =END=
 
 ############################################################
 =TITLE=Empty interface name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:"
 Aborted
@@ -723,10 +682,10 @@ Aborted
 
 ############################################################
 =TITLE=Interface name without dot
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r;
-=END=
 =ERROR=
 Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:r"
 Aborted
@@ -734,10 +693,10 @@ Aborted
 
 ############################################################
 =TITLE=Interface name with empty router part
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:.n;
-=END=
 =ERROR=
 Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:.n"
 Aborted
@@ -745,10 +704,10 @@ Aborted
 
 ############################################################
 =TITLE=Interface name with empty network part
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r.;
-=END=
 =ERROR=
 Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:r."
 Aborted
@@ -763,7 +722,6 @@ service:s1 = {
  permit src = user; dst = user; prt = ip;
 }
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Can't resolve interface:r1.n1@vrf2 in user of service:s1
 Error: Can't resolve interface:r.n.123.nn in user of service:s1
@@ -771,10 +729,10 @@ Error: Can't resolve interface:r.n.123.nn in user of service:s1
 
 ############################################################
 =TITLE=Missing [any|all]
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r1.[ ;
-=END=
 =ERROR=
 Error: Expected [auto|all] at line 1 of INPUT, near "interface:r1.[ --HERE-->;"
 Aborted
@@ -782,10 +740,10 @@ Aborted
 
 ############################################################
 =TITLE=Bad auto interface
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r.[foo];
-=END=
 =ERROR=
 Error: Expected [auto|all] at line 1 of INPUT, near "interface:r.[--HERE-->foo]"
 Aborted
@@ -793,10 +751,10 @@ Aborted
 
 ############################################################
 =TITLE=Unexpected network name in interfaces of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:[network:n1].n2;
-=END=
 =ERROR=
 Error: Expected '.[' at line 1 of INPUT, near "interface:[network:n1]--HERE-->.n2"
 Aborted
@@ -804,10 +762,10 @@ Aborted
 
 ############################################################
 =TITLE=Bad group name in definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:a@b = ;
-=END=
 =ERROR=
 Error: Invalid identifier in definition of 'group:a@b'
 =END=
@@ -817,7 +775,6 @@ Error: Invalid identifier in definition of 'group:a@b'
 =PARAMS=--ipv6
 =INPUT=
 network:n = { nat:a+b = { ip = ::a09:900/120; } ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected '=' at line 1 of INPUT, near "nat:a--HERE-->+b"
 Aborted
@@ -857,7 +814,6 @@ Error: Expected type 'crypto:' in 'spoke' of interface:r.n
 =PARAMS=--ipv6
 =INPUT=
 network:n = { ip = ::a01:100/120; cert_id = a.b.c; }
-=END=
 =WARNING=
 Warning: Ignoring 'cert_id' at network:n
 =END=
@@ -870,7 +826,6 @@ network:n = {
  ip = ::a01:100/120;
  host:h = { range = ::a01:108 - ::a01:10f; ldap_id = a@b.c; }
 }
-=END=
 =ERROR=
 Error: Missing attribute 'cert_id' at network:n having hosts with attribute 'ldap_id'
 =END=
@@ -883,7 +838,6 @@ network:n = {
  ip = ::a01:100/120; cert_id = @b.c;
  host:h = { ip = ::a01:101; ldap_id = a@b.c; }
 }
-=END=
 =ERROR=
 Error: Attribute 'ldap_Id' must only be used together with IP range at host:h
 Error: Domain name expected in attribute 'cert_id' of network:n
@@ -891,14 +845,13 @@ Error: Domain name expected in attribute 'cert_id' of network:n
 
 ############################################################
 =TITLE=Bad managed attribute
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 router:r = {
  managed xxx;
  interface:n;
 }
-network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Expected '=' at line 2 of INPUT, near "managed --HERE-->xxx"
 Aborted
@@ -913,7 +866,6 @@ router:r = {
  interface:n;
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Invalid value for 'managed' of router:r: xxx
 =END=
@@ -927,7 +879,6 @@ router:r = {
  interface:n;
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Single value expected in 'managed' of router:r
 =END=
@@ -941,7 +892,6 @@ router:r = {
  interface:n = { routing = abc; }
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unknown routing protocol in 'routing' of router:r
 Error: Unknown routing protocol in 'routing' of interface:r.n
@@ -957,7 +907,6 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = ::a01:101; hardware = n1; routing = manual; }
 }
-=END=
 =WARNING=
 Warning: 'routing=manual' must only be applied to router, not to interface:r1.n1
 =END=
@@ -970,7 +919,6 @@ network:n = {
  ip = ::a01:100/120;
  host:h = { ip = ::a01:101; xy:z; }
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in host:h: xy:z
 =END=
@@ -982,7 +930,6 @@ Error: Unexpected attribute in host:h: xy:z
 network:n = {
  host:h = { ip = ::a01:101; ; }
 }
-=END=
 =ERROR=
 Error: Unexpected separator ';' at line 2 of INPUT, near "::a01:101; --HERE-->; }"
 Aborted
@@ -990,10 +937,10 @@ Aborted
 
 ############################################################
 =TITLE=Bad typed name as attribute of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { xy:z; }
-=END=
 =ERROR=
 Error: Unexpected attribute in network:n: xy:z
 Error: Missing IP address for network:n
@@ -1001,10 +948,10 @@ Error: Missing IP address for network:n
 
 ############################################################
 =TITLE=Bad token as attribute of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { ; }
-=END=
 =ERROR=
 Error: Unexpected separator ';' at line 1 of INPUT, near "network:n = { --HERE-->; }"
 Aborted
@@ -1012,10 +959,10 @@ Aborted
 
 ############################################################
 =TITLE=Network and host without IP
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { host:h1 = {} }
-=END=
 =ERROR=
 Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 Error: Missing IP address for network:n
@@ -1026,7 +973,6 @@ Error: Missing IP address for network:n
 =PARAMS=--ipv6
 =INPUT=
 network:n = { ip = ::a01:100/120; unnumbered; ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Duplicate attribute 'ip' in network:n
 Error: Unnumbered network:n must not have attribute 'ip'
@@ -1035,10 +981,10 @@ Error: Unnumbered network:n must not have attribute 'ip'
 
 ############################################################
 =TITLE=NAT without IP
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { nat:n = { } }
-=END=
 =ERROR=
 Error: Missing IP address in nat:n of network:n1
 Error: Missing IP address for network:n1
@@ -1049,7 +995,6 @@ Error: Missing IP address for network:n1
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; radius_attributes = { a = b; } }
-=END=
 =WARNING=
 Warning: Ignoring 'radius_attributes' at network:n1
 =END=
@@ -1061,7 +1006,6 @@ Warning: Ignoring 'radius_attributes' at network:n1
 network:n1 = { ip = ::a01:100/120;
  host:h1 = { ip = ::a01:10a; radius_attributes = { a = b; } }
 }
-=END=
 =WARNING=
 Warning: Ignoring 'radius_attributes' at host:h1
 =END=
@@ -1074,17 +1018,16 @@ network:n1 = {
  ip = ::a01:100/120; radius_attributes = { a.1 = 1; }
  host:id:a@b.c = { ip = ::a01:101; }
 }
-=END=
 =ERROR=
 Error: Invalid identifier 'a.1' in radius_attributes of network:n1
 =END=
 
 ############################################################
 =TITLE=Bad radius attribute with comment character
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { radius_attributes = { banner = Welcome #two; } }
-=END=
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
@@ -1095,7 +1038,6 @@ Aborted
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; has_unenforceable = allow; }
-=END=
 =ERROR=
 Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n1
 =END=
@@ -1108,7 +1050,6 @@ network:n = {
  ip = ::a01:100/120;
  nat:n = { ip = ::a09:900/120; xyz; }
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in nat:n of network:n: xyz
 =END=
@@ -1122,7 +1063,6 @@ network:n = {
  nat:n = { ip = ::a09:900/125; dynamic; }
  host:h = { ip = ::a01:10a; nat:n = { ip = ::a09:903; dynamic; } }
 }
-=END=
 =ERROR=
 Error: Expecting exactly one attribute 'ip' in nat:n of host:h
 =END=
@@ -1138,31 +1078,44 @@ network:n = {
 router:r = {
  interface:n = { ip = ::a01:101; nat:n = { ip = ::a09:901; xyz; } }
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in nat:n of interface:r.n: xyz
 =END=
 
 ############################################################
 =TITLE=Service without any rules
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
  user = ;
 }
-=END=
 =ERROR=
 Error: Must not define service:s1 without any rules
 =END=
 
 ############################################################
+=TITLE=user-user rule together with normal rule
+=TODO= No IPv6
+=PARAMS=--ipv6
+=INPUT=
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = user; prt = ip;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not define service:s1 having both user-user rule and normal rule
+=END=
+
+############################################################
 =TITLE=Service without user
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Expected '=' at line 2 of INPUT, near "permit --HERE-->src"
 Aborted
@@ -1178,7 +1131,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = group:g1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Unexpected reference to 'user' in group:g1
 =END=
@@ -1194,7 +1146,6 @@ network:n1 = { ip = ::a01:200/120; }
 router:r = {
  interface:n1;
 }
-=END=
 =ERROR=
 Error: Duplicate definition of network:n1 in file1 and file2
 =END=
@@ -1214,7 +1165,6 @@ router:r = {
  interface:n1;
  interface:n2;
 }
-=END=
 =ERROR=
 Error: Duplicate definition of host:h1 in file1 and file2
 Error: Duplicate definition of host:h1 in file2
@@ -1229,7 +1179,6 @@ network:n1 = {
  ip = ::a01:100/120;
  subnet_of = any:n1;
 }
-=END=
 =ERROR=
 Error: Must only use network name in 'subnet_of' of network:n1
 =END=
@@ -1244,7 +1193,6 @@ network:n = {
 router:r = {
  interface:n = { ip = ::a01:101; subnet_of = network:n; }
 }
-=END=
 =ERROR=
 Error: Attribute 'subnet_of' must not be used at interface:r.n
  It is only valid together with attribute 'loopback'
@@ -1256,7 +1204,6 @@ Error: Attribute 'subnet_of' must not be used at interface:r.n
 =INPUT=
 any:n = { xyz; x:yz; link = network:n1; }
 network:n1 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in any:n: xyz
 Error: Unexpected attribute in any:n: x:yz
@@ -1264,11 +1211,10 @@ Error: Unexpected attribute in any:n: x:yz
 
 ############################################################
 =TITLE=Aggregate without attribute 'link'
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 any:n = { }
-network:n1 = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Attribute 'link' must be defined for any:n
 =END=
@@ -1283,7 +1229,6 @@ any:n = {
  owner = o; no_check_supernet_rules;
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' if IP is set for any:n
 =END=
@@ -1300,18 +1245,16 @@ any:n = {
  no_check_supernet_rules;
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =WARNING=NONE
 
 ############################################################
 =TITLE=Untyped name in anchor
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 area:n = {
  anchor = n;
 }
-network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Typed name expected in 'anchor' of area:n
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:n
@@ -1326,7 +1269,6 @@ area:n = {
  router_attributes = { xyz; }
 }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in router_attributes of area:n: xyz
 =END=
@@ -1337,7 +1279,6 @@ Error: Unexpected attribute in router_attributes of area:n: xyz
 =INPUT=
 area:n = { xyz; anchor = network:n; x:yz; }
 network:n = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Unexpected attribute in area:n: xyz
 Error: Unexpected attribute in area:n: x:yz
@@ -1345,10 +1286,10 @@ Error: Unexpected attribute in area:n: x:yz
 
 ############################################################
 =TITLE=Unexpected token in crypto
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 crypto:c = { xyz; }
-=END=
 =ERROR=
 Error: Unexpected attribute in crypto:c: xyz
 Error: Missing 'type' for crypto:c
@@ -1360,7 +1301,6 @@ Error: Missing 'type' for crypto:c
 =INPUT=
 owner:o = { xyz; }
 network:n1 = { ip = ::a01:100/120; owner = o; }
-=END=
 =ERROR=
 Error: Unexpected attribute in owner:o: xyz
 Error: Missing attribute 'admins' in owner:o of network:n1
@@ -1390,7 +1330,6 @@ service:s = {
  user = network:n1;
  permit src = network:n2; dst = network:n3; prt = ip;
 }
-=END=
 =ERROR=
 Error: Each rule of service:s must use keyword 'user'
 =END=
@@ -1404,7 +1343,6 @@ service:s = {
  user = network:n1;
  permit src = user, network:n2; dst = network:n3; prt = ip;
 }
-=END=
 =ERROR=
 Error: The sub-expressions of union in 'src' of service:s equally must
  either reference 'user' or must not reference 'user'
@@ -1422,7 +1360,6 @@ service:s1 = {
               interface:[user].[all] &! interface:r.n2;
         prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: The sub-expressions of union in 'dst' of service:s1 equally must
  either reference 'user' or must not reference 'user'
@@ -1430,6 +1367,7 @@ Error: The sub-expressions of union in 'dst' of service:s1 equally must
 
 ############################################################
 =TITLE=Invalid attribute syntax in service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
@@ -1437,7 +1375,6 @@ service:s1 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Unexpected separator ',' at line 2 of INPUT, near "service:s2,--HERE-->,;"
 Aborted
@@ -1445,28 +1382,27 @@ Aborted
 
 ############################################################
 =TITLE=Invalid attribute at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
-[[topo]]
 service:s1 = {
  xyz;
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Unexpected attribute in service:s1: xyz
 =END=
 
 ############################################################
 =TITLE=Invalid action in at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
  user = network:n1;
  allow src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Expected 'permit' or 'deny' at line 3 of INPUT, near " --HERE-->allow"
 Aborted
@@ -1474,13 +1410,13 @@ Aborted
 
 ############################################################
 =TITLE=Invalid rule in at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
  user = network:n1;
  permit  dst = network:n2; src = user; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Expected 'src' at line 3 of INPUT, near "permit  --HERE-->dst"
 Aborted
@@ -1495,7 +1431,6 @@ service:s1 = {
  user = foreach network:n1, network:n2;
  permit src = user; dst = network:n3; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Each rule of service:s1 should reference 'user' in 'src' and 'dst'
  because service has keyword 'foreach'
@@ -1533,7 +1468,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = ; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: user of service:s1 is empty
 Warning: src of rule in service:s2 is empty
@@ -1563,7 +1497,6 @@ service:s1 = {
  user = network:[], group:g1;
  permit src = user; dst = network:n1; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: network:[..] of user of service:s1 is empty
 Warning: interface:[..].[all] of group:g1 is empty
@@ -1578,7 +1511,6 @@ service:s1 = {
  user = interface:[managed & ].[all];
  permit src = user; dst = network:n1, any:[ip = ::a01:0/112 & ]; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: interface:[..].[all] of user of service:s1 is empty
 Warning: any:[..] of dst of rule in service:s1 is empty
@@ -1605,7 +1537,6 @@ service:s3 = {
  user = group:g1;
  permit src = user; dst = group:g2; prt = protocolgroup:p1;
 }
-=END=
 =WARNING=
 Warning: Must not define service:s1 with empty users and empty rules
 Warning: Must not define service:s2 with empty users and empty rules
@@ -1623,7 +1554,6 @@ router:r = {
  policy_distribution_point = network:n1;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
 }
-=END=
 =ERROR=
 Error: Expected type 'host:' in 'policy_distribution_point' of router:r
 =END=
@@ -1639,7 +1569,6 @@ router:r = {
  policy_distribution_point = host:h1;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
 }
-=END=
 =WARNING=
 Warning: Ignoring undefined host:h1 in 'policy_distribution_point' of router:r
 =END=

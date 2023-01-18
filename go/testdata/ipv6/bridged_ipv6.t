@@ -12,7 +12,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; virtual = { ip = ::a01:102; } }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Attribute 'no_in_acl' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'dhcp_server' not supported for bridged interface:bridge.n1/left
@@ -33,7 +32,6 @@ router:bridge = {
  interface:n1/right = { hardware = right; vip; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Attribute 'loopback' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'vip' not supported for bridged interface:bridge.n1/right
@@ -53,7 +51,6 @@ router:bridge = {
  interface:n1/right = { hardware = right; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Layer3 interface:bridge.n1 must use 'hardware' named 'device' for model 'ASA'
 =END=
@@ -71,7 +68,6 @@ router:bridge = {
  interface:n1/right = { hardware = right; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
 =END=
@@ -90,7 +86,6 @@ router:bridge = {
  interface:n1/right = { hardware = right; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'routing' not supported for bridge router:bridge
@@ -112,7 +107,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; bind_nat = x; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Only identity NAT allowed for bridged network:n1/left
 =END=
@@ -131,7 +125,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Must not inherit nat:x at bridged network:n1/left from any:a
 =END=
@@ -152,7 +145,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Bridged network:n1/left must not have host:h with range (not implemented)
 =END=
@@ -175,7 +167,6 @@ router:r1 = {
  interface:n1;
 }
 network:n1 = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: Must not define network:n1 together with bridged networks of same name
 =END=
@@ -193,7 +184,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a02:200/120; }
-=END=
 =ERROR=
 Error: network:n1/left and network:n1/right must have identical ip/mask
 =END=
@@ -210,7 +200,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Must define interface:n1 at router:bridge for corresponding bridge interfaces
 =END=
@@ -228,7 +217,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Layer3 interface:bridge.n1 must not have secondary or virtual IP
 =END=
@@ -246,7 +234,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: interface:bridge.n1's IP doesn't match IP/mask of bridged networks
 =END=
@@ -263,7 +250,6 @@ router:r1 = {
  interface:n1/right = { ip = ::a01:102; hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: network:n1/right and network:n1/left must be connected by bridge
 =END=
@@ -287,7 +273,6 @@ router:bridge2 = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: router:bridge1 can't bridge a single network
 =END=
@@ -305,7 +290,6 @@ router:bridge1 = {
  interface:n2/right = { hardware = outside; }
 }
 network:n2/right = { ip = ::a01:200/120; }
-=END=
 =ERROR=
 Error: Must not bridge parts of different networks at router:bridge1:
  - interface:n1/left
@@ -317,7 +301,6 @@ Error: Must not bridge parts of different networks at router:bridge1:
 =PARAMS=--ipv6
 =INPUT=
 network:n1/right = { ip = ::a01:100/120; }
-=END=
 =WARNING=
 Warning: Bridged network:n1/right must not be used solitary
 =END=
@@ -335,7 +318,6 @@ router:bridge = {
  interface:n1/right = { hardware = outside; }
 }
 network:n1/right = { unnumbered; }
-=END=
 =ERROR=
 Error: Unnumbered network:n1/left must not be bridged
 Error: Unnumbered network:n1/right must not be bridged
@@ -365,7 +347,6 @@ router:bridge2 = {
  interface:n1/b = { hardware = inside; }
  interface:n1/c = { hardware = outside; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:bridge1.n1 and interface:bridge2.n1
 =END=
@@ -396,7 +377,6 @@ network:n1/right = {
 router:r2 = {
  interface:n1/right = { ip = ::a01:101; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r1.n1/left and interface:bridge.n1
 Error: Duplicate IP address for interface:r1.n1/left and interface:r2.n1/right
@@ -444,7 +424,6 @@ service:admin = {
  user = interface:bridge.n2;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/bridge
 ! [ IP = ::a01:209 ]
@@ -459,7 +438,6 @@ service:admin = {
  user =  interface:bridge.[auto];
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/bridge
 ! [ IP = ::a01:209 ]
@@ -474,7 +452,6 @@ service:admin = {
  user =  interface:bridge.[all];
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/bridge
 ! [ IP = ::a01:209 ]
@@ -563,7 +540,6 @@ service:s = {
  user = interface:bridge.[auto];
  permit src = network:n2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n2_in
@@ -616,7 +592,6 @@ service:s = {
  user = network:n0;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
  - interface:r1.n1/left
@@ -716,7 +691,6 @@ service:s3 = {
  user = host:h1, host:h2;
  permit src = network:n2; dst = user; prt = tcp 82;
 }
-=END=
 =WARNING=
 Warning: Some source/destination pairs of service:s3 don't affect any firewall:
  src=network:n2; dst=host:h2

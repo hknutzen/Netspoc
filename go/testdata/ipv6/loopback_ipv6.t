@@ -10,7 +10,6 @@ router:r = {
   ip = ::a01:102; loopback; no_in_acl; dhcp_server; routing = OSPF;
  }
 }
-=END=
 =ERROR=
 Error: Attribute 'no_in_acl' not supported for loopback interface:r.l
 Error: Attribute 'dhcp_server' not supported for loopback interface:r.l
@@ -26,7 +25,6 @@ router:r = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:l = { loopback; }
 }
-=END=
 =ERROR=
 Error: loopback interface:r.l must have IP address
 =END=
@@ -42,7 +40,6 @@ router:r = {
   unnumbered; loopback;
  }
 }
-=END=
 =ERROR=
 Error: Attribute 'unnumbered' not supported for loopback interface:r.l
 =END=
@@ -58,7 +55,6 @@ router:r = {
   negotiated; loopback;
  }
 }
-=END=
 =ERROR=
 Error: Attribute 'negotiated' not supported for loopback interface:r.l
 =END=
@@ -74,7 +70,6 @@ router:r = {
   ip = ::a01:102, ::a01:103; loopback;
  }
 }
-=END=
 =ERROR=
 Error: Secondary or virtual IP not supported for loopback interface:r.l
 =END=
@@ -90,7 +85,6 @@ router:r = {
   ip = ::a01:102; loopback; virtual = { ip = ::a01:109; }
  }
 }
-=END=
 =ERROR=
 Error: Secondary or virtual IP not supported for loopback interface:r.l
 =END=
@@ -103,7 +97,6 @@ router:r = {
  interface:l = { ip = ::a01:102; loopback; }
 }
 network:l = { ip = ::a01:102/128; }
-=END=
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[interface:r.l]
@@ -119,7 +112,6 @@ router:r = {
  interface:l = { ip = ::a01:102; }
 }
 network:l = { ip = ::a01:102/128; }
-=END=
 =WARNING=
 Warning: interface:r.l has address of its network.
  Remove definition of network:l and
@@ -141,7 +133,6 @@ service:s1 = {
  user = network:[interface:r1.lb];
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -165,7 +156,6 @@ service:s1 = {
  user = any:[interface:r1.lo], network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -223,7 +213,6 @@ router:r = {
  interface:l = { ip = ::a01:102; loopback; subnet_of = network:n; }
  interface:m = { ip = ::a01:103; loopback; }
 }
-=END=
 =WARNING=
 Warning: interface:r.m is subnet of network:n
  in nat_domain:[network:n].
@@ -296,7 +285,6 @@ service:p2 = {
  user = network:customer;
  permit src = user; dst = network:server; prt = protocol:Echo;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input =secondary]]
 =OUTPUT=
@@ -343,7 +331,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! n2_in
@@ -445,7 +432,6 @@ service:test = {
  user = network:intern;
  permit src = user; dst = interface:extern1.sync; prt = tcp 22;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input managed;]]
 =OUTPUT=

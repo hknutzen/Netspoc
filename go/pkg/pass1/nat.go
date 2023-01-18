@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -47,10 +48,7 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
 	for _, n := range c.allNetworks {
-		tags := make(stringList, 0)
-		for tag := range n.nat {
-			tags.push(tag)
-		}
+		tags := maps.Keys(n.nat)
 		sort.Strings(tags)
 		for _, tag := range tags {
 			getTyp := func(natNet *network) string {
@@ -141,21 +139,16 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 			if len(multiNatMap) == count {
 				continue
 			}
-			var missing stringList
-			for tag := range union {
-				if multiNatMap[tag] == nil {
-					missing.push(tag)
-				}
-			}
-			for tag1 := range multiNatMap {
-				natNet := multiNatMap[tag1]
+			for tag1, natNet := range multiNatMap {
 				m := result[tag1]
 				if m == nil {
 					m = make(natTagMap)
 					result[tag1] = m
 				}
-				for _, tag2 := range missing {
-					m[tag2] = natNet
+				for tag2 := range union {
+					if multiNatMap[tag2] == nil {
+						m[tag2] = natNet
+					}
 				}
 			}
 		}
@@ -178,8 +171,8 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 //	NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 //	active at a time. As NAT:A can not be active (n2) and inactive
 //	(n1) in the same NAT domain, this restriction is needed.
-func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][]natTagMap {
-	multi := make(map[string][]natTagMap)
+func (c *spoc) generateMultinatDefLookup(
+	natType map[string]string) map[string][]natTagMap {
 
 	// Check if two natTagMaps contain the same keys. Values can be different.
 	keysEq := func(m1, m2 natTagMap) bool {
@@ -193,20 +186,24 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 		}
 		return true
 	}
+	// Get number of common keys of two natTagMaps.
+	commonKeysCount := func(m1, m2 natTagMap) int {
+		count := 0
+		for tag := range m1 {
+			if m2[tag] != nil {
+				count++
+			}
+		}
+		return count
+	}
 
+	multi := make(map[string][]natTagMap)
 	for _, n := range c.allNetworks {
 		map1 := n.nat
-		tags := make(stringList, 0)
-		for tag := range map1 {
-			tags.push(tag)
-		}
-		sort.Strings(tags)
-		//debug("%s nat=%s", n, strings.Join(tags, ","))
-
 	NAT_TAG:
-		for _, tag := range tags {
-			if list := multi[tag]; list != nil {
-
+		for tag := range map1 {
+			list := multi[tag]
+			if list != nil {
 				// Do not add same group twice.
 				if natType[tag] != "hidden" {
 					for _, map2 := range list {
@@ -215,33 +212,25 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 						}
 					}
 				} else {
-
 					// Check for subset relation. Keep superset only.
 					for i, map2 := range list {
-						var common stringList
-						for tag := range map1 {
-							if map2[tag] != nil {
-								common.push(tag)
-							}
-						}
-						if len(common) == len(map1) {
-
-							// Ignore new natTagMap, because it is subset.
+						switch commonKeysCount(map1, map2) {
+						case len(map1):
+							// map1 is subset, ignore.
 							continue NAT_TAG
-						} else if len(common) == len(map2) {
-
-							// Replace previous natTagMap by new superset.
+						case len(map2):
+							// map1 is superset, replace previous entry.
 							list[i] = map1
 							continue NAT_TAG
 						}
 					}
 				}
 			}
-			multi[tag] = append(multi[tag], map1)
+			multi[tag] = append(list, map1)
 		}
 	}
 
-	// Remove entry if nat tag never occurs in multi nat definitions (grouped).
+	// Remove entry if NAT tag never occurs grouped in multi NAT definitions.
 	for tag, list := range multi {
 		if len(list) == 1 && len(list[0]) == 1 {
 			delete(multi, tag)
@@ -655,23 +644,20 @@ func (c *spoc) checkForProperNatTransition(
 	natInfo := nat[tag]
 	nextInfo := nat[tag2]
 
-	// Transition from hidden NAT to any other NAT is invalid.
-	// Even hidden to hidden is not allowed, since relaxed multi NAT rules
-	// for hidden NAT could lead to inconsistent NAT set.
 	if natInfo.hidden {
-
+		// Transition from hidden NAT to any other NAT is invalid.
+		// Even hidden to hidden is not allowed, since relaxed multi NAT rules
+		// for hidden NAT could lead to inconsistent NAT set.
 		// Use nextInfo.name and not natInfo.name because
 		// natInfo may show wrong network, because we combined
-		// different hidden networks into natTag2multinatDdef.
+		// different hidden networks during generateMultinatDefLookupto.
 		c.err("Must not change hidden nat:%s using nat:%s\n"+
 			" for %s at %s", tag, tag2, nextInfo, r)
 	} else if natInfo.dynamic && !nextInfo.dynamic {
-
 		// Transition from dynamic to static NAT is invalid.
 		c.err("Must not change dynamic nat:%s to static using nat:%s\n"+
 			" for %s at %s", tag, tag2, natInfo, r)
 	} else if n := invalid[tag][tag2]; n != nil {
-
 		// Transition from tag to tag2 is invalid,
 		// if tag occurs somewhere not grouped with tag2.
 		c.err("Invalid transition from nat:%s to nat:%s at %s.\n"+
@@ -843,8 +829,7 @@ func (c *spoc) checkMultinatErrors(
 					if !natSet[tag2] {
 						continue
 					}
-					l := getNatDomainBorders(d)
-					for _, intf := range l {
+					for _, intf := range getNatDomainBorders(d) {
 						for _, t := range intf.bindNat {
 							if t == tag1 || t == tag2 {
 								k := key{tag1, tag2, n}
@@ -924,9 +909,9 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 	}
 }
 
-// Check if a single NAT tag is bound to all interfaces of a router.
-// A similar check for equalty of all tags has already been performed in
-// findNatDomains.
+// CheckUselessBindNat checks if a single NAT tag is bound to all
+// interfaces of a router. A similar check for equalty of all tags
+// has already been performed in findNatDomains.
 func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
 	seen := make(map[*router]bool)
 	for _, d := range doms {
@@ -979,10 +964,7 @@ func (c *spoc) checkNatCompatibility() {
 			if nat == nil {
 				return
 			}
-			var tags stringList
-			for tag := range obj.nat {
-				tags.push(tag)
-			}
+			tags := maps.Keys(nat)
 			sort.Strings(tags)
 			for _, tag := range tags {
 				objIP := nat[tag]
@@ -1058,16 +1040,8 @@ func (c *spoc) convertNatSetToNatMap(doms []*natDomain) {
 		for tag := range d.natSet {
 			tag2doms[tag] = append(tag2doms[tag], d)
 		}
-		//d.natSet = nil
+		//d.natSet = nil  // Still needed in export-netspoc
 		d.natMap = make(map[*network]*network)
-	}
-	// Add network with NAT tag T to natMap of domain, where T is active.
-	for _, n := range c.allNetworks {
-		for tag, nat := range n.nat {
-			for _, d := range tag2doms[tag] {
-				d.natMap[n] = nat
-			}
-		}
 	}
 	// Collect routers, where tag T is active.
 	tag2routers := make(map[string][]*router)
@@ -1080,9 +1054,14 @@ func (c *spoc) convertNatSetToNatMap(doms []*natDomain) {
 			r.natMap = make(map[*network]*network)
 		}
 	}
-	// Add network with NAT tag T to natMap of router, where T is active.
+
 	for _, n := range c.allNetworks {
 		for tag, nat := range n.nat {
+			// Add network with NAT tag T to natMap of domain, where T is active.
+			for _, d := range tag2doms[tag] {
+				d.natMap[n] = nat
+			}
+			// Add network with NAT tag T to natMap of router, where T is active.
 			for _, r := range tag2routers[tag] {
 				r.natMap[n] = nat
 			}
@@ -1154,7 +1133,12 @@ func (c *spoc) distributeNatInfo() (
 // Hidden NAT tag is ignored if combined with a real NAT tag,
 // because hidden tag doesn't affect address calculation.
 // Multiple hidden tags without real tag are ignored.
-func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[string]string) natSet {
+func combineNatSets(
+	sets []natSet,
+	multi map[string][]natTagMap,
+	natType map[string]string,
+) natSet {
+
 	if len(sets) == 1 {
 		return sets[0]
 	}
@@ -1216,11 +1200,10 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 
 		// Analyze active and inactive tags.
 		if !m[""] {
-			var realTag string
+			realTag := ""
 			for tag := range m {
 				if natType[tag] != "hidden" {
 					if realTag != "" {
-
 						// Ignore multiple real tags.
 						realTag = ""
 						break
@@ -1228,7 +1211,6 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 					realTag = tag
 				}
 			}
-
 			// Add single real tag with ignored hidden tags or ignore
 			// multiple tags.
 			add = realTag
@@ -1240,17 +1222,15 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 
 		// Tag that is ignored in one multi set must be ignored completely.
 		for tag := range m {
-			if tag == add {
-				continue
+			if tag != add {
+				ignore[tag] = true
 			}
-			ignore[tag] = true
 		}
 	}
 	for tag := range toAdd {
-		if ignore[tag] {
-			continue
+		if !ignore[tag] {
+			combined[tag] = true
 		}
-		combined[tag] = true
 	}
 	return combined
 }

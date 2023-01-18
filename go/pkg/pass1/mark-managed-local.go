@@ -121,13 +121,11 @@ func (c *spoc) markManagedLocal() {
 
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
-		var markNetworks func(netList)
-		markNetworks = func(list netList) {
-			for _, n := range list {
-				markNetworks(n.networks)
+		for _, zone := range c.allZones {
+			processWithSubnetworks(zone.networks, func(n *network) {
 				natNetwork := getNatNetwork(n, cluster.natMap)
 				if natNetwork.hidden {
-					continue
+					return
 				}
 				ip := natNetwork.ipp.Addr()
 				bits := natNetwork.ipp.Bits()
@@ -155,10 +153,7 @@ func (c *spoc) markManagedLocal() {
 						}
 					}
 				}
-			}
-		}
-		for _, zone := range c.allZones {
-			markNetworks(zone.networks)
+			})
 		}
 
 		// Rules from general_permit should be applied to all devices

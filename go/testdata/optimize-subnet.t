@@ -38,7 +38,6 @@ service:p2 = {
  user = network:customer;
  permit src = user; dst = host:s11; prt = protocol:Echo;
 }
-=END=
 =INPUT=[[input {s: " = secondary", d: ""}]]
 =OUTPUT=
 --b1
@@ -64,7 +63,6 @@ ip access-list extended outside_in
 ip access-list extended outside_in
  permit icmp 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255 8
  deny ip any any
-=END=
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
@@ -101,7 +99,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = host:h21, host:h24; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ! n1_in
@@ -112,7 +109,6 @@ object-group network g0
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
-=END=
 =TODO=Combined hosts prevent optimal object group
 
 
@@ -148,7 +144,6 @@ service:p1 = {
  user = network:sub;
  permit src = user; dst = network:server; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --gw
 ! [ Routing ]
@@ -159,7 +154,6 @@ ip route 10.1.2.0 255.255.255.0 10.1.3.3
 ip access-list extended outside_in
  permit ip 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
-=END=
 =TODO=Optimize subnet of NAT network in zone
 
 ############################################################

@@ -95,7 +95,6 @@ service:2c = {
         dst = any:a3;
         prt = tcp;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:1a compared to service:1b:
   permit src=host:h1; dst=network:n2; prt=ip; of service:1a
@@ -122,7 +121,6 @@ Warning: service:1a is fully redundant
 Warning: service:1d is fully redundant
 Warning: service:2a is fully redundant
 Warning: service:2b is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -196,7 +194,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:s1-sl compared to service:s1:
   permit src=network:n2; dst=network:n1; prt=protocol:NTP-sl; stateless of service:s1-sl
@@ -208,7 +205,6 @@ Warning: Redundant rules in service:s2 compared to service:s3:
 < permit src=network:n1; dst=network:n2; prt=ip; of service:s3
 Warning: service:s1-sl is fully redundant
 Warning: service:s2 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -231,10 +227,8 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = host:h2; prt = protocol:Ping_Net;
 }
-=END=
 =WARNING=
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -264,7 +258,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = host:h2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:s2a compared to service:s1:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2a
@@ -284,7 +277,6 @@ Warning: Redundant rules in service:s3 compared to service:s2b:
 Warning: service:s2a is fully redundant
 Warning: service:s2b is fully redundant
 Warning: service:s3 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -321,10 +313,8 @@ service:s3 = {
  permit src = user; dst = network:n2; prt = tcp 81;
  permit src = user; dst = network:n2; prt = tcp 82; log = a;
 }
-=END=
 =WARNING=
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -362,10 +352,8 @@ service:s3 = {
  permit src = user; dst = network:n2; prt = tcp 81;
  permit src = user; dst = network:n2; prt = tcp 82; log = a;
 }
-=END=
 =WARNING=
 Warning: service:s2 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -389,10 +377,8 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80, icmp 8;
 }
-=END=
 =WARNING=
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -417,10 +403,8 @@ service:s2 = {
  # duplicate, but not found first
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -446,10 +430,8 @@ service:s2 = {
  permit src = user; dst = network:n2; prt = tcp 80;
  permit src = user; dst = network:n2; prt = tcp 90;
 }
-=END=
 =WARNING=
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -472,13 +454,11 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =WARNING=
 Warning: Duplicate rules in service:s2 and service:s1:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
 Warning: service:s1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -519,7 +499,6 @@ service:s3 = {
         dst = network:n2;
         prt = tcp 83, icmp 8;
 }
-=END=
 =WARNING=NONE
 =OPTIONS=--check_fully_redundant_rules=warn
 
@@ -622,7 +601,6 @@ service:s1 = {
  user = group:g1;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -749,7 +727,6 @@ service:test2 = {
  user = host:range;
  permit src = user; dst = network:n2; prt = tcp 80-90;
 }
-=END=
 =WARNING=
 Warning: Use network:n1 instead of host:range
  because both have identical address
@@ -757,7 +734,6 @@ Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test1
 < permit src=network:n1; dst=network:n2; prt=tcp 80-90; of service:test2
 Warning: service:test1 is fully redundant
-=END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
@@ -786,12 +762,10 @@ service:s2 = {
 # user = network:n2;
 # permit src = user; dst = network:n3; prt = tcp 10 - 80;
 #}
-=END=
 =WARNING=
 Warning: Redundant rules in service:s1 compared to service:s2:
   permit src=host:h1; dst=network:n3; prt=tcp 80; of service:s1
 < permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s2
-=END=
 =TODO=Split port ranges before compare
 
 ############################################################

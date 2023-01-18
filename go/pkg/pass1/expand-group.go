@@ -14,6 +14,15 @@ func cond(t bool, s1, s2 string) string {
 	return s2
 }
 
+// processWithSubnetworks applies function to given networks and
+// recursively to all their subnetworks.
+func processWithSubnetworks(networks netList, f func(*network)) {
+	for _, n := range networks {
+		f(n)
+		processWithSubnetworks(n.networks, f)
+	}
+}
+
 func (c *spoc) expandTypedName(typ, name string) ipVxGroupObj {
 	var obj ipVxGroupObj
 	switch typ {
@@ -104,18 +113,6 @@ func (c *spoc) removeDuplicates(list groupObjList, ctx string) groupObjList {
 		c.warn("Duplicate elements in %s:\n"+duplicates.nameList(), ctx)
 	}
 	return list
-}
-
-// Find subnets of given networks.
-func getSubnets(l netList) netList {
-	var result netList
-	for _, n := range l {
-		if subnets := n.networks; len(subnets) > 0 {
-			result = append(result, subnets...)
-			result = append(result, getSubnets(subnets)...)
-		}
-	}
-	return result
 }
 
 func (c *spoc) expandIntersection(
@@ -338,19 +335,15 @@ func (c *spoc) expandGroup1(
 						}
 					} else {
 						for _, z := range x.zones {
-							add := func(l netList) {
-								for _, n := range l {
-									for _, intf := range n.interfaces {
-										r := intf.router
-										if !seen[r] {
-											seen[r] = true
-											routers = append(routers, r)
-										}
+							processWithSubnetworks(z.networks, func(n *network) {
+								for _, intf := range n.interfaces {
+									r := intf.router
+									if !seen[r] {
+										seen[r] = true
+										routers = append(routers, r)
 									}
 								}
-							}
-							add(z.networks)
-							add(getSubnets(z.networks))
+							})
 						}
 					}
 					if selector == "all" {
@@ -496,7 +489,11 @@ func (c *spoc) expandGroup1(
 					}
 				}
 				if withSubnets {
-					result = append(result, getSubnets(result)...)
+					for _, n := range result {
+						processWithSubnetworks(n.networks, func(n *network) {
+							result.push(n)
+						})
+					}
 				}
 				return result
 			}

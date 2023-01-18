@@ -25,7 +25,6 @@ service:t2 = {
  user = network:n1;
  permit src = user; dst = interface:r2.n1.2; prt = tcp 21;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -74,7 +73,6 @@ service:t1 = {
  permit src = interface:r1.n1.5th; dst = user; prt = udp 123;
  permit src = interface:r1.n2.2; dst = user; prt = udp 69;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -105,7 +103,6 @@ service:t1 = {
  user = network:n1;
  permit src = user; dst = interface:r1.n2, interface:r1.n3; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended n1_in
@@ -136,7 +133,6 @@ router:r1 = {
   secondary:5th = { ip = 10.1.1.6; }
  }
 }
-=END=
 =ERROR=
 Error: Duplicate attribute 'secondary:5th' in interface:n1 of router:r1
 Error: Duplicate definition of interface:r1.n1.5th in router:r1
@@ -152,7 +148,6 @@ router:r1 = {
   secondary:2 = { ip = 10.1.1.6; }
  }
 }
-=END=
 =ERROR=
 Error: Duplicate definition of interface:r1.n1.2 in router:r1
 =END=
@@ -168,7 +163,6 @@ router:r1 = {
   virtual = { ip = 10.1.1.9; }
  }
 }
-=END=
 =ERROR=
 Error: Duplicate definition of interface:r1.n1.virtual in router:r1
 =END=
@@ -182,7 +176,6 @@ router:r1 = {
   ip = 10.1.1.1, 10.1.1.2;
  }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r1.n1.2 and host:h
 =END=
@@ -197,7 +190,6 @@ router:r1 = {
   secondary:s = { ip = 10.1.1.2; }
  }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r1.n1.2 and interface:r1.n1.s
 =END=
@@ -235,7 +227,6 @@ service:s = {
  # Find secondary  interface r1.n3.s of split interface r1.n3.
  permit src = user; dst = interface:r1.n3.s; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r2
 ip access-list extended n1_in

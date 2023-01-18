@@ -43,12 +43,10 @@ group:g1 =
  host:a,
  host:b,
 ;
-=END=
 =OUTPUT=
 group:g1 =
  host:b,
 ;
-=END=
 =WARNING=
 Changed INPUT
 =OPTIONS=--quiet=false
@@ -81,7 +79,6 @@ group:G =
  host:x,
  host:y,
 ;
-=END=
 =OUTPUT=
 ################# Comment in first line must not be appended to added item.
 network:Test = { ip = 10.9.1.0/24; }
@@ -93,7 +90,6 @@ group:G =
  host:x,
  host:y,
 ;
-=END=
 =PARAMS=host:Toast
 
 ############################################################
@@ -104,13 +100,11 @@ group:abc =
  host:h,
  host:xyz,
 ;
-=END=
 =OUTPUT=
 group:abc =
  any:[ip = 10.1.0.0/16 & network:def],
  host:xyz,
 ;
-=END=
 =PARAMS=host:h
 
 ############################################################
@@ -121,13 +115,11 @@ group:abc =
  interface:r1@vrf.[auto],
  host:h,
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:xyz,
  interface:r1@vrf.[auto],
 ;
-=END=
 =PARAMS=host:h
 
 ############################################################
@@ -139,13 +131,11 @@ group:abc =
  interface:r1@vrf.[auto],
  host:h,
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:xyz,
  host:h,
 ;
-=END=
 =PARAMS=interface:r1@vrf.[auto] interface:r2.[all]
 
 ############################################################
@@ -253,30 +243,29 @@ group:g =
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- interface:n1;
- interface:lo1 = { ip = 10.1.1.1; loopback; }
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:lo1 = { ip = 10.1.1.2; loopback; }
  interface:lo = { ip = 10.1.1.3; loopback; }
 }
 router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo2 = { ip = 10.1.1.2; loopback; hardware = lo2; }
+ interface:lo2 = { ip = 10.1.1.4; loopback; hardware = lo2; }
 }
 group:abc = group:g &! interface:r1.lo;
 group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo2;
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- interface:n1;
- interface:lo1 = { ip = 10.1.1.1; loopback; }
+ interface:n1  = { ip = 10.1.1.1; }
+ interface:lo1 = { ip = 10.1.1.2; loopback; }
 }
 router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo2 = { ip = 10.1.1.2; loopback; hardware = lo2; }
+ interface:lo2 = { ip = 10.1.1.4; loopback; hardware = lo2; }
 }
 group:abc =
  group:g,
@@ -291,11 +280,9 @@ group:g =
 =INPUT=
 group:abc = group:g &! host:xyz;
 group:g = host:a;
-=END=
 =OUTPUT=
 group:abc =
 ;
-=END=
 =PARAMS=group:g
 
 ############################################################
@@ -303,22 +290,18 @@ group:abc =
 =INPUT=
 group:abc = group:g & network:[area:a];
 group:g = network:a;
-=END=
 =OUTPUT=
 group:abc =
 ;
-=END=
 =PARAMS=group:g
 
 ############################################################
 =TITLE=Remove intersection if non complement element becomes empty (3)
 =INPUT=
 group:abc = network:[area:a] & network:[area:b];
-=END=
 =OUTPUT=
 group:abc =
 ;
-=END=
 =PARAMS=area:a
 
 ############################################################
@@ -328,7 +311,6 @@ group:abc =
  network:[area:a, area:b]
  & network:[any:[ip = 10.1.0.0/16 & area:c, area:d]]
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:[area:b]
@@ -337,7 +319,6 @@ group:abc =
    ]
  ,
 ;
-=END=
 =PARAMS=area:a area:d
 
 ############################################################
@@ -370,7 +351,6 @@ group:abc =
  network:def,
  network:n,
 ;
-=END=
 =OUTPUT=
 group:abc =
  group:g
@@ -378,7 +358,6 @@ group:abc =
  ,
  network:def,
 ;
-=END=
 =PARAMS=network:n
 
 ############################################################
@@ -393,7 +372,6 @@ group:abc =
   network:n4,
  ],
 ;
-=END=
 =OUTPUT=
 group:abc =
  any:[ip = 10.1.0.0/16 &
@@ -402,7 +380,6 @@ group:abc =
   network:n3,
  ],
 ;
-=END=
 =PARAMS=network:n1a network:n4
 
 ############################################################
@@ -415,12 +392,10 @@ group:abc =
  ]],
  network:n3,
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:n3,
 ;
-=END=
 =PARAMS=network:n1 network:n2
 
 ############################################################
@@ -432,12 +407,10 @@ group:abc =
   area:a2,
  ],
 ;
-=END=
 =OUTPUT=
 group:abc =
  network:[area:a1],
 ;
-=END=
 =PARAMS=area:a2
 
 ############################################################
@@ -449,12 +422,10 @@ group:abc =
   network:n2,
  ].[all],
 ;
-=END=
 =OUTPUT=
 group:abc =
  interface:[network:n1].[all],
 ;
-=END=
 =PARAMS=network:n2
 
 ############################################################
@@ -488,7 +459,6 @@ group:y =
  host:y,
  host:z,
 ;
-=END=
 =OUTPUT=
 service:x = {
  user = host:b;
@@ -506,7 +476,6 @@ pathrestriction:p =
 area:a = {
  border = interface:r.x;
 }
-=END=
 =PARAMS=host:y group:y interface:r.x
 
 ############################################################
@@ -527,7 +496,6 @@ group:x =
  host:g,
  host:g1,
 ;
-=END=
 =OUTPUT=
 group:x =
  host:a,
@@ -538,7 +506,6 @@ group:x =
  host:f,
  host:g,
 ;
-=END=
 =PARAMS=host:a1 host:b1 host:d1 host:e1 host:f1 host:g1
 
 ############################################################
@@ -551,7 +518,6 @@ group:g2 =
  host:a,
  host:b,
 ;
-=END=
 =OUTPUT=
 # group:g1 =
 # host:c,
@@ -559,7 +525,6 @@ group:g2 =
 group:g2 =
  host:b,
 ;
-=END=
 =PARAMS=host:a
 
 ############################################################
@@ -575,14 +540,12 @@ group:g2 =
  host:b
  #c
   ,;
-=END=
 =OUTPUT=
 group:g1 =
  host:a,
 ;
 group:g2 =
 ;
-=END=
 =PARAMS=host:b
 
 ############################################################
@@ -596,7 +559,6 @@ service:s1 = {
         dst = user;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=NONE
 =PARAMS=host:a host:b
 
@@ -618,7 +580,6 @@ service:s2 = {
         dst = user;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s2 = {
  user = host:a;
@@ -637,13 +598,11 @@ group:BÖSE =
  host:Muess,
  host:Müß,
 ;
-=END=
 =OUTPUT=
 group:BÖSE =
  host:Mass,
  host:Müß,
 ;
-=END=
 =PARAMS=host:Muess host:Maß
 
 ############################################################
@@ -660,14 +619,12 @@ group:g =
  host:abc,
  host:id:xyz@dom,
 ;
-=END=
 =OUTPUT=
 group:g =
  network:xyz,
  interface:r.n.sec,
  host:abc,
 ;
-=END=
 =FOPTION=
 any:aaa
 network:abx
@@ -691,13 +648,11 @@ group:g1 =
  host:a,
  host:b,
 ;
-=END=
 =OUTPUT=
 group:g1 =
  host:a,
  host:b,
 ;
-=END=
 =PARAMS=host:c group:g2
 
 ############################################################
@@ -708,43 +663,35 @@ group:g1 =
  host:a,
  host:b,
 ;
-=END=
 =OUTPUT=
 group:g1 =
  description = host:a, host:b,
  host:a,
 ;
-=END=
 =PARAMS=host:b
 
 ############################################################
 =TITLE=Missing type
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Typed name expected at line 1 of command line, near "--HERE-->host_a"
-=END=
 =PARAMS=host_a
 
 ############################################################
 =TITLE=Unsupported type
 =INPUT=
 group:g1 = host:a;
-=END=
 =ERROR=
 Error: Unknown element type at line 1 of command line, near "--HERE-->service:s1"
-=END=
 =PARAMS=service:s1
 
 ############################################################
 =TITLE=List of elements
 =INPUT=
 group:g1 = host:a, host:b;
-=END=
 =ERROR=
 Error: Can't handle 'host:a,host:b'
-=END=
 =PARAMS=host:a,host:b
 
 ############################################################
@@ -753,10 +700,8 @@ Error: Can't handle 'host:a,host:b'
 group:g1 =
  any:[ip = 10.1.1.0/24 & network:n1],
 ;
-=END=
 =ERROR=
 Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
-=END=
 =PARAMS=any:[ip=10.1.1.0/24&network:n1]
 
 ############################################################
@@ -765,10 +710,8 @@ Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
 group:g1 =
 interface:[network:n1].[all]
 ;
-=END=
 =ERROR=
 Error: Can't handle 'interface:[network:n1].[all]'
-=END=
 =PARAMS=interface:[network:n1].[all]
 
 ############################################################
@@ -777,10 +720,8 @@ Error: Can't handle 'interface:[network:n1].[all]'
 group:g1 =
  network:[any:a] &! network:n1
 ;
-=END=
 =ERROR=
 Error: Can't handle 'network:[any:a]&!network:n1'
-=END=
 =PARAMS=network:[any:a]&!network:n1
 
 ############################################################

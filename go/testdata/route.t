@@ -51,7 +51,6 @@ service:test = {
  ;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -62,7 +61,6 @@ ip route 10.1.2.0/24 10.9.1.2
 ip route 10.5.0.4/30 10.9.1.3
 ip route 10.1.3.128/25 10.9.1.3
 ip route 10.1.4.0/24 10.9.1.3
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -89,12 +87,10 @@ service:test = {
  user = network:n2a, network:n2b;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
 ip route 10.1.2.0/24 10.9.1.2
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -117,7 +113,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't generate static routes for interface:asa.Trans because IP address is unknown for:
  - interface:u.Trans
@@ -149,7 +144,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't generate static routes for interface:r2.n2 because IP address is unknown for:
  - interface:r1.n2
@@ -179,7 +173,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Two static routes for network:n2
  at interface:r.t1 via interface:h2.t1 and interface:h1.t1
@@ -228,6 +221,37 @@ ip route 10.1.6.0 255.255.255.0 10.9.1.4
 =END=
 
 ############################################################
+=TITLE=Default route for ASA
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.3; }
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = network:n3, network:n4, network:n5;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 0.0.0.0 0.0.0.0 10.1.2.3
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =INPUT=
 network:N = { ip = 10.1.1.0/24; }
@@ -258,7 +282,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --asa
 route outside 10.1.1.0 255.255.255.0 10.9.9.2
@@ -291,7 +314,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3, network:n4; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -377,7 +399,6 @@ service:test = {
  user = network:n1{{.n4}};
  permit src = user; dst = network:n2; prt = icmp 8;
 }
-=END=
 =INPUT=[[input {n4: ""}]]
 =OUTPUT=
 --r
@@ -412,7 +433,6 @@ service:test2 = {
 ip route add 0.0.0.0/0 via 10.9.1.2
 ip route add 10.1.1.0/28 via 10.9.1.2
 ip route add 10.1.1.0/24 via 10.9.2.2
-=END=
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
@@ -648,7 +668,6 @@ service:test2 = {
  user = network:n3;
  permit src = interface:hop.t2; dst = user; prt = icmp 8;
 }
-=END=
 =OUTPUT=
 --r
 ! [ Routing ]
@@ -686,7 +705,6 @@ service:test = {
  user = network:n2, network:n3;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -729,7 +747,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -760,7 +777,6 @@ service:ping_local = {
  user = foreach interface:r1.n1, interface:r1.n2;
  permit src = any:[user]; dst = user; prt = icmp 8;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -804,7 +820,6 @@ service:s2 = {
  user = interface:r1.n2.virtual;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ Routing ]
@@ -814,6 +829,43 @@ ip route 10.1.4.0 255.255.255.0 10.1.3.4
 ! [ Routing ]
 ip route 10.1.1.0 255.255.255.0 10.1.2.4
 ip route 10.1.4.0 255.255.255.0 10.1.3.4
+=END=
+
+############################################################
+=TITLE=Route from virtual interface
+# Must no accidently ignore route.
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; virtual = { ip = 10.1.1.3; } }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; virtual = { ip = 10.1.2.3; } }
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.4; hardware = n1; virtual = { ip = 10.1.1.3; } }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; virtual = { ip = 10.1.2.3; } }
+}
+
+service:s1 = {
+ user = interface:r1.n0;
+ permit src = user; dst = interface:r2.n1.virtual; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! [ Routing ]
+ip route 10.1.0.0 255.255.255.0 10.1.1.1
 =END=
 
 ############################################################
@@ -849,7 +901,6 @@ service:s2 = {
  user = interface:r3.n4;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r3
 ! [ Routing ]

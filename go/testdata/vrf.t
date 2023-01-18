@@ -24,7 +24,6 @@ router:r@v3 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-=END=
 =ERROR=
 Error: All instances of router:r must have identical model
 Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
@@ -51,7 +50,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ! [ ACL ]
@@ -59,6 +57,15 @@ ip access-list extended n2_in
  deny ip any host 10.1.3.1
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
  deny ip any any
+--
+interface n2
+ ip address 10.1.2.2 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n2_in in
+interface n3
+ ip address 10.1.3.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n3_in in
 =END=
 
 ############################################################
@@ -88,7 +95,6 @@ service:test = {
  user = host:h10, host:h20, host:h30;
  permit src = user; dst = network:m; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 object-group ip address g0
@@ -99,9 +105,29 @@ ip access-list e0_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
 --
+interface e0
+ ip address 10.2.2.1/24
+ vrf member v1
+ ip access-group e0_in in
+--
+interface e1
+ ip address 10.9.9.1/24
+ vrf member v1
+ ip access-group e1_in in
+--
 ip access-list e2_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
+--
+interface e2
+ ip address 10.9.9.2/24
+ vrf member v2
+ ip access-group e2_in in
+--
+interface e3
+ ip address 10.1.1.1/24
+ vrf member v2
+ ip access-group e3_in in
 =END=
 
 ############################################################
@@ -127,7 +153,6 @@ service:test = {
  permit src = user; dst = network:n; prt = tcp 80;
  permit src = network:n; dst = user; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended e0_in
@@ -205,7 +230,6 @@ router:r1@v2 = {
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
-=END=
 =WARNING=
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
@@ -233,7 +257,6 @@ service:admin = {
  user = interface:r1@v2.[auto];
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ IP = 10.1.1.2 ]
@@ -261,7 +284,6 @@ service:admin = {
  user = interface:r1@v1.[auto], interface:r1@v2.[auto];
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ IP = 10.1.1.1,10.1.1.2 ]
@@ -283,11 +305,9 @@ router:r1@v2 = {
  model = NX-OS;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Missing attribute 'policy_distribution_point' for 1 devices:
  - at least one instance of router:r1
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -309,7 +329,6 @@ router:r1@v2 = {
  policy_distribution_point = host:h9;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Instances of router:r1 must not use different 'policy_distribution_point':
  -host:h8
@@ -317,7 +336,6 @@ Error: Instances of router:r1 must not use different 'policy_distribution_point'
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
  - router:r1@v2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -348,7 +366,6 @@ service:admin = {
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
  - router:r1@v2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -394,7 +411,6 @@ router:r1@v2 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
-=END=
 =ERROR=
 Error: Must not use VRF at router:r1@v1 of model ASA
 Error: Must not use VRF at router:r1@v2 of model ASA

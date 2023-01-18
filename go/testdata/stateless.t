@@ -32,7 +32,6 @@ service:test2 = {
  # permit src = user; dst = host:y; prt = ip; stateless;
  # This internal rule is globally redundant to rule of service:test1
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -54,7 +53,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 389, udp 1024-65535;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -71,6 +69,48 @@ ip access-list extended e1_in
 =END=
 
 ############################################################
+=TITLE=Reverse UDP any
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65535;
+}
+=OUTPUT=
+--r
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any host 10.1.1.1
+ permit udp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Recognize UDP non any
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65534;
+}
+=OUTPUT=
+--r
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 lt 65535
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any host 10.1.1.1
+ permit udp 10.2.2.0 0.0.0.255 lt 65535 10.1.1.0 0.0.0.255
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=UDP source port with unspecified destination port
 =INPUT=
 [[topo]]
@@ -79,7 +119,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -102,7 +141,6 @@ service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -125,7 +163,6 @@ service:test = {
  user = network:x, network:y;
  permit src = user; dst = user; prt = protocol:ike;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended e0_in
@@ -152,7 +189,6 @@ service:s = {
                 tcp 3389,
                 ;
 }
-=END=
 =OUTPUT=
 --r
 ! [ ACL ]

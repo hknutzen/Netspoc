@@ -48,7 +48,6 @@ service:s1 = {
         ;
  permit src = user; dst = network:n0; prt = ip;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in

@@ -32,12 +32,10 @@ router:asa3 = {
 }
 area:a1 = { border = interface:asa3.n2.2; }
 group:g1 = network:[area:a1];
-=END=
 =OUTPUT=
 10.1.2.0/24	network:n2
 10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
-=END=
 =PARAM=group:g1
 
 ############################################################
@@ -54,12 +52,10 @@ router:asa3 = {
 }
 area:a1 = { border = interface:asa3.n2.virtual; }
 group:g1 = network:[area:a1];
-=END=
 =OUTPUT=
 10.1.2.0/24	network:n2
 10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
-=END=
 =PARAM=group:g1
 
 ############################################################
@@ -86,10 +82,8 @@ area:a1 = {
            interface:asa4.n2.virtual;
 }
 group:g1 = network:[area:a1];
-=END=
 =OUTPUT=
 10.1.2.0/24	network:n2
 10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
-=END=
 =PARAM=group:g1

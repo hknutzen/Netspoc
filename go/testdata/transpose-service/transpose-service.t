@@ -3,16 +3,18 @@
 =INPUT=#
 =PARAMS=-h
 =ERROR=
-Usage: PROGRAM [options] FILE|DIR [service:]NAME
-  -q, --quiet   Don't show changed files
+Usage: PROGRAM [options] FILE|DIR [service:]NAME ...
+  -f, --file string   Read SERVICES from file
+  -q, --quiet         Don't show changed files
 =END=
 
 ############################################################
 =TITLE=No parameters
 =INPUT=NONE
 =ERROR=
-Usage: PROGRAM [options] FILE|DIR [service:]NAME
-  -q, --quiet   Don't show changed files
+Usage: PROGRAM [options] FILE|DIR [service:]NAME ...
+  -f, --file string   Read SERVICES from file
+  -q, --quiet         Don't show changed files
 =END=
 
 ############################################################
@@ -21,6 +23,14 @@ Usage: PROGRAM [options] FILE|DIR [service:]NAME
 =PARAMS=--hasso
 =ERROR=
 Error: unknown flag: --hasso
+=END=
+
+############################################################
+=TITLE=Read services from unknown file
+=INPUT=#
+=PARAMS=-f unknown
+=ERROR=
+Error: Can't open unknown: no such file or directory
 =END=
 
 ############################################################
@@ -66,6 +76,119 @@ service:s1 = {
               host:server2,
               ;
         dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=END=
+
+############################################################
+=TITLE=Transpose two services at once
+=PARAMS=s1 s2
+=INPUT=
+service:s1 = {
+ user = host:server1,
+        host:server2,
+        ;
+ permit src = user;
+        dst = host:u1,
+              host:u2,
+              ;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+service:s2 = {
+ user = host:u1,
+        host:u2,
+        ;
+ permit src = host:server1,
+              host:server2,
+              ;
+        dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=OUTPUT=
+service:s1 = {
+ user = host:u1,
+        host:u2,
+        ;
+ permit src = host:server1,
+              host:server2,
+              ;
+        dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+service:s2 = {
+ user = host:server1,
+        host:server2,
+        ;
+ permit src = user;
+        dst = host:u1,
+              host:u2,
+              ;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=END=
+
+############################################################
+=TITLE=Transpose two services at once and read names from file
+=FOPTION=
+service:s1
+
+s2
+=INPUT=
+service:s1 = {
+ user = host:server1,
+        host:server2,
+        ;
+ permit src = user;
+        dst = host:u1,
+              host:u2,
+              ;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+service:s2 = {
+ user = host:u1,
+        host:u2,
+        ;
+ permit src = host:server1,
+              host:server2,
+              ;
+        dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=OUTPUT=
+service:s1 = {
+ user = host:u1,
+        host:u2,
+        ;
+ permit src = host:server1,
+              host:server2,
+              ;
+        dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+service:s2 = {
+ user = host:server1,
+        host:server2,
+        ;
+ permit src = user;
+        dst = host:u1,
+              host:u2,
+              ;
         prt = tcp 6514,
               udp 20514,
               ;

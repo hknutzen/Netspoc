@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2022 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2023 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -30,7 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,14 +71,8 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 
 func printNetworkIp(n *network) string {
 	pIP := n.ipp.Addr().String()
-	var pMask string
-	bits := n.ipp.Bits()
-	if n.ipV6 {
-		pMask = strconv.Itoa(bits)
-	} else {
-		pMask = net.IP(net.CIDRMask(bits, 32)).String()
-	}
-	return pIP + "/" + pMask
+	bits := strconv.Itoa(n.ipp.Bits())
+	return pIP + "/" + bits
 }
 
 type jsonMap map[string]interface{}
@@ -343,11 +336,10 @@ func findVisibility(owners, uowners stringList) string {
 	}
 
 	// No known owner or owner of users.
-	if len(owners) == 0 && len(uowners) == 0 {
-		// Default: private
-	} else if len(DAExtra) == 0 && len(otherExtra) == 0 {
+	if len(DAExtra) == 0 && len(otherExtra) == 0 {
 		// Set of uowners is subset of owners.
-		// Default: private
+		// This also true, if both owners and uoners are empty.
+		// Visibility: private
 	} else if len(otherExtra) <= 2 {
 		// Restricted visibility
 		if len(DAExtra) >= 3 {
@@ -748,10 +740,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
-		var l []*owner
-		for ow := range m {
-			l = append(l, ow)
-		}
+		l := maps.Keys(m)
 		sort.Slice(l, func(i, j int) bool {
 			return l[i].name < l[j].name
 		})
@@ -841,9 +830,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 				setOuterOwners(obj, ow, outerForObj)
 			}
 		}
-		for _, n := range addSubnetworks(z.networks) {
-			process(n)
-		}
+		processWithSubnetworks(z.networks, process)
 		for _, n := range z.ipPrefix2aggregate {
 			process(n)
 		}
@@ -917,19 +904,15 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, oInfo))
 	}
 	for ownerName := range c.symTable.owner {
-		natList := make(stringList, 0)
-		if doms := owner2domains[ownerName]; doms != nil {
+		doms := owner2domains[ownerName]
 
-			// Build union of all natSets of found NAT domains.
-			var natSets []natSet
-			for d := range doms {
-				natSets = append(natSets, d.natSet)
-			}
-			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-			for tag := range combined {
-				natList.push(tag)
-			}
+		// Build union of all natSets of found NAT domains.
+		var natSets []natSet
+		for d := range doms {
+			natSets = append(natSets, d.natSet)
 		}
+		combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
+		natList := maps.Keys(combined)
 		sort.Strings(natList)
 
 		c.createDirs(dir, "owner/"+ownerName)
@@ -941,22 +924,6 @@ func (c *spoc) exportNatSet(dir string,
 // Export hosts, networks and zones (represented by aggregate 0/0) for
 // each owner.
 //###################################################################
-
-// Parameter 'networks' only contains toplevel networks.
-// Add subnets recursively.
-func addSubnetworks(networks netList) netList {
-	var result netList
-	for _, n := range networks {
-		if subList := n.networks; subList != nil {
-			result = append(result, addSubnetworks(subList)...)
-		}
-	}
-	if result != nil {
-		return append(result, networks...)
-	} else {
-		return networks
-	}
-}
 
 func (c *spoc) exportAssets(
 	dir string, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
@@ -1050,9 +1017,7 @@ func (c *spoc) exportAssets(
 		}
 
 		zoneName := c.getZoneName(z)
-		networks := addSubnetworks(z.networks)
-
-		for _, n := range networks {
+		processWithSubnetworks(z.networks, func(n *network) {
 			add := func(ow string, ownNet bool) {
 				addNetworksInfo(ow, zoneName, exportNetwork(n, ow, ownNet))
 			}
@@ -1066,7 +1031,7 @@ func (c *spoc) exportAssets(
 				// Show only own or part_owned networks in foreign zone.
 				add(ow, false)
 			}
-		}
+		})
 	}
 
 	for ow := range c.symTable.owner {
@@ -1182,10 +1147,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	var names stringList
-	for name := range c.symTable.owner {
-		names.push(name)
-	}
+	names := maps.Keys(c.symTable.owner)
 	sort.Strings(names)
 	for _, ow := range names {
 		type2sMap := owner2type2sMap[ow]

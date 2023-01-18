@@ -16,7 +16,6 @@ network:n2 = { ip = ::a01:200/120; }
 ! n1_in
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =DATE=-365
 =PARAMS=--ipv6
 =INPUT=
@@ -80,7 +79,6 @@ service:s = {
 access-list n1_in extended permit tcp ::a01:100/120 ::a01:200/120 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =DATE=1
 =PARAMS=--ipv6
 =INPUT=

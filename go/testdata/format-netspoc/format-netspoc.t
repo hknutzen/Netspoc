@@ -45,7 +45,6 @@ Error: open unknown-file: no such file or directory
 =TITLE=Unknown type
 =INPUT=
 foo:x =
-=END=
 =ERROR=
 Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 =END=
@@ -55,7 +54,6 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 =INPUT=
 --file
 
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -74,7 +72,6 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 =TITLE=Empty group
 =INPUT=
 group:g1 = ; # IGNORED
-=END=
 =OUTPUT=
 group:g1 =
 ;
@@ -92,7 +89,6 @@ group:g2 =
 group:g3 =
  description = ; ;
  host:h1;
-=END=
 =OUTPUT=
 group:g1 =
  host:h1,
@@ -114,7 +110,6 @@ group:g1 =
  host:h1,
  group:g2 & group:g3 &! host:h2 &! host:h3,
  network:n1,;
-=END=
 =OUTPUT=
 group:g1 =
  group:g2
@@ -152,7 +147,6 @@ group:g1 =
  any:[area:a1]
  ,
  network:[   area:a2, ],  ;
-=END=
 =OUTPUT=
 group:g1 =
  any:[area:a1],
@@ -172,7 +166,6 @@ group:g1 =
  network:[
   interface:[area:a3, area:a2].[all] &! interface:r1.n3, interface:r1.n3.virtual
  ]  ;
-=END=
 =OUTPUT=
 group:g1 =
  network:[
@@ -198,7 +191,6 @@ group:g1 =
 =TITLE=With umlauts
 =INPUT=
 group:groß = interface:röter.über;
-=END=
 =OUTPUT=
 group:groß =
  interface:röter.über,
@@ -229,7 +221,6 @@ host:h2, # after second
 # IGNORED
 ;
 # At end
-=END=
 =OUTPUT=
 # head1
 # head1a
@@ -260,7 +251,6 @@ group:g1 =
    description # IGNORE
    =   the text; ;; # comment
 ;
-=END=
 =OUTPUT=
 group:g1 =
  description = the text # comment
@@ -275,7 +265,6 @@ group:g1 =
  # pre h
  host:h
 ;
-=END=
 =OUTPUT=
 group:g1 =
  # pre h
@@ -292,7 +281,6 @@ group:g1 = # pre h
 group:g2 = host:h1, # post h1
 host:h2
 ;
-=END=
 =OUTPUT=
 group:g1 =
  # pre h
@@ -312,7 +300,6 @@ group:g1 = interface:r1.Test, # comment1
 interface:r2.[ auto ] , # comment2
 interface:[network:n1].[all ], # comment3
 ;
-=END=
 =OUTPUT=
 group:g1 =
  interface:[network:n1].[all], # comment3
@@ -329,7 +316,6 @@ group:g1 =
  , # more trailing
  # and more
 ;
-=END=
 =OUTPUT=
 group:g1 =
  host:h, # trailing
@@ -346,7 +332,6 @@ auto # trailing2
  # post
 ], # real trailing
 ;
-=END=
 =OUTPUT=
 group:g1 =
  interface:r1.[auto], # real trailing
@@ -362,7 +347,6 @@ area:a # trailing
 # post
 ] # real trailing
 ;
-=END=
 =OUTPUT=
 group:g1 =
  network:[area:a], # real trailing
@@ -389,7 +373,6 @@ group:g1 =
   ! # !
   host:h4
 ;
-=END=
 =OUTPUT=
 group:g1 =
  # post g1
@@ -427,7 +410,6 @@ group:g1 =
  host:h3 # trailing h3
 ] # trailing list
 ;
-=END=
 =OUTPUT=
 group:g1 =
  network:[
@@ -469,7 +451,6 @@ group:g1 =
  network:[area:a2] &! network:n-10_1_9_0-24,
  network:[area:a1] &! network:n-10_1_6_0-24,
 ;
-=END=
 =OUTPUT=
 group:g1 =
  group:g8
@@ -531,7 +512,6 @@ service:s1 = {
         log = fw3, # after log1
               asa1; # after log2
 }
-=END=
 =OUTPUT=
 # pre s1
 service:s1 = {
@@ -578,7 +558,6 @@ service:s1 = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
 
@@ -601,7 +580,6 @@ service:s1 = {
 =TITLE=Service without rule
 =INPUT=
 service:s1 = { user = host:h1; }
-=END=
 =OUTPUT=
 service:s1 = {
  user = host:h1;
@@ -618,7 +596,6 @@ permit src =; #src
        dst =   ;  #dst
        prt =; #prt
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = ;
@@ -642,7 +619,6 @@ service:s1 = {
  user = foreach host:h2, host:h1;
  permit src = user; dst = network:[user]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = foreach
@@ -664,7 +640,6 @@ service:s1 = {
         dst = network:n1; #dst
         prt = tcp 80, tcp 90; #prt
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = host:h1,
@@ -689,7 +664,6 @@ service:s1 = {
         dst = network:n1;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = host:h1;
@@ -709,7 +683,6 @@ service:s1 = {
         dst = host:h2;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = group:g1
@@ -728,7 +701,6 @@ service:s1 = {
  user = host:[network:n2, network:n1]; # host:h3;
  permit src = user; dst = host:h2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = host:[
@@ -750,7 +722,6 @@ service:s1 = {
         dst = network:n2;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = host:[
@@ -794,7 +765,6 @@ service:s1 = {
               protocolgroup:ftp-active,
         ;
 }
-=END=
 =OUTPUT=
 service:s1 = {
  user = network:n1;
@@ -830,7 +800,6 @@ service:s1 = {
 =TITLE=Ordered elements in protocolgroups
 =INPUT=
 protocolgroup:g1 =udp 70,tcp 700, tcp 80, udp, udp : 0;
-=END=
 =OUTPUT=
 protocolgroup:g1 =
  tcp 80,
@@ -861,7 +830,6 @@ host:long-name = { ip =10.1.1.66; owner = o1; }
 # nat
 host:nat = { ip = 10.1.1.11; nat:n = { ip = 9.1.1.11; } }
 }
-=END=
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -903,7 +871,6 @@ any:a1 = # comment
 { link = network:n1; }
 any:a1 # comment
 = { link = network:n1; }
-=END=
 =OUTPUT=
 any:a1 = {
  link = network:n1; # comment
@@ -938,7 +905,6 @@ network:n1 = { ip = 10.1.1.0/24; } # comment
 network:n1 = { ip = 10.1.1.0/24; nat:x = { identity; } } # comment
 network:n1 = { nat:x = { identity; } ip = 10.1.1.0/24; } # comment
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.1; } } # comment
-=END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; } # comment
 
@@ -979,7 +945,6 @@ network:nnn6 = { ip = 10.1.6.0/24; host:h6 = { ip = 10.1.6.10; } }
 network:nnn7 = { ip = 10.1.7.0/24; }
 network:n8 = { ip = 10.1.8.0/24; }
 any:a = { link = network:n5; }
-=END=
 =OUTPUT=
 network:n0 = {
  # Not simple
@@ -1094,7 +1059,6 @@ interface:log-name = { ip = 10.1.9.1; hardware = ln; }
 interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 interface:lo = { ip = 10.1.4.128; hardware = lo; loopback; }
 }
-=END=
 =OUTPUT=
 # pre
 router:r1 = {
@@ -1146,7 +1110,6 @@ router:u2 = {
  interface:lo = { ip = 10.1.1.4; owner = o2; vip; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
 }
-=END=
 =OUTPUT=
 router:u1 = {
  # i1
@@ -1176,7 +1139,6 @@ router:u1 = {
  # i2
  interface:n1;
 }
-=END=
 =OUTPUT=
 router:u1 = {
  # i1
@@ -1191,7 +1153,6 @@ router:u1 = {
 =INPUT=
 any:a1 = { ip = 10.1.0.0/16; link = network:n1; nat:n1 = { ip  = 10.9.0.0/16; } owner = o1;
 }
-=END=
 =OUTPUT=
 any:a1 = {
  ip = 10.1.0.0/16;
@@ -1215,7 +1176,6 @@ area:a1 = {
   general_permit = udp, icmp;
   }
 }
-=END=
 =OUTPUT=
 area:a1 = {
  nat:t = { hidden; }
@@ -1243,7 +1203,6 @@ area:a1 = {
 area:a1 = {
  inclusive_border= interface:r1.n1, interface:r5.n5, interface:r2.n2;
 }
-=END=
 =OUTPUT=
 area:a1 = {
  inclusive_border =
@@ -1264,7 +1223,6 @@ pathrestriction:p1 = interface:r1.n_10_1_9_0-24,
  interface:r3@vrf7.n_10_1_7_0,
  interface:r2.n1
 ;
-=END=
 =OUTPUT=
 pathrestriction:p1 =
  interface:r1.n2,
@@ -1287,7 +1245,6 @@ protocol:http = tcp 80;
 protocol:BGP =
  description = routing protocol
 tcp 179, no_check_supernet_rules;
-=END=
 =OUTPUT=
 protocol:all_ip = ip;
 
@@ -1310,7 +1267,6 @@ protocol:BGP =
 owner:a = { admins = a@example.com; }
 owner:ab = { admins = a@example.com, b@example.com; }
 owner:abw = { watchers = w@example.com; admins = a@example.com, b@example.com; }
-=END=
 =OUTPUT=
 owner:a = {
  admins = a@example.com;
@@ -1361,7 +1317,6 @@ Changed f3
 --config
 foo = bar;
 xxx
-=END=
 =WARNING=NONE
 
 ############################################################

@@ -301,7 +301,6 @@ router:r2 = {
 Error: Missing attribute 'policy_distribution_point' for 2 devices:
  - router:r1
  - router:r2
-=END=
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -858,6 +857,70 @@ router:r1@vsys1 = {
 <address>
 </address>
 <service>
+</service>
+</entry>
+=END=
+
+############################################################
+=TITLE=Log deny for PAN-OS
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = 10.1.1.1; }
+}
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log_deny = end;
+ interface:n1 = { ip = 10.1.1.2; hardware = z1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = z2; }
+}
+service:s1 = {
+ user = host:h1;
+ deny src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+<entry name="v1">
+<rulebase><security><rules>
+<entry name="r1">
+<action>drop</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP_10.1.1.10</member></source>
+<destination><member>NET_10.1.2.0_24</member></destination>
+<service><member>tcp 80</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+<log-end>yes</log-end>
+</entry>
+<entry name="r2">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>NET_10.1.1.0_24</member></source>
+<destination><member>NET_10.1.2.0_24</member></destination>
+<service><member>tcp 80</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET_10.1.1.0_24"><ip-netmask>10.1.1.0/24</ip-netmask></entry>
+<entry name="IP_10.1.1.10"><ip-netmask>10.1.1.10/32</ip-netmask></entry>
+<entry name="NET_10.1.2.0_24"><ip-netmask>10.1.2.0/24</ip-netmask></entry>
+</address>
+<service>
+<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
 </service>
 </entry>
 =END=

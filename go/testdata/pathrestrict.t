@@ -29,7 +29,6 @@ group:g1 =
  interface:r1.n1.s,
 ;
 pathrestriction:p = network:n1, group:g1, interface:r2.n2;
-=END=
 =ERROR=
 Error: pathrestriction:p must not reference network:n1
 Error: pathrestriction:p must not reference network:n2
@@ -50,7 +49,6 @@ router:r1 = {
 group:g1 =;
 pathrestriction:p1 = group:g1;
 pathrestriction:p2 = interface:r1.n1;
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p1 without elements
 Warning: Ignoring pathrestriction:p2 with only interface:r1.n1
@@ -101,7 +99,6 @@ service:test = {
         dst = network:rgt;
         prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:lft]
@@ -124,7 +121,6 @@ service:test = {
         dst = network:rgt;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -164,7 +160,6 @@ service:test = {
         dst = network:dst, network:top;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -206,7 +201,6 @@ service:test = {
         dst = network:top;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -238,7 +232,6 @@ service:test = {
         dst = interface:r1.dst;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -267,7 +260,6 @@ service:test = {
         dst = interface:r1.lft;
         prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -293,7 +285,6 @@ service:test = {
         dst = interface:r1.top;
         prt = tcp 179;
 }
-=END=
 =OUTPUT=
 -- r1
 ip access-list extended top_in
@@ -331,7 +322,6 @@ service:s1 = {
  user = foreach interface:r2.[all];
  permit src = any:[user]; dst = user; prt = icmp 8;
 }
-=END=
 =OUTPUT=
 -- r2
 ip access-list extended n1_in
@@ -369,6 +359,47 @@ ip access-list extended n4_in
 ip access-list extended n4_out
  deny ip any any
 =END=
+
+############################################################
+=TITLE=Ignore redundant pathrestriction
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.3; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+pathrestriction:p1 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p2 =
+ interface:r1.n1.virtual,                          interface:r3.n2;
+pathrestriction:p3 =
+                          interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p4 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual;
+=WARNING=
+DIAG: Removed pathrestriction:p2; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p3; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p4; is subset of pathrestriction:p1
+DIAG: Removed auto-virtual:10.1.1.1; is subset of pathrestriction:p1
+=SHOW_DIAG=
 
 ############################################################
 =TITLE=Pathrestriction located in different loops
@@ -416,7 +447,6 @@ service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = udp 123;
 }
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p1 having elements from different loops:
  - interface:r2a.n2
@@ -475,7 +505,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n5; prt = udp 500;
 }
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p having elements from different loops:
  - interface:r4.n6
@@ -527,7 +556,6 @@ service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p having elements from different loops:
  - interface:r1.n1
@@ -564,7 +592,6 @@ pathrestriction:p1 =
  interface:r1.n2,
  interface:r3.n3,
 ;
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p1 at interface:r3.n3
  because it isn't located inside cyclic graph
@@ -600,7 +627,6 @@ pathrestriction:p1 =
  interface:r1.n2,
  interface:r2.n2,
 ;
-=END=
 =WARNING=
 Warning: Ignoring pathrestriction:p1 at interface:r1.n2
  because it isn't located inside cyclic graph
@@ -635,7 +661,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = interface:r1.n3; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -690,7 +715,6 @@ service:s = {
  user = interface:r1.n1;
  permit src = user; dst = network:n3; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -757,7 +781,6 @@ service:s = {
  user = network:n4;
  permit src = user; dst = interface:r3.n3.virtual; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --r1
 ! n1_in
@@ -832,7 +855,6 @@ service:s1 = {
   user = network:n1;
   permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in
@@ -893,7 +915,6 @@ service:s = {
  user = interface:r1.n1;
  permit src = user; dst = interface:r2.n1; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r2
 ip access-list extended n1_in
@@ -942,7 +963,6 @@ service:s2 = {
  user = network:[any:[network:n2]];
  permit src = user; dst = network:n4; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
@@ -990,7 +1010,6 @@ service:s1 = {
  user = any:n1-10-1-1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
@@ -1061,7 +1080,6 @@ service:s2 = {
  user = network:big;
  permit src = user; dst = network:n4; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
@@ -1113,7 +1131,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n5; prt = ip;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -1167,7 +1184,6 @@ service:s2 = {
         dst = network:n5;
         prt = tcp 90;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -1184,7 +1200,6 @@ Error: No valid path
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 90; of service:s2
  Check path restrictions and crypto interfaces.
-=END=
 =WITH_OUTDIR=true
 
 ############################################################
@@ -1244,7 +1259,6 @@ service:test = {
  user = network:n1, network:n2;
  permit src = user; dst = interface:r3.n3; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -1266,7 +1280,6 @@ Error: No valid path
  to router:r3
  for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
-=END=
 =WITH_OUTDIR=true
 
 ############################################################
@@ -1323,7 +1336,6 @@ service:s1 = {
         dst = network:n3;
         prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -1345,7 +1357,6 @@ Error: No valid path
  to any:[network:n3]
  for rule permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
-=END=
 =WITH_OUTDIR=true
 
 ############################################################

@@ -61,7 +61,6 @@ print $fh <<END;
 =TITLE=Many nested loops
 =INPUT=
 $in
-=END=
 =OUTPUT=
 --r1a
 ! [ Routing ]

@@ -116,8 +116,12 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 	}
 	getLog := func(ru *ciscoRule) string {
 		result := ""
-		if ru.log != "" {
-			for _, log := range strings.Split(ru.log, " ") {
+		modifiers := ru.log
+		if modifiers == "" && ru.deny {
+			modifiers = rData.logDeny
+		}
+		if modifiers != "" {
+			for _, log := range strings.Split(modifiers, " ") {
 				k, v, found := strings.Cut(log, ":")
 				if !found {
 					v = "yes"

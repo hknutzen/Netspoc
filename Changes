@@ -1,3 +1,16 @@
+6.055     2023-01-18 11:15:31+01:00 Europe/Berlin
+
+ - Command 'export-netspoc' now uses prefixlen instead of mask
+   in IPv4 addresses to get same behaviour as for IPv6.
+ - Command 'transpose-service' now handles multiple services at once,
+   either given as arguments or read from file.
+ - Attributes 'log_default', 'log_deny' are supported on all devices now
+   that can do logging.
+ - Added support for log modifier 'tag:<LABEL>' at model NSX.
+ - Netspoc no longer accepts service definition with mixed
+   user-user rule and normal rule.
+ - Generated code file for NSX now gets header lines starting with '#'.
+
 6.054     2022-12-21 11:07:23+01:00 Europe/Berlin
 
  - Fixed NSX and PAN-OS: Call local optimization to prevent duplicate

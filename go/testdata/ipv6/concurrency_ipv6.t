@@ -33,7 +33,6 @@ access-group n1_in in interface n1
 ! n1_in
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=

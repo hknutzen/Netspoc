@@ -19,7 +19,6 @@ service:test = {
  user = host:a, host:b, host:c;
  permit src = user; dst = network:x; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended ethernet0_in
@@ -121,7 +120,6 @@ service:test = {
  user = host:h4, host:h5, host:r4-5;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test compared to service:test:
   permit src=host:h4; dst=network:n2; prt=tcp 80; of service:test
@@ -144,7 +142,6 @@ network:n = {
  host:a = { range = 10.1.1.15-10.1.1.19; }
  host:b = { range = 10.1.1.15-10.1.1.19; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for host:a and host:b
 =END=
@@ -159,7 +156,6 @@ network:n = {
 router:r = {
  interface:n = { ip = 10.1.1.1; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r.n and host:a
 =END=
@@ -174,7 +170,6 @@ network:n = {
 router:r = {
  interface:n = { ip = 10.1.1.1; }
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -187,7 +182,6 @@ network:n = {
 router:r = {
  interface:n = { ip = 10.1.1.1; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for interface:r.n and host:a
 =END=
@@ -200,7 +194,6 @@ network:n = {
  host:a = { ip = 10.1.1.1; }
  host:b = { ip = 10.1.1.1; }
 }
-=END=
 =ERROR=
 Error: Duplicate IP address for host:a and host:b
 =END=
@@ -227,7 +220,6 @@ service:test = {
  user = host:h4, host:h5, host:h6, host:h7, host:r6-7;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Redundant rules in service:test compared to service:test:
   permit src=host:h6; dst=network:n2; prt=tcp 80; of service:test
@@ -269,7 +261,6 @@ service:s1 = {
  user = network:n2, network:n3;
  permit src = user; dst = host:h22, host:h23, host:h24; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ! n2_in

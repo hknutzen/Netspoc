@@ -76,7 +76,6 @@ router:r2 = {
  interface:n2 = { ip = ::a02:201; hardware = n2; }
 }
 network:n2 = { ip = ::a02:200/123; }
-=END=
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended permit ip any6 any6
@@ -117,7 +116,6 @@ router:r3 = {
  interface:n3 = { ip = ::a02:221; hardware = n3; }
 }
 network:n3 = { ip = ::a02:220/123; }
-=END=
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended deny ip any6 any6
@@ -145,7 +143,6 @@ network:cr = {
  crosslink;
  host:h = { ip = ::a03:303; }
 }
-=END=
 =ERROR=
 Error: Crosslink network:cr must not have host definitions
 =END=
@@ -162,7 +159,6 @@ router:r1 = {
  interface:cr = { ip = ::a03:301; hardware = n1; }
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
-=END=
 =ERROR=
 Error: Crosslink network:cr must be the only network connected to hardware 'n1' of router:r1
 =END=
@@ -173,7 +169,6 @@ Error: Crosslink network:cr must be the only network connected to hardware 'n1' 
 =INPUT=
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r = { interface:cr; }
-=END=
 =ERROR=
 Error: Crosslink network:cr must not be connected to unmanged router:r
 =END=
@@ -197,7 +192,6 @@ router:r2 = {
  interface:n2 = { ip = ::a02:201; hardware = n2; }
 }
 network:n2 = { ip = ::a02:200/123; }
-=END=
 =ERROR=
 Error: All interfaces must equally use or not use outgoing ACLs at crosslink network:cr
 =END=
@@ -221,7 +215,6 @@ router:r2 = {
  interface:n2 = { ip = ::a02:201; hardware = n2; no_in_acl; }
 }
 network:n2 = { ip = ::a02:200/123; }
-=END=
 =ERROR=
 Error: All interfaces with attribute 'no_in_acl' at routers connected by
  crosslink network:cr must be border of the same security zone
@@ -245,7 +238,6 @@ router:r2 = {
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n1 = { ip = ::a01:102; hardware = n1; no_in_acl; }
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -284,7 +276,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -336,7 +327,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 :n1_self -
@@ -382,7 +372,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Ignoring crosslink network:n1 in src of rule in service:test
 Warning: Ignoring crosslink network:n2 in dst of rule in service:test
@@ -414,7 +403,6 @@ service:s1 = {
  user = network:[area:n1-cr];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -ipv6/r2
 ! n2_out
@@ -449,7 +437,6 @@ service:s1 = {
         dst = interface:[network:[area:n1-cr] &! network:n1].[all];
         prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -ipv6/r1
 ipv6 access-list n1_in

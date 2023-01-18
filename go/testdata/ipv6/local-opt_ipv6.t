@@ -29,7 +29,6 @@ service:Test = {
 	dst = any:ANY_G27, any:[ip = {{.}} & network:N2];
 	prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input "::/0"]]
 =OUTPUT=
@@ -88,7 +87,6 @@ service:B = {
         dst = network:Hosting;
         prt = tcp 50-60;
 }
-=END=
 =OUTPUT=
 --ipv6/nak
 ! [ ACL ]
@@ -125,7 +123,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = any:[network:n1]; prt = tcp;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n1_in
@@ -163,7 +160,6 @@ service:s1 = {
  user = network:n2, interface:r2.n2;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ ACL ]
@@ -208,7 +204,6 @@ service:{{.}} = {
  user = network:A;
  permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input test2]]
 =OUTPUT=
@@ -253,7 +248,6 @@ service:t2 = {
  permit src = network:n2; dst = user; prt = tcp 70-81;
  permit src = network:n2; dst = user; prt = tcp 82-85;
 }
-=END=
 =OUTPUT=
 -- ipv6/asa
 ! n1_in
@@ -289,7 +283,6 @@ service:t2 = {
  user = host:h1;
  permit src = user; dst = network:n2; prt = tcp 83-90;
 }
-=END=
 =OUTPUT=
 -- ipv6/asa
 ! n1_in
@@ -327,7 +320,6 @@ service:s2 = {
  user = network:A2;
  permit src = user; dst = network:B; prt = tcp 80-86;
 }
-=END=
 =OUTPUT=
 -- ipv6/r
 ! t_in
@@ -366,7 +358,6 @@ service:t2 = {
  permit src = user; dst = network:n2; prt = udp 80;
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-=END=
 =OUTPUT=
 -- ipv6/asa
 ! n1_in

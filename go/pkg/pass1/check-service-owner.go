@@ -1,9 +1,10 @@
 package pass1
 
 import (
-	"golang.org/x/exp/slices"
 	"sort"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 //#############################################################################
@@ -245,8 +246,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 			objects := info.objects
 			for obj := range objects {
-				o := obj.getOwner()
-				if o != nil {
+				if o := obj.getOwner(); o != nil {
 					if !ownerSeen[o] {
 						ownerSeen[o] = true
 						svc.owners = append(svc.owners, o)
@@ -257,52 +257,52 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			}
 
 			// Check for multiple owners.
+			checkAttrMultiOwner := func() bool {
+				if !svc.multiOwner {
+					return false
+				}
+				// Check if attribute 'multi_owner' is restricted at this service.
+				for obj := range objects {
+					if obj.getOwner() != nil &&
+						getAttr(obj, multiOwnerAttr) == restrictVal {
+						c.warn("Attribute 'multi_owner' is blocked at %s", svc)
+						return false
+					}
+				}
+				return true
+			}
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
-			if svc.multiOwner {
+			if checkAttrMultiOwner() {
 				if !hasMulti {
 					c.warn("Useless use of attribute 'multi_owner' at %s", svc)
-				} else {
+				} else if info.sameObjects {
 
-					// Check if attribute 'multi_owner' is restricted at this service.
-					restricted := false
-					for obj := range objects {
-						if obj.getOwner() != nil &&
-							getAttr(obj, multiOwnerAttr) == restrictVal {
-							restricted = true
+					// Check if attribute 'multi_owner' could be avoided,
+					// if objects of user and objects of rules are swapped.
+					var userOwner *owner
+					simpleUser := true
+					for _, user := range svc.expandedUser {
+						var o *owner
+						if obj, ok := user.(srvObj); ok {
+							o = obj.getOwner()
+						}
+						if o == nil {
+							simpleUser = false
+							break
+						}
+						if userOwner == nil {
+							userOwner = o
+						} else if userOwner != o {
+							simpleUser = false
 							break
 						}
 					}
-					if restricted {
-						c.warn("Attribute 'multi_owner' is blocked at %s", svc)
-					} else if info.sameObjects {
-
-						// Check if attribute 'multi_owner' could be avoided,
-						// if objects of user and objects of rules are swapped.
-						var userOwner *owner
-						simpleUser := true
-						for _, user := range svc.expandedUser {
-							var o *owner
-							if obj, ok := user.(srvObj); ok {
-								o = obj.getOwner()
-							}
-							if o == nil {
-								simpleUser = false
-								break
-							}
-							if userOwner == nil {
-								userOwner = o
-							} else if userOwner != o {
-								simpleUser = false
-								break
-							}
-						}
-						if simpleUser && userOwner != nil {
-							c.warn("Useless use of attribute 'multi_owner' at %s\n"+
-								" All 'user' objects belong to single %s.\n"+
-								" Either swap objects of 'user' and objects of rules,\n"+
-								" or split service into multiple parts,"+
-								" one for each owner.", svc, userOwner)
-						}
+					if simpleUser && userOwner != nil {
+						c.warn("Useless use of attribute 'multi_owner' at %s\n"+
+							" All 'user' objects belong to single %s.\n"+
+							" Either swap objects of 'user' and objects of rules,\n"+
+							" or split service into multiple parts,"+
+							" one for each owner.", svc, userOwner)
 					}
 				}
 			} else if hasMulti {
@@ -329,17 +329,23 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			}
 
 			// Check for unknown owners.
-			if svc.unknownOwner {
+			checkAttrUnknownOwner := func() bool {
+				if !svc.unknownOwner {
+					return false
+				}
+				// Check if attribute 'unknown_owner' is restricted at this service.
+				for obj := range objects {
+					if obj.getOwner() == nil &&
+						getAttr(obj, unknownOwnerAttr) == restrictVal {
+						c.warn("Attribute 'unknown_owner' is blocked at %s", svc)
+						return false
+					}
+				}
+				return true
+			}
+			if checkAttrUnknownOwner() {
 				if !hasUnknown {
 					c.warn("Useless use of attribute 'unknown_owner' at %s", svc)
-				} else {
-					for obj := range objects {
-						if obj.getOwner() == nil &&
-							getAttr(obj, unknownOwnerAttr) == restrictVal {
-							c.warn("Attribute 'unknown_owner' is blocked at %s", svc)
-							break
-						}
-					}
 				}
 			} else if hasUnknown && c.conf.CheckServiceUnknownOwner != "" {
 				for obj := range objects {

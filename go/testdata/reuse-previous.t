@@ -68,7 +68,6 @@ service:test2 = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =WARNING=
 DIAG: Reused .prev/r1
 DIAG: Reused .prev/r3
@@ -100,7 +99,6 @@ service:test2 = {
  user = network:n4;
  permit src = user; dst = network:n5; prt = tcp 80;
 }
-=END=
 =WARNING=
 DIAG: Reused .prev/r1
 DIAG: Reused .prev/r2

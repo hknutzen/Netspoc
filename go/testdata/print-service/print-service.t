@@ -101,7 +101,6 @@ service:s1 = {
     deny   src = user; dst = interface:asa2.n3; prt = icmp 5;
     permit src = user; dst = interface:asa2.n3; prt = icmp;
 }
-=END=
 =OUTPUT=
 s1:deny 10.1.9.10 10.1.3.2 icmp 5
 s1:deny 10.1.2.0/24 10.1.3.2 icmp 5
@@ -119,7 +118,6 @@ s1:permit 10.1.9.10 10.1.3.2 icmp 3/3
 s1:permit 10.1.2.0/24 10.1.3.2 icmp 3/3
 s1:permit 10.1.9.10 10.1.3.2 icmp
 s1:permit 10.1.2.0/24 10.1.3.2 icmp
-=END=
 =OPTIONS=--nat n3
 =PARAMS=service:s1
 
@@ -135,7 +133,6 @@ service:s2 = {
     user = network:n2;
     permit src = user; dst = network:n3; prt = tcp;
 }
-=END=
 =INPUT=[[input]]
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
@@ -148,7 +145,6 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
 s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
-=END=
 =PARAMS=s1 service:s2
 
 ############################################################
@@ -156,7 +152,6 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =INPUT=[[input]]
 =OUTPUT=
 s2:permit network:n2 network:n3 tcp
-=END=
 =OPTIONS=--name
 =PARAMS=service:s2
 
@@ -165,7 +160,6 @@ s2:permit network:n2 network:n3 tcp
 =INPUT=[[input]]
 =OUTPUT=
 s2:permit 10.1.2.0/24 network:n2 10.1.3.0/24 network:n3 tcp
-=END=
 =OPTIONS=--name --ip
 =PARAMS=service:s2
 
@@ -207,7 +201,6 @@ service:s2 = {
 =OUTPUT=
 s1:permit network:n3 any:[network:n2] tcp 80
 s2:permit network:n3 network:n1 tcp 81
-=END=
 =OPTIONS=--name
 
 ############################################################

@@ -4,7 +4,6 @@
 =PARAMS=--ipv6
 =INPUT=
 router:r = {}
-=END=
 =ERROR=
 Error: router:r isn't connected to any network
 Error: topology seems to be empty
@@ -17,7 +16,6 @@ Aborted
 =INPUT=
 router:r = { interface:n2; }
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =ERROR=
 Error: Referencing undefined network:n2 from interface:r.n2
 =END=
@@ -27,7 +25,6 @@ Error: Referencing undefined network:n2 from interface:r.n2
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -44,7 +41,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[network:n1]
@@ -73,7 +69,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[network:n1]
@@ -121,7 +116,6 @@ router:r3 = {
  interface:n3 = { ip = ::a01:301; hardware = n3; }
 }
 network:n3 = { ip = ::a01:300/120; }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =ERROR=
@@ -141,7 +135,6 @@ router:fw = {
  interface:t  = { ip = ::a09:103; hardware = t; }
  interface:n1 = { ip = ::a01:102; hardware = n1; }
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input2]]
 =ERROR=
@@ -160,7 +153,6 @@ service:test = {
  user = interface:r1.[auto], interface:r3.[auto];
  permit src = user; dst = network:n2; prt = ip;
 }
-=END=
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[network:t]
@@ -229,7 +221,6 @@ service:s1 = {
  user = network:t1;
  permit src = user; dst = network:t2; prt = tcp;
 }
-=END=
 =ERROR=
 Error: No valid path
  from any:[network:t1]
@@ -275,7 +266,6 @@ service:s = {
  user = network:n1;
  permit src = user; dst = network:{{.d}}; prt = tcp 80;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=
 [[input
@@ -386,7 +376,6 @@ service:s1 = {
  permit src = user; dst = network:n4; prt = tcp 80;
  permit src = network:n4; dst = user; prt = tcp 80 ;
 }
-=END=
 =ERROR=
 Error: No valid path
  from interface:r2.n3
@@ -449,14 +438,12 @@ router:r5 = {
  interface:n7 = { ip = ::a01:702; hardware = n2; }
  interface:n8 = { ip = ::a01:801; hardware = n2; }
 }
-=END=
 =TEMPL=output
 -- ipv6/r1
 ! n1_in
 access-list n1_in extended permit tcp ::a01:100/120 ::a01:200/120 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =PARAMS=--ipv6
 =INPUT=
 [[input]]
@@ -525,7 +512,6 @@ router:r1 = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=
@@ -546,7 +532,6 @@ router:r2 = {
  interface:n2 = { ip = ::a01:202; hardware = n1; }
  interface:n3 = { ip = ::a01:301; hardware = n2; }
 }
-=END=
 =ERROR=
 Error: Only one partition name allowed in zone any:[network:n2], but found:
  - part4
@@ -580,7 +565,6 @@ service:s2 = {
  user = interface:r2.[auto];
  permit src = host:h2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in

@@ -289,7 +289,7 @@ type router struct {
 	model                *model
 	log                  map[string]string
 	logDefault           string
-	logDeny              bool
+	logDeny              string
 	localMark            int
 	origIntfs            intfList
 	crosslinkIntfs       intfList
@@ -304,12 +304,9 @@ type router struct {
 	noGroupCode          bool
 	noInAcl              *routerIntf
 	hardware             []*hardware
-	origHardware         []*hardware
 	origRouter           *router
-	primaryMark          int
 	radiusAttributes     map[string]string
 	routingOnly          bool
-	secondaryMark        int
 	trustPoint           string
 	ipvMembers           []*router
 	vrfMembers           []*router

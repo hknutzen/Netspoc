@@ -80,6 +80,18 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
 		return "/infra/services/" + name
 	}
+	addLog := func(ru *ciscoRule, j jsonMap) {
+		modifier := ru.log
+		if modifier == "" && ru.deny {
+			modifier = rData.logDeny
+		}
+		if modifier != "" {
+			j["logged"] = true
+			if k, v, found := strings.Cut(modifier, ":"); found {
+				j[k] = v
+			}
+		}
+	}
 	getPolicies := func(l []*aclInfo) []jsonMap {
 		var result []jsonMap
 		// Collect rules of each firewall into a separate policy.
@@ -154,6 +166,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						"sequence_number":    seqNum,
 						"profiles":           single("ANY"),
 					}
+					addLog(rule, nsxRule)
 					nsxRules = append(nsxRules, nsxRule)
 				}
 			}

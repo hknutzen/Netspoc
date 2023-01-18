@@ -587,7 +587,7 @@ func (c *spoc) generateRoutingInfo(t routingTree) {
 					continue
 				}
 				for _, intf3 := range intf2.redundancyIntfs {
-					if intf3.router == intf.router {
+					if intf3 == intf {
 						continue I2N
 					}
 				}

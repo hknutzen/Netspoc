@@ -32,7 +32,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =INPUT=[[input {topo: ipv4/topo/ipv6, v6: ipv4/ipv6}]]
 =OUTPUT=
 --r1
@@ -92,7 +91,6 @@ router:r1 = {
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
  interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -116,7 +114,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Must not reference IPv4 network:n1 in IPv6 context user of service:s2
 Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service:s2
@@ -150,7 +147,6 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = interface:r2.n2; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'identical_body' in service:s1
 Warning: Useless attribute 'identical_body' in service:s2
@@ -183,7 +179,6 @@ router:r1 = {
  policy_distribution_point = host:netspoc;
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
 }
-=END=
 =ERROR=
 Error: Must not reference IPv4 host:netspoc in IPv6 context 'policy_distribution_point' of router:r1
 Error: Must not reference IPv6 host:pdp6 in IPv4 context 'policy_distribution_point' of router_attributes of area:a
@@ -202,7 +197,6 @@ network:n2 = { ip = 1000::abcd:0001:0/112; subnet_of = network:n1; }
 router:r1 = {
  interface:n2 = { ip = 1000::abcd:0001:0001; }
 }
-=END=
 =ERROR=
 Error: Must not reference IPv4 network:n1 in IPv6 context 'subnet_of' of network:n2
 Error: Must not reference IPv6 network:n2 in IPv4 context 'subnet_of' of network:n1
@@ -225,7 +219,6 @@ router:r1 = {
  model = IOS;
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
 }
-=END=
 =ERROR=
 Error: All instances of router:r1 must have identical model
 =END=
@@ -235,7 +228,6 @@ Error: All instances of router:r1 must have identical model
 =INPUT=
 -- file
 -- ipv6/file
-=END=
 =ERROR=
 Warning: Ignoring file 'file' without any content
 Warning: Ignoring file 'ipv6/file' without any content
@@ -248,13 +240,11 @@ Aborted
 =INPUT=
 -- file
 -- ipv4
-=END=
 =ERROR=
 Warning: Ignoring file 'file' without any content
 Warning: Ignoring file 'ipv4' without any content
 Error: topology seems to be empty
 Aborted
-=END=
 =OPTIONS=--ipv6
 
 ############################################################
@@ -280,7 +270,6 @@ router:r1 = {
 -- {{.v6}}
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
-=END=
 =INPUT=[[input {v4: raw/r1, v6: raw/ipv6/r1}]]
 =TEMPL=output
 --r1
@@ -297,7 +286,6 @@ access-group n1_in in interface n1
 --ipv6/r1.raw
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
-=END=
 =OUTPUT=
 [[output]]
 =END=
@@ -325,7 +313,6 @@ access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 -- raw/ipv6/ipv6/foo
 foo
-=END=
 =WARNING=
 Warning: Ignoring path raw/ipv6/ipv6
 Warning: Found unused file raw/ipv6/r1
@@ -371,7 +358,6 @@ service:s2 = {
  permit src = user; dst = network:n4; prt = tcp 80;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =REUSE_PREV=[[input]]
 =WARNING=
@@ -421,7 +407,6 @@ access-group n1_in in interface n1
 access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =OPTIONS=--quiet=false --concurrency_pass1=2 --time_stamps --check_identical_services=1
 
 ############################################################
@@ -450,7 +435,6 @@ router:r1 = {
  interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n1;}
  interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
 }
-=END=
 =INPUT=[[input "partition = part1;"]]
 =WARNING=
 Warning: Spare partition name for single partition any:[network:n3]: part1.
@@ -555,7 +539,6 @@ router:r1 = {
  model = ASA;
  interface:n1_v6 = { ip = 1::1; hardware = n1; }
 }
-=END=
 =OUTPUT=
 -- r1
 ! n1_in

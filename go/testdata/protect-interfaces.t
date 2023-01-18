@@ -14,7 +14,6 @@ service:test = {
     user = network:U;
     permit src = user; dst = network:N; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -43,7 +42,6 @@ service:test = {
     user = network:U;
     permit src = user; dst = network:N; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -67,7 +65,6 @@ router:R = {
  interface:N = { ip = 10.2.2.1; hardware = e1; }
 }
 network:N = { ip = 10.2.2.0/24; }
-=END=
 =ERROR=
 Error: Must not use attribute 'no_protect_self' at router:R of model ASA
 =END=
@@ -87,7 +84,6 @@ service:test = {
     user = network:U;
     permit src = user; dst = any:[network:N]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -120,7 +116,6 @@ service:test = {
     user = network:N2, network:N3, network:N4;
     permit src = network:U; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 object-group ip address g0
@@ -152,7 +147,6 @@ service:test = {
     user = network:U;
     permit src = user; dst = any:[ip=10.2.0.0/16 & network:N]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -180,7 +174,6 @@ service:any = {
  user = any:[network:U];
  permit src = user; dst = interface:R.N; prt = ip;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -215,7 +208,6 @@ service:deny = {
  user = host:h1;
  deny src = user; dst = interface:r.n3; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r
 ip access-list extended n1_in
@@ -252,7 +244,6 @@ service:test = {
            dst = any:[network:N], any:[network:C];
            prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R1
 ip access-list extended e0_in
@@ -292,7 +283,6 @@ service:test = {
     dst = any:[area:CLN];
            prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R1
 access-list e0_in extended deny ip any4 host 10.9.9.2
@@ -322,7 +312,6 @@ service:test = {
     user = network:U;
     permit src = user; dst = network:N; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --R
 ip access-list extended e0_in
@@ -350,7 +339,6 @@ service:s = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Must not apply dynamic nat:d to interface:r1.n2 at interface:r1.n1 of same device.
  This isn't supported for model IOS.
@@ -379,7 +367,6 @@ service:s = {
     user = network:n1, network:n3;
     permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r1
 ip access-list extended n1_in

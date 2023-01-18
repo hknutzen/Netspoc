@@ -23,7 +23,6 @@ service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
-=END=
 =INPUT=[[input]]
 =WARNING=
 Warning: Some source/destination pairs of service:test don't affect any firewall:
@@ -36,14 +35,12 @@ Warning: Some source/destination pairs of service:test don't affect any firewall
 =INPUT=
 [[input]]
 any:x = { link = network:x; has_unenforceable = ok; }
-=END=
 =WARNING=NONE
 
 ############################################################
 =TITLE=Disable check for unenforceable rule
 =INPUT=
 [[input]]
-=END=
 =OPTIONS=--check_unenforceable=0
 =WARNING=NONE
 
@@ -56,7 +53,6 @@ service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -69,7 +65,6 @@ service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:test
 Warning: Some source/destination pairs of service:test don't affect any firewall:
@@ -93,7 +88,6 @@ service:s2 = {
  user = host:y;
  permit src = user; dst = network:y, host:x7; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:s2
 Warning: Some source/destination pairs of service:s2 don't affect any firewall:
@@ -114,7 +108,6 @@ service:test2 = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 81;
 }
-=END=
 =WARNING=
 Warning: Some source/destination pairs of service:test2 don't affect any firewall:
  src=host:x7; dst=host:x7
@@ -257,7 +250,6 @@ service:test = {
  user = network:y;
  permit src = user; dst = network:x; prt = tcp 80;
 }
-=END=
 =INPUT=[[input ""]]
 =WARNING=
 Warning: No firewalls found between all source/destination pairs of service:test

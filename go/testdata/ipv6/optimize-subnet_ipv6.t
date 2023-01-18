@@ -38,7 +38,6 @@ service:p2 = {
  user = network:customer;
  permit src = user; dst = host:s11; prt = protocol:Echo;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {s: " = secondary", d: ""}]]
 =OUTPUT=
@@ -66,7 +65,6 @@ ipv6 access-list outside_in
 ipv6 access-list outside_in
  permit icmp ::a01:700/120 ::a01:200/120 8
  deny ipv6 any any
-=END=
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
@@ -104,7 +102,6 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = host:h21, host:h24; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -115,7 +112,6 @@ object-group network v6g0
 access-list n1_in extended permit tcp ::a01:100/120 object-group v6g0 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=END=
 =TODO=Combined hosts prevent optimal object group
 
 
@@ -152,7 +148,6 @@ service:p1 = {
  user = network:sub;
  permit src = user; dst = network:server; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/gw
 ! [ Routing ]
@@ -163,7 +158,6 @@ ipv6 route ::a01:200/120 ::a01:303
 ipv6 access-list outside_in
  permit ipv6 ::a01:700/120 ::a01:200/120
  deny ipv6 any any
-=END=
 =TODO=Optimize subnet of NAT network in zone
 
 ############################################################

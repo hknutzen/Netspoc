@@ -1118,10 +1118,10 @@ func (c *spoc) setupRouter(v *ast.Router) {
 			r.noGroupCode = c.getFlag(a, name)
 		case "no_protect_self":
 			noProtectSelf = c.getFlag(a, name)
-		case "log_deny":
-			r.logDeny = c.getFlag(a, name)
 		case "log_default":
 			r.logDefault = c.getLogModifiers(a, name)
+		case "log_deny":
+			r.logDeny = c.getLogModifiers(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1297,35 +1297,16 @@ func (c *spoc) setupRouter(v *ast.Router) {
 					" only valid with 'managed = local'", name)
 			r.filterOnly = nil
 		}
-		if r.logDeny && !r.model.canLogDeny {
-			c.err("Must not use attribute 'log_deny' at %s of model %s",
-				name, r.model.name)
-		}
 
-		if m := r.log; m != nil {
-			if r.model.logModifiers != nil {
-				for name, modList := range m {
-					c.symTable.knownLog[name] = true
-					m[name] = c.transformLog("log:"+name, modList, r)
-				}
-			} else {
-				var names stringList
-				for k := range m {
-					names.push(k)
-				}
-				sort.Strings(names)
-				name := names[0]
-				c.err("Must not use attribute 'log:%s' at %s of model %s",
-					name, r.name, r.model.name)
-			}
+		for name, modList := range r.log {
+			c.symTable.knownLog[name] = true
+			r.log[name] = c.transformLog("log:"+name, modList, r)
 		}
 		if modList := r.logDefault; modList != "" {
-			if r.model.canLogDefault {
-				r.logDefault = c.transformLog("log_default", modList, r)
-			} else {
-				c.err("Must not use attribute 'log_default' at %s of model %s",
-					r.name, r.model.name)
-			}
+			r.logDefault = c.transformLog("log_default", modList, r)
+		}
+		if modList := r.logDeny; modList != "" {
+			r.logDeny = c.transformLog("log_deny", modList, r)
 		}
 
 		if noProtectSelf && !r.model.needProtect {
@@ -1991,6 +1972,7 @@ func (c *spoc) setupService(v *ast.Service) {
 	}
 	sv.foreach = v.Foreach
 	sv.user = v.User.Elements
+	userUserCount := 0
 	for _, v2 := range v.Rules {
 		ru := new(unexpRule)
 		ru.service = sv
@@ -2013,6 +1995,7 @@ func (c *spoc) setupService(v *ast.Service) {
 		}
 		if srcUser && dstUser {
 			ru.hasUser = "both"
+			userUserCount++
 		} else if srcUser {
 			ru.hasUser = "src"
 		} else {
@@ -2029,6 +2012,9 @@ func (c *spoc) setupService(v *ast.Service) {
 	}
 	if len(sv.rules) == 0 {
 		c.err("Must not define %s without any rules", name)
+	} else if userUserCount > 0 && len(sv.rules) != userUserCount {
+		c.err("Must not define %s having both user-user rule and normal rule",
+			name)
 	}
 }
 
@@ -2367,15 +2353,16 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 
 var routerInfo = map[string]*model{
 	"IOS": &model{
-		routing:          "IOS",
-		filter:           "IOS",
-		stateless:        true,
-		statelessSelf:    true,
-		statelessICMP:    true,
-		inversedACLMask:  true,
-		canVRF:           true,
-		canLogDeny:       true,
-		logModifiers:     map[string]string{"": "log", "log-input": "log-input"},
+		routing:         "IOS",
+		filter:          "IOS",
+		stateless:       true,
+		statelessSelf:   true,
+		statelessICMP:   true,
+		inversedACLMask: true,
+		canVRF:          true,
+		logModifiers: map[string]string{
+			"<empty>":   "log",
+			"log-input": "log-input"},
 		hasOutACL:        true,
 		needProtect:      true,
 		crypto:           "IOS",
@@ -2393,8 +2380,7 @@ var routerInfo = map[string]*model{
 		inversedACLMask:  true,
 		usePrefix:        true,
 		canVRF:           true,
-		canLogDeny:       true,
-		logModifiers:     map[string]string{"": "log"},
+		logModifiers:     map[string]string{"<empty>": "log"},
 		hasOutACL:        true,
 		needProtect:      true,
 		printRouterIntf:  true,
@@ -2405,7 +2391,7 @@ var routerInfo = map[string]*model{
 		routing: "ASA",
 		filter:  "ASA",
 		logModifiers: map[string]string{
-			"":              "log",
+			"<empty>":       "log",
 			"emergencies":   "log 0",
 			"alerts":        "log 1",
 			"critical":      "log 2",
@@ -2435,19 +2421,21 @@ var routerInfo = map[string]*model{
 			"end":      "end",
 			"setting:": ":insert",
 		},
-		canLogDefault:          true,
 		canMultiLog:            true,
 		hasIoACL:               true,
 		canObjectgroup:         true,
 		canVRF:                 true,
-		canLogDeny:             true,
 		needManagementInstance: true,
 		needVRF:                true,
 		noACLself:              true,
 	},
 	"NSX": {
-		routing:                "",
-		filter:                 "NSX",
+		routing: "",
+		filter:  "NSX",
+		logModifiers: map[string]string{
+			"<empty>": "logged",
+			"tag:":    ":insert",
+		},
 		canObjectgroup:         true,
 		canVRF:                 true,
 		needManagementInstance: true,
@@ -3202,6 +3190,9 @@ func (c *spoc) getGeneralPermit(
 }
 
 func (c *spoc) getLogModifiers(a *ast.Attribute, ctx string) string {
+	if emptyAttr(a) {
+		return "<empty>"
+	}
 	return strings.Join(c.getValueList(a, ctx), " ")
 }
 
@@ -3209,29 +3200,31 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
 	}
-	name := a.Name[len("log:"):]
-	modifiers := ""
-	if !emptyAttr(a) {
-		modifiers = c.getLogModifiers(a, r.name)
-	}
 	m := r.log
 	if m == nil {
 		m = make(map[string]string)
 		r.log = m
 	}
-	m[name] = modifiers
+	name := a.Name[len("log:"):]
+	c.symTable.knownLog[name] = true
+	m[name] = c.getLogModifiers(a, r.name)
 	return true
 }
 
 // Check log modifiers and transform to log code.
 func (c *spoc) transformLog(name, modList string, r *router) string {
+	knownMod := r.model.logModifiers
+	if knownMod == nil {
+		c.err("Must not use attribute '%s' at %s of model %s",
+			name, r.name, r.model.name)
+		return ""
+	}
 	l := strings.Split(modList, " ")
 	if len(l) > 1 && !r.model.canMultiLog {
 		c.err("Must not use multiple values for %s in %s of model %s",
 			name, r.name, r.model.name)
 		return ""
 	}
-	knownMod := r.model.logModifiers
 	for i, mod := range l {
 		k := mod
 		// Check for KEY:VALUE
@@ -3255,23 +3248,13 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 		// Show error message for unknown log tag.
 		what := fmt.Sprintf("'%s = %s' at %s of model %s",
 			name, mod, r.name, r.model.name)
-		if len(knownMod) == 1 && knownMod[""] != "" {
-			c.err("Unexpected %s\n Use '%s;' only.",
-				what, name)
+		if len(knownMod) == 1 && knownMod["<empty>"] != "" {
+			c.err("Unexpected %s\n Use '%s;' only.", what, name)
 			continue
 		}
-		var valid stringList
-		for k := range knownMod {
-			if k == "" {
-				k = "<empty>"
-			}
-			valid.push(k)
-		}
+		valid := maps.Keys(knownMod)
 		sort.Strings(valid)
-		oneOf := ""
-		if !r.model.canMultiLog {
-			oneOf = " one of"
-		}
+		oneOf := cond(r.model.canMultiLog, "", " one of")
 		c.err("Invalid %s\n Expected%s: %s",
 			what, oneOf, strings.Join(valid, "|"))
 	}
@@ -3548,15 +3531,19 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 
 	// Use different and uniqe name for each split router.
 	name := "router:" + intf.name[len("interface:"):]
-	new := *orig
-	new.name = name
-	new.origRouter = orig
-	new.interfaces = intfList{intf}
-	intf.router = &new
-	c.allRouters = append(c.allRouters, &new)
+	cp := *orig
+	cp.name = name
+	cp.origRouter = orig
+	cp.interfaces = intfList{intf}
+	intf.router = &cp
+	c.allRouters = append(c.allRouters, &cp)
 
 	// Don't check fragment for reachability.
-	new.policyDistributionPoint = nil
+	cp.policyDistributionPoint = nil
+
+	// radiusAttributes are only needed at origRouter, where crypto
+	// tunnels are attached.
+	cp.radiusAttributes = nil
 
 	// Remove interface from old router.
 	// Retain original interfaces.
@@ -3572,32 +3559,12 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	}
 
 	if orig.managed != "" {
-		hw := intf.hardware
-		new.hardware = []*hardware{hw}
-		l := orig.hardware
-		orig.origHardware = l
-		orig.hardware = make([]*hardware, 0, len(l)-1)
-		for _, hw2 := range l {
-			if hw2 != hw {
-				orig.hardware = append(orig.hardware, hw2)
-			}
-		}
-
-		for _, intf2 := range hw.interfaces {
+		for _, intf2 := range intf.hardware.interfaces {
 			if intf2 != intf && intf2.ipType != tunnelIP {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
 			}
-		}
-
-		// Copy map, because it is changed per device later.
-		if m := orig.radiusAttributes; m != nil {
-			m2 := make(map[string]string)
-			for k, v := range m {
-				m2[k] = v
-			}
-			new.radiusAttributes = m2
 		}
 	}
 }
