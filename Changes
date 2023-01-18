@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.055     2023-01-18 11:15:31+01:00 Europe/Berlin
+
  - Command 'export-netspoc' now uses prefixlen instead of mask
    in IPv4 addresses to get same behaviour as for IPv6.
  - Command 'transpose-service' now handles multiple services at once,
