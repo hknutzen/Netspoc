@@ -542,8 +542,8 @@ service:s4 = {
         prt = tcp 84, icmp 0;
 }
 =WARNING=
-Warning: Useless 'overlaps = service:s3' in service:s1
-Warning: Useless 'overlaps = service:s4' in service:s3
+Warning: Useless 'overlaps = service:s3' at service:s1
+Warning: Useless 'overlaps = service:s4' at service:s3
 =END=
 
 ############################################################
@@ -588,7 +588,7 @@ Warning: Duplicate rules in service:s2 and service:s2:
   permit src=network:n1; dst=network:n2; prt=tcp 81; of service:s2
 Warning: Duplicate rules in service:s3 and service:s2:
   permit src=network:n1; dst=network:n2; prt=tcp 81; of service:s3
-Warning: Useless 'overlaps = service:s3' in service:s3
+Warning: Useless 'overlaps = service:s3' at service:s3
 =END=
 
 ############################################################

@@ -409,7 +409,7 @@ router:r = {
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
 =WARNING=
-Warning: Useless attribute 'policy_distribution_point' at router:r,
+Warning: Useless 'policy_distribution_point' at router:r,
  it was already inherited from router_attributes of area:all
 Warning: Missing rules to reach 1 devices from policy_distribution_point:
  - router:r

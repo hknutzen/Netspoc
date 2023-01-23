@@ -3494,8 +3494,8 @@ func (c *spoc) checkNoInAcl(r *router) {
 	// reroute_permit would generate permit any -> networks,
 	// but no_in_acl would generate permit any -> any anyway.
 	if r.noInAcl.reroutePermit != nil {
-		c.warn("Useless use of attribute 'reroute_permit' together with"+
-			" 'no_in_acl' at %s", r.noInAcl.name)
+		c.warn("Useless 'reroute_permit' together with 'no_in_acl' at %s",
+			r.noInAcl.name)
 	}
 
 	// Must not use reroute_permit to network N together with no_in_acl.

@@ -105,7 +105,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 			if matched[filterOnly[j]] {
 				continue
 			}
-			c.warn("Useless %s in attribute 'filter_only' of %s", net, r0)
+			c.warn("Useless 'filter_only = %s' at %s", net, r0)
 		}
 	}
 	return result

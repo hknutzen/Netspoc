@@ -150,7 +150,7 @@ router:r1 = {
 }
 network:n2 = { ip = ::a01:200/120; }
 =WARNING=
-Warning: Useless use of attribute 'reroute_permit' together with 'no_in_acl' at interface:r1.n2
+Warning: Useless 'reroute_permit' together with 'no_in_acl' at interface:r1.n2
 =END=
 
 ############################################################

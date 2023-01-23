@@ -166,7 +166,7 @@ service:s2 = {
 }
 =SHOW_DIAG=
 =WARNING=
-Warning: Useless 'overlaps = service:s2' in service:s1
+Warning: Useless 'overlaps = service:s2' at service:s1
 DIAG: Removed duplicate permit src=network:n1; dst=network:n2; prt=protocol:Ping_Net; of service:s2
 =END=
 

@@ -81,7 +81,7 @@ Error: network:n2 doesn't match attribute 'filter_only' of router:r1
 =END=
 
 ############################################################
-=TITLE=Unused filter_only attribute
+=TITLE=Useless value in filter_only attribute
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; }
 router:r1 = {
@@ -93,7 +93,7 @@ router:r1 = {
 }
 network:n2 = { ip = 10.62.2.32/27; }
 =WARNING=
-Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:r1
+Warning: Useless 'filter_only = 10.62.3.0/24' at router:r1
 =END=
 
 ############################################################

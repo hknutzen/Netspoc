@@ -201,7 +201,7 @@ router:r = {
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
 =WARNING=
-Warning: Useless attribute 'general_permit' at router:r,
+Warning: Useless 'general_permit' at router:r,
  it was already inherited from router_attributes of area:all
 =END=
 
@@ -220,7 +220,7 @@ router:asa1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =WARNING=
-Warning: Useless attribute 'general_permit' at area:a1,
+Warning: Useless 'general_permit' at area:a1,
  it was already inherited from router_attributes of area:all
 =END=
 

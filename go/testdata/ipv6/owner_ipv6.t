@@ -451,9 +451,9 @@ router:r2 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
 =WARNING=
-Warning: Useless attribute 'owner' at router:r2,
+Warning: Useless 'owner' at router:r2,
  it was already inherited from router_attributes of area:a2
-Warning: Useless attribute 'owner' at router:r1,
+Warning: Useless 'owner' at router:r1,
  it was already inherited from router_attributes of area:all
 =END=
 
@@ -563,8 +563,8 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =WARNING=
-Warning: Useless use of attribute 'multi_owner' at service:s1
-Warning: Useless use of attribute 'unknown_owner' at service:s1
+Warning: Useless 'multi_owner' at service:s1
+Warning: Useless 'unknown_owner' at service:s1
 =END=
 
 ############################################################
@@ -863,7 +863,7 @@ service:s1 = {
  permit src = group:g1; dst = user; prt = tcp 82;
 }
 =WARNING=
-Warning: Useless use of attribute 'multi_owner' at service:s1
+Warning: Unnecessary 'multi_owner' at service:s1
  All 'user' objects belong to single owner:o3.
  Either swap objects of 'user' and objects of rules,
  or split service into multiple parts, one for each owner.

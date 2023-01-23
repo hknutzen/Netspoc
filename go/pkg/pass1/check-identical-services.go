@@ -34,7 +34,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				hasUser := unexpanded.hasUser
 				if hasUser == "both" {
 					if svc.identicalBody != nil {
-						c.warn("Useless attribute 'identical_body' in %s", svc)
+						c.warn("Ignoring 'identical_body' at %s", svc)
 						svc.identicalBody = nil
 					}
 					continue
@@ -159,8 +159,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						seen[s1] = true
 						seen[s2] = true
 					} else {
-						c.warn("%s has useless %s in attribute 'identical_body'",
-							s1, s2)
+						c.warn("Useless 'identical_body = %s' at %s", s2, s1)
 					}
 				}
 			}
@@ -256,7 +255,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						c.warnOrErr(printType, msg)
 					}
 				} else if s1.identicalBody != nil {
-					c.warn("Useless attribute 'identical_body' in %s", s1)
+					c.warn("Useless 'identical_body' at %s", s1)
 				}
 				if notEq == nil {
 					break
