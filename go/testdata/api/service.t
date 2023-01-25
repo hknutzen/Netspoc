@@ -1024,6 +1024,179 @@ service:c = {
 =END=
 
 ############################################################
+=TITLE=Delete from attribute 'overlaps'
+=INPUT=
+--topology
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h3 = { ip = 10.1.1.3; }
+ host:h4 = { ip = 10.1.1.4; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- rule/A
+service:a = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, tcp 90;
+}
+-- rule/B
+service:b = {
+
+ overlaps = service:a, service:c;
+
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+--rule/C
+service:c = {
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp, udp;
+}
+=JOB=
+{
+   "method": "multi_job",
+   "params": {
+       "jobs": [
+       {
+           "method" : "delete",
+           "params": {
+               "path": "service:c,rules,1,prt",
+               "value": "tcp"
+           }
+       },
+       {
+           "method" : "delete",
+           "params": {
+               "path": "service:b,overlaps",
+               "value": "service:c"
+           }
+       }]
+   }
+}
+=OUTPUT=
+@@ rule/B
+ service:b = {
+- overlaps = service:a, service:c;
++ overlaps = service:a;
+  user = host:h3;
+  permit src = user;
+@@ rule/C
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp, udp;
++        prt = udp;
+ }
+=END=
+
+############################################################
+=TITLE=Delete all attribute values of 'overlaps'
+=INPUT=
+--topology
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h3 = { ip = 10.1.1.3; }
+ host:h4 = { ip = 10.1.1.4; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- rule/A
+service:a = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80, tcp 90;
+}
+-- rule/B
+service:b = {
+
+ overlaps = service:a, service:c;
+
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+--rule/C
+service:c = {
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp, udp;
+}
+=JOB=
+{
+   "method": "multi_job",
+   "params": {
+       "jobs": [
+       {
+           "method" : "delete",
+           "params": {
+               "path": "service:a,rules,1,prt",
+               "value": "tcp 80"
+           }
+       },
+       {
+           "method" : "delete",
+           "params": {
+               "path": "service:c,rules,1,prt",
+               "value": "tcp"
+           }
+       },
+       {
+           "method" : "delete",
+           "params": {
+               "path": "service:b,overlaps",
+               "value": ["service:c", "service:a"]
+           }
+       }]
+   }
+}
+=OUTPUT=
+@@ rule/A
+  user = network:n1;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp 80, tcp 90;
++        prt = tcp 90;
+ }
+@@ rule/B
+ service:b = {
+- overlaps = service:a, service:c;
+-
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+@@ rule/C
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp, udp;
++        prt = udp;
+ }
+=END=
+
+############################################################
 =TITLE=Add to user
 =INPUT=
 -- topology
