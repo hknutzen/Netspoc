@@ -159,7 +159,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						seen[s1] = true
 						seen[s2] = true
 					} else {
-						c.warn("Useless 'identical_body = %s' at %s", s2, s1)
+						c.uselessSvcAttr("identical_body = "+s2.name, s1)
 					}
 				}
 			}
@@ -255,7 +255,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						c.warnOrErr(printType, msg)
 					}
 				} else if s1.identicalBody != nil {
-					c.warn("Useless 'identical_body' at %s", s1)
+					c.uselessSvcAttr("identical_body", s1)
 				}
 				if notEq == nil {
 					break

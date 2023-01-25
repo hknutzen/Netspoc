@@ -192,6 +192,26 @@ service:s2 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Don't show useless attribute if this warning is disabled
+=INPUT=
+[[topo]]
+service:s1 = {
+ overlaps = service:s2;
+ user = network:n1;
+ permit src = user;
+        dst = host:h1;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+	     dst = host:h1;
+	     prt = tcp 81;
+}
+=WARNING=NONE
+=OPTIONS=--check_service_useless_attribute=0
+
+############################################################
 =TITLE=Multiple larger rules, one suppressed
 =INPUT=
 [[topo]]

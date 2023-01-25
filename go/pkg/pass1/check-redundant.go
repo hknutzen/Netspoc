@@ -314,7 +314,7 @@ func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
 		used := ri.overlapsUsed
 		for _, overlap := range sv.overlaps {
 			if !(overlap.disabled || used[[2]*service{sv, overlap}]) {
-				c.warn("Useless 'overlaps = %s' at %s", overlap, sv)
+				c.uselessSvcAttr("overlaps = "+overlap.name, sv)
 			}
 		}
 	}

@@ -274,7 +274,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
 			if checkAttrMultiOwner() {
 				if !hasMulti {
-					c.warn("Useless 'multi_owner' at %s", svc)
+					c.uselessSvcAttr("multi_owner", svc)
 				} else if info.sameObjects {
 
 					// Check if attribute 'multi_owner' could be avoided,
@@ -345,7 +345,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			}
 			if checkAttrUnknownOwner() {
 				if !hasUnknown {
-					c.warn("Useless 'unknown_owner' at %s", svc)
+					c.uselessSvcAttr("unknown_owner", svc)
 				}
 			} else if hasUnknown && c.conf.CheckServiceUnknownOwner != "" {
 				for obj := range objects {

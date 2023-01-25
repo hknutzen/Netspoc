@@ -5,7 +5,7 @@ Get arguments and options from command line and config file.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2022by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -65,6 +65,7 @@ type Config struct {
 	CheckRedundantRules          TriState
 	CheckServiceMultiOwner       TriState
 	CheckServiceUnknownOwner     TriState
+	CheckServiceUselessAttribute TriState
 	CheckSubnets                 TriState
 	CheckSupernetRules           TriState
 	CheckTransientSupernetRules  TriState
@@ -112,11 +113,14 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		CheckRedundantRules:      "warn",
 		CheckFullyRedundantRules: "",
 
+		// Check for services where multiple owners have been derived.
+		CheckServiceMultiOwner: "warn",
+
 		// Check for services where owner can't be derived.
 		CheckServiceUnknownOwner: "",
 
-		// Check for services where multiple owners have been derived.
-		CheckServiceMultiOwner: "warn",
+		// Check for useless attributes in service.
+		CheckServiceUselessAttribute: "warn",
 
 		// Check for missing supernet rules.
 		CheckSupernetRules: "warn",
