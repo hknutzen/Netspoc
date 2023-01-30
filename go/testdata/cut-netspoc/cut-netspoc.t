@@ -1064,8 +1064,79 @@ service:test = {
 =END=
 
 ############################################################
-=TITLE=Zone link is located outside of path
+=TITLE=Network in name of zone is located outside of path
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.2.3.0/24; }
+network:n4 = { ip = 10.2.4.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n3 = { ip = 10.2.3.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r3 = {
+ interface:n3;
+ interface:n4;
+}
+service:s1 = {
+ user = any:[ip = 10.1.0.0/16 & network:n4];
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Link of zone is located outside of path
 # With secondary IP for test coverage
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.2.3.0/24; }
+network:n4 = { ip = 10.2.4.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n3 = { ip = 10.2.3.2, 10.2.3.9; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r3 = {
+ interface:n3;
+ interface:n4;
+}
+service:s1 = {
+ user = any:n4;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+any:n4 = {
+ link = network:n4;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Link of zone with NAT is located outside of path
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1083,7 +1154,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
- interface:n3 = { ip = 10.2.3.2, 10.2.3.9; }
+ interface:n3 = { ip = 10.2.3.2; }
  interface:n2 = { ip = 10.1.2.2; }
 }
 router:r3 = {
