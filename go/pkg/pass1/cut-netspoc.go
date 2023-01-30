@@ -604,26 +604,6 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
-	// Mark network linked from used aggregates.
-	for _, agg := range c.allNetworks {
-		if agg.isAggregate && isUsed[agg.name] {
-			if n := agg.link; n != nil {
-				markUnconnectedObj(n, isUsed)
-			} else {
-				// Find network name from name of zone: any:[network:name]
-				z := agg.zone
-				zName := z.name
-				nName := zName[len("any:[") : len(zName)-1]
-				for _, n := range z.networks {
-					if n.name == nName {
-						markUnconnectedObj(n, isUsed)
-						break
-					}
-				}
-			}
-		}
-	}
-
 	zone2areas := make(map[*zone][]*area)
 	for _, z := range c.allZones {
 		a := z.inArea
