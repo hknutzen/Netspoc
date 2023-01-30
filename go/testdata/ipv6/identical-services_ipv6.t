@@ -596,8 +596,8 @@ Warning: These services have identical rule definitions.
  A single service should be created instead, with merged users.
  - service:s1
  - service:s2
-Warning: service:s1 has useless service:s3 in attribute 'identical_body'
-Warning: service:s2 has useless service:s3 in attribute 'identical_body'
+Warning: Useless 'identical_body = service:s3' at service:s1
+Warning: Useless 'identical_body = service:s3' at service:s2
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -646,8 +646,8 @@ service:s3 = {
  permit src = user; dst = network:n2; prt = tcp 81;
 }
 =WARNING=
-Warning: Useless attribute 'identical_body' in service:s3
-Warning: service:s1 has useless service:s3 in attribute 'identical_body'
+Warning: Useless 'identical_body = service:s3' at service:s1
+Warning: Useless 'identical_body' at service:s3
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -670,7 +670,7 @@ service:s3 = {
  permit src = user; dst = network:n2; prt = tcp 81;
 }
 =WARNING=
-Warning: Useless attribute 'identical_body' in service:s3
+Warning: Useless 'identical_body' at service:s3
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -696,7 +696,7 @@ service:s2 = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =WARNING=
-Warning: Useless attribute 'identical_body' in service:s1
+Warning: Ignoring 'identical_body' at service:s1
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -815,7 +815,7 @@ service:s2 = {
 }
 =WARNING=
 Warning: Attribute 'identical_body' is blocked at service:s1
-Warning: Useless attribute 'identical_body' in service:s1
+Warning: Useless 'identical_body' at service:s1
 =OPTIONS=--check_identical_services=warn
 
 ############################################################

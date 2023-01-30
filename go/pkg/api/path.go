@@ -252,7 +252,11 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
 			if c.val != nil {
-				return patchValue(a, names, c)
+				err := patchValue(a, names, c)
+				if err != nil || len(a.ValueList) != 0 || c.method != "delete" {
+					return err
+				}
+				// Fallthrough: delete attribute if value list becomes empty.
 			}
 			if c.method == "delete" {
 				*l = append((*l)[:i], (*l)[i+1:]...)

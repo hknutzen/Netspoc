@@ -274,7 +274,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
 			if checkAttrMultiOwner() {
 				if !hasMulti {
-					c.warn("Useless use of attribute 'multi_owner' at %s", svc)
+					c.uselessSvcAttr("multi_owner", svc)
 				} else if info.sameObjects {
 
 					// Check if attribute 'multi_owner' could be avoided,
@@ -298,7 +298,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 					if simpleUser && userOwner != nil {
-						c.warn("Useless use of attribute 'multi_owner' at %s\n"+
+						c.warn("Unnecessary 'multi_owner' at %s\n"+
 							" All 'user' objects belong to single %s.\n"+
 							" Either swap objects of 'user' and objects of rules,\n"+
 							" or split service into multiple parts,"+
@@ -345,7 +345,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			}
 			if checkAttrUnknownOwner() {
 				if !hasUnknown {
-					c.warn("Useless use of attribute 'unknown_owner' at %s", svc)
+					c.uselessSvcAttr("unknown_owner", svc)
 				}
 			} else if hasUnknown && c.conf.CheckServiceUnknownOwner != "" {
 				for obj := range objects {

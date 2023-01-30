@@ -274,8 +274,8 @@ go/testdata/virtual-pathrestrict.t
 go/testdata/vrf.t
 go/testdata/zone.t
 misc/anonymize
-misc/conv_owner.pl
 misc/convert_barracuda.pl
+misc/get-rm-useless-svc-attr-job
 misc/perltidyrc
 pod-links/add-to-netspoc.pod
 pod-links/cut-netspoc.pod

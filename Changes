@@ -1,3 +1,16 @@
+6.056     2023-01-30 12:02:02+01:00 Europe/Berlin
+
+ - Added new option '--check_service_useless_attribute=0|warn|err'.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about useless attributes
+   has_unenforceable|identical_body|multi_owner|overlaps|unknown_owner
+   in services are no longer shown.
+   This is useful, if services are modified via Netspoc-API.
+   A script misc/get-rm-useless-svc-attr-job was added to parse warnings
+   about useless attributes and create API job to remove them.
+ - Netspoc-API has been changed to remove an attribute, if its value
+   list becomes empty.
+
 6.055     2023-01-18 11:15:31+01:00 Europe/Berlin
 
  - Command 'export-netspoc' now uses prefixlen instead of mask

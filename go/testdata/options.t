@@ -114,6 +114,7 @@ Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --check_redundant_rules tristate              (default warn)
       --check_service_multi_owner tristate          (default warn)
       --check_service_unknown_owner tristate
+      --check_service_useless_attribute tristate    (default warn)
       --check_subnets tristate                      (default warn)
       --check_supernet_rules tristate               (default warn)
       --check_transient_supernet_rules tristate     (default warn)

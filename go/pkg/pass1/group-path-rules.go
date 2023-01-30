@@ -56,7 +56,7 @@ func (c *spoc) showUnenforceable() {
 	for _, sv := range c.ascendingServices {
 		if sv.hasUnenforceable &&
 			(sv.unenforceableMap == nil || !sv.seenEnforceable) {
-			c.warn("Useless attribute 'has_unenforceable' at %s", sv)
+			c.uselessSvcAttr("has_unenforceable", sv)
 		}
 
 		// Warning about fully unenforceable service can't be suppressed by

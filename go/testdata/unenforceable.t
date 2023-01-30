@@ -176,7 +176,7 @@ service:test = {
  permit src = user; dst = user; prt = tcp 80;
 }
 =WARNING=
-Warning: Useless attribute 'has_unenforceable' at service:test
+Warning: Useless 'has_unenforceable' at service:test
 =END=
 
 ############################################################
@@ -259,7 +259,7 @@ Warning: No firewalls found between all source/destination pairs of service:test
 =TITLE=Useless attribute "has_unenforceable" at service
 =INPUT=[[input has_unenforceable;]]
 =WARNING=
-Warning: Useless attribute 'has_unenforceable' at service:test
+Warning: Useless 'has_unenforceable' at service:test
 Warning: No firewalls found between all source/destination pairs of service:test
 =END=
 

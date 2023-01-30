@@ -816,7 +816,7 @@ func (c *spoc) inheritRouterAttributes(
 		if rA2 := &up.routerAttributes; rA2 != nil {
 			if at2 := getAttr(rA2); !at2.isNil() {
 				if at1.equal(at2) {
-					c.warn("Useless attribute '%s' at %s,\n"+
+					c.warn("Useless '%s' at %s,\n"+
 						" it was already inherited from %s",
 						at1.attrName(), a, rA2.name)
 					return
@@ -827,7 +827,7 @@ func (c *spoc) inheritRouterAttributes(
 	inherit := func(r *router) {
 		if at2 := getAttr(&r.routerAttributes); !at2.isNil() {
 			if at1.equal(at2) {
-				c.warn("Useless attribute '%s' at %s,\n"+
+				c.warn("Useless '%s' at %s,\n"+
 					" it was already inherited from %s",
 					at2.attrName(), r, rA1.name)
 			}

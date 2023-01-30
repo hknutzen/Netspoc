@@ -86,7 +86,7 @@ Error: network:n2 doesn't match attribute 'filter_only' of router:r1
 =END=
 
 ############################################################
-=TITLE=Unused filter_only attribute
+=TITLE=Useless value in filter_only attribute
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a3e:120/123; }
@@ -99,7 +99,7 @@ router:r1 = {
 }
 network:n2 = { ip = ::a3e:220/123; }
 =WARNING=
-Warning: Useless ::a3e:300/120 in attribute 'filter_only' of router:r1
+Warning: Useless 'filter_only = ::a3e:300/120' at router:r1
 =END=
 
 ############################################################

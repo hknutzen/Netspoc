@@ -132,6 +132,12 @@ func (c *spoc) warnOrErr(
 	}
 }
 
+func (c *spoc) uselessSvcAttr(attr string, svc *service) {
+	if errType := c.conf.CheckServiceUselessAttribute; errType != "" {
+		c.warnOrErr(errType, "Useless '%s' at %s", attr, svc)
+	}
+}
+
 func (c *spoc) info(format string, args ...interface{}) {
 	if !c.conf.Quiet {
 		c.toStderrf(format, args...)
