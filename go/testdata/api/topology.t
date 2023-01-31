@@ -22,6 +22,23 @@ network:a = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=Add host without network in path
+=INPUT=
+-- topology
+network:a = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "host:name_10_1_1_4",
+        "value": { "ip": "10.1.1.4" }
+    }
+}
+=ERROR=
+Error: Use path 'network:N1,host:N2' to create 'host:name_10_1_1_4'
+=END=
+
+############################################################
 =TITLE=Add host with IP range
 =INPUT=
 -- topology
@@ -610,7 +627,34 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object 'host:h1'
+Error: Can't modify unknown 'host:h1'
+=END=
+
+############################################################
+=TITLE=Remove host without network in path
+=INPUT=
+-- topology
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; }
+ host:h2 = { ip = 10.1.1.2; }
+ host:h3 = { ip = 10.1.1.3; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "host:h2"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  host:h1 = { ip = 10.1.1.1; }
+- host:h2 = { ip = 10.1.1.2; }
+  host:h3 = { ip = 10.1.1.3; }
+ }
 =END=
 
 ############################################################
@@ -631,6 +675,36 @@ network:n1 = {
     "method": "delete",
     "params": {
         "path": "network:n1,host:h1,owner"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  owner = o1;
+- host:h1 = { ip = 10.1.1.1; owner = o1; }
++ host:h1 = { ip = 10.1.1.1; }
+ }
+=END=
+
+############################################################
+=TITLE=Remove owner at host without network in path
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ owner = o1;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "host:h1,owner"
     }
 }
 =OUTPUT=
@@ -675,6 +749,37 @@ network:n1 = {
 =END=
 
 ############################################################
+=TITLE=Add owner to host without network in path
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+ host:h2 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "host:h2,owner",
+        "value": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  host:h1 = { ip = 10.1.1.1; owner = o1; }
+- host:h2 = { ip = 10.1.1.2; }
++ host:h2 = { ip = 10.1.1.2; owner = o1; }
+ }
+=END=
+
+############################################################
 =TITLE=Replace missing owner at host
 # "set" acts like "add" on new attribute.
 =INPUT=
@@ -693,6 +798,38 @@ network:n1 = {
     "method": "set",
     "params": {
         "path": "network:n1,host:h2,owner",
+        "value": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  host:h1 = { ip = 10.1.1.1; owner = o1; }
+- host:h2 = { ip = 10.1.1.2; }
++ host:h2 = { ip = 10.1.1.2; owner = o1; }
+ }
+=END=
+
+############################################################
+=TITLE=Replace missing owner at host without network in path
+# "set" acts like "add" on new attribute.
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+ host:h2 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "host:h2,owner",
         "value": "o1"
     }
 }
@@ -774,7 +911,7 @@ owner:o1 = { admins = a1@example.com; }
 
 ############################################################
 =TITLE=Change owner at second of multiple ID-hosts
-=INPUT=
+=TEMPL=input
 -- topology
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -894,6 +1031,8 @@ owner:DA_TOKEN_o1 = {
  admins = a1@example.com;
 }
 owner:DA_TOKEN_o2 = { admins = a2@example.com; }
+=INPUT=
+[[input]]
 =JOB=
 {
     "method": "multi_job",
@@ -939,6 +1078,53 @@ owner:DA_TOKEN_o2 = { admins = a2@example.com; }
 - host:id:a2@example.com = { ip = 10.1.2.2; owner = DA_TOKEN_o2; }
 + host:id:a2@example.com = { ip = 10.1.2.2; owner = DA_TOKEN_o3; }
  }
+=END=
+
+############################################################
+=TITLE=Add ID-host with missing network in path
+=INPUT=
+[[input]]
+=JOB=
+{
+     "method": "add",
+     "params": {
+         "path": "host:id:a3@example.com",
+         "value": { "ip": "10.1.2.3" }
+     }
+}
+=ERROR=
+Error: Use path 'network:N1,host:id:N2' to add 'host:id:a3@example.com'
+=END=
+
+############################################################
+=TITLE=Change owner of ID-host without network in path
+=INPUT=
+[[input]]
+=JOB=
+{
+     "method": "set",
+     "params": {
+         "path": "host:id:a2@example.com,owner",
+         "value": "DA_TOKEN_o3"
+     }
+}
+=ERROR=
+Error: Use path 'network:N1,host:id:N2' to modify 'host:id:a2@example.com'
+=END=
+
+############################################################
+=TITLE=Delete ID-host without network in path
+=INPUT=
+[[input]]
+=JOB=
+{
+     "method": "delete",
+     "params": {
+         "path": "host:id:a2@example.com"
+     }
+}
+=ERROR=
+Error: Use path 'network:N1,host:id:N2' to delete 'host:id:a2@example.com'
 =END=
 
 ############################################################

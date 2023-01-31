@@ -32,34 +32,19 @@ func (s *state) patch(j *job) error {
 	if len(p.Path) == 0 {
 		return fmt.Errorf("Invalid empty path")
 	}
-	names := strings.Split(p.Path, ",")
-	// Find toplevel node
-	topName := names[0]
-	names = names[1:]
-	var top ast.Toplevel
-	isRouter := strings.HasPrefix(topName, "router:")
 	var ipv6 bool
 	if p.IPV6 != nil {
 		ipv6 = *p.IPV6
 	} else {
 		ipv6 = s.IPV6
 	}
-	s.Modify(func(t ast.Toplevel) bool {
-		if t.GetName() == topName && (!isRouter || t.GetIPV6() == ipv6) {
-			top = t
-			return true // Mark as modified.
-		}
-		return false
-	})
+	path := strings.Split(p.Path, ",")
+	top, names, err := s.findToplevel(path, ipv6, c)
+	if err != nil {
+		return err
+	}
 	if top == nil {
-		if len(names) == 0 {
-			return s.addToplevel(topName, ipv6, c)
-		}
-		if isRouter {
-			ipvx := getIPvX(ipv6)
-			return fmt.Errorf("Can't modify unknown %s '%s'", ipvx, topName)
-		}
-		return fmt.Errorf("Can't modify unknown toplevel object '%s'", topName)
+		return s.addToplevel(path[0], ipv6, c)
 	}
 	process := func() error {
 		if len(names) == 0 {
@@ -108,11 +93,73 @@ func (s *state) patch(j *job) error {
 		}
 		return patchTopStruct(ts, names, c)
 	}
-	err := process()
+	err = process()
 	if err == nil {
 		top.Order()
 	}
 	return err
+}
+
+func (s *state) findToplevel(names []string, ipv6 bool, c change,
+) (ast.Toplevel, []string, error) {
+
+	topName := names[0]
+	var top ast.Toplevel
+	if strings.HasPrefix(topName, "host:") {
+		// Host is not a toplevel object, but its name is unique.
+		// Hence try to identify corresponding network automatically.
+		if strings.HasPrefix(topName, "host:id:") {
+			method := c.method
+			if len(names) > 1 {
+				method = "modify"
+			}
+			return nil, nil, fmt.Errorf(
+				"Use path 'network:N1,host:id:N2' to %s '%s'", method, topName)
+		}
+		s.Modify(func(t ast.Toplevel) bool {
+			if n, ok := t.(*ast.Network); ok {
+				for _, a := range n.Hosts {
+					if a.Name == topName {
+						top = t
+						return true // Mark as modified.
+					}
+				}
+			}
+			return false
+		})
+		if top == nil {
+			if len(names) == 1 {
+				if c.method == "delete" {
+					return nil, nil, fmt.Errorf(
+						"Can't delete unknown '%s'", topName)
+				}
+				return nil, nil, fmt.Errorf(
+					"Use path 'network:N1,host:N2' to create '%s'", topName)
+			}
+			return nil, nil, fmt.Errorf("Can't modify unknown '%s'", topName)
+		}
+		return top, names, nil
+	} else {
+		isRouter := strings.HasPrefix(topName, "router:")
+		names = names[1:]
+		s.Modify(func(t ast.Toplevel) bool {
+			if t.GetName() == topName && (!isRouter || t.GetIPV6() == ipv6) {
+				top = t
+				return true // Mark as modified.
+			}
+			return false
+		})
+		if top == nil && len(names) > 0 {
+			if isRouter {
+				ipvx := getIPvX(ipv6)
+				return nil, nil, fmt.Errorf(
+					"Can't modify unknown %s '%s'", ipvx, topName)
+			}
+			return nil, nil, fmt.Errorf(
+				"Can't modify unknown toplevel object '%s'", topName)
+		}
+		return top, names, nil
+	}
 }
 
 func patchRules(l *[]*ast.Rule, names []string, c change) error {
