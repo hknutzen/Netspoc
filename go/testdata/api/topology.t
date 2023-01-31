@@ -631,6 +631,22 @@ Error: Can't modify unknown 'host:h1'
 =END=
 
 ############################################################
+=TITLE=Delete unknown host
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "host:h1"
+    }
+}
+=ERROR=
+Error: Can't delete unknown 'host:h1'
+=END=
+
+############################################################
 =TITLE=Remove host without network in path
 =INPUT=
 -- topology
