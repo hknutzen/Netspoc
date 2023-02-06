@@ -693,12 +693,14 @@ func (c *spoc) setupNetwork(v *ast.Network) {
 	n := c.symTable.network[netName]
 	n.name = name
 	n.ipV6 = v.IPV6
-	i := strings.Index(netName, "/")
-	if i != -1 {
-		n.ipType = bridgedIP
-	}
-	if i != -1 && !isSimpleName(netName[:i]) || !isSimpleName(netName[i+1:]) {
-		c.err("Invalid identifier in definition of '%s'", name)
+	{
+		left, right, found := strings.Cut(netName, "/")
+		if found {
+			n.ipType = bridgedIP
+		}
+		if !isSimpleName(left) || found && !isSimpleName(right) {
+			c.err("Invalid identifier in definition of '%s'", name)
+		}
 	}
 	var ldapAppend string
 	ipGiven := false
@@ -1092,15 +1094,17 @@ func (c *spoc) setupRouter(v *ast.Router) {
 	v6 := v.IPV6
 	r := c.getRouter(rName, v6)
 	c.allRouters = append(c.allRouters, r)
-	i := strings.Index(rName, "@")
-	if i != -1 {
-		r.deviceName = rName[:i]
-		r.vrf = rName[i+1:]
-	} else {
-		r.deviceName = rName
-	}
-	if i != -1 && !isSimpleName(rName[:i]) || !isSimpleName(rName[i+1:]) {
-		c.err("Invalid identifier in definition of '%s'", name)
+	{
+		left, right, found := strings.Cut(rName, "@")
+		if found {
+			r.deviceName = left
+			r.vrf = right
+		} else {
+			r.deviceName = rName
+		}
+		if !isSimpleName(left) || found && !isSimpleName(right) {
+			c.err("Invalid identifier in definition of '%s'", name)
+		}
 	}
 	noProtectSelf := false
 	var routingDefault *mcastProto

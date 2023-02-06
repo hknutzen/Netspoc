@@ -31,7 +31,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -324,9 +324,9 @@ func (c *spoc) markAndSubstElements(
 			if x.isAggregate && name[0] == '[' {
 				name = name[1:]
 				ip := ""
-				if i := strings.Index(name, " & "); i >= 0 {
-					ip = name[len("ip="):i]
-					name = name[i+3:]
+				if left, right, found := strings.Cut(name, " & "); found {
+					ip = left[len("ip="):]
+					name = right
 				}
 				name = name[:len(name)-1]
 				a := new(ast.AggAuto)
@@ -348,9 +348,9 @@ func (c *spoc) markAndSubstElements(
 			a := new(ast.IntfRef)
 			a.Type = typ
 			a.Router = r
-			if i := strings.Index(net, "."); i >= 0 {
-				a.Extension = net[i+1:]
-				net = net[:i]
+			if left, right, found := strings.Cut(net, "."); found {
+				net = left
+				a.Extension = right
 			}
 			a.Network = net
 			result = a

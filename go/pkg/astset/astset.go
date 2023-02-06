@@ -313,6 +313,6 @@ func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 }
 
 func getTypeName(v string) (string, string) {
-	i := strings.Index(v, ":")
-	return v[:i], v[i+1:]
+	typ, name, _ := strings.Cut(v, ":")
+	return typ, name
 }

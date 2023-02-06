@@ -1,5 +1,4 @@
 // Sort list elements of AST before printing.
-//
 package ast
 
 import (
@@ -67,11 +66,11 @@ func sortElem(l []Element) {
 }
 
 func getType(v string) string {
-	i := strings.Index(v, ":")
-	if i == -1 {
+	typ, _, found := strings.Cut(v, ":")
+	if !found {
 		return ""
 	}
-	return v[:i]
+	return typ
 }
 
 func getName(v string) string {

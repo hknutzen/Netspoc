@@ -172,9 +172,9 @@ func (s *state) createHost(j *job) error {
 	ip1 := ip
 	// Use attribute "range" when IP1-IP2 range is given.
 	// Use IP1 when searching corresponding network.
-	if i := strings.Index(ip, "-"); i != -1 {
+	if left, _, found := strings.Cut(ip, "-"); found {
 		attr = "range"
-		ip1 = ip[:i]
+		ip1 = left
 	}
 
 	// Search network matching given ip and mask.
