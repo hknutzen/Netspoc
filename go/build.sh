@@ -12,12 +12,15 @@ NAME='github.com/hknutzen/Netspoc/go/pkg/pass1.version'
 # This script should be placed in "go" subdirectory, where Go sources
 # are placed.  Get directory where this script is located.
 dir=$(dirname $(readlink -f $0))
-cd $dir
 
 # Compile all commands.
-go build -ldflags="-X '$NAME=$V'" cmd/...
+for d in $dir/cmd/*; do
+    ( cd $d;
+      go build -ldflags="-X '$NAME=$V'" )
+done
 
 # Do static analysis of source code.
+cd $dir
 go vet ./...
 
 # Generate IPv6 tests
