@@ -108,6 +108,7 @@ Aborted
 Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --auto_default_route                          (default true)
       --check_duplicate_rules tristate              (default warn)
+      --check_empty_files tristate                  (default warn)
       --check_fully_redundant_rules tristate
       --check_identical_services tristate
       --check_policy_distribution_point tristate

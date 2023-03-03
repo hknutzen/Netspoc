@@ -66,6 +66,7 @@ type Config struct {
 	CheckServiceMultiOwner       TriState
 	CheckServiceUnknownOwner     TriState
 	CheckServiceUselessAttribute TriState
+	CheckEmptyFiles              TriState
 	CheckSubnets                 TriState
 	CheckSupernetRules           TriState
 	CheckTransientSupernetRules  TriState
@@ -121,6 +122,9 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 
 		// Check for useless attributes in service.
 		CheckServiceUselessAttribute: "warn",
+
+		// Check for files without content.
+		CheckEmptyFiles: "warn",
 
 		// Check for missing supernet rules.
 		CheckSupernetRules: "warn",

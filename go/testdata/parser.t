@@ -18,6 +18,16 @@ Warning: Ignoring file 'empty' without any content
 =END=
 
 ############################################################
+=TITLE=Disabled warning on empty file
+=OPTIONS=--check_empty_files=0
+=INPUT=
+--empty
+# Only comment
+--topo
+network:n1 = { ip = 10.1.1.0/24; }
+=WARNING=NONE
+
+############################################################
 =TITLE=Token with non letter or digit UTF8 character
 =INPUT=
 # EQUAL TO OR GREATER-THAN

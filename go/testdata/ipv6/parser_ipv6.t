@@ -19,6 +19,17 @@ Warning: Ignoring file 'ipv6/empty' without any content
 =END=
 
 ############################################################
+=TITLE=Disabled warning on empty file
+=OPTIONS=--check_empty_files=0
+=PARAMS=--ipv6
+=INPUT=
+--ipv6/empty
+# Only comment
+--ipv6/topo
+network:n1 = { ip = ::a01:100/120; }
+=WARNING=NONE
+
+############################################################
 =TITLE=Token with non letter or digit UTF8 character
 =PARAMS=--ipv6
 =INPUT=
