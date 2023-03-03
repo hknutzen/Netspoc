@@ -197,12 +197,13 @@ func (c *spoc) printGroup(
 	}
 	c.readNetspoc(path)
 	c.setZone()
-	c.distributeNatInfo()
 	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
 	var natMap natMap
 	if natNet != "" {
+		c.distributeNatInfo()
+		c.stopOnErr()
 		natNet = strings.TrimPrefix(natNet, "network:")
 		if net := c.symTable.network[natNet]; net != nil {
 			natMap = net.zone.natDomain.natMap
