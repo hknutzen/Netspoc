@@ -197,7 +197,6 @@ func (c *spoc) printGroup(
 	}
 	c.readNetspoc(path)
 	c.setZone()
-	c.setPath()
 	c.distributeNatInfo()
 	c.stopOnErr()
 
