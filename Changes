@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+ - Added new option '--check_empty_files=0|warn|err'.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about files with no content
+   are no longer shown.
+   This is useful, if files are modified via Netspoc-API.
+
 6.056     2023-01-30 12:02:02+01:00 Europe/Berlin
 
  - Added new option '--check_service_useless_attribute=0|warn|err'.
