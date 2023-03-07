@@ -1485,6 +1485,19 @@ Warning: src of rule in service:s2 is empty
 Warning: dst of rule in service:s3 is empty
 =END=
 
+
+############################################################
+=TITLE=Ignore empty list of elements after 'user'
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=WARNING=NONE
+=OPTIONS=--check_service_empty_user=0
+
 ############################################################
 =TITLE=Empty list of elements after 'prt'
 =PARAMS=--ipv6
