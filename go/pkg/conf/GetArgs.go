@@ -63,6 +63,7 @@ type Config struct {
 	CheckIdenticalServices       TriState
 	CheckPolicyDistributionPoint TriState
 	CheckRedundantRules          TriState
+	CheckServiceEmptyUser        TriState
 	CheckServiceMultiOwner       TriState
 	CheckServiceUnknownOwner     TriState
 	CheckServiceUselessAttribute TriState
@@ -113,6 +114,9 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// Check for redundant rules.
 		CheckRedundantRules:      "warn",
 		CheckFullyRedundantRules: "",
+
+		// Check for services with empty user.
+		CheckServiceEmptyUser: "warn",
 
 		// Check for services where multiple owners have been derived.
 		CheckServiceMultiOwner: "warn",
