@@ -1,0 +1,66 @@
+# topology
+#
+# Shared topology for examples
+
+network:north = {
+ ip = 10.1.1.0/24;
+ host:asterix = {ip = 10.1.1.4;}
+ host:obelix = {ip = 10.1.1.5;}
+ host:idefix = {ip = 10.1.1.6;}
+ host:majestix = {ip = 10.1.1.7;}
+ host:ix_4_7 = {range = 10.1.1.4 - 10.1.1.7;}
+}
+any:north = {link  = network:north;}
+
+router:paris = {
+ managed;
+ model = IOS;
+ interface:north = {ip = 10.1.1.2, 10.1.1.254; hardware = fastethernet0/0;}
+ interface:east = { ip = 10.1.2.1; hardware = fastethernet0/1;}
+ interface:mediteran = {ip = 10.2.2.1, 10.2.2.3; hardware = fastethernet0/2;}
+ interface:ocean = {ip = 10.10.1.1; hardware = Serial0;}
+}
+
+network:ocean = { ip = 10.10.1.0/24; }
+any:ocean = {link = network:ocean;}
+
+network:east = { ip = 10.1.2.0/24;}
+any:east = { link = network:east; }
+
+
+network:mediteran = {
+ ip = 10.2.2.0/24;
+ host:caesar = {ip = 10.2.2.10;}
+}
+any:mediteran = { link = network:mediteran; }
+
+router:rome = {
+ managed;
+ model = Linux;
+ interface:mediteran = {ip = 10.2.2.2; hardware = eth1;}
+ interface:south = {ip = 10.3.3.1; hardware = eth0;}
+}
+
+network:south = {
+ ip = 10.3.3.0/24;
+}
+any:south = {link = network:south;}
+
+router:cairo = {
+ managed;
+ model = PIX;
+ interface:south = {ip = 10.3.3.254; hardware = level50;}
+ interface:egypt = { ip = 10.4.4.2; hardware = inside;}
+ interface:sahara = { ip = 10.5.5.1; hardware = outside;}
+}
+
+network:egypt = {
+ ip = 10.4.4.0/24;
+ host:pharao = { ip = 10.4.4.4; }
+}
+
+network:sahara = {
+ ip = 10.5.5.0/24;
+}
+
+any:north_africa = { link = network:egypt; }

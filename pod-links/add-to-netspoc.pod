@@ -1,0 +1,328 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+add-to-netspoc - Augment one or more objects in netspoc files
+
+=head1 SYNOPSIS
+
+add-to-netspoc [options] FILE|DIR PAIR ...
+
+=head1 DESCRIPTION
+
+This program reads a netspoc configuration and one or more
+PAIRS. It augments given object by specified new object in
+each file. Changes are done in place, no backup files are created. But
+only changed files are touched. If FILE is `-', read standard input
+and write to standard output.
+
+=head1 PAIR
+
+A pair is a tuple of typed names "type1:NAME1" "type2:NAME2".
+Occurences of "type1:NAME1" are searched and
+replaced by "type1:NAME1, type2:NAME2".
+Changes are applied only in group definitions and 
+in implicit groups inside rules, i.e. after "user =", "src =", "dst = ".
+Multiple PAIRS can be applied in a single run of add-to-netspoc.
+
+The following types can be used in PAIRS: 
+B<network host interface any group>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f> file
+
+Read PAIRS from file.
+If - is specified, read from standard input. 
+
+=item B<-q>
+
+Quiet, don't print status messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use open qw(:std :utf8);
+use Getopt::Long;
+use Pod::Usage;
+use Encode;
+
+# VERSION: inserted by DZP::OurPkgVersion
+my $filename_encode = 'UTF-8';
+ 
+my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
+my $quiet;
+
+## no critic (RequireArgUnpacking)
+sub debug { print STDERR @_, "\n"; return; }
+sub info  { print STDERR @_, "\n"; return; }
+ 
+sub fatal_err {
+    print STDERR "Error: ", @_, "\n";
+    die "Aborted\n";
+}
+## use critic
+
+my %valid_type = 
+    map { $_ => 1 } qw(network host interface any group area service);
+
+my %add_to;
+
+sub check_name {
+    my ($typed_name) = @_;
+    my ($type, $name) = ($typed_name =~ /^(\w+):(.*)$/) or 
+        fatal_err "Missing type in '$typed_name'";
+    $valid_type{$type} or fatal_err("Can't use type in '$typed_name'");
+    $name =~ /([^-\w.:\@\/])/ and
+        fatal_err("Invalid character '$1' in $typed_name");
+    return;
+}
+
+# Fill %add_to with $old => $new pairs.
+sub setup_add_to {
+    my ($old, $new) = @_;
+    check_name($old);
+    check_name($new);
+    $add_to{$old} = $new;
+    return;
+}
+ 
+# Find occurence of typed name in list of objects:
+# - group:<name> = <typed name>, ... <typed name>;
+# - src = 
+# - dst = 
+# but ignore typed name in definition:
+# - <typed name> = 
+sub process {
+    my ($lines) = @_;
+    my $changed = 0;
+    my $in_list = 0;
+    my $search_eq = 0;
+    for my $line (@$lines) {
+        my $copy = '';
+        my $line_changed = 0;
+      TOKEN:
+        while(1) {
+            if ($in_list) {
+              LIST:
+                while (1) {
+                    
+                    # Find next "type:name".
+                    if ($line =~ /\G (\s*) (\w+ : [-\w.:\@\/]+)/gcx) {
+                        $copy .= "$1$2";
+                        my $old = $2;
+                        my $new = $add_to{$old} or next;
+                        $line_changed++;
+
+                        # If current line has only one entry,
+                        # add new entry to separate line.
+                        if ($line =~ /^ ((?:\s*[\w:]+\s*=)?\s*) 
+                                        \Q$old\E 
+                                        (\s* ([,;]?) \s* ([#].*)?) $/xs)
+                        {
+                            my $prefix = $1;
+                            my $tail = $2;
+                            (my $indent = $prefix) =~ s/[^\s]/ /g;
+                            $copy = "$prefix$old,\n$indent$new$tail";
+                            $in_list = 0 if $tail =~ /^ \s* ;/x;
+                            last TOKEN;
+                        }
+                        else {
+                            $copy .= ", $new";
+                        }
+                    }
+
+                    elsif (
+                        # Start of automatic group; list continues.
+                        $line =~ /\G ( \s* \w+ : \[ )/gcx or 
+
+                        # Managed automatic group.
+                        $line =~ /\G ( \s* managed \s* & )/gcx or
+
+                        # IP for automatic group.
+                        $line =~ /\G ( \s* ip \s* = \s* [0-9.\/]+ \s* & )/gcx or
+
+                        # End of automatic group.
+                        $line =~ /\G (\s* \])/gcx or
+
+                        # Negation / intersection.
+                        $line =~ /\G (\s* [&!])/gcx
+                        ) 
+                    {
+                        $copy .= $1;
+                    }
+
+                    # Read comma.
+                    elsif ($line =~ /\G (\s*,\s*) /gcsx) {
+                        $copy .= $1;
+                    }
+                    else {
+                        last LIST;
+                    }                    
+                }
+
+                # Whitespace or comment at end of line doesn't terminate list.
+                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcsx) {
+                    $copy .= $1;
+                    last TOKEN;
+                }
+
+                # Everything else terminates list.
+                else {
+                    $in_list = undef;
+                }
+            }
+            elsif ($search_eq and $line =~ /\G (\s*=\s*) /gcsx) {
+                $copy .= $1;
+                $in_list = 1;
+                $search_eq = 0;
+            }
+            elsif ($line =~ /\G (.*?) (src | dst | user | group:[-\w]+) /gcx) {
+                $copy .= "$1$2";
+                $search_eq = 1;
+            }
+
+            # Ignore rest of line if nothing matches.
+            else {
+                $line =~ /\G (.+) /gcsx and $copy .= $1;
+                last TOKEN;
+            }
+        }
+        if ($line_changed) {
+            $line = $copy;
+            $changed += $line_changed;
+        }
+    }
+    return $changed;
+}
+ 
+sub process_file {
+    my ($path) = @_;
+#    debug "File $path";
+    ## no critic ProhibitTwoArgOpen
+    open(my $in, $path) or fatal_err "Can't open $path: $!";
+    my @input = <$in>;
+    close $in;
+    if (my $count = process(\@input) or $path eq '-') {
+        info "$count changes in $path" if not $quiet;
+        if ($path ne '-') {
+            unlink($path) or fatal_err "Can't remove $path: $!\n";
+        }
+        open(my $out, ">$path") or fatal_err "Can't create $path: $!";
+        print $out @input;
+        close $out;
+    }
+    ## use critic
+    return;
+}
+ 
+sub process_file_or_dir {
+    my ($path) = @_;
+    if (-d $path) {
+        local (*DIR);
+ 
+        # Strip trailing slash.
+        $path =~ s</$><>;
+        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
+        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
+            next if $file =~ /^\./;
+            next if $file =~ m/$ignore_files/;
+            $file = "$path/$file";
+            process_file_or_dir($file);
+        }
+        closedir DIR;
+    }
+    else {
+        process_file($path);
+    }
+    return;
+}
+
+sub setup_pairs {
+    my (@pairs) = @_;
+    while (@pairs) {
+        my $old = shift @pairs;
+        my $new = shift @pairs or fatal_err "Missing 2nd. element for '$old'";
+        setup_add_to($old, $new);
+    }
+    return;
+}
+
+sub read_pairs {
+    my ($path) = @_;
+
+    # Read file as one large line.
+    local $/;
+    open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
+    my $input = <$file>;
+    close $file;
+    my @pairs = split(' ', $input) or fatal_err "Missing pairs in $path";
+    setup_pairs(@pairs);
+    return;
+}
+    
+####################################################################
+# Argument processing
+####################################################################
+
+# Make @ARGV utf-8.
+$_ = Encode::decode('UTF-8' , $_) for @ARGV;
+
+# Read search / replace pairs from this file.
+my $from_file;
+my $help;
+my $man;
+GetOptions ( 'f=s' => \$from_file,
+             'q!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $path = shift @ARGV or pod2usage(2);
+$from_file or @ARGV or pod2usage(2);
+
+####################################################################
+# Main program
+####################################################################
+
+# Initialize search/replace pairs.
+read_pairs($from_file) if $from_file;
+setup_pairs(@ARGV) if @ARGV;
+
+# Do substitution.
+process_file_or_dir($path);

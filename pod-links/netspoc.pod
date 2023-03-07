@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+Netspoc - A Network Security Policy Compiler
+
+=head1 SYNOPSIS
+
+netspoc [options] IN-DIR|IN-FILE [CODE-DIR]
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-check_unused_groups=0|1|warn>
+
+Check for unused groups and protocolgroups.
+
+=item B<-check_unused_protocols=0|1|warn>
+
+Check for unused potocol definitions.
+
+=item B<-check_subnets=0|1|warn>
+
+Check for subnets which aren't declared with 'subnet_of' or 'route_hint'.
+
+=item B<-check_unenforceable=0|1|warn>
+
+Check for unenforceable rules, i.e. no managed device between src and dst.
+
+=item B<-check_duplicate_rules=0|1|warn>
+
+Check for duplicate rules.
+
+=item B<-check_redundant_rules=0|1|warn>
+
+Check for redundant rules.
+
+=item B<-check_service_unknown_owner=0|1|warn>
+
+Check for services where owner can't be derived.
+
+=item B<-check_service_multi_owner=0|1|warn>
+
+Check for services where multiple owners have been derived.
+
+=item B<-check_supernet_rules=0|1|warn>
+
+Check for missing supernet rules.
+
+=item B<-check_transient_supernet_rules=0|1|warn>
+
+Check for transient supernet rules.
+
+=item B<-[no]auto_default_route>
+
+Generate default route to minimize number of routing entries.
+
+=item B<-ignore_files={regex}>
+
+Ignore these names when reading directories.
+
+=item B<-max_errors={integer}>
+
+Abort after this many errors.
+
+=item B<-verbose>
+
+Print progress messages.
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-[no]time_stamps>
+
+Print progress messages with time stamps.
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+Compile all files from IN-DIR or from a single IN-FILE.
+Output is generated in CODE-DIR.
+If no CODE-DIR is given, no output is generated; only errors are checked.
+
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use Netspoc;
+
+# VERSION: inserted by DZP::OurPkgVersion
+
+Netspoc::compile(\@ARGV);

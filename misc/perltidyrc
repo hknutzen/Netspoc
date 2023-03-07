@@ -1,0 +1,25 @@
+--backup-and-modify-in-place
+#--warning-output
+#--indent-columns=4
+
+# When default values are not used, it is suggested that the value n
+# given with -ci=n be no more than about one-half of the number 
+# spaces assigned to a full indentation level on the -i=n command.
+#--continuation-indentation=2
+
+# add extra indentation to cause the data to begin
+# past the opening parentheses
+#--line-up-parentheses
+
+# =1 extra indentation such that the closing token
+# aligns with its opening token.
+#--closing-token-indentation=1
+
+--nooutdent-long-lines
+--paren-tightness=2
+--indent-spaced-block-comments
+
+##--delete-closing-side-comments
+#--closing-side-comments
+#--closing-side-comment-interval=25
+#--closing-side-comment-maximum-text=15

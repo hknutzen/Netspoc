@@ -1,0 +1,2169 @@
+6.057     2023-03-07 14:17:29+01:00 Europe/Berlin
+
+ - Added new option '--check_empty_files=0|warn|err'.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about files with no content
+   are no longer shown.
+   This is useful, if files may become empty when definitions
+   are deleted via Netspoc-API.
+ - Added new option '--check_service_empty_user=0|warn|err''.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about services with empty user
+   are no longer shown.
+   This is useful, if services are modified via Netspoc-API.
+
+6.056     2023-01-30 12:02:02+01:00 Europe/Berlin
+
+ - Added new option '--check_service_useless_attribute=0|warn|err'.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about useless attributes
+   has_unenforceable|identical_body|multi_owner|overlaps|unknown_owner
+   in services are no longer shown.
+   This is useful, if services are modified via Netspoc-API.
+   A script misc/get-rm-useless-svc-attr-job was added to parse warnings
+   about useless attributes and create API job to remove them.
+ - Netspoc-API has been changed to remove an attribute, if its value
+   list becomes empty.
+
+6.055     2023-01-18 11:15:31+01:00 Europe/Berlin
+
+ - Command 'export-netspoc' now uses prefixlen instead of mask
+   in IPv4 addresses to get same behaviour as for IPv6.
+ - Command 'transpose-service' now handles multiple services at once,
+   either given as arguments or read from file.
+ - Attributes 'log_default', 'log_deny' are supported on all devices now
+   that can do logging.
+ - Added support for log modifier 'tag:<LABEL>' at model NSX.
+ - Netspoc no longer accepts service definition with mixed
+   user-user rule and normal rule.
+ - Generated code file for NSX now gets header lines starting with '#'.
+
+6.054     2022-12-21 11:07:23+01:00 Europe/Berlin
+
+ - Fixed NSX and PAN-OS: Call local optimization to prevent duplicate
+   and redundant IP addresses in rules.
+
+6.053     2022-12-20 12:16:11+01:00 Europe/Berlin
+
+ - Fixed NSX: ICMPTypeServiceEntry
+
+6.052     2022-12-15 12:08:51+01:00 Europe/Berlin
+
+ - NSX:
+   - Changed extension from Tier-0/1 to T0/T1.
+   - Set source_ports even if empty.
+   - Add "profiles": [ "ANY" ] to rules.
+   - Set attribute ip_protocol to IPV4 or IPV6.
+
+6.051     2022-11-21 16:02:15+01:00 Europe/Berlin
+
+ - Added suport for "aes-gcm", "aes-gcm-192", "aes-gcm-256"
+   at attribute "encryption" of isakmp definition.
+ - Added support for
+   "aes-gcm", "aes-gcm-192", "aes-gcm-256",
+   "aes-gmac", "aes-gmac-192", "aes-gmac-256"
+   at attribute "esp_encryption" of ipsec definition.
+ - Added support for other value than email address
+   in attribute "id" of router definition.
+   In this case the generated "crypto ca certificate map"
+   no longer checks for email: "subject-name attr ea eq <id>"
+   but for common name: "subject-name attr cn eq <id>".
+   It is supported to use an IP address as "id".
+ - Changed handling of attribute "esp_authentication" of ipsec definition.
+   If this attribute is not given, a value of "null" is generated
+   in "protocol esp integrity" of ASA anyway.
+ - Removed attribute "disabled" at interface definition.
+
+6.050     2022-10-13 16:13:31+02:00 Europe/Berlin
+
+ - Added new option '-i' / '--ip' to command 'print-service'.
+   If given together with option '-n' / '--name', it shows IP address
+   together with name for source and destination of each rule.
+   Output format is:
+   name:action src-ip src-name dst-ip dst-name protocol.
+ - Fixed generated IPv6 code for PAN-OS:
+   IPv6 rules use separate name space now to prevent name clashes between
+   IPv4 and IPv6 rules.
+   It is supported now to generate IPv4 and IPv6 rules for the same VSYS.
+
+6.049     2022-09-06 17:12:38+02:00 Europe/Berlin
+
+ - Reverted optimized parallel execution from version 6.046,
+   causing rare occurrences of
+   "fatal error: concurrent map read and map write".
+ - Netspoc-API gives better error message on invalid job now.
+
+6.048     2022-08-24 17:42:10+02:00 Europe/Berlin
+
+ - Fixed missing ACL for subnets in other part of zone cluster.
+   Accidentally, only the first zone cluster with subnets in other
+   part was marked.
+ - Changes in Netspoc-API:
+   - Elements of group and pathrestriction are no longer given directly,
+     but as value of attribute 'elements'.
+   - Removed API methods:
+     - create_toplevel
+     - delete_toplevel
+     - modify_owner
+     - delete_owner
+
+6.047     2022-08-17 09:49:08+02:00 Europe/Berlin
+
+ - Fixed bug that duplicated comment lines located before a short
+   interface definition.
+   This caused duplication of comment lines in output of
+   'format-netspoc' and other programs that print a modified
+   netspoc configuration.
+
+6.046     2022-08-15 15:22:05+02:00 Europe/Berlin
+
+ - Fixed missing error message "No valid path" for rules from/to zone
+   cluster with subnets and pathrestrictions.
+ - Better parallel execution in command "netspoc".
+ - Changes in Netspoc-API:
+   - Method "replace" is aclled "set" now.
+   - New value in "value" must be given as JSON;
+     Netspoc syntax is no longer accepted.
+
+6.045     2022-07-29 10:21:38+02:00 Europe/Berlin
+
+ - Command 'format-netspoc' now sorts lists case insensitively.
+   Value lists of attributes are sorted also now.
+ - Added new generic methods to Netspoc-API: add, delete, replace
+   Parameters are
+   - path: specifies the to be changed item; a comma separated list of names.
+   - value: the new value, given either as JSON object or in Netspoc syntax.
+   - ok_if_exists: suppresses error message if an added toplevel object
+     already exists.
+
+6.044     2022-05-09 08:57:41+02:00 Europe/Berlin
+
+ - Added new option '-d' / '--delete' to command 'remove-from-netspoc'.
+   This also removes definition of given objects, if object is host or
+   unmanaged loopback/vip interface.
+ - Attribute "has_subnets" has been restricted to:
+   - the internet, i.e. network with prefix length 0,
+   - networks in same zone,
+   - loopback interfaces at border of zone, where supernet is located.
+
+6.043     2022-04-07 15:05:24+02:00 Europe/Berlin
+
+ - New radius-attribute
+   "anyconnect-custom_dynamic-split-exclude-domains = dom ..."
+   generates "anyconnect-custom dynamic-split-exclude-domains value dom ..."
+   in group-policy attributes.
+ - If a network N with IP/prefix inside a zone cluster with pathrestrictions
+   has subnets in the same zone cluster, but inside a different zone
+   and N is used in a rule,
+   this rule is extended with aggregates any:[ip = IP/prefix & ...]
+   for each zone with some subnet of N.
+   This is needed to get access-lists and static routes
+   generated for all subnets of N in zone cluster.
+ - Fixed subnet relation in zone if it is different from zone cluster.
+ - Fixed owner of secondary interface at managed router.
+ - Fixed missing secondary interfaces in export.
+
+6.042     2022-03-28 10:06:57+02:00 Europe/Berlin
+
+ - Attribute "subnet_of" at NAT definition is inherited now
+   to enclosed networks.
+ - A warning is shown on useless use of attribute "subnet_of".
+ - Added new parameter "rule_count" in methods add_to_rule,
+   remove_from_rule, delete_rule of Netspoc-API.
+   Specifies the number of expected rules of this service.
+   Job is aborted if expected and real number differ.
+   This is only checked if parameter is given and value is not 0.
+
+6.041     2022-02-28 14:08:05+01:00 Europe/Berlin
+
+ - Better error message on unenforceable rule.
+ - Fixed non determinism in generated address list for PAN-OS.
+
+6.040     2022-02-16 15:12:58+01:00 Europe/Berlin
+
+ - Added router attribute 'merge_tunnelspecified = IP/PREFIX, ...'.
+   The given list of ip/prefix is used to optimize generated
+   split-tunnel ACL.  Networks that are subnet of ip/prefix list are
+   removed and list of ip/prefix is added to ACL.
+ - Generated default route is deterministic now.
+   If two different next hop interfaces are eligible as default route,
+   one of them is selected deterministically.
+ - Inheritance of attributes from network to subnet didn't work in rare cases.
+   This has been fixed.
+ - Better warning is shown when finding redundant attributes during
+   inheritance.
+ - Fixed corrupt file in generated code when reusing output directory
+   and new file size is smaller than previous one.
+ - Added new option '--debug_pass2 DEVICE' for debugging and testing
+   pass2 of program netspoc.
+
+6.039     2022-01-25 15:11:50+01:00 Europe/Berlin
+
+ - Fixed command 'transpose-service':
+   - Actually remove service from overlaps in multiple files.
+   - Fixed  error message.
+ - Enhanced command 'remove-from-netspoc':
+   - Remove service that becomes empty.
+   - Intersection is handled as well.
+
+6.038     2022-01-18 11:15:47+01:00 Europe/Berlin
+
+ - Fixed optimization of destination interface at router with
+   'managed = secondary'. In this case optimization is disabled
+   to prevent unexpected access.
+ - Fix: Owner can be defined now for router with 'managed = routing_only'.
+ - Command 'netspoc' better cleans up existing directory 'code/.prev'.
+ - Fixed command 'cut-netspoc' to also handle complex topology.
+
+6.037     2021-12-20 14:46:06+01:00 Europe/Berlin
+
+ - Added new command 'transpose-service'
+   Usage: transpose-service [options] FILE|DIR [service:]NAME
+   This changes the syntactical representation of a service:
+   - keyword "user" is moved from "src/dst" to "dst/src",
+   - previous definition of "user" is inserted at "src/dst"
+   - definition of "user" is changed to previous definition of "dst/src".
+   Command aborts on service with multiple rules.
+   Result is undefined on service with user-user rule.
+ - A warning is shown for automatic group without any elements.
+   E.g. network:[] or interface:[].[all]
+
+6.036     2021-12-14 10:51:49+01:00 Europe/Berlin
+
+ - PAN-OS:
+   - Support log:<name> with one or more values of:
+     start, end, setting:VALUE,
+     .i.e log:tag = start, setting:my_Panorama;
+   - Support new attribute 'log_default' with one or more log values.
+   - No longer add deny rule at end of rules,
+     because this is handled at device level already.
+ - Enhanced command 'expand-group'.
+   Simple intersections are expanded now.
+
+6.035     2021-11-22 15:48:55+01:00 Europe/Berlin
+
+ - Added new command 'remove-service'
+   Usage: remove-service [options] FILE|DIR [service:]NAME  ...
+    -f, --file string   Read SERVICES from file
+    -q, --quiet         Don't show changed files
+ - Added support for Palo-Alto: model = PAN-OS
+   Different VSYS are modelled as router:NAME@VSYS
+   New attributes 'management_instance', 'backup_of' to reference
+   Palo-Alto host system(s) from VSYS instances.
+ - Fixed: Some duplicate or overlapping areas were not detected.
+
+6.034     2021-08-17 13:22:38+02:00 Europe/Berlin
+
+ - Fixed warning for supernet rule permitting unexpected access
+   at router with attribute 'no_in_acl'.
+ - Fixed command 'netspoc' which didn't close filehandles
+   when reading intermediated code.
+ - Command 'export-netspoc' no longer generates indented JSON files.
+   This leads to about 7.5% smaller export directory.
+ - Minor fixes.
+
+6.033     2021-07-21 14:41:17+02:00 Europe/Berlin
+
+ - No longer show warning 'has unenforceable rule' for user-user rule.
+ - Added new command 'modify-netspoc-api'.
+   Usage: modify-netspoc-api [-q] FILE|DIR JOB ...
+   This command applies change-jobs to Netspoc configuration files.
+   It is used by Netspoc-API and other automation tasks.
+   Job format is described at https://github.com/hknutzen/Netspoc-API#jobs
+
+6.032     2021-07-01 13:57:06+02:00 Europe/Berlin
+
+ - Fix: Must not ignore directory "." when given as argument to
+   commands netspoc, format-netspoc, ...
+ - Reverted secondary optimization in one case that could lead to
+   incorrect ACL.
+
+6.031     2021-06-30 16:08:38+02:00 Europe/Berlin
+
+ - Improved secondary optimization.
+   Conflicts with aggregate rules are analyzed more accurately now,
+   leading to better performance and more optimized rules.
+ - Fixed 'format-netspoc':
+   - No longer remove comment before complex host and interface.
+   - Sort order of intersection is determined by first element now.
+ - Fixed 'export-netspoc':
+   Print owner name with "owner:" in error messages and warnings.
+ - Fix: Numbered protocol is now recognized as redundant to 'ip'.
+ - Commands 'export-netspoc' and 'print-service'
+   had slow runtime performance since version 6.029. This has been fixed.
+
+6.030     2021-05-20 13:29:29+02:00 Europe/Berlin
+
+ - A warning is shown again, if list of objects in service after
+   'user', 'src', 'dst' is empty.
+ - A warning is shown, if some file is empty or contains only comments.
+ - Fixed automatic groups with interfaces:
+   - Interfaces of subnet are added if supernet is in same zone.
+   - External interface of crypto router is removed
+     if automatic group only contains encryptes parts.
+ - Attributes 'overlaps|unknown_owner|multi_owner|has_unenforceable'
+   with value 'restrict|enable|ok'
+   are supported at additional places now:
+   - at owner and
+   - at aggregate with IP address
+   Attribute at owner has higher priority than attribute inherited
+   from network, aggregate or area.
+ - Fixed command 'expand-group'.
+   It aborts now, if group definition isn't found.
+   Previously it substituted an empty list.
+ - Command 'format-netspoc' now ignores leading and trailing whitespace
+   in description and also trailing ';'.
+
+6.029     2021-04-27 14:51:36+02:00 Europe/Berlin
+
+ - Fixed 'export-netspoc':
+   - NAT is observed again when exporting host with IP range.
+   - Data is generated, even if errors occur.
+   - No need to call c.splitSemiManagedRouter().
+ - Fixed check for aggregate with IP of NAT network:
+   Now aggregate that is subnet of NAT network is also checked.
+ - Fixed inheritance of NAT from network to subnet in zone.
+   Now inheritance works, even if zone is split by pathrestriction.
+
+6.028     2021-04-22 15:17:29+02:00 Europe/Berlin
+
+ -Fixed 'export-netspoc'.
+  Newly introduced function c.splitSemiManagedRouter wasn't called.
+
+6.027     2021-04-21 14:44:49+02:00 Europe/Berlin
+
+ - Added new command 'expand-group'
+   Usage: expand-group [-f file] netspoc GROUP ...
+   This command substitutes references to specified groups by its elements
+   and removes group definition afterwards.
+   Occurrences of group in intersection or complement can't be replaced.
+   In this case, the defintion isn't removed.
+ - Changed behaviour of command 'remove-from-netspoc':
+   If references to a group are removed, the defifinition of that group
+   is removed also.
+ - List of objects in service after 'user', 'src', 'dst' can be empty now.
+   Previously a warning was shown, but it was and is still valid to use a group
+   with empty list of elements.
+ - Runtime of compiler is 15 to 20% faster.
+   - Intermediate code is printed concurrently.
+   - Generation static routes.
+   - Lookup of NAT addresses.
+
+6.026     2021-03-10 16:03:48+01:00 Europe/Berlin
+
+ - Fixed check for duplicate routes at VPN router.
+ - Added check for useless single NAT tag.
+ - "netspoc" is no longer a shell script, but a Go program.
+   Commands "spoc1", "spoc2" are gone.
+
+6.025     2021-02-18 10:44:32+01:00 Europe/Berlin
+
+ - Added new command 'check-acl'
+   Usage: check-acl [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
+   This command checks if given packets would be permitted or denied
+   by specified ACL.
+   ACL is read from code file that was generated by Netspoc for given router.
+   Packet descriptions are given on command line or read from file.
+   Each packet description is written to STDOUT,
+   prefixed with "permit" or "deny".
+ - Added check for rules with identical service body.
+   Two services have identical body, if rule definitions are equal
+   and lists of users could be combined into a single list.
+   This check is enabled with option
+        '--check_identical_services=0|warn|err'.
+   Default is off.
+   Printing of warn messages is controlled with attribute 'identical_body'.
+   A)
+   Warning for two identical services s1, s2 can be suppressed by
+   adding attribute 'identical_body = service:s2' to service:s1
+   or 'identical_body = service:s1' to service:s2.
+   B)
+   Attribute 'identical_body = enable|restrict|ok;'
+   at area, zone or network controls printing of warn messages.
+   The attribute is inherited to all objects contained in
+   given area, zone or network.
+   - If at least one object used in rule definitions of identical services
+     has attribute 'identical_body = restrict',
+     identical body is forbidden and warning can't be disabled.
+   - If all objects have attribute 'identical_body =ok',
+     identical body is allowed and no warning is shown.
+   - Otherwise a warning is shown that can be suppressed.
+ - Changed output of command 'export-netspoc'
+   IP of any:... is now written as 0.0.0.0/0.0.0.0 and not as 0.0.0.0
+
+6.024     2021-02-02 15:10:10+01:00 Europe/Berlin
+
+ - Support new radius attribute "group-lock".
+   If set, attribute 'group-lock value <TUNNEL-GROUP-NAME>'
+   is added to generated group-policy of ASA.
+ - Better error message is shown, if '}' is missing after toplevel definition.
+ - Performance has been improved for hosts with very large IP range.
+
+6.023     2021-01-22 12:44:54+01:00 Europe/Berlin
+
+  - NAT for ASA is supported now with more than two interfaces.
+  - Fixed 'bind_nat' at crypto definition for ASA.
+  - Attribute 'acl_use_real_ip' is enabled for ASA per default.
+    This attribute will be removed after next version.
+  - Attribute 'bind_nat' must no longer be used at crypto hub interface.
+    Move 'bind_nat' to crypto definition instead.
+  - Protocol 'icmp' is rejected in IPv6 service and
+    'icmpv6' is rejected in IPv4 service.
+  - Networks of locally attached zone are added to routing_only devices.
+    This is needed because routes between networks inside zone can't be
+    derived from packet filter rules.
+  - Fix: Version number is added to generated code again.
+
+6.022     2020-11-10 12:37:40+01:00 Europe/Berlin
+
+ - Added support for attribute 'bind_nat' at crypto definition
+   for use at crypto hub.
+   Now NAT must no longer be equal for all tunnels at crypto hub,
+   but can be defined individually for each crypto definition.
+   Syntax for this experimental feature will change.
+ - Improved performance by concurrent execution of compiler stage
+   "Checking for redundant rules".
+ - Program 'export-netspoc' now exports additional JSON files
+   master_owner, zone2areas for use in internal proggram 'kmprep'.
+ - Fix: When checking for missing supernet rules, some networks may
+   not been shown when using pathrestrictions or bind_nat inside a zone.
+ - Show warning if 'filter_only' is used without 'managed = local'.
+ - Show warning of VRFs of a single router use different values
+   for 'policy_distribution_point'.
+
+6.021     2020-10-21 09:56:09+02:00 Europe/Berlin
+
+ - Fixed 'add-to-group':
+   Don't print comment from first line of file after newly inserted element.
+ - Fixed intermediate code:
+   - Version number is written again.
+   - Missing prefix length /32 is printed for filter_only.
+ - Language change:
+   Source port for TCP and UDP is no longer applicable to unnamed protocol
+   but only to named protocol now.
+
+6.020     2020-10-12 12:46:49+02:00 Europe/Berlin
+
+ - Migrated remaining parts from Perl to Go:
+   - Parsing files and directories
+   - Arranging protocols
+   - Linking topology
+ - Attribute 'identity' is no longer supported in isakmp definition.
+   Was ignored anyway.
+
+6.019     2020-08-26 11:00:46+02:00 Europe/Berlin
+
+ - Fixed nil pointer dereference in 'rename-netspoc' caused by
+   area having only border or only inclusive_border.
+   This bug was introduced in previous version.
+ - No longer ignore interface in border of area,
+   if it is also used as inclusive_border.
+
+6.018     2020-08-24 10:39:04+02:00 Europe/Berlin
+
+ - Fixed 'rename-netspoc': Interface in border or inclusive_border of area
+   is renamed now, when renaming network or router,.
+ - Migrated more parts from Perl to Go:
+   - Marking disabled parts of topology
+   - Preparing security zones and areas
+ - Private configuration contexts are no longer supported.
+ - Attribute 'auto_border' at area is no longer supported.
+
+6.017     2020-08-11 12:55:04+02:00 Europe/Berlin
+
+ - The subnet relation between two networks was not checked in NAT domain
+   consisting only of an unnumbered network.
+   Under certain conditions this led to an invalid error message
+   "network:a is no longer supernet of network:b".
+   This has been fixed.
+
+6.016     2020-08-10 17:28:01+02:00 Europe/Berlin
+
+ - A wrong number of changed elements was shown from
+   'add-to-netspoc', 'remove-from-netspoc' and 'rename-netspoc'.
+   This has been fixed.
+   Unchanged files are no longer reformatted.
+
+6.015     2020-08-07 14:49:37+02:00 Europe/Berlin
+
+ - Improved secondary optimization.
+ - Improved error messages if no valid path was found between source
+   and destination. All affected rules are shown now. Previously only
+   the first one was shown.
+ - Fixed command 'print-group'. It no longer hangs if more than 64k
+   is written to STDERR.
+ - New command 'format-netspoc' pretty prints netspoc files.
+ - Commands 'add-to-netspoc', 'remove-from-netspoc' and 'rename-netspoc'
+   now output pretty printed files.
+
+6.014     2020-07-10 14:50:58+02:00 Europe/Berlin
+
+ - Fixed option '-admins' of command 'print-group':
+   Now shows admins of an object, even if owner was inherited.
+ - Command 'print-group' now shows
+   - unnumbered and bridged interfaces from automatic group and
+   - crosslink networks.
+ - Command 'print-group' now shows result unsorted, in original order.
+ - Command 'add-to-netspoc' now allows to add multiple elements
+   to the same object in one run,
+   e.g. "add-to-netspoc file group:g host:a group:g host:b"
+ - Simplified syntax of Netspoc for easier migration from Perl to Go.
+   - 'radius_attributes' and 'router_attributes' are only accepted
+     if not empty.
+   - Attribute 'description' is only accepted at toplevel definitions.
+     It is no longer valid at host and interface definition.
+ - Migrated more parts from Perl to Go:
+   - Preparing fast path traversal
+
+6.013     2020-04-23 16:54:09+02:00 Europe/Berlin
+
+ - Use hardlink when reusing code file from prevoious run.
+ - Added new option '-admins' to command 'print-group'
+   to show admins of owners of elements as comma separated list.
+ - Fixed options '-name' and '-ip' of command 'print-group'.
+
+6.012     2020-04-06 13:46:43+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Most parts of program 'print-group'
+   - Most parts of program 'print-service'
+   - Most parts of program 'cut-netspoc'
+ - 'print-group' no longer supports option '-f'.
+ - Prevent duplicate hosts from zone cluster in area
+   in automatic group 'host:[area:some-area]'.
+ - 'export-netspoc' no longer generates files 'no_nat_set',
+   because Netspoc-Web only uses 'nat_set' now.
+ - 'export-netspoc' creates shorter file 'emails'.
+   Owners that are visible from wildcard address already,
+   are not added for emails matching that wildcard.
+   Netspoc-Web now merges owners of wildcard address for matching owners.
+
+6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Distributing NAT
+   - Most parts of program 'export-netspoc'
+ - Fixed minor bug in check for identical network in other NAT domain.
+   This prevented an optimization in few cases.
+ - export-netspoc now generates files 'nat_set' additionally to 'no_nat_set'
+   for each owner, in preparation for equivalent change in Netspoc-Web.
+
+6.010     2020-02-26 12:16:00+01:00 Europe/Berlin
+
+ - New radius-attribute "password-management_password-expire-in-days = NUM"
+   generates "password-management password-expire-in-days NUM"
+   in tunnel-group general-attributes
+ - Improved runtime performance for commands
+   add-to-netspoc and remove-from netspoc.
+
+6.009     2020-02-24 12:00:10+01:00 Europe/Berlin
+
+ - Fixed check for unexpected subnet relation.
+   With network:n1 < any:a2 < network:n3, relation n1 < n3 is recognized now.
+ - Migrated program 'remove-from-netspoc' from Perl to Go.
+
+6.008     2020-01-27 16:53:30+01:00 Europe/Berlin
+
+ - Fixed panic when accessing unknown object in group or rule.
+   Shows readable error message again:
+   "Error: Can't resolve ... in ..."
+
+6.007     2020-01-24 11:56:11+01:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Finding subnets in zone
+   - Normalizing services (with expandGroup)
+   - Checking service owner
+   - LinkReroutePermit
+ - Removed support for managed hosts,
+   i.e Netspoc no longer generates iptables rules for Linux servers.
+ - Fixed RemoveSimpleDuplicateRules, now really removes.
+
+6.006     2019-11-26 12:43:20+01:00 Europe/Berlin
+
+ - Attribute 'owner' is supported now at aggregate with IP.
+   All matching networks inherit owner from enclosing aggregate.
+
+6.005     2019-11-19 16:12:38+01:00 Europe/Berlin
+
+ - Fixed bug in combineSubnets after migration from Perl to Go.
+   List of addresses is no longer changed in place.
+   The same list of addresses may be referenced by different rules.
+   If the same list was changed multiple times in place, this
+   sometimes led to duplicate or even missing elements in list.
+
+6.004     2019-11-13 10:54:53+01:00 Europe/Berlin
+
+ - Adjacent IP networks are now combined also for IOS.
+   This leads to shorter ACLs.
+ - More redundant rules are found, because adjacent subnets are
+   combined later, after check for redundant rules now.
+ - Migrated another part from Perl to Go:
+   - Converting hosts to subnets
+
+6.003     2019-11-01 12:24:45+01:00 Europe/Berlin
+
+ - map-value of ldap attribute-map is written as double quoted string now.
+
+6.002     2019-10-22 16:20:00+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Finding subnets in NAT domains
+   - Checking rules for unstable subnet relation
+   - Marking topology for managed = local
+   - Checking rules with hidden or dynamic NAT
+   - Setting policy distribution IP
+   - Expanding crypto rules
+   - Copy raw files
+ - Improved secondary optimization in context with dynamic NAT.
+ - Removed debug messages in add-to-netspoc and rename-netspoc.
+
+6.001     2019-10-07 13:50:09+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Checking supernet rules
+   - Finding routes
+   - Generating reverse rules for stateless routers
+ - Fixed bugs in migrated programs add-to-netspoc and rename-netspoc:
+   - Fixed processing of directories.
+   - Fixed very bad runtime performance.
+   - Fixed add-to-netspoc to process elements of group with umlauts in
+     group name.
+
+6.000     2019-09-27 13:55:04+02:00 Europe/Berlin
+
+ - Started migration of Netspoc from Perl to Go (golang).
+   Some parts have already been migrated with identical functionality:
+   - Checking for redundant rules
+   - Marking rules for secondary optimization
+   - Rules distribution
+   - Printing intermediate code
+   - Pass2, generating code
+
+5.054     2019-08-14 14:30:11+02:00 Europe/Berlin
+
+ - Now also network supports attributes
+   overlaps | unknown_owner | multi_owner | has_unenforceable
+   with value restrict | enable | ok.
+ - Changed priority of attributes 'overlaps' and 'has_unenforceable':
+   restrict < enable < ok
+   - 'restrict' is applied only if given at src AND dst.
+   - 'ok' is applied if given at src OR dst.
+ - Old syntax "has_unenforceable;" without value is no longer supported.
+
+5.053     2019-05-22 15:44:21+02:00 Europe/Berlin
+
+ - New radius-attribute "anyconnect-custom_perapp = NAME"
+   generates "anyconnect-custom perapp value NAME"
+   in group-policy attributes
+ - Changed "#!/usr/bin/perl" to "#!/usr/bin/env perl" in scripts
+   to enable running files during tests, without installation.
+
+5.052     2019-04-04 10:53:41+02:00 Europe/Berlin
+
+ - Netspoc generates ldap attribute-map at ASA now.
+   Define software client as ordinary host (not ID host) and add attribute
+   'ldap_id' with some LDAP attribute as value.
+   Add attribute 'cert_id' with some certificate pattern as value
+   at corresponding network.
+   Optionally move common postfix string of ldap_id,
+   that is identical for all hosts of a network,
+   to attribe 'ldap_append' of that network.
+
+ - Fixed command "remove-from-netspoc" for group with description.
+ - Fixed command "cut-netspoc" to not accidentally change
+   attribute 'unknown_owner' when removing 'owner' from input.
+
+5.051     2019-03-08 12:20:02+01:00 Europe/Berlin
+
+ - Introduced new attributes at zone and area:
+   overlaps | unknown_owner | multi_owner | has_unenforceable
+   with value
+   restrict | enable | ok
+
+   These attributes control if corresponding attributes at service
+   are permitted.
+   - restrict: Attribute is not allowed at service
+   - enable:   Attribute is allowed at service
+   - ok:       No attribute needed at service to suppress warning.
+
+   Warning about unknown owner is restricted, if object with unknown owner is
+   located inside marked zone.
+   Warning about multiple owners is restricted, if objects with multiple
+   owners are located inside marked zone.
+   Warning about unenforceable rule is restricted, if src and dst are
+   located inside marked zone.
+   Warning about redundant or duplicate rule is restricted, if those both
+   zones are marked where src and dst are located.
+
+   Attribute is inherited from area to enclosing area and zone.
+
+5.050     2019-02-28 12:50:47+01:00 Europe/Berlin
+
+ - Fixed bug in processing of NAT. Attribute bind_nat was ignored at unmanaged router if
+   - at least one interface has pathrestriction,
+   - at least two interfaces have no pathrestriction and
+   - bind_nat is placed at interface without pathrestriction.
+
+5.049     2019-02-26 16:02:34+01:00 Europe/Berlin
+
+ - New warning on useless attribute 'multi_owner' is shown
+   - if 'user' objects belong to single owner and
+   - if multi owner could be avoided by swapping objects of 'user'
+     and objects of rules.
+
+5.048     2019-01-24 13:48:47+01:00 Europe/Berlin
+
+ - Duplicate elements from automatic interfaces are silently ignored now.
+ - Useless attribute 'overlaps' is shown even if protocol has
+   modifier 'overlaps'.
+ - Fixed check for 'multi-owner' in service with mixed coupling rule
+   and normal rule.
+
+5.047     2018-11-26 16:22:17+01:00 Europe/Berlin
+
+ - New option "CONTEXT" in
+   model = "ASA, VPN, CONTEXT" or model = "ASA, CONTEXT".
+   With this option set,  line "ikev1 user-authentication none"
+   is no longer generated for "tunnel-group NAME ipsec-attributes".
+ - It is now valid, to define two areas, that only differ in a single
+   managed router. Previously this was rejected as "duplicate areas".
+
+5.046     2018-10-26 12:57:43+02:00 Europe/Berlin
+
+ - Fix: Attribute acl_use_real_ip is now also applied to outgoing ACL.
+ - Rules from general_permit are no longer applied to loopback interfaces.
+
+5.045     2018-10-24 17:02:28+02:00 Europe/Berlin
+
+ - Fix: No longer accidentally ignore zone having only a single
+   network at loopback interface of unmanaged router. This may occur
+   for zone having unnumbered or tunnel networks.
+
+5.044     2018-10-24 12:10:19+02:00 Europe/Berlin
+
+ - Security zone at managed loopback interface is no longer included
+   in automatic group. These zones didn't have any effect, but were
+   confusing in output of 'print-group'.
+ - Fixed 'cut-netspoc' to handle unmanaged router with multiple
+   interfaces and multiple pathrestrictions.
+
+5.043     2018-10-01 17:38:02+02:00 Europe/Berlin
+
+ - Fixed pointless warning about missing supernet rule for this case:
+      src-(r1)-sub_srca+sub_srcb-(r2)-dst
+   If rule allowed src, sub_srca and sub_srcb to access dst,
+   a warning was still issued, that a supernet of these subnets were missing.
+ - Clarified warning message about missing supernet rules.
+ - Command 'add-to-netspoc' now issues a warning, if an element was added
+   to left side of intersection (old &! next => old, new &! next)
+
+5.042     2018-08-27 11:51:40+02:00 Europe/Berlin
+
+ - Improved error handling for 'bind_nat' in complex topology.
+   If 'bind_nat' attributes are placed around a subarea of the topology
+   and accidentally one or more attributes are left out,
+   Netspoc now prints a more helpful error message showing
+   the missing interfaces.
+ - When printing a rule in some error or warning message, the compiler
+   aborted without showing the message in some cases. This only
+   occurred for special combinations of protocols that are used
+   together in this rule. This error was introduced in previous
+   version and has been fixed.
+
+5.041     2018-08-13 12:42:57+02:00 Europe/Berlin
+
+ - Secondary IP addresses are ignored now, when checking for valid networks
+   behind crypto spoke.
+ - Network behind crypto spoke that is hidden at crypto hub,
+   is ignored now in crypto ACL generated at crypto hub.
+ - Virtual IP is no longer written als secondary interface IP
+   in generated device configuration.
+
+5.040     2018-08-08 17:23:09+02:00 Europe/Berlin
+
+ - If host range has subnet size, e.g. range = 10.1.1.8 - 10.1.1.15,
+   this range is allowed to overlap with interface IPs of same network.
+   Previously, this was only allowed for real sub network.
+ - Attribute 'has_fully_redundant' is no longer supported.
+ - Netspoc compiler has better CPU performance now
+   for topology with many dynamic and hidden NAT definitions.
+ - Removed artificial duplicate elements from zone clusters
+   in user lists of exported JSON data.
+ - IPv6 addresses in exported JSON data now use prefix length instead of mask.
+
+5.039     2018-07-17 13:23:51+02:00 Europe/Berlin
+
+ - Added new radius_attribute "check-extended-key-usage" for ID hosts.
+   Value should be some OID like "1.3.6.1.4.1.311.20.2.2".
+   Enables entry in "crypto ca certificate map":
+     "extended-key-usage co 1.3.6.1.4.1.311.20.2.2"
+ - Virtual IP is shown as secondary IP in code of interface definition.
+
+5.038     2018-07-13 15:05:29+02:00 Europe/Berlin
+
+ - Secondary optimization is no longer disabled at border of zone for
+   network with dynamic NAT, if dynamic NAT is only defined but not
+   used for a network.
+ - New 'partition' attribute allows to define topology with unconnected parts.
+   Currently, unconnected parts are rejected with error message
+   "topology has unconnected parts".
+   If unconnected parts are really required, we call them 'partitions'.
+   Each partition needs to be named by adding "partition = NAME;" to
+   some arbitrary network of the partition.
+
+5.037     2018-07-12 09:58:26+02:00 Europe/Berlin
+
+ - Fixed export of NAT info for Netspoc-Web.
+   Keyword 'hidden' was shown in some cases instead of IP address.
+   This affected owners having networks from different NAT domains.
+
+5.036     2018-07-10 15:05:46+02:00 Europe/Berlin
+
+ - Fixed command 'print-group'. It didn't work for groups with more
+   than ~10 elements since version 5.034
+ - Fixed check for conflicting NAT at crypto interface.
+   - NAT is only checked for addresses of VPN peers.
+   - Non multi NAT tags are checked correctly now.
+ - More precise check for
+   "Error: Must not use aggregate with IP a.b.c.d/e in any:[network:abc]
+    because network:def has identical IP but is also translated by NAT"
+   Error is no longer shown, if aggregate is only used intermediately
+   in automatic group.
+
+5.035     2018-06-04 16:56:59+02:00 Europe/Berlin
+
+ - Relaxed restriction for grouped NAT tags at network.
+ - When generating IPv6 code for IOS and NX-OS devices, now correct
+   syntax is generated for access-list, static route and interface address.
+ - Hosts inside bridged networks are supported now and can be used in
+   rules as usual.
+ - Hosts with IP range are still not supported inside bridged network.
+ - Attribute 'no_crypto_filter' is no longer supported.
+   It was used for IOS < 12.3(8)T
+ - export-netspoc now ignores hidden NAT when determining combined NAT
+   mapping for owner having networks with different NAT mapping.
+   This results in more visibilty of NAT addresses in shown rules and objects.
+ - Fixed export of split service with parts having same rules.
+   Previously, some split parts had been silently discarded.
+ - Removed option '--export_ipv6' from export-netspoc.
+
+5.034     2018-04-10 11:01:09+02:00 Europe/Berlin
+
+ - IPv4 and IPv6 input is no longer processed separately.
+   - Some definitions are shared between IPv4 and IPv6:
+     owner, protocol, protocolgroup, crypto, isakmp, ipsec
+   - All defintions except routers use a shared namspace for IPv4 and IPv6.
+     It is no longer allowed to define two networks with same name
+     for IPv4 and IPv6.
+   - Only one element of a pair of IPv4/v6 routers
+     needs to have a policy_distribution_point.
+ - IPv6 input can be placed in arbitrarily nested "ipv6/" subdirectories now.
+ - The same holds for "ipv4/" subdirectory with option "ipv6 = 1".
+ - Raw files for IPv6 are read from directory "raw/ipv6" now
+   and no longer from "ipv6/raw".
+ - print-group now works again with mixed IPv4/IPv6 input.
+ - export-netspoc now generates mixed IPv4/IPv6 JSON output,
+   if export of IPv6 data is enabled with new option '-export_ipv6'.
+ - Attribute 'reroute_permit' is ignored with warning now, if used
+   together with attribute 'no_in_acl' at same device.
+ - A nondeterminism in generated code was fixed.
+   Secondary optimization is now always disabled if neccessary.
+
+5.033     2018-03-12 14:08:49+01:00 Europe/Berlin
+
+ - Attribute 'acl_use_real_ip' is now supported for 3 or more interfaces.
+   But still only two different sets of effective NAT are allowed.
+   Hidden NAT is ignored when calculating effective NAT.
+ - Nameclashes between IPv4 and IPv6 objectgroups are prevented.
+
+5.032     2018-03-01 15:07:44+01:00 Europe/Berlin
+
+ - Broadcast and network address is now allowed as interface IP
+   in /31 networks.
+ - Broadcast and network address isn't checked at all for IPv6.
+ - Optimization at routers with "managed=secondary" is more restrictive now.
+   The optimization is disabled, if the optimized version of an ACL
+   would permit too much traffic together with a related supernet rule.
+   This also applies to optimization with "managed=primary".
+ - Inside IPv6 rules, protocol 'icmp' is no longer valid.
+   Use 'prt = icmpv6' instead. Syntax for type and code is unchanged.
+ - Mask is printed as /prefixlen in ACLs for IPv6 with IOS and NX-OS.
+ - Generated access-lists for ASA with IPv6 use protocol "icmp6" now.
+ - Fixed missing /128 in route of ASA for IPv6.
+
+5.031     2018-02-05 17:44:33+01:00 Europe/Berlin
+
+ - Fixed handling of 'policy_distribution_point' at multi VRF device.
+   If option -check_policy_distribution_point is set, it is sufficient now
+   to set attribute 'policy_distribution_point
+   for a single VRF of a multi VRF device.
+   Attribute 'policy_distribution_point' is now checked for every VRF
+   where this attribute is set.
+
+5.030     2018-01-18 11:03:36+01:00 Europe/Berlin
+
+ - 'ipv6 route' command is genenerated for ASA now.
+ - Input can now hold IPv6 data in subdirectory ipv6/.
+   If option 'ipv6 = 1' is active, subdirectory ipv4/ can hold IPv4 data.
+ - Generated code for IPv6 is written to subdirecory code/ipv6/ now.
+ - Generated ACLs for ASA now use 'any4' or 'any6' instead of 'any'.
+ - Automatic group host:[..] now also shows hosts of subnets of given networks
+   in same zone.
+ - print-group of automatic group network:[area|any|network:..] now
+   also shows subnets in same zone of given networks.
+ - A warning is shown, if a service with empty user and empty rules is defined.
+ - Optimization of redundant pathrestrictions has been fixed.
+
+5.029     2017-12-05 15:21:35+01:00 Europe/Berlin
+
+ - A warning is generated now, if the intersection of non empty groups
+   is empty.
+ - The feature to use owner as watcher is no longer supported.
+
+5.028     2017-11-06 11:56:19+01:00 Europe/Berlin
+
+ - Fixed subnet relation for implicit aggregates in case of multiple
+   larger supernets. This led to
+   - unrecognized warnings about redundant rules and
+   - in rare cases to errors about unstable NAT.
+ - Fixed option '-check_fully_redundant_rules'
+   - in case of mixed duplicate and redundant rules.
+   - In some rare case, a non redundant service was shown as redundant.
+ - Parser no longer aborts but warns on empty list in user, src, dst.
+ - New option '-name' for command 'print-service'.
+   With with this option names, not IP of elements are shown.
+ - 'print-service' allows multiple services to be requested now.
+   Without any arguments, still all services are printed.
+
+5.027     2017-09-05 13:14:47+02:00 Europe/Berlin
+
+ - Support 'kilobytes' in ipsec lifetime attribute.
+ - Generate 'sha' as 'sha-1' for IKEv2.
+ - '[all]@domain' as watcher authorizes all emails of 'domain'.
+ - New attribute 'has_fully_redundant' at zone suppresses warning about
+   fully redundant service, if either src or dst is located in marked zone.
+ - Fixed -check_fully_redundant_rules in case of multiple duplicate rules.
+
+5.026     2017-07-25 17:39:01+02:00 Europe/Berlin
+
+ - New option '-check_fully_redundant_rules=0|1|warn'.
+ - ACL lines with logging are placed first in list now. This way, a
+   detailed rule with logging matches before a more general rule
+   without logging.
+ - Duplicate rules with different log attributes are rejected now.
+ - Check for transient supernet rules uses path_walk now to get exact results.
+
+5.025     2017-06-27 14:53:36+02:00 Europe/Berlin
+
+ - More accurate check for transient supernet rules.
+   Warning is only generated, if a zone is actually crossed.
+
+5.024     2017-06-01 11:00:49+02:00 Europe/Berlin
+
+ - Network 0.0.0.0/0 (the internet) is ignored when checking for
+   transient supernet rules.
+ - Only one VRF instance of a multi VRF router needs to be
+   reachable by policy distribution point.
+ - Dropped support for "managed = local_secondary".
+ - Dropped support for model "ACE".
+
+5.023     2017-05-12 11:07:07+02:00 Europe/Berlin
+
+ - Netspoc is IPV6 ready now.
+   New config option 'ipv6 = 1' switches from IPv4 to IPv6 addresses.
+ - export-netspoc: export disabled services.
+   Export new attributes 'disabled' and 'disable_at'.
+
+5.022     2017-04-18 18:11:48+02:00 Europe/Berlin
+
+ - Allow bind_nat at device of model 'ASA,VPN'.
+ - export-netspoc: Make owner without any assets visible for owner with
+   attribute 'show_all'.
+
+5.021     2017-03-02 16:15:11+01:00 Europe/Berlin
+
+ - Fixed detailed_crypto_acl: also respect outgoing rules.
+ - Looback interfaces are exported to Netspoc-Web now.
+
+5.020     2017-02-16 16:40:43+01:00 Europe/Berlin
+
+ - Combined host ranges are checked for duplicates now.
+ - Combining of adjacent host ranges runs faster now.
+ - Attribute 'alias' of owners is no longer supported.
+ - Increased test coverage to 99.84%.
+
+5.019     2017-01-25 16:03:48+01:00 Europe/Berlin
+
+ - Fixed NAT at crypto router for topology where internet and internal
+   network are connected by some firewall.
+ - Fixed check for transient aggregate rules with leave zone.
+   Ignore routers with only one interface, occuring from split crypto
+   routers, when finding leave zone.
+ - If network with ID hosts is used in source of rule, the ACL at
+   authenticating router now checks for IP addresses of individual ID
+   hosts instead of IP of whole network.
+ - Abort now, if multiple static routes to one network would be
+   generated. Previously, a warning was given and only one of
+   multiple routes had been printed.
+ - Fixed static route pointing to network behind chain of bridges.
+ - Only one crypto spoke is allowed per device now.
+ - Better checks for missing aggregate rules.
+ - Improved performance of 'rename-netspoc' if many substitutions are
+   applied at once.
+ - Added script to convert text export of Barracuda rules to Netspoc rules.
+
+5.018     2016-12-05 12:37:08+01:00 Europe/Berlin
+
+ - Added new attribute 'disable_at = yyyy-mm-dd' at service.
+   Service is disabled, if the given date has been reached.
+ - Support new attribute 'dhcp_client' at interface.
+   This permits traffic to this interface at UDP port 68.
+ - Deprecated attributes have been removed:
+   'extend_only', 'extend_unbounded', 'extend'.
+ - IP addresses are stored internally as bitstrings and no longer as
+   integers. This will make it easier to support IPv6 addresses.
+
+5.017     2016-11-10 15:04:08+01:00 Europe/Berlin
+
+ - A check has been added, that subnet relation remains stable with NAT.
+   If networks inside one zone are in subnet relation, and if there
+   exists a NAT domain, where this subnet relation no longer holds,
+   then the supernet must not be used in any rule, where the path
+   crosses such a NAT domain.
+   This property is needed, because generated ACL for supernet would
+   not permit traffic for subnets that are no longer in subnet relation.
+ - Static NAT can be inherited from area or zone now.
+   This allows to define static NAT for multiple networks in one statement.
+   E.g. 172.17.x.0/24 to 192.168.x.0/24
+   with area:a = { nat:n = { ip = 192.168.0.0/16; } ... }
+
+5.016     2016-10-31 17:30:24+01:00 Europe/Berlin
+
+ - Fixed security issue with generated object-groups.
+   If object-group G1 has element B that was combined from B1, B2,
+   and some other group G2 has same elements as G1 but with B1 instead of B,
+   then G1 was erroneously reused instead of definig a new object-group G2.
+ - Changed syntax for owners.
+   Owners are now propagated to inner objects per default.
+   New attributes:
+   - "only_watch"
+     This owner will not be inherited by inner owners,
+     but it will still be able to watch all inner owners.
+     This attribute is only valid at areas.
+   - "hide_from_outer_owners"
+     If given at an inner owner, services of this owner will
+     not be watchable by outer owners.
+   - "show_hidden_owners"
+     This cancels the effect of 'hide_from_outer_owners'.
+     This attribute is also enabled implicitly by attribute 'show_all'.
+   Some attributes are deprecated and will be removed in next version:
+   - "extend"
+     This is default now.
+   - "extend_only"
+     This was partially replaced by only_watch.
+   - "extend_unbounded"
+     This attribute is useless now.
+ - Command "print-group" now is able to process multiple groups at once.
+   Use option "-f" to read group definitions from file.
+
+5.015     2016-08-12 14:27:52+02:00 Europe/Berlin
+
+ - Fixed export host / interface with static NAT of network with
+   dynamic NAT to NetspocWeb.
+
+5.014     2016-08-10 15:05:06+02:00 Europe/Berlin
+
+ - Fixed wrong ACL, generated for linear path starting at interface
+   with pathrestriction at zone at border of loop, where path did not
+   enter loop.
+ - Fixed infinite loop during processing of ignored pathrestriction.
+ - Reject negotiated interface as next hop for routing.
+ - Fixed check for inconsistent NAT in loop.
+ - Check for subnet in other zone is done recursivly now. This may
+   prevent some dangerous secondary optimizattion.
+
+5.013     2016-07-11 14:26:29+02:00 Europe/Berlin
+
+ - Improved check for missing transient supernet rules.
+   Previously we checked only rules a-->any:b, any:b-->c
+   for missing rule a-->c.
+   Now we check all rules a_sub-->b, a-->b_sub
+   with a_sub is subnet of a, b_sub is subnet of b and
+   both a, b located in same zone.
+ - Fixed incorrect warning on missing supernet rule.
+   For rules a-->any:b, any:b-->c, we now accept a-->any:c as transient rule.
+ - Optimized runtime for "Finding subnets in NAT domains".
+ - Fixed check for watcher from other owner.
+   Do case insensitive compare of email addresses now.
+
+5.012     2016-06-29 16:55:04+02:00 Europe/Berlin
+
+ - Syntax has been extended to allow full NAT commands at loopback interface.
+   Keywords 'hidden', 'identity' and 'dynamic' are usable now
+   in this context.
+ - No warning is shown, if a watcher address is read from some other
+   owner and the same address is used as admin.
+
+5.011     2016-06-27 17:12:41+02:00 Europe/Berlin
+
+ - Fixed serious bug in version 5.010.
+   If code for some device would be reused from previous run, no code
+   was generated for this device at all.
+ - Fixed output of icmp type/code for iptables.
+   It is now e.g. '--icmp-type 5/1' and was previously "--icmp-type icmp/1".
+
+5.010     2016-06-22 16:44:15+02:00 Europe/Berlin
+
+ - Cleaned up and simplified verification of pathrestrictions at groups
+   of redundancy interfaces.
+   If a static route is generated that has a redundany interface as next hop,
+   either all interfaces or all but one interface of this redundancy group
+   must be used as next hop.
+ - Pass 1 and pass 2 are running concurrently now.
+   This gives a speedup, because pass 2 now immediately starts to work,
+   after the first intermediate code was generated by pass 1.
+
+5.009     2016-06-01 17:20:09+02:00 Europe/Berlin
+
+ - Allow name and domain-name without dot in ID-host.
+   E.g. host:id:foo and host:id:foo@bar
+ - New config option 'check_unused_owners'.
+   Default value is 'warn'. This was the previous hard coded default.
+ - New config option 'check_policy_distribution_point'.
+   Checks that all managed routers have attribute 'policy_distribution_point',
+   either directly or from inheritance.
+   Default value is 0 (= off).
+ - Removed support for model PIX.
+
+5.008     2016-05-24 17:29:35+02:00 Europe/Berlin
+
+ - Fully observe pathrestriction for path starting or ending
+   at pathrestriction at border of loop.
+ - No longer support undocumented attribute 'visible' of service.
+ - Memory usage is reduced by about 10%.
+ - Many minor improvements.
+ - Improved test coverage to 95.4% of all statements.
+
+5.007     2016-04-13 15:40:07+02:00 Europe/Berlin
+
+ - When warning on redundant rules, show not only one, but all larger rules.
+ - In verbose output, count each redundant rule only once.
+ - Runtime of program export-netspoc was cut in half.
+ - Fixed minor non-determinism in export-netspoc.
+ - Multiple minor performance improvements.
+
+5.006     2016-03-31 17:32:40+02:00 Europe/Berlin
+
+ - Runtime to read netspoc data was cut in half.
+ - Netspoc no longer reads data from STDIN, if no argument is given.
+ - Attribute 'security_level' is no longer supported.
+
+5.005     2016-03-23 16:05:56+01:00 Europe/Berlin
+
+ - Runtime and memory performance improvement while checking for
+   redundant rules.
+ - Multiple minor performance improvements.
+
+5.004     2016-03-15 08:41:20+01:00 Europe/Berlin
+
+ - Only use short certificates as part of names for model "ASA,VPN".
+   For certificates with length >= 46 characters, fall back to
+   sequential integers as names.
+
+5.003     2016-03-11 12:21:32+01:00 Europe/Berlin
+
+ - Stricter check for unenforceable rules has been enabled.
+   Traffic from an object to itself is only silently ignored, for
+   coupling rule with "src=user; dst=user".
+ - Object groups with only one element are no longer created
+   when combining adjacent networks.
+ - Pass2 files are recreated always now when running
+   a new version of Netspoc.
+ - Minor performance improvements.
+
+5.002     2016-03-07 16:41:20+01:00 Europe/Berlin
+
+ - Adjacent networks are combined now in object groups.
+   This also applies to loopback and vip interfaces.
+ - NAT commands for Cisco PIX are no longer generated.
+   Only use this version with Netspoc-Approve version >= 1.108,
+   that no longer touches global, static and nat command of PIX.
+
+5.001     2016-03-04 14:19:00+01:00 Europe/Berlin
+
+ - Certificates are used as part of names now for router model "ASA,VPN".
+   This affects names of
+   split-tunnel-ACL, vpn-filter-ACL,
+   group policy, IP pool, certificate map, tunnel group.
+ - Topology is checked for unconnected parts now.
+ - Fixed optimized pathrestriction at border of loop exit.
+ - Fixed ACL generation for router using both "managed=local" and "no_in_acl".
+ - Fixed expansion of autointerfaces in rule with multiple autointerfaces
+   both in src and dst.
+ - Commands 'add-to-netspoc' and 'remove-from-netspoc' now correctly handle
+   automatic interfaces like "interface:r.[auto]" and "interface:r.[all]".
+ - Complicated services with an ambiguous user list couldn't be
+   presented correctly in Netspoc-Web.
+   Command 'export-netspoc' now splits such services into multiple
+   simpler services with names like "ping_local(t_CRj8Vo)"
+
+5.0       2016-01-28 18:05:50+01:00 Europe/Berlin
+
+ - Introduced new attribute 'no_check_supernet_rules' at zone.
+   This disables check for missing supernet rules at all networks
+   inside the marked zone. This attribute is only valid for zones
+   having only networks without hosts.
+ - Fixed missing warnings about unenforceable rules.
+   These where missing in most cases since v4.6.
+ - Fixed invalid warning about "unused owner" for an owner that is
+   used only as watcher of another owner.
+ - Fixed command "remove-from-netspoc" to no longer remove unrelated comma.
+ - Changed names for ACLs referenced in crypto maps of ASA and IOS devices.
+   Peer ID or peer IP is used as part of name now.
+
+4.9       2016-01-08 15:15:10+01:00 Europe/Berlin
+
+ - Improved finding of [auto] interface with pathrestriction.
+ - Fixed command "print-group" to allow argument with umlauts.
+ - Expanded rules are processed in chunks now.
+   This reduces memory usage by about 50%.
+ - Unmanaged routers having interface with pathrestriction are split
+   internally, to reduce the number of artificially created zones.
+ - Redundant crypto hubs are no longer supported.
+
+4.8       2015-12-07 14:48:17+01:00 Europe/Berlin
+
+ - Also find interface with pathrestriction as result of [auto] interface.
+ - Bug fixes:
+   - Wait for all background jobs of pass 2 to be finished.
+   - Check for pass 1 errors even if concurrency is disabed.
+
+4.7       2015-12-02 19:03:14+01:00 Europe/Berlin
+
+ - Use concurrent processes for significant performance improvement.
+   - Use option 'concurrency_pass1=2'
+     to run pass1 with two processes.
+   - Use option 'concurrency_pass2=2|3|...'
+     to compiles pass2 files with that many processes.
+ - New attribute 'acl_use_real_ip' for model 'ASA'.
+   If set and NAT is applied at this device, ACLs are created with
+   real IP instead of translated IP.
+   Currently this is only implemented for devices with two interfaces.
+
+4.6       2015-11-23 13:55:13+01:00 Europe/Berlin
+
+ - Overlapping IP address ranges of hosts must have identical owner now.
+ - Protocol modifiers src_any, dst_any are no longer supported.
+ - Routes for ID-hosts (i.e. VPN software clients) are
+   no longer combined at VPN hub.
+ - Fixed small bug in remove-from-netspoc.
+   It ignores start of group definition in comments now.
+ - Significant runtime and memory improvement by finding grouped rules
+   directly from rules of services.
+
+4.5       2015-11-03 16:48:57+01:00 Europe/Berlin
+
+ - Routes to adjacent networks are combined now,
+   if both use same hop and if combined network doesn't already exist.
+
+4.4       2015-11-02 10:29:59+01:00 Europe/Berlin
+
+ - Use about 10% less memory.
+ - 'ASA, 8.4' is no longer supported. Use 'ASA' instead.
+
+4.3       2015-10-30 13:50:13+01:00 Europe/Berlin
+
+ - Significant runtime improvement by combining expanded rules
+   to grouped rules.
+ - Improved program 'cut-netspoc'.
+   It removes unused hosts and interfaces now.
+
+4.2       2015-10-15 12:38:33+02:00 Europe/Berlin
+
+ - NAT commands for all models of ASA are no longer generated.
+   - These commands have to be configured manually now.
+   - Only use this version with Netspoc-Approve version >= 1.105,
+     that no longer touches global, static and nat command of ASA.
+ - Version >= 8.4 is default for ASA crypto commands.
+   - Old crypto commands are no longer suppported.
+   - ACLs are still supported for all ASA versions.
+ - Next version of Netspoc will no longer support extension '8.4',
+   because it is the default now.
+ - Support for router attribute 'strict_secondary' has been removed.
+
+4.1       2015-10-08 15:21:12+02:00 Europe/Berlin
+
+ - NAT commands for model ASA, 8.4 are no longer generated.
+   - These commands have to be configured manually now.
+   - Only use this version with Netspoc-Approve version >= 1.104,
+     that no longer touches "twice NAT" command of ASA 8.4.
+ - ACL lines with protocol ESP or AH are moved to the very first position now.
+   - Previously 'general permit' rules hat been put before them.
+   - Only use this version with Netspoc-Approve version >= 1.104,
+     which takes care, for not locking out from device during approve.
+ - Secondary optimization now leaves out supernets, that have
+   subnet in other zone. This gives slightly worse optimization,
+   but no longer generates unwanted supernet rules.
+ - Runtime improvements
+   - 'Checking rules with hidden or dynamic NAT'
+     is called earlier and runs much faster now.
+   - 'Check supernet rules' no longer checks rules with network having
+     any subnet, but only network having subnet in other zone.
+   - Optimization of rules for managed interfaces has been moved to pass 2.
+
+4.0       2015-09-25 13:31:34+02:00 Europe/Berlin
+
+ - Netspoc is a two pass compiler now.
+   Second pass optionally reuses code files from previous compiler run,
+   if intermediate code hasn't changed.
+   This gives a huge runtime improvement, because changes in ruleset
+   typically effect only a small part of all managed devices.
+   - First pass reads netspoc configuration and
+     generates intermediate files *.config and *.rules in code directory.
+   - Second pass reads intermediate files,
+     applies local and secondary optimization, finds object-groups
+     and generates final code files.
+   - Previous intermediate and code files are stored in subdirectory '.prev/'.
+   - Uses namespace Netspoc::Compiler.
+ - Fixed optimizations:
+   - A port range [B--C] was't merged with [A--(B-1)],
+     if some larger port range [B--D] with D>C existed.
+   - Subnet relation is recognized in more complicated cases now.
+   - Local and secondary optimization work more synchronized now.
+ - Removed options --comment_acls, --comment_routes.
+ - Removed unused feature to read watchers from JSON.
+
+3.070     2015-08-10 14:43:35+02:00 Europe/Berlin
+
+ - Optimized processing for rules at device with managed=local.
+   Until now, global rules were distributed to device with managed=local
+   and removed later during code generation.
+   Now these rules are no longer distributed at all.
+ - No longer check supernet rules at a device with managed=local,
+   if a rule isn't distributed to this device.
+ - No longer move supernet rules to front of ACL.
+   This was changed for code simplification,
+   and may change the order of generated ACLs.
+
+3.069     2015-07-09 10:44:08+02:00 Europe/Berlin
+
+ - Ignore hidden networks when processing static routes and NAT
+   for networks of aggregates.
+ - Fixed owner of auto-interfaces in users-user rules.
+ - Fixed 'misc/anonymize'.
+
+3.068     2015-06-29 13:33:46+02:00 Europe/Berlin
+
+ - Attribute 'peer-id-validate nocheck' of tunnel-group ipsec-attributes
+   is no longer printed for certificates, but only for preshared key.
+ - NAT attributes are inherited from matching aggregate and supernet
+   to matching subnets in zone.
+   - Attribute 'nat' can now be defined for matching aggregates.
+     It is inherited to all matching networks inside corresponding zone.
+   - Attribute 'nat' of supernet N is inherited now to all subnets S of N
+     inside corresponding zone. Subnet relation between N and S
+     is determined without consideration of NAT inside zone.
+ - Added check for useless identity NAT.
+ - Fixed add-to-netspoc / remove-from-netspoc for occurence after
+   negation or intersection.
+
+3.067     2015-06-22 13:35:39+02:00 Europe/Berlin
+
+ - Changes in generated crypto code for ASA:
+   - Always add tunnel-group-map if authentication=rsasig.
+     This is needed even for tunnel-group having IP address as name.
+   - Add route to reach VPN software clients.
+ - Moved program bin/export-netspoc from package Netspoc-Web
+   into this package.
+ - Option 'check_transient_supernet_rules' is activated by default.
+   Category is set to 'warn'.
+ - Revert changes in subroutine 'expand_protocols'.
+   This broke commands print-service and export-netspoc.
+ - No longer support isolated and promiscuous ports.
+
+3.066     2015-06-11 13:36:34+02:00 Europe/Berlin
+
+ - Changes in generated crypto code for ASA:
+   - Added support for dynamic crypto map.
+     Dynamic crypto map is generated at crypto hub,
+     if corresponding crypto spoke has no known IP address.
+   - No longer print 'chain' command in tunnel-group.
+   - Added isakmp attribute 'ike_version = 2'
+     to activate IKEv2 in site-to-site VPN.
+   - Added missing 'ikev1' in 'crypto ipsec transform-set'.
+   - ISAKMP commands are not printed any longer, because
+     Netspoc-Approve will ignore them anyway.
+ - General crypto changes:
+   - Keywords sha256, sha384, sha512 are accepted now.
+   - Syntax change: Use md5, sha instead of md5_hmac, sha_hmac.
+   - DH groups 14, 15, 16, 19, 20, 21, 24 are accepted now.
+ - Model name 'IOS_FW' isn't supported any longer. Use 'IOS, FW' instead.
+ - No longer support attribute no_in_acl at zone and std_in_acl at router.
+ - Src-range is stored in rules again instead of protocol.
+   This fixes issue #11, but order of ACL lines may change.
+ - Protocols of "general_permit" are generated for Linux devices now.
+ - Protocol with modifiers is no longer valid in "general_permit".
+ - Different ID-hosts with identical ID must not terminate
+   their VPN tunnel at a single VPN hub.
+ - Fixed handling of automatic groups in add-to/remove-from-netspoc.
+
+3.065     2015-03-13 17:59:49+01:00 Europe/Berlin
+
+ - Programs 'remove-from-netspoc' and 'add-to-netspoc' have been added.
+   Use them to automatically change elements of groups and rules.
+   Try option '-man' to see the manual page.
+ - Program 'print-group' no longer prints host ranges as subnets.
+ - Fixed program 'print-service'.
+ - No longer support unmanaged router in 'link' attribute of aggregate.
+ - Better error message for inconsistent area definition in loop.
+ - Better error message for inconsistent NAT definition in loop.
+
+3.064     2015-02-24 13:51:47+01:00 Europe/Berlin
+
+ - Internal processing of crypto tunnels has been improved.
+   This gives more than 10% faster runtime for
+   configurations with many crypto tunnels.
+ - Internal storage of expanded rules has been improved.
+   This gives about 22% lower memory usage.
+ - No longer support attribute 'tunnel_all'.
+ - No longer support config option 'area_ignore_crypto'.
+
+3.063     2015-02-06 16:28:34+01:00 Europe/Berlin
+
+ - Reject all rules which traverse a path where hidden/dynamic NAT is
+   enabled first and disabled later.
+   This additional check costs about 1% runtime performance.
+ - Improved runtime performance by about 20% in error check mode,
+   where no code is generated.
+
+3.062     2015-01-27 11:45:34+01:00 Europe/Berlin
+
+ - Removed global attribute 'policy_distribution_point' at host.
+   Use attribute 'policy_distribution_point' at router or area instead.
+ - Attribute 'tunnel_all' is optional and unused now.
+   Will be invalid in next version.
+ - Config option 'area_ignore_crypto' is enabled by default now.
+   Will be removed in next version.
+ - No longer guess route for crypto software clients
+   Virtual router of software clients must no longer be directly
+   connected with VPN router. Some other router must be placed in
+   between now. This router will be used as next hop when reaching
+   tunnelled software client network.
+ - Ignore blocked crypto interface when checking secondary optimization.
+ - Handle grouped NAT tags more restrictive.
+   Restrict use of hidden NAT tag together with grouped NAT tags:
+   - Don't allow other hidden NAT tags. Otherwise we can't be sure,
+     that shared hidden NAT tag will be activated.
+   - Don't allow the same group without shared hidden NAT tag.
+     Otherwise the shared hidden NAT tag won't be activated in a NAT domain,
+     where non hidden NAT tags are no longer active.
+   - But still allow grouped pairs of hidden NAT tags.
+ - Fixed nondeterminism in generated code
+   - for devices of model Linux with multiple interfaces and
+   - for devices with crypto tunnels of different type
+
+3.061     2015-01-09 10:33:56+01:00 Europe/Berlin
+
+ - Added different and now optional log modifiers:
+   - Simple 'log:x;' for IOS, NX-OS, ASA, ACE.
+   - Severities as modifier only for ASA.
+   - Modifier 'log-info' for IOS.
+   - No logging for PIX.
+   - Logging currently not implemented for Linux.
+ - Fixed 'log' attribute with object groups.
+   'log' attribute is now observed for optimized rule with object groups.
+ - Added new config option area_ignore_crypto.
+   If set, crypto interfaces aren't traversed when identifiying areas.
+   This option is currently off by default and
+   will be enabled unconditionally in next version.
+ - Removed config options check_owner_extend and check_routing_manual.
+ - Fixed handling of path ending at interface with pathrestriction.
+ - Allow owner with 'show_all' even if there are multiple toplevel areas.
+ - Fixed NAT for encrypted traffic of VPN tunnel.
+   Previously a wrong peer IP was used.
+
+3.060     2014-12-10 15:17:42+01:00 Europe/Berlin
+
+ - Added support for setting log severity.
+   Logging is changed by a combination of attributes at rules and devices.
+   Define one or more lines "log:<tag> = <severity>" at devices,
+   where logging should be enabled or changed.
+   - <tag> is some valid identifier.
+   - <severity> is one of
+     alerts|critical|debugging|disable|emergencies|
+     errors|informational|notifications|warnings
+   Define attribute "log = <tag1>, ...;" at each rule that needs
+   changed logging. A rule with logging for <tag1> is logged at each device,
+   where a matching "log:<tag1>" is defined.
+   Severity names correspond to well known UNIX log severities.
+   'disable' disables logging at devices of type ASA and PIX.
+ - Added new router type "managed = routing_only".
+   This will generate only static routes and no ACLs.
+   A device with "routing_only" doesn't split a security zone.
+   Rules with only a routes_only device in between are ignored with
+   warning "Unenforceable rule".
+   Hence, for traffic inside a security zone no static routes are generated.
+   These have to be added manually in file "raw/<device>".
+
+3.059     2014-12-04 15:55:12+01:00 Europe/Berlin
+
+ - New syntax: Element of attribute 'watchers' of owner A is allowed
+   to reference some other owner B. In this case all admins and
+   watchers of B are added to watchers of A.
+ - Fixed two bugs in secondary optimization,
+   where different NAT is applied to network and supernet.
+ - Added more consistency checks for networks having NAT
+   and that are in subnet relation
+ - Changed default for option --check_routing_manual from 0 to 1.
+ - Enhanced program 'cut-netspoc'.
+
+3.058     2014-11-05 15:01:23 Europe/Berlin
+
+ - Added new attribute 'routing=dynamic'.
+   This should be used at interface level. It has the same effect as
+   'routing=manual', but the new name shows more clearly, that the
+   route isn't configured manually but by some routing protocol.
+ - Attribute 'routing=manual' has been restricted.
+   It is no longer allowed as attribute of interface, but still at
+   router. The restriction of 'routing=manual' must be enabled by new
+   config option 'check_routing_manual'. This option will be removed in
+   the next but one release and the check will be fully enabled then.
+ - Added new attribute 'extend_unbounded' at owner.
+   Until now, check for inconsistent extended owners was disabled
+   globally by default. This check should now be enabled with
+   --check_owner_extend=1. For individual owners, the check can be
+   disabled again using attribute 'extend_unbounded'. Check has been
+   improved and a test case was added. Config option
+   'check_owner_extend' will be removed in the next but one release
+   and the check will be enabled by default.
+ - Check for validity of attribute 'show_all' of owner has been fixed.
+ - Better error message for ID host with IP range that is not a subnet.
+
+3.057     2014-11-03 10:17:30 Europe/Berlin
+
+ - Owner with attribute 'extend_only' must only be used at area.
+ - Internal Attribute {extended_owner} is calculated for use in Netspoc-Web.
+ - Command "rename-netspoc" now also ignores all hidden files.
+ - More error checks.
+
+3.056     2014-10-22 14:04:55 Europe/Berlin
+
+ - Reduced internal size of expanded rules,
+   giving better performance for large rule sets:
+   ~ 10% faster
+   ~ 5% less memory
+
+3.055     2014-10-07 15:12:47 Europe/Berlin
+
+ - Attribute 'admins' of owner is optional now if 'extend_only' is set.
+   But in this case some 'watchers' must be defined.
+ - Fixed check for interface and auto-interface together in intersection.
+   - Check auto-interface from network as well.
+   - No longer reject those interfaces inside a union of values.
+ - Fixed check for pathrestriction at group of routers with virtual IP.
+   Pathrestriction is allowed now if it applies to all routers of such
+   a group.
+ - Warn when inheriting useless 'router_attributes' or NAT definitions.
+ - Fixed command misc/anonymize to support newer features of Netspoc.
+
+3.054     2014-09-16 18:48:58 Europe/Berlin
+
+ - Extended valid names and handling of ID hosts.
+   Previously, the name needed to contain a '@' and
+   was always checked against the 'ea' field of the certificate.
+   Now a name without '@' is also valid. It is checked against some
+   other subject-name of the certificate.
+   Use the new attribute 'check-subject-name' inside 'radius_attributes'
+   to configure the to be checked subject-name.
+ - No longer ignore private configuration contexts (*.private)
+   in subdirectories.
+   But nested private configuration contexts are still rejected.
+ - Fixed NAT data for export to NetspocWeb
+   by removing needless entries from no_nat_set.
+ - Fixed command "print-group". It works for hosts again.
+
+3.053     2014-08-18 17:48:33 Europe/Berlin
+
+ - Added new attribute 'inclusive_border'.
+   With this attribute, the router of the border interface is part of
+   the area. The area starts at the router attached to the border
+   interface.
+
+3.052     2014-07-09 15:38:32 Europe/Berlin
+
+ - Again fixed 'owner' attribute at 'vip' interface.
+
+3.051     2014-07-09 14:21:06 Europe/Berlin
+
+ - Fixed 'owner' attribute at 'vip' interface.
+
+3.050     2014-07-07 10:08:39 Europe/Berlin
+
+ - Allow 'owner' attribute at 'vip' interface.
+ - Simplified syntax of IP addresses:
+   Valid: "ip = ip/prefixlen;"
+   Now invalid: "ip = ip; mask = mask;", "ip = ip/mask;"
+ - Fixed check for inconsistent NAT in loop.
+ - Fixed minor bug in path_walk at pathrestriction at exit of loop.
+
+3.049     2014-06-13 09:36:41 Europe/Berlin
+
+ - Fixed bad optimization that removed route to subnet.
+   Be networks N1 < N2 < N3 in subnet relation.
+   Static route for N1, N3 having next hop H1, N2 having next hop H2.
+   Route to N1 must not be removed as redundant to N3.
+   Otherwise, traffic to N1 would be routed to H2 by mistake.
+   This must also be observed if N3 is a default route.
+
+3.048     2014-06-12 09:45:08 Europe/Berlin
+
+ - Performance improvement: Optimized handling for those pathrestrictions,
+   that partition a cyclic subgraph.
+ - No longer accept an aggregate in rule that encloses a tunnel or
+   some ID hosts.
+
+3.047     2014-05-09 15:19:46 Europe/Berlin
+
+ - Implemented mode for faster error checks.
+   If netspoc is called without an out-directory,
+   code isn't written to STDOUT any longer.
+   Only error checks are done.
+ - Allow pfs group5 for ASA.
+
+3.046     2014-04-09 17:00:01 Europe/Berlin
+
+ - Unnumbered interfaces are accepted in pathrestriction now.
+ - Performace improvements.
+ - Netspoc now ignores all hidden files, not only '.' and '..'
+
+3.045     2014-04-01 17:41:47 Europe/Berlin
+
+ - Fixed implementation of attribute 'policy_distribution_point' at router.
+   A router with multiple matching interfaces wasn't handled correctly.
+
+3.044     2014-04-01 14:56:21 Europe/Berlin
+
+ - Fixed implementation of attribute 'general_permit'.
+   Previously it generated ACLs for unrelated routers.
+
+3.043     2014-04-01 09:53:55 Europe/Berlin
+
+ - Added new attribute 'strict_secondary'.
+   With this attribute, a device accepts only rules which
+   - either are optimized secondary
+   - or are simple:
+     - protocol is IP
+     - src and dst is either
+       network, loopback interface or interface of managed device.
+ - Added new attribute 'no_protect_self'.
+   With this attribute no deny rules are generated to protect
+   interfaces of a managed device. It is assumed that services of the
+   device are protected by other means. This attribute is applicable
+   to routers of model IOS, NX-OS and ACE.
+ - Added new attribute 'policy_distribution_point' at router.
+   Used this to select one of  multiple policy distribution points.
+ - Added new attribute 'general_permit' at router.
+   This is equivalent to 'global:permit', but applicable to single routers.
+ - Both new router attributes can be defined for all routers inside an area
+   using attribute 'router_attributes'.
+ - A NAT definition can be given at an aggregate with ip 0/0 now.
+   This applies the NAT definition to all networks inside the aggregate,
+   which don't already have a NAT definition.
+   Only dynamic and hidden NAT can be used here.
+ - Fixed generated route for NX_OS: don't omit trailing /32.
+   For NX_OS we generally create "i.i.i.i/32" instead of "host i.i.i.i" now
+   in access-lists and object-groups.
+ - Fixed check for missing aggregate rule on intermediate path
+   of Linux router.
+ - Improved runtime performance when checking missing aggregate rule
+   at router with many outgoing interfaces.
+ - Allow managed hosts, bridged and unnumbered network in 'private' parts
+   of topology.
+ - Fixed corner cases for NAT in loops.
+ - Fixed corner cases for multiple NAT tags at one object.
+ - Fixed possible duplicate error message on duplicate area.
+ - Fixed value of attribute 'extended_by' (used in export.pl of NetspocWeb).
+ - Fixed command line switch '-unused' of 'print-group'.
+   A network is unused only if all contained hosts and interfaces are unused.
+ - Ignore disabled network in command 'cut-netspoc'.
+ - 'cut-netspoc' prints output, even if errors occured.
+
+3.042     2014-01-06 10:51:30 Europe/Berlin
+
+ - Improved runtime to find and delete redundant reverse rules.
+ - No ACL is added to crosslink interfaces of IOS routers which don't filter.
+   Previously, an ACL with a single "permit ip any any" was generated.
+ - Managed loopback interfaces are excluded from automatic group of networks.
+ - Added support for 'managed = local_secondary'.
+   This works similar to 'managed = secondary', but only inside a
+   cluster of zones, connected by routers with 'managed=local' or
+   'managed=local_secondary'. If a rule is already filtered by a
+   router with 'managed=local', then a router with
+   'managed=local_secondary' only checks for source network and
+   destination network.
+ - Added support for crosslinked routers with different filter strenght.
+   If devices with different filter strenght are linked together by a
+   crosslink network, then omit filter only at crosslink interface of
+   weakest device.
+
+3.041     2013-11-28 08:52:14 Europe/Berlin
+
+ - Added support for virtual interface with HSRPv2.
+ - Fixed program 'print-service' (variable declaration).
+
+3.040     2013-11-27 16:50:52 Europe/Berlin
+
+ - Added attribute 'dhcp_server' to interface.
+   This adds an ACL which permits UDP port 67 to the interface.
+ - Added attribute 'vip' to interface of loadbalancer.
+   This is used to define a virtual IP similar to a 'loopback' interface.
+   The difference is,
+   - that no 'hardware' attribute is needed and
+   - the interface is left out from "protect own interfaces".
+   This is currently available for model 'ACE'.
+ - Added new program 'print-service' to show expanded rules of a service.
+ - Fixed syntax of generated access-lists for ACE.
+ - Fixed "protect own interfaces"
+   - check matching aggregates for possible access to interface,
+   - protect IOS interface at ASA if both are connected by crosslink interface.
+ - Removed pointless warning on overlaps with/at disabled sevices.
+
+3.039     2013-11-12 11:07:43 Europe/Berlin
+
+ - Access to contained managed hosts is implicitly permitted now,
+   if a rule permits traffic to a network or aggregate.
+   Support for managed hosts had been added recently. A rule which permits
+   access to a network, implictly permits access to hosts of this
+   network. Until now, access to each managed host had to be permitted
+   explicitly. This was counterintuitive.
+ - Added attribute 'server_name' for managed hosts.
+   This attribute has two use cases:
+   1. Change the name of the generated code file.
+      This name will also be checked by Netspoc-Approve.
+   2. Define multi-homed severs. Each interface of the server is defined
+      by a single host. All hosts are linked together by using
+      the same name in 'server_name'.
+ - Added support to select managed hosts of a network.
+   Syntax is: host:[managed & ...]
+ - Show warnings for all pairs of redundant rules.
+   Previously, only one larger rule was shown for each redundant rule.
+ - Generated code for Linux now excempts loopback packets from connection
+   tracking in table 'raw'.
+ - Added preliminary support for Cisco ACE. Activate with 'model = ACE'.
+ - Fixed object-group names in generated code for NX-OS
+   with multiple VRF contexts.
+ - Fixed host:[...] without keyword 'managed' to include managed hosts.
+ - Fixed any:[ip=i.i.i.i/m & any:[...]] to use mask of outer aggregate.
+ - Fixed subnet relation between matching aggregates.
+ - Fixed souperflous non local ACLs at device with managed=local.
+ - Fixed cut-netspoc to correctly use security zones.
+
+3.038     2013-10-21 16:23:09 Europe/Berlin
+
+ - print-group no longer aborts when printing IP address of auto interface,
+   but prints "unknown".
+ - print-group now supports option "-quiet".
+ - Better error handling.
+ - Improved runtime performance when generating reverse rules
+   for stateless routers.
+
+3.037     2013-10-01 18:29:12 Europe/Berlin
+
+ - Added support for managed Linux hosts to generate ACLs for servers.
+   Example
+    host:h = {
+     ip = 1.2.3.4;
+     model = Linux;
+     managed;
+     hardware = eth1;
+    }
+   This creates a file "host:h" with IPTables rules in out-directory.
+ - When generating rules for IPTables, the INPUT chain now gets a rule
+   to accept traffic on interface lo: "-A INPUT -j ACCEPT -i lo".
+ - Fixed too optimistic secondary optimization,
+   with network S2 in one zone, S1 and N in other zone and S2 < S1 < N.
+   (Bug was introduced in v3.035).
+
+3.036     2013-09-24 12:27:39 Europe/Berlin
+
+ - Fixed bug with nested implicit aggregates.
+
+3.035     2013-09-24 10:48:16 Europe/Berlin
+
+ - Added support for implicit matching aggregates,
+   to denote all matching networks inside an area or inside a zone.
+   E.g. any:[ip = 10.8.0.0/16 & area:x]
+ - Added new keyword 'has_unenforceable;' to selectively suppress
+   warnings about unenforceable rules.
+   - If added to a service, unenforceable rules of this service
+     are silently ignored.
+   - If added to a security zone (i.e aggregate with mask = 0),
+     all unenforceable rules with source and destination inside this zone
+     are silently ignored.
+ - Bridged network supports attribute 'owner' now.
+ - Fixed bug: auto interface of network can be used now.
+   i.e interface:[network.x].[auto]
+ - Attributes of aggregate are now propagated into all zones of
+   a cluster of zones.
+ - Fixed endless loop when parsing "network:x={host}"
+ - Identity NAT no longer generates NAT rules for device.
+
+3.034     2013-08-28 17:57:24 Europe/Berlin
+
+ - Fixed wrongly sorted IP addresses in object-groups introduced in 3.033.
+
+3.033     2013-08-28 16:26:33 Europe/Berlin
+
+ - A NAT definition can be given at an area now.
+   This applies the NAT definition to all networks inside the area,
+   which don't already have a NAT definition.
+   Only dynamic and hidden NAT can be used here.
+   NAT definitions from multiple areas are applied from smaller areas first.
+ - The concept of identity NAT has been introduced.
+   Use "nat:x = { identity; }' to define identity NAT,
+   i.e. the address remains unchanged.
+   Identity NAT is used to mask a network from the NAT definition of an area.
+ - A bridged network can be given a NAT definition now, but only identity NAT
+   is permitted.
+ - NAT can be bound to a bridged interface now.
+   Only hidden NAT should be used here.
+ - Global NAT isn't supported any longer.
+   This should be migrated to NAT at area.
+ - New router attribute 'routing'.
+   This value is inherited by all interfaces having no router attribute
+   of their own.
+ - Permit email address 'guest' for anonymous login in policy-web.
+ - No longer allow ports in global permit.
+ - Object-groups are reused even if used in ACLs bound to interfaces
+   in different NAT doamains.
+ - Fixed check for redundant rules with global permit.
+ - Fixed check for useless overlaps.
+   Check is done even if check for duplicate / redundant rules is disabled.
+ - Fixed check for unenforceable rules. Don't check disabled services.
+ - Ignore bridged interface in check for duplicate routes.
+ - Ignore duplicate networks and aggregates in automatic group resulting
+   from different interfaces connected to the same object.
+ - Mark secondary ip address as 'secondary' in generated code for NX-OS.
+
+3.032     2013-06-24 15:05:25 Europe/Berlin
+
+ - New 'managed = local' option for device that filters only local traffic.
+   A list of local ip/prefix pairs is given in new attribute 'filter_only'.
+   All attached networks, not filtered by some other non-local
+   packet filter, must match some ip of 'filter_only'.
+   Only traffic with source and destination matching 'filter_only'
+   is filtered. All other traffic passes unfiltered.
+   This is implemented by adding deny and permit rules:
+   - permit local traffic
+   - deny local traffic
+   - permit any other traffic
+ - Fixed check for unused 'overlaps' declarations.
+
+3.031     2013-05-31 10:15:14 Europe/Berlin
+
+ - Fixed check for useless pathrestriction inside security zone.
+ - Fixed check for unenforceable rules between security zone with
+   pathrestriction at unmanaged device.
+ - Fixed syntax check for aggregate.
+ - netspoc now reads from stdin, if no arg is given.
+   Filename "-" for reading stdin isn't supported any longer.
+ - Fixed performance and tests for perl5.18.0.
+
+3.030     2013-04-24 16:47:17 Europe/Berlin
+
+ - Fixed access to layer3 interface of bridged ASA.
+
+3.029     2013-04-17 15:53:38 Europe/Berlin
+
+ - Fixed duplicate ACL line from unmanaged virtual interface.
+ - Fixed superfluous warning on unused owner.
+ - Changed default: check_service_unknown_owner = 0 (was 'warn').
+ - Minor fixes with NAT and minimal topology.
+ - Moved programs newpolicy and newpolicy.pl to project Netspoc-Approve.
+
+3.028     2013-03-26 12:08:23 Europe/Berlin
+
+ - Fixed minor bug: Prevent deep recursion in set_routes_in_zone.
+
+3.027     2013-03-25 13:07:19 Europe/Berlin
+
+ - Fixed minor bug: Prevent deep recursion in set_zone1 and set_zone_cluster.
+
+3.026     2013-03-08 11:49:38 Europe/Berlin
+
+ - Fixed minor bug: Handle only managed routers of a VRF.
+  This prevents warning messages "uninitialized value".
+
+3.025     2013-03-06 15:19:51 Europe/Berlin
+
+ - Allow mixed managed and unmanaged VRFs on the same device.
+
+3.024     2013-02-19 10:11:28 Europe/Berlin
+
+ - Added attribute 'sub_owner' to service definition.
+   Typically, the owner is definied at networks (or hosts).
+   A service S implicitly inherits its owner from a network N,
+   if S defines access to objects of network N.
+   The owner of network N can delegate the user management
+   of a service S to some owner X.
+   In this use case, S gets an explicit sub_owner X.
+   X is only allowed to change users of S.
+   X is not allowed to change the definition of S.
+ - Removed support for model VPN3K (Cisco VPN 3000)
+
+3.023     2013-02-04 16:34:46 Europe/Berlin
+
+- Better handling of unnumbered interface at managed device.
+- Fixed optimization of virtual loopback interfaces.
+- Fixed more nondeterminism in generated code.
+
+3.022     2013-01-17 11:58:31 Europe/Berlin
+
+- Allow a single virtual interface.
+- Added support for NX-OS
+  - ACLs
+  - object-groups
+  - routing
+  - VRF support
+- no longer support syntax srv, policy, etc.
+- no longer support syntax admin:xx
+- no longer generate icmp, http, telnet, ssh commands for ASA/PIX
+
+3.021     2012-11-13 14:37:55 Europe/Berlin
+
+- Use email address directly as admins / watchers attributes of owner.
+  Old syntax with admin:xx is still supported.
+- Support ASA as EZVPN client: model = ASA, EZVPN
+  This assumes, that appropriate commands vpdn and vpnclient
+  have been configured manually.
+- Allow virtual interface between managed and unmanaged router.
+- Again fixed nondeterminism when printing host routes to physical interface
+  of XRRP group.
+
+3.020     2012-10-30 11:51:32 Europe/Berlin
+
+- When generating static routes for an interface of ASA with site-to-site VPN,
+  the device needs an explicit route for each peer.
+  This has been implemented.
+- Added support for NAT of tunneled IPSec traffic.
+- No longer reject NAT for a network located inside the security zone
+  of a network with mask 0 (the Internet).
+- New attribute 'alias' for owners.
+  This is used to display an alternate / changed name in Netspoc-Web.
+- If overlapping host ranges are added to a group, a warning is printed now.
+- Joining of adjacent subnets didn't work in some cases. This has been fixed.
+- Fixed check for duplicate id at different VPN interfaces.
+- Fixed nondeterminism when printing host routes to physical interface
+  of XRRP group.
+
+3.019     2012-09-20 11:02:33 Europe/Berlin
+
+- No longer generate IPSec commands "isakmp identity", "isakmp nat-traversal"
+- Removed option warn_pix_icmp_code. ICMP code is ignored silently now.
+- Many consistency checks have been moved to an earlier phase
+  of the compilation process.
+- Fixed some minor bugs.
+- Added more test cases.
+
+3.018     2012-08-15 14:22:45 Europe/Berlin
+
+- Only check aggregates/supernets with mask = 0 for transient any rules.
+- Get owner of zone at loopback interface from owner of interface.
+
+3.017     2012-08-10 14:26:49 Europe/Berlin
+
+- Fixed bug with multiple aggregates having same IP.
+
+3.016     2012-08-09 15:43:38 Europe/Berlin
+
+- Fixed parser for reading ip address in
+  any:X = { link = network:Y; ip = i.i.i.i/n; }
+- Optimize redundant port for iptables.
+  This is necessary for cases where global optimization doesn't work
+  because similar rules are applied to different objects which get the
+  same IP from NAT.
+
+3.015     2012-06-22 11:31:59 Europe/Berlin
+
+- Introduced new attribute 'detailed_crypto_acl' for crypto definition.
+  This changes generated crypto ACL at VPN hub from
+    permit ip any <destination networks>
+  to
+    permit ip <used local networks> <destination networks>
+  Used local networks are automatically derived from current filter rules.
+  This attribute is only valid if remote device is unmanaged.
+  It is used if "any" can't be configured at remote device.
+
+3.014     2012-06-05 10:47:03 Europe/Berlin
+
+- Fixed order of generated ACL from automatic group network:[area:X]
+- No longer allow border of area at unmanaged interface
+  having pathrestriction. Otherwise we get inconsistent owners
+  for zones having pathrestriction at unmanaged device.
+- Introduced new attribute 'show_all' for owner.
+  This is used in Netspoc-Web to have an owner which sees
+  the whole topology and all services. This attribute is only valid
+  for the owner of an area which spans the whole topology.
+- Added check for useless pathrestriction at unmanaged interfaces.
+- Minor bugfixes.
+
+3.013     2012-05-15 11:04:49 Europe/Berlin
+
+- Fixed bug with duplicate elements in object-groups.
+  A pair of redundancy interfaces wasn't detected as identical
+  - if these interfaces were loopback interfaces and
+  - if the corresponding loopback network didn't have
+    any identical network from NAT or from aggregates.
+- Fixed bug with missing networks in automatic group
+  if security zone had pathrestriction at unmanaged device.
+  Now, network:[any:X] holds all networks inside zone of any:X,
+  regardless of pathrestrictions defined at unmanaged devices
+  inside the zone.
+- Removed recently introduced attribute 'subnet' for hosts.
+  It should be replaced by real networks with attribute 'subnet_of'.
+- Changed handling of security levels for ASA / PIX:
+  - Introduced attribute 'security_level' at interface to
+    explicitly set the security level.
+  - Derive security level if interface name is matching
+    'inside' or 'outside'. Previously it had to be equal.
+  - No longer abort, if no security level is given,
+    but use value 50 as default.
+  - Allow traffic between equal security levels.
+
+3.012     2012-04-24 14:25:46 Europe/Berlin
+
+- Fixed bug with no_in_acl together with crosslink.
+  This fixes useless permit rules at interface with attribute 'no_in_acl'
+  if a device had both 'no_in_acl' interface and crosslink interface.
+  In this case, the crosslink interface now gets ougoing ACL with
+  "permit ip any any".
+- Two small fixes in check for use of hidden object in rule.
+- Bug fix: Copy attribute "routing" to secondary interface.
+  Otherwise static routes would be generated for interface with
+  dynamic routing enabled.
+
+3.011     2012-04-23 13:11:16 Europe/Berlin
+
+- Use largest supernet in zone for routing.
+  Add largest supernet inside the zone, if available. This is needed,
+  because we use the supernet in secondary optimization too. Moreover
+  this reduces the number of routing entries. It isn't sufficient to
+  solely use the supernet because network and supernet can have
+  different next hops at end of path. For an aggregate, take all
+  matching networks inside the zone. These are supernets by design.
+- network:[<loopback-interface>] results in an interface now.
+  The loopback network is never used. This fixes some ACLs.
+- Relaxed check for types in intersection of group.
+  Different types of objects are permitted in intersection now.
+  But interface and auto-interface of same router are still rejected.
+- Improved runtime of local optimization.
+- Fixed secondary optimization: no longer use a network which has
+  subnet in other zones. We must not change to network having subnet
+  in other zone, because then we had to do check_supernet_rules for
+  newly created secondary rules.
+- Improved secondary optimization: Use largest supernet in zone.
+- Don't apply secondary optimization to network with ID-hosts.
+  This could lead to unwanted permission if software client uses spoofed
+  IP address.
+- No longer generate reverse rules for ASA,VPN with no_crypto_filter
+  ASA,VPN with no_crypto_filter attribute set, use ACL at cleartext interface.
+  Hence no reverse rules are needed.
+- Allow simple protocols in global:permit.
+- Internally renamed attributes and exported global variables,
+  e.g. %poliocies -> %services, srv -> prt.
+- Removed unused syntax for host:id:user (without @domain)
+- Rules using protocol with attribute no_check_supernet_rules
+  aren't checked for transient supernet rules.
+- Changed default values for config options:
+  check_service_unknown_owner => 'warn',
+  check_service_multi_owner => 'warn',
+  Permit and ignore old options check_policy_multi_owner,
+  check_policy_unknown_owner to ease migration.
+
+3.010     2012-03-28 15:03:18 Europe/Berlin
+
+- Syntax for aggregates is extended to have an optional ip/mask
+  any:X = { link = network:Y; ip = i.i.i.i/n; }
+  If no ip is given, it defaults to 0/0.
+  This generates aggregated ACLs with ip/mask,
+  effectively allowing all matching networks to pass.
+- Automatic group  network:[any:X]  holds all networks matching any:X
+  inside the security zone, where any:X is defined.
+- Attribute 'route_hint' of network is changed to 'has_subnets'.
+  This allows the network to have subnets.
+  Networks with 'has_subnets' can now be used in rules and are allowed
+  to have hosts.
+- Improvements in checks for missing rules on path:
+  - checks are applied now to all rules having supernets
+    as source or destination.
+  - checks for automatically generated reverse rules at stateless devices
+    are left out, if there is some stateful managed device on path.
+  - if only a single network matches in a zone, it is sufficient
+    to have a rule with this single network.
+    It is no longer required to use an aggregate with the same size
+    as in the original rule.
+- The modifier 'no_check_supernet_rules' can be added to protocol definitions.
+  This disables check for missing rules for rules having such a protocol.
+- Redundant rules from networks in subnet relation are detected now
+  and a warning is given.
+- Attribute 'owner' is inherited from a network to its subnets.
+- Networks in subnet relation are checked to have consistent NAT definition.
+
+3.009     2012-03-23 14:05:22 Europe/Berlin
+
+- Added support for two or more networks behind EZVPN devices.
+- Certificate name is stored now in attribute 'id'
+  of remote tunnel interface and now longer at the remote network.
+  Old syntax is still suported.
+
+3.008     2012-03-06 16:53:55 Europe/Berlin
+
+- Added support for anyconnect clients of ASA 8.4.
+- Added flag 'disabled' to disable a service.
+- Copy raw files to output directory for better integration
+  with Netspoc-Approve.
+- Check for unused raw files.
+  Check can be configured using option '-check_raw=0|1|warn'.
+- Added option '-check_unused_protocols=0|1|warn'.
+- Check overlapping ranges for consistent owner.
+- Disabled old syntax 'policy:'.
+  Old syntax can still be enabled using command line switch 'old_syntax'.
+- Added option '-owner' to command 'print-group'.
+
+3.007     2012-02-20 15:54:32 Europe/Berlin
+- Print host NAT commands first if used together with dynamic NAT.
+  Print host NAT for ASA 8.4 with line number 1.
+- Allow simple protocol descriptions like 'tcp <port>' directly in rules and
+  protocolgroups now.
+- Attribute 'type' of virtual interfaces is optional now. If omitted,
+  no code to permit the redunancy protocol is generated.
+- New attribute 'subnet' for hosts as alternate syntax to define a range.
+  Syntax is "subnet = ip/{prefix|mask}".
+- Generalized reading of mask for network and nat.
+  Added ip = i.i.i.i/m.m.m.m as valid syntax.
+- Disabled old syntax srv, service, servicegroup.
+  Old syntax can still be enabled using command line switch 'old_syntax'.
+- Prepare migration of keyword 'policy' to 'service'.
+  We will change 'policy:' to 'service:'. This version allows both
+  keywords interchangeable.
+- Fixed bug in parser which allowed accepted names like type:xx:name
+  by mistake.
+- Fixed another occurence of bug #108480 in perl versions 5.14.*.
+
+3.006     2012-02-06 14:12:09 Europe/Berlin
+- Support new radius_attribute "authorization-required"
+  for tunnel-group general-attributes.
+- We will migrate 'service' to 'protocol', 'srv' to 'prt', 'servicegroup'
+  to 'protocolgroup'. This version allows both keywords interchangeably.
+
+3.005     2012-01-31 16:53:10 Europe/Berlin
+- Fixed dynamic NAT for ASA 8.4, use range and host in out-objects.
+- Support new radius_attributes
+  authorization-server-group, username-from-certificate
+  for tunnel-group general-attributes.
+- Fixed check for overlap of interface with subnet.
+- Added workaround for bug #108480 of perl 5.14 series.
+
+3.004     2012-01-24 18:22:13 Europe/Berlin
+- Added support for changed NAT commands of ASA version 8.4.
