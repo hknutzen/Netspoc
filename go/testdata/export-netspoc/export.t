@@ -3653,7 +3653,7 @@ Error: unknown flag: --foo
 =END=
 
 ############################################################
-=TITLE=Mising output directory
+=TITLE=Missing output directory
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
 =TEMPL=usage
 Usage: PROGRAM [options] netspoc-data out-directory
