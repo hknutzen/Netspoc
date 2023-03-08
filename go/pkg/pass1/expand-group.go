@@ -683,6 +683,19 @@ func (c *spoc) expandGroup(
 	return c.removeDuplicates(result, ctx)
 }
 
+func (c *spoc) expandUser(sv *service) groupObjList {
+	user := groupObjList{}
+	ctx := "user of " + sv.name
+	if len(sv.user) == 0 {
+		if errType := c.conf.CheckServiceEmptyUser; errType != "" {
+			c.warnOrErr(errType, ctx+" is empty")
+		}
+	} else {
+		user = c.expandGroup(sv.user, ctx, sv.ipV6, false)
+	}
+	return user
+}
+
 func (c *spoc) expandGroupInRule(
 	l []ast.Element, ctx string, ipv6 bool) groupObjList {
 

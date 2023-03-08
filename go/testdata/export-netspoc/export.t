@@ -3700,6 +3700,24 @@ Error: Duplicate any:n1b and any:n1c in any:[network:n1]
 =END=
 
 ############################################################
+=TITLE=Observe disabled warning from config
+=INPUT=
+-- config
+check_empty_files=0
+check_service_empty_user=0
+-- empty
+# only comment
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=WITH_OUTDIR=true
+=WARNING=NONE
+
+############################################################
 =TITLE=Preserve real NAT together with hidden NAT
 # Must preserve nat:n2 when combined with hidden nat:n3
 # in nat_set of owner:n23.

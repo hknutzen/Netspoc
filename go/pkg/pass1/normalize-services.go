@@ -202,16 +202,7 @@ func (c *spoc) normalizeSrcDstList(
 }
 
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
-	ipv6 := s.ipV6
-	user := groupObjList{}
-	ctx := "user of " + s.name
-	if len(s.user) == 0 {
-		if errType := c.conf.CheckServiceEmptyUser; errType != "" {
-			c.warnOrErr(errType, ctx+" is empty")
-		}
-	} else {
-		user = c.expandGroup(s.user, ctx, ipv6, false)
-	}
+	user := c.expandUser(s)
 	s.expandedUser = user
 	hasRules := false
 
