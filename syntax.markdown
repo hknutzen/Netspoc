@@ -170,7 +170,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ owner = <name>;                      ]
       }
 
-here `<object set>` must expand to networks.
+where `<object set>` must expand to networks.
 
     <secondary interface definition> ::=
       secondary:<name> = { ip = <ip>; }
@@ -211,6 +211,8 @@ here `<object set>` must expand to networks.
          <network NAT> *
          [ <default router attributes> ]
       }
+
+where `<object set>` must expand to interfaces.
 
     <default router attributes> ::=
       router_attributes = {
