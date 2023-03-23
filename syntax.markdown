@@ -252,7 +252,7 @@ here `<object set>` must expand to networks.
     <group definition> ::=
       group:<name> =
         [ <description> ]
-        <object set>
+        <object set with area>
       ;
 
 
