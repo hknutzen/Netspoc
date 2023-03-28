@@ -25,8 +25,8 @@ service:test = {
 ipv6 access-list ethernet0_in
  deny ipv6 any host f000::c0a8:101
  permit tcp host ::a01:10f f000::c0a8:100/120 eq 80
- permit tcp ::a01:120/126 f000::c0a8:100/120 eq 80
  permit tcp ::a01:110/124 f000::c0a8:100/120 eq 80
+ permit tcp ::a01:120/126 f000::c0a8:100/120 eq 80
  deny ipv6 any any
 =END=
 
