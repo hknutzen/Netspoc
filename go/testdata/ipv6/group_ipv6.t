@@ -245,6 +245,73 @@ Warning: Duplicate elements in group:g1:
 =END=
 
 ############################################################
+=TITLE=Area as element of group
+=PARAMS=--ipv6
+=INPUT=
+area:a1 = { border = interface:r1.n1; }
+area:a2 = { border = interface:r1.n2; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+group:g1 = area:a1, area:a2;
+service:s1 = {
+ user = network:[group:g1];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit tcp ::a01:100/120 ::a01:300/120 eq 22
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp ::a01:200/120 ::a01:300/120 eq 22
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Mixed area and non area as element of group
+=PARAMS=--ipv6
+=INPUT=
+area:a1 = { border = interface:r1.n1; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+group:g1 = area:a1, network:n2;
+service:s1 = {
+ user = network:[group:g1];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit tcp ::a01:100/120 ::a01:300/120 eq 22
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp ::a01:200/120 ::a01:300/120 eq 22
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Silently ignore duplicate elements from automatic interfaces
 =PARAMS=--ipv6
 =INPUT=
