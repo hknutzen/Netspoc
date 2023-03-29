@@ -64,6 +64,45 @@ ip access-list extended ethernet0_in
 =END=
 
 ############################################################
+=TITLE=Combine host ranges  into network and ignore it in 2. step
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h4 = { ip = 10.1.1.4; }
+ host:h5 = { ip = 10.1.1.5; }
+ host:r6-7 = { range = 10.1.1.6-10.1.1.7; }
+}
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:r0-127 = { range = 10.1.2.0-10.1.2.127; }
+ host:r128-255 = { range = 10.1.2.128-10.1.2.255; }
+}
+router:r = {
+ model = IOS, FW;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+service:test = {
+ user = host:h4, host:h5, host:r6-7, host:r0-127, host:r128-255;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--r
+ip access-list extended n1_in
+ deny ip any host 10.1.3.1
+ permit tcp 10.1.1.4 0.0.0.3 10.1.3.0 0.0.0.255 eq 80
+ permit tcp 10.1.2.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Large host ranges for non private addresses
 #No IPv6
 =INPUT=
