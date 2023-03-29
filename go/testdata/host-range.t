@@ -1,5 +1,39 @@
 
 ############################################################
+=TITLE=Leave order unchanged when combining addresses
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h2 = { ip = 10.1.1.2; }
+ host:h3 = { ip = 10.1.1.3; }
+ host:h4 = { ip = 10.1.1.4; }
+ host:h6 = { ip = 10.1.1.6; }
+ host:h7 = { ip = 10.1.1.7; }
+ host:h8 = { ip = 10.1.1.8; }
+}
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:test = {
+ user = host:h2, host:h4, host:h3, host:h7, host:h8, host:h6;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--r
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.2 0.0.0.1 10.1.2.0 0.0.0.255 eq 80
+ permit tcp host 10.1.1.4 10.1.2.0 0.0.0.255 eq 80
+ permit tcp host 10.1.1.8 10.1.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.6 0.0.0.1 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Split and combine host ranges
 =INPUT=
 network:n = {
