@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - IP address is no longer moved in ACL when combining subnets.
+
 6.057     2023-03-07 14:17:29+01:00 Europe/Berlin
 
  - Added new option '--check_empty_files=0|warn|err'.
