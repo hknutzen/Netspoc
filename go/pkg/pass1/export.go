@@ -388,7 +388,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	c.progress("Normalize services for export")
 	var result []*exportedSvc
 	for _, sv := range c.ascendingServices {
-		user := c.expandGroup(sv.user, "user of "+sv.name, sv.ipV6, false)
+		user := c.expandUser(sv)
 		foreach := sv.foreach
 
 		type tmpRule struct {

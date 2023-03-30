@@ -460,7 +460,7 @@ router:r2 = {
  interface:n2 = {ip = ::a01:2fd; virtual = {ip = ::a01:201; } hardware = n2; }
 }
 network:n2 = { ip = ::a01:200/120; }
-protocol:Ping_Netz = icmpv6 8, src_net, dst_net;
+protocol:Ping_Netz = icmpv6 8/0, src_net, dst_net;
 service:s1 = {
  user =  interface:u1.n2;
  permit src = user; dst = network:n1; prt = protocol:Ping_Netz;
@@ -468,7 +468,7 @@ service:s1 = {
 =OUTPUT=
 --ipv6/r2
 ipv6 access-list n2_in
- permit icmp ::a01:200/120 ::a01:100/120 8
+ permit icmp ::a01:200/120 ::a01:100/120 8 0
  deny ipv6 any any
 =END=
 

@@ -3,7 +3,7 @@ package pass2
 /*
 Pass 2 of Netspoc - A Network Security Policy Compiler
 
-(C) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -26,13 +26,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net/netip"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
 
 func panicf(format string, args ...interface{}) {
@@ -303,7 +304,7 @@ func readJSON(path string) *routerData {
 		panic(err)
 	}
 	rData := new(routerData)
-	if i := strings.Index(path, "/ipv6/"); i != -1 {
+	if strings.Contains(path, "/ipv6/") {
 		rData.ipv6 = true
 	}
 	rData.model = jData.Model

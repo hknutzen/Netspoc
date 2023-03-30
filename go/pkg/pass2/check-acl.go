@@ -2,12 +2,13 @@ package pass2
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -216,7 +217,7 @@ func addPackets(a *aclInfo, l []*packet) {
 		}
 		seen[*p] = true
 		ipObj := func(s string) *ipNet {
-			if i := strings.Index(s, ":"); i != -1 {
+			if strings.Contains(s, ":") {
 				s += "/128"
 			} else {
 				s += "/32"

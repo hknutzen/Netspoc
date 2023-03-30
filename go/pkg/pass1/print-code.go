@@ -1473,7 +1473,7 @@ func printCaAndTunnelGroupMap(fh *os.File, id, tgName string) {
 	// Activate tunnel-group with tunnel-group-map.
 	// Use id as ca-map name.
 	subjectName := "ea"
-	if strings.Index(id, "@") == -1 {
+	if !strings.Contains(id, "@") {
 		subjectName = "cn"
 	}
 	fmt.Fprintln(fh, "crypto ca certificate map", id, "10")

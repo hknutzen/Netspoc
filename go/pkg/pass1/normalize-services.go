@@ -202,9 +202,7 @@ func (c *spoc) normalizeSrcDstList(
 }
 
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
-	ipv6 := s.ipV6
-	ctx := s.name
-	user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
+	user := c.expandUser(s)
 	s.expandedUser = user
 	hasRules := false
 
@@ -284,7 +282,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 		}
 	}
 	if !hasRules && len(user) == 0 {
-		c.warn("Must not define %s with empty users and empty rules", ctx)
+		c.warn("Must not define %s with empty users and empty rules", s.name)
 	}
 }
 

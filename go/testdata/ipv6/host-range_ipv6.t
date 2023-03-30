@@ -1,5 +1,40 @@
 
 ############################################################
+=TITLE=Leave order unchanged when combining addresses
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ host:h2 = { ip = ::a01:102; }
+ host:h3 = { ip = ::a01:103; }
+ host:h4 = { ip = ::a01:104; }
+ host:h6 = { ip = ::a01:106; }
+ host:h7 = { ip = ::a01:107; }
+ host:h8 = { ip = ::a01:108; }
+}
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+network:n2 = { ip = ::a01:200/120; }
+service:test = {
+ user = host:h2, host:h4, host:h3, host:h7, host:h8, host:h6;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:201
+ permit tcp ::a01:102/127 ::a01:200/120 eq 80
+ permit tcp host ::a01:104 ::a01:200/120 eq 80
+ permit tcp host ::a01:108 ::a01:200/120 eq 80
+ permit tcp ::a01:106/127 ::a01:200/120 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Split and combine host ranges
 =PARAMS=--ipv6
 =INPUT=
@@ -25,8 +60,48 @@ service:test = {
 ipv6 access-list ethernet0_in
  deny ipv6 any host f000::c0a8:101
  permit tcp host ::a01:10f f000::c0a8:100/120 eq 80
- permit tcp ::a01:120/126 f000::c0a8:100/120 eq 80
  permit tcp ::a01:110/124 f000::c0a8:100/120 eq 80
+ permit tcp ::a01:120/126 f000::c0a8:100/120 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Combine host ranges  into network and ignore it in 2. step
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ host:h4 = { ip = ::a01:104; }
+ host:h5 = { ip = ::a01:105; }
+ host:r6-7 = { range = ::a01:106-::a01:107; }
+}
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+network:n2 = {
+ ip = ::a01:200/120;
+ host:r0-127 = { range = ::a01:200-::a01:27f; }
+ host:r128-255 = { range = ::a01:280-::a01:2ff; }
+}
+router:r = {
+ model = IOS, FW;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+network:n3 = { ip = ::a01:300/120; }
+service:test = {
+ user = host:h4, host:h5, host:r6-7, host:r0-127, host:r128-255;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:301
+ permit tcp ::a01:104/126 ::a01:300/120 eq 80
+ permit tcp ::a01:200/120 ::a01:300/120 eq 80
  deny ipv6 any any
 =END=
 

@@ -224,64 +224,75 @@ func (c *spoc) convertHosts() {
 
 // Find adjacent subnets and substitute them by their enclosing subnet.
 func combineSubnets(list []someObj) []someObj {
-	m := make(map[*subnet]bool)
-	var others []someObj
-	var subnets []*subnet
 
-	// Find subnets in list.
-	for _, obj := range list {
+	// Find possibly optimizable subnets and their positions in list.
+	m := make(map[someObj]int)
+	for i, obj := range list {
 		if s, ok := obj.(*subnet); ok {
 			if s.neighbor != nil || s.hasNeighbor {
-				subnets = append(subnets, s)
-				m[s] = true
-				continue
+				m[obj] = i
 			}
 		}
-		others = append(others, obj)
 	}
-	if subnets == nil {
-		return others
+	if len(m) < 2 {
+		return list
 	}
 
 	// Combine found subnets.
-	var networks netList
+	// Remember index of deleted objects.
+	delIdx := make(map[int]bool)
 	again := true
 	for again {
 		again = false
-		for i, s := range subnets {
+		for obj, idx := range m {
+			s, ok := obj.(*subnet)
+			if !ok {
+				continue
+			}
 			neighbor := s.neighbor
 			if neighbor == nil {
 				continue
 			}
-			if _, ok := m[neighbor]; !ok {
+			idx2, ok := m[neighbor]
+			if !ok {
 				continue
 			}
+			delIdx[idx2] = true
 			delete(m, s)
 			delete(m, neighbor)
-			up := s.up
-			switch x := up.(type) {
-			case *network:
-				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
-				networks.push(x)
-			case *subnet:
-				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
-				m[x] = true
-				subnets[i] = x
+			up := s.up // Has type *subnet or *network.
+			//debug("Combined %s, %s to %s", s, neighbor, up)
+			m[up] = idx
+			if _, ok := up.(*subnet); ok {
 				again = true
 			}
 		}
 	}
 
-	// Add combined subnets to others again.
-	for _, s := range subnets {
-		if m[s] {
-			others = append(others, s)
+	if len(delIdx) == 0 {
+		return list
+	}
+
+	chgIdx := make(map[int]someObj, len(m))
+	for obj, idx := range m {
+		chgIdx[idx] = obj
+	}
+
+	// Change optimized objects in list.
+	// Remove deleted objects from list.
+	// Must not modify original list, because it may be referenced by
+	// different grouped rules.
+	cp := make([]someObj, 0, len(list)-len(delIdx))
+	for i, obj := range list {
+		if delIdx[i] {
+			continue
 		}
+		if opt, ok := chgIdx[i]; ok {
+			obj = opt
+		}
+		cp = append(cp, obj)
 	}
-	for _, n := range networks {
-		others = append(others, n)
-	}
-	return others
+	return cp
 }
 
 //#######################################################################

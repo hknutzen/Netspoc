@@ -1,3 +1,21 @@
+6.058     2023-03-30 16:41:54+02:00 Europe/Berlin
+
+ - IP address is no longer moved in ACL when combining subnets.
+
+6.057     2023-03-07 14:17:29+01:00 Europe/Berlin
+
+ - Added new option '--check_empty_files=0|warn|err'.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about files with no content
+   are no longer shown.
+   This is useful, if files may become empty when definitions
+   are deleted via Netspoc-API.
+ - Added new option '--check_service_empty_user=0|warn|err''.
+   It is enabled by default with value 'warn'.
+   If this option is disabled, warnings about services with empty user
+   are no longer shown.
+   This is useful, if services are modified via Netspoc-API.
+
 6.056     2023-01-30 12:02:02+01:00 Europe/Berlin
 
  - Added new option '--check_service_useless_attribute=0|warn|err'.

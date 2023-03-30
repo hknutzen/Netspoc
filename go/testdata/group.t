@@ -232,6 +232,71 @@ Warning: Duplicate elements in group:g1:
 =END=
 
 ############################################################
+=TITLE=Area as element of group
+=INPUT=
+area:a1 = { border = interface:r1.n1; }
+area:a2 = { border = interface:r1.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+group:g1 = area:a1, area:a2;
+service:s1 = {
+ user = network:[group:g1];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Mixed area and non area as element of group
+=INPUT=
+area:a1 = { border = interface:r1.n1; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+group:g1 = area:a1, network:n2;
+service:s1 = {
+ user = network:[group:g1];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Silently ignore duplicate elements from automatic interfaces
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

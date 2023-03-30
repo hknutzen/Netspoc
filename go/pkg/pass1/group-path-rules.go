@@ -110,7 +110,7 @@ type groupWithPath struct {
 
 // Collect elements into groups of elements from identical zone.
 // Put multiple interfaces of managed router always into different
-// groups, even if router is itentical.
+// groups, even if router is identical.
 func splitRuleGroup(group []someObj) []groupWithPath {
 	// Check if group has elements from different zones and must be split.
 	path0 := group[0].getPathNode()

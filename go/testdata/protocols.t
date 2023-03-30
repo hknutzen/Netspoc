@@ -435,7 +435,7 @@ router:r2 = {
  interface:n2 = {ip = 10.1.2.253; virtual = {ip = 10.1.2.1; } hardware = n2; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
-protocol:Ping_Netz = icmp 8, src_net, dst_net;
+protocol:Ping_Netz = icmp 8/0, src_net, dst_net;
 service:s1 = {
  user =  interface:u1.n2;
  permit src = user; dst = network:n1; prt = protocol:Ping_Netz;
@@ -443,7 +443,7 @@ service:s1 = {
 =OUTPUT=
 --r2
 ip access-list extended n2_in
- permit icmp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 8
+ permit icmp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 8 0
  deny ip any any
 =END=
 

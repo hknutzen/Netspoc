@@ -3653,7 +3653,7 @@ Error: unknown flag: --foo
 =END=
 
 ############################################################
-=TITLE=Mising output directory
+=TITLE=Missing output directory
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
 =TEMPL=usage
 Usage: PROGRAM [options] netspoc-data out-directory
@@ -3698,6 +3698,24 @@ Error: Duplicate any:n1 and any:n1a in any:[network:n1]
 Error: Duplicate any:n1a and any:n1b in any:[network:n1]
 Error: Duplicate any:n1b and any:n1c in any:[network:n1]
 =END=
+
+############################################################
+=TITLE=Observe disabled warning from config
+=INPUT=
+-- config
+check_empty_files=0
+check_service_empty_user=0
+-- empty
+# only comment
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=WITH_OUTDIR=true
+=WARNING=NONE
 
 ############################################################
 =TITLE=Preserve real NAT together with hidden NAT

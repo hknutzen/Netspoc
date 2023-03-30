@@ -18,6 +18,16 @@ Warning: Ignoring file 'empty' without any content
 =END=
 
 ############################################################
+=TITLE=Disabled warning on empty file
+=OPTIONS=--check_empty_files=0
+=INPUT=
+--empty
+# Only comment
+--topo
+network:n1 = { ip = 10.1.1.0/24; }
+=WARNING=NONE
+
+############################################################
 =TITLE=Token with non letter or digit UTF8 character
 =INPUT=
 # EQUAL TO OR GREATER-THAN
@@ -1359,6 +1369,18 @@ Warning: user of service:s1 is empty
 Warning: src of rule in service:s2 is empty
 Warning: dst of rule in service:s3 is empty
 =END=
+
+
+############################################################
+=TITLE=Ignore empty list of elements after 'user'
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=WARNING=NONE
+=OPTIONS=--check_service_empty_user=0
 
 ############################################################
 =TITLE=Empty list of elements after 'prt'

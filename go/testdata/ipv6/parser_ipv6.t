@@ -19,6 +19,17 @@ Warning: Ignoring file 'ipv6/empty' without any content
 =END=
 
 ############################################################
+=TITLE=Disabled warning on empty file
+=OPTIONS=--check_empty_files=0
+=PARAMS=--ipv6
+=INPUT=
+--ipv6/empty
+# Only comment
+--ipv6/topo
+network:n1 = { ip = ::a01:100/120; }
+=WARNING=NONE
+
+############################################################
 =TITLE=Token with non letter or digit UTF8 character
 =PARAMS=--ipv6
 =INPUT=
@@ -1473,6 +1484,19 @@ Warning: user of service:s1 is empty
 Warning: src of rule in service:s2 is empty
 Warning: dst of rule in service:s3 is empty
 =END=
+
+
+############################################################
+=TITLE=Ignore empty list of elements after 'user'
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=WARNING=NONE
+=OPTIONS=--check_service_empty_user=0
 
 ############################################################
 =TITLE=Empty list of elements after 'prt'
