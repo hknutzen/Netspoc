@@ -446,7 +446,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 				return l
 			}
 			a.border = check(a.border, "border")
-			a.inclusiveBorder = check(a.inclusiveBorder, "inclusiveBorder")
+			a.inclusiveBorder = check(a.inclusiveBorder, "inclusive_border")
 
 			// Check whether area is empty (= consist of a single router)
 			if len(a.zones) == 0 {
