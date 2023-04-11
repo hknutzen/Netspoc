@@ -147,7 +147,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			result = maps.Keys(foundMap)
 		} else if r.managed != "" || r.routingOnly {
 
-			// debug("%s: %d", router->{name}, len(intfMap));
+			// debug("%s: %d", r.name, len(foundMap))
 			frontList := c.pathRouterInterfaces(r, pdp)
 
 			// If multiple management interfaces were found, take that which is
