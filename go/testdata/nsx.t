@@ -912,7 +912,7 @@ router:r1@v1 = {
 =TITLE=ICMP and numeric protocol with mixed logging
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
 router:r1 = {
  model = NSX;
  management_instance;
@@ -929,6 +929,7 @@ router:r1@v1 = {
 }
 service:s1 = {
  user = network:n1;
+ deny   src = user; dst = host:h2; prt = ip; log = x;
  permit src = user; dst = network:n2; prt = icmp 8, proto 52;
  permit src = user; dst = network:n2; prt = icmp 5/0; log = x;
 }
@@ -942,12 +943,37 @@ service:s1 = {
    "resource_type": "GatewayPolicy",
    "rules": [
     {
+     "action": "DROP",
+     "destination_groups": [
+      "10.1.2.2"
+     ],
+     "direction": "OUT",
+     "id": "r1",
+     "ip_protocol": "IPV4",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "10.1.1.0/24"
+     ],
+     "tag": "x"
+    },
+    {
      "action": "ALLOW",
      "destination_groups": [
       "10.1.2.0/24"
      ],
      "direction": "OUT",
-     "id": "r1",
+     "id": "r2",
      "ip_protocol": "IPV4",
      "logged": true,
      "profiles": [
@@ -971,7 +997,7 @@ service:s1 = {
       "10.1.2.0/24"
      ],
      "direction": "OUT",
-     "id": "r2",
+     "id": "r3",
      "ip_protocol": "IPV4",
      "logged": true,
      "profiles": [
@@ -995,7 +1021,7 @@ service:s1 = {
       "10.1.2.0/24"
      ],
      "direction": "OUT",
-     "id": "r3",
+     "id": "r4",
      "ip_protocol": "IPV4",
      "logged": true,
      "profiles": [
@@ -1020,7 +1046,7 @@ service:s1 = {
       "ANY"
      ],
      "direction": "OUT",
-     "id": "r4",
+     "id": "r5",
      "ip_protocol": "IPV4",
      "logged": true,
      "profiles": [
@@ -1045,7 +1071,7 @@ service:s1 = {
       "ANY"
      ],
      "direction": "IN",
-     "id": "r5",
+     "id": "r6",
      "ip_protocol": "IPV4",
      "logged": true,
      "profiles": [
