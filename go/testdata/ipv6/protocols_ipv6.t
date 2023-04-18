@@ -68,7 +68,8 @@ protocol:p6 = tcp - 2 -;
 protocol:p7 = tcp 1 - 2 -;
 protocol:p8 = tcp 1 - 2 - 3;
 protocol:p9 = tcp 1 - 2 : 3 : 4;
-protocol:p10 = tcp -;
+protocol:p10 = tcp 1 . 2 . 3 - 4;
+protocol:p11 = tcp -;
 network:n1 = { ip = ::a01:100/120; }
 =ERROR=
 Error: Expected port number > 0 in protocol:p1
@@ -82,7 +83,8 @@ Error: Invalid port range in protocol:p6
 Error: Invalid port range in protocol:p7
 Error: Invalid port range in protocol:p8
 Error: Invalid port range in protocol:p9
-Error: Expected number in protocol:p10: -
+Error: Invalid port range in protocol:p10
+Error: Expected number in protocol:p11: -
 =OPTIONS=--max_errors=20
 
 ############################################################
