@@ -639,3 +639,23 @@ Error: Found recursion in definition of protocolgroup:g2
 =END=
 
 ############################################################
+=TITLE=Missing rule with tcp 22 from policy_distribution_point
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:pdp = { ip = ::a01:16f; } }
+router:r1 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:pdp;
+ interface:n1 = {ip = ::a01:101; hardware = n1; }
+}
+service:s1 = {
+    user = interface:r1.[auto];
+    permit src = host:pdp; dst = user; prt = tcp 80-90;
+}
+=WARNING=
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
+ - router:r1
+=OPTIONS=--check_policy_distribution_point=warn
+
+############################################################
