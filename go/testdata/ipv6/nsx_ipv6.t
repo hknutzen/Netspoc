@@ -925,7 +925,7 @@ router:r1@v1 = {
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
 router:r1 = {
  model = NSX;
  management_instance;
@@ -942,6 +942,7 @@ router:r1@v1 = {
 }
 service:s1 = {
  user = network:n1;
+ deny   src = user; dst = host:h2; prt = ip; log = x;
  permit src = user; dst = network:n2; prt = icmpv6 8, proto 52;
  permit src = user; dst = network:n2; prt = icmpv6 5/0; log = x;
 }
@@ -955,12 +956,37 @@ service:s1 = {
    "resource_type": "GatewayPolicy",
    "rules": [
     {
+     "action": "DROP",
+     "destination_groups": [
+      "::a01:202"
+     ],
+     "direction": "OUT",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "::a01:100/120"
+     ],
+     "tag": "x"
+    },
+    {
      "action": "ALLOW",
      "destination_groups": [
       "::a01:200/120"
      ],
      "direction": "OUT",
-     "id": "v6r1",
+     "id": "v6r2",
      "ip_protocol": "IPV6",
      "logged": true,
      "profiles": [
@@ -984,7 +1010,7 @@ service:s1 = {
       "::a01:200/120"
      ],
      "direction": "OUT",
-     "id": "v6r2",
+     "id": "v6r3",
      "ip_protocol": "IPV6",
      "logged": true,
      "profiles": [
@@ -1008,7 +1034,7 @@ service:s1 = {
       "::a01:200/120"
      ],
      "direction": "OUT",
-     "id": "v6r3",
+     "id": "v6r4",
      "ip_protocol": "IPV6",
      "logged": true,
      "profiles": [
@@ -1033,7 +1059,7 @@ service:s1 = {
       "ANY"
      ],
      "direction": "OUT",
-     "id": "v6r4",
+     "id": "v6r5",
      "ip_protocol": "IPV6",
      "logged": true,
      "profiles": [
@@ -1058,7 +1084,7 @@ service:s1 = {
       "ANY"
      ],
      "direction": "IN",
-     "id": "v6r5",
+     "id": "v6r6",
      "ip_protocol": "IPV6",
      "logged": true,
      "profiles": [
