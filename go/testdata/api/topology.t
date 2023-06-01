@@ -1276,8 +1276,8 @@ router:r1 = {
         "path": "router:r1,interface:VIP_interface",
         "value": {
             "ip": "10.1.3.3",
-            "owner": "a",
-            "vip": null
+            "owner": ["a"],
+            "vip": []
         }
     }
 }
@@ -1307,7 +1307,7 @@ router:r1 = {
         "path": "router:r1,interface:VIP_interface",
         "value": {
             "ip": "10.1.3.3",
-            "vip": null
+            "vip": []
         }
     }
 }
@@ -1584,7 +1584,7 @@ router:r1 = {
     "params": {
         "path": "router:r1",
         "value": {
-            "interface:n1": null
+            "interface:n1": []
         }
     }
 }
