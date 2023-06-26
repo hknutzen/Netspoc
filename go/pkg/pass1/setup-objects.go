@@ -2867,6 +2867,14 @@ func (c *spoc) getRouter(name string, v6 bool) *router {
 	}
 }
 
+func (c *spoc) getManagementInstance(r *router) *router {
+	mgmt := c.getRouter(r.deviceName, c.conf.IPV6)
+	if mgmt == nil {
+		return c.getRouter(r.deviceName, !c.conf.IPV6)
+	}
+	return mgmt
+}
+
 func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	v := c.getSingleValue(a, ctx)
 	typ, name, found := strings.Cut(v, ":")
