@@ -1,0 +1,352 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+rename-netspoc - Rename one or more objects in netspoc files
+
+=head1 SYNOPSIS
+
+rename-netspoc [options] FILE|DIR SUBSTITUTION ...
+
+=head1 DESCRIPTION
+
+This program reads a netspoc configuration and one or more
+SUBSTITUTIONS. It substitutes found objects with its replacement in
+each file. Changes are done in place, no backup files are created. But
+only changed files are touched. If FILE is `-', read standard input
+and write to standard output.
+
+=head1 SUBSTITUTION
+
+A SUBSTITUTION is a pair of typed names "type:NAME1" "type:NAME2".
+NAME1 is searched and replaced by NAME2. Both types of a single
+SUBSTITUTION must use the same type. Multiple SUBSTITUTIONS can be applied in a single run of rename-netspoc.
+
+A typed name can use any valid type and name in netspoc syntax.
+Valid types are: B<router network host any group area service owner
+admin protocol protocolgroup pathrestriction nat isakmp ipsec crypto>.
+
+A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
+which reference the given network.  A SUBSTITUTION of type B<router>
+also changes B<interfaces> which reference the given router.
+A SUBSTITUTION of type B<nat> also changes the corresponding B<bind_nat> list.
+A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f> file
+
+Read SUBSTITUTIONS from file.
+If - is specified, read from standard input. 
+
+=item B<-q>
+
+Quiet, don't print status messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use open qw(:std :utf8);
+use Getopt::Long;
+use Pod::Usage;
+use Encode;
+
+# VERSION: inserted by DZP::OurPkgVersion
+my $filename_encode = 'UTF-8';
+ 
+my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
+my $quiet;
+
+## no critic (RequireArgUnpacking)
+sub debug { print STDERR @_, "\n"; return; }
+sub info  { print STDERR @_, "\n"; return; }
+ 
+sub fatal_err {
+    print STDERR "Error: ", @_, "\n";
+    die "Aborted\n";
+}
+## use critic
+
+my %global_type = 
+    map { $_ => 1 } qw( 
+router network host any group area service
+owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
+);
+
+# NAT is applied with bind_nat.
+# Owner is optionally referenced as sub_owner.
+my %aliases = ( nat   => ['bind_nat'],
+                owner => ['sub_owner'], );
+
+my %subst;
+
+# Fill %subst with arrays of search/replace pairs for given type.
+sub setup_subst {
+    my ($type, $search, $replace) = @_;
+    $global_type{$type} or fatal_err("Unknown type $type");
+
+    # Quote pattern metacharacters.
+    $search = qr/\Q$search\E/;
+
+    # Escape perl sigils in replace string, because we apply eval on it.
+    $replace =~ s/([@%\$])/\\$1/g;
+
+    # Standard for all types.
+    push @{ $subst{$type} }, [qr/$search/, $replace];
+
+    # Network name occurs in interface name and in id: hosts.
+    if ($type eq 'network') {
+
+        # Definition of interface inside definition of router.
+        push(@{ $subst{interface} }, [ qr/$search/, $replace ]);
+
+        # Reference to interface ouside of definition of router.
+        push(@{ $subst{interface} },
+             [ qr/([\w@-]+\.)$search((?:\..*)?)/, '${1}'.$replace.'${2}' ]);
+        push(@{ $subst{host} },
+             [ qr/(id:.*\.)$search/, '${1}'.$replace ]);
+    }
+
+    # Router name occurs in interface name.
+    elsif ($type eq 'router') {
+        push(@{ $subst{interface} }, [ qr/$search([.@].*)/, $replace.'${1}' ]);
+    }
+
+    # Name of id: host is extended with some network name.
+    elsif ($type eq 'host') {
+        push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'${1}' ]);
+    }
+
+    elsif (my $list = $aliases{$type}) {
+        for my $other (@$list) {
+            push @{ $subst{$other} }, [qr/$search/, $replace];
+        }
+    }
+    return;
+}
+ 
+sub subst {
+    my ($type, $name) = @_;
+    my $aref = $subst{$type} or return $name;
+    for my $pair (@$aref) {
+        my ($search, $replace) = @$pair;
+
+        # 1. eval gives double quoted string.
+        # 2. eval interpolates $1, $2 inside quoted string.
+        $name =~ s/^$search$/"qq($replace)"/ee;
+    }
+    return $name;
+}
+
+sub process {
+    my ($lines) = @_;
+    my $changed = 0;
+    my $type_list;
+    for my $line (@$lines) {
+        my $copy = '';
+        my $line_changed = 0;
+      TOKEN:
+        while(1) {
+
+            # Handle list of names 
+            # - after "name = "
+            # - and on new line.
+            if ($type_list) {
+              LIST:
+                while (1) {
+
+                    # Read list element.
+                    if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
+                        $copy .= $1;
+                        my $name = $2;
+                        my $new = subst($type_list, $name);
+                        $copy .= $new;
+                        $line_changed++ if $name ne $new;
+                    }
+
+                    # Read comma.
+                    elsif ($line =~ /\G (\s*,\s*) /gcx) {
+                        $copy .= $1;
+                    }
+                    else {
+                        last LIST;
+                    }                    
+                }
+
+                # Whitespace or comment at end of line doesn't terminate list.
+                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcsx) {
+                    $copy .= $1;
+                    last TOKEN;
+                }
+
+                # Everything else terminates list.
+                else {
+                    $type_list = undef;
+                }
+            }
+
+            # Find next "type:name" or "type = name".
+            elsif ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) /gcx) {
+                $copy .= "$1$2$3";
+                my $type = $2;
+                next if not $subst{$type};
+                next if $type_list = ($3 eq ':') ? undef : $type;
+                $line =~ /\G  ([-\w.\@:]+) /gcx or next;
+                my $name = $1;
+                my $new = subst($type, $name);
+                $copy .= $new;
+                $line_changed++ if $name ne $new;
+            }
+
+            # Ignore rest of line if nothing matches.
+            else {
+                $line =~ /\G (.+) /gcsx and $copy .= $1;
+                last TOKEN;
+            }
+        }
+        if ($line_changed) {
+            $line = $copy;
+            $changed += $line_changed;
+        }
+    }
+    return $changed;
+}
+ 
+sub process_file {
+    my ($path) = @_;
+#    debug "File $path";
+    ## no critic ProhibitTwoArgOpen
+    open(my $in, $path) or fatal_err "Can't open $path: $!";
+    my @input = <$in>;
+    close $in;
+    if (my $count = process(\@input) or $path eq '-') {
+        info "$count changes in $path" if not $quiet;
+        if ($path ne '-') {
+            unlink($path) or fatal_err "Can't remove $path: $!\n";
+        }
+        open(my $out, ">$path") or fatal_err "Can't create $path: $!";
+        print $out @input;
+        close $out;
+    }
+    ## use critic
+    return;
+}
+ 
+sub process_file_or_dir {
+    my ($path) = @_;
+    if (-d $path) {
+        local (*DIR);
+ 
+        # Strip trailing slash.
+        $path =~ s</$><>;
+        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
+        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
+            next if $file =~ /^\./;
+            next if $file =~ m/$ignore_files/;
+            $file = "$path/$file";
+            process_file_or_dir($file);
+        }
+        closedir DIR;
+    }
+    else {
+        process_file($path);
+    }
+    return;
+}
+
+sub setup_pattern {
+    my (@pattern) = @_;
+    while (@pattern) {
+        my $old = shift @pattern;
+        my $new = shift @pattern or 
+            fatal_err "Missing replace string for '$old'";
+        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or 
+            fatal_err "Missing type in '$old'";
+        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or 
+            fatal_err "Missing type in '$new'";
+        $type eq $n_type or 
+            fatal_err "Types must be identical in\n - $old\n - $new";
+        setup_subst($type, $old_name, $new_name);
+    }
+    return;
+}
+
+sub read_pattern {
+    my ($path) = @_;
+
+    # Read file as one large line.
+    local $/;
+    open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
+    my $input = <$file>;
+    close $file;
+    my @pattern = split(' ', $input) or
+        fatal_err "Missing pattern in $path";
+    setup_pattern(@pattern);
+    return;
+}
+    
+####################################################################
+# Argument processing
+####################################################################
+
+# Make @ARGV utf-8.
+$_ = Encode::decode('UTF-8' , $_) for @ARGV;
+
+# Read search / replace pairs from this file.
+my $from_file;
+my $help;
+my $man;
+GetOptions ( 'f=s' => \$from_file,
+             'q!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $path = shift @ARGV or pod2usage(2);
+$from_file or @ARGV or pod2usage(2);
+
+####################################################################
+# Main program
+####################################################################
+
+# Initialize search/replace pairs.
+read_pattern($from_file) if $from_file;
+setup_pattern(@ARGV) if @ARGV;
+
+# Do substitution.
+process_file_or_dir($path);

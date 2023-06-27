@@ -1,0 +1,41 @@
+#!/bin/sh
+
+# Read warnings about useless attribute in service definition
+# from STDIN.
+# These are shown by Netspoc on STDERR if called like this:
+# netspoc -q --check_service_useless_attribute=warn INPUT-DIR
+#
+# Warning: Useless 'has_unenforceable' at service:NAME
+# Warning: Useless 'multi_owner' at service:NAME
+# Warning: Useless 'unknown_owner' at service:NAME
+# Warning: Useless 'identical_body' at service:NAME
+# Warning: Useless 'identical_body = service:S1' at service:S2
+# Warning: Useless 'overlaps = service:S1' at service:S2
+#
+# Generate jobs for Netspoc-API to remove found attribute on STDOUT.
+# Either remove the whole attribute:
+# { "method": "delete", "params": { "path": "service:NAME,ATTR" } }
+# or remove a single value from value list of the attribute:
+# { "method": "delete",
+#   "params": { "path": "service:S2,ATTR", "value": "service:S1" }
+# }
+# Unknown lines are written to STDERR.
+
+regex="^Warning: Useless '(\w+)( * = *(service:.+))?' at (service:.+)\$"
+
+while read -r line; do
+    if echo $line | grep -vqE "$regex" ; then
+        echo $line >&2
+        continue
+    fi
+    echo $line | jq --raw-input --arg regex "$regex" '
+match($regex) | .captures |
+{ method: "delete",
+  params: { path: "\(.[3].string),\(.[0].string)",
+            value: .[2].string
+          }
+}'
+done | jq --slurp '
+if . | length > 0
+then { method: "multi_job", params: { jobs: . } }
+else empty end'

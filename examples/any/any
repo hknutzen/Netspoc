@@ -1,0 +1,38 @@
+# File: examples/any
+#
+# Check for consistent 'any' rules.
+
+protocol:http = tcp 80;
+protocol:TCP = tcp;
+
+# We want access from any:south to network:east.
+# But this would implicitly allow access 
+# from any:mediteran to network:east,
+# because any:mediteran is located on the path from south to east.
+# Hence, access from any:mediteran to network:east must be explicitly
+# permitted.
+# But router:paris is a stateless router, which needs additional rules
+# for permitting traffic back from network:east to any:south.
+# This would implictly allow access to any:north and any:ocean as well.
+# To get a consistent rule set, we need additional rules, 
+# which allow traffic FROM any:north and any:ocean to network:east.
+service:east_web = {
+ user =
+	any:south,
+	any:mediteran,
+	any:north,
+	any:ocean;
+ permit src=user;
+        dst=network:east;
+        prt=protocol:http;
+}
+
+# We want access from network:south to any:north, but must permit access 
+# to any:east,any:mediteran and any:ocean as well,
+# to get a consistent rule set.
+service:open_north = {
+ user = network:south;
+ permit src=user;
+        dst=any:north,any:east,any:mediteran,any:ocean;
+        prt=protocol:TCP;
+}

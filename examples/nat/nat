@@ -1,0 +1,130 @@
+
+# net:a(host:a1)
+# |
+# r:x
+# |
+# net:b----r:v--net:f
+# |     |
+# r:y1  r:y2
+# |     |
+# net:c--
+# |
+# r:z--net:e
+# |
+# net:d
+
+#
+# NAT domains
+# 
+network:a = {
+ ip = 125.1.1.0/24; 
+ nat:a_src = { ip = 10.1.1.0/24; }
+ nat:a_src2 = { ip = 10.1.9.0/24; }
+ host:a1 = { ip = 125.1.1.10; }
+}
+
+router:x = {
+ managed;
+ model = Linux;
+ interface:a = { ip = 125.1.1.1; hardware = eth0; bind_nat = a_dst; }
+ interface:b = { ip = 10.1.2.1; hardware = eth1; bind_nat = a_src; }
+}
+
+network:b = {
+ ip = 10.1.2.0/24; 
+ nat:a_dst = { 
+  ip = 125.1.2.0/29;
+  dynamic;
+  subnet_of = network:f;
+ }
+ host:b1 = { ip = 10.1.2.10; nat:a_dst = { ip = 125.1.2.3; } }
+}
+
+router:v = {
+ managed;
+ model = PIX;
+ interface:b = { ip = 10.1.2.4; hardware = inside;
+		 nat:a_dst = { ip = 125.1.2.4; }
+		 bind_nat = f_src;}
+ interface:f = { ip = 125.1.2.1; hardware = outside; }
+}
+
+network:f = {
+ ip = 125.1.2.0/24; 
+ nat:f_src = { ip = 10.1.5.0/24; }
+ host:f1 = { ip = 125.1.2.10; }
+}
+
+router:y1 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {
+  ip = 10.1.2.2;
+  hardware = Fastethernet0/0;
+  bind_nat = c_src;
+  virtual = { ip = 10.1.2.22; type = HSRP; id = 1; }
+ }
+ interface:c = { ip = 20.1.3.1; hardware = Fastethernet0/1; bind_nat = a_src2; }
+}
+
+router:y2 = {
+ managed;
+ model = IOS, FW;
+ interface:b = { 
+  ip = 10.1.2.3;
+  hardware = Fastethernet0/0;
+  bind_nat = c_src;
+  virtual = { ip = 10.1.2.22; type = HSRP; id = 1; }
+ }
+ interface:c = { ip = 20.1.3.2; hardware = Fastethernet0/1; bind_nat = a_src2;}
+}
+
+network:c = {
+ ip = 20.1.3.0/24; 
+ nat:c_src = { ip = 10.1.3.0/24; }
+ host:c1 = { ip = 20.1.3.10; }
+}
+
+router:z = {
+ managed;
+ model = ASA;
+ interface:c = { ip = 20.1.3.3; hardware = inside; routing=OSPF; bind_nat = dyn; }
+ interface:d = { ip = 10.1.1.1; hardware = DMZ50; bind_nat = c_src;}
+ interface:e = { ip = 10.1.4.1; hardware = outside; } #bind_nat = global;}
+}
+
+#area:c = { 
+# border = interface:z.c;
+# nat:global = { ip = 10.1.254.0/24; dynamic; }
+#}
+
+#area:d = {
+# border = interface:z.d;
+# nat:global = { ip = 10.1.254.0/24; dynamic; }
+#}
+
+network:d = {
+ ip = 10.1.1.0/24; 
+ nat:dyn = { ip = 10.1.255.0/24; dynamic; }
+ host:d1 = { ip = 10.1.1.10; }
+}
+
+network:e = {
+ ip = 10.1.4.0/24; 
+ nat:dyn = { ip = 10.1.255.0/24; dynamic; }
+}
+
+protocol:ping = icmp 8;
+
+service:test = {
+ user = network:b,
+	network:c,
+	network:d,
+	network:f
+	;
+ 
+ permit src = host:a1;
+	dst = user;
+	prt = protocol:ping;
+}
+

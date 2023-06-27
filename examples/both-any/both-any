@@ -1,0 +1,24 @@
+# File: examples/both-any
+#
+# Test case for 'any' rules with both src and dst an 'any' object
+
+protocol:ip = ip;
+protocol:ping = icmp 8;
+
+area:all = { anchor = network:north; }
+
+service:ping = {
+ overlaps = service:north_east_med;
+ user = any:[area:all];
+ permit src = user;
+	dst = user;
+	prt = protocol:ping;
+}
+
+service:north_east_med = {
+ user= any:north, any:east, any:mediteran, any:ocean;
+ permit src=user;
+	dst=user;
+	prt=protocol:ip;
+}
+
