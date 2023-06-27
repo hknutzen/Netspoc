@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.059     2023-06-27 12:39:32+02:00 Europe/Berlin
+
  - Fixed NSX and PAN-OS: Use IPv4 management instance for IPv6 context
    if no v6 management instance present and vice versa.
 
