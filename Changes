@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.060     2023-06-30 10:27:01+02:00 Europe/Berlin
+
  - Fixed PAN-OS: Must not use colons in object names.
 
 6.059     2023-06-27 12:39:32+02:00 Europe/Berlin
