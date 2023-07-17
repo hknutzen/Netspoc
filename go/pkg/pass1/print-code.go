@@ -19,6 +19,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 
 	"go4.org/netipx"
 )
@@ -627,9 +628,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	printGroupPolicy := func(name string, attributes map[string]string) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
-		keys := maps.Keys(attributes)
-		sort.Strings(keys)
-		for _, key := range keys {
+		for _, key := range sorted.Keys(attributes) {
 
 			// Ignore attributes for tunnel-group general or own attributes.
 			if spec := asaVpnAttributes[key]; spec == tgGeneral || spec == ownAttr {
@@ -701,9 +700,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
-			keys := maps.Keys(hash)
-			sort.Strings(keys)
-			for _, id := range keys {
+			for _, id := range sorted.Keys(hash) {
 				idIntf := hash[id]
 				idName := genIdName(id)
 				src := idIntf.src
@@ -928,9 +925,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
-		keys := maps.Keys(singleCertMap)
-		sort.Strings(keys)
-		for _, id := range keys {
+		for _, id := range sorted.Keys(singleCertMap) {
 			idName := genIdName(id)
 			mapName := "ca-map-" + idName
 			fmt.Fprintln(fh, "crypto ca certificate map", mapName, "10")
@@ -941,9 +936,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			certGroupMap[mapName] = defaultTunnelGroup
 		}
 		fmt.Fprintln(fh, "webvpn")
-		keys = maps.Keys(certGroupMap)
-		sort.Strings(keys)
-		for _, mapName := range keys {
+		for _, mapName := range sorted.Keys(certGroupMap) {
 			tunnelGroupMap := certGroupMap[mapName]
 			fmt.Fprintln(fh, " certificate-group-map", mapName, "10", tunnelGroupMap)
 		}
@@ -951,9 +944,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	}
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
-	keys := maps.Keys(ldapMap)
-	sort.Strings(keys)
-	for _, name := range keys {
+	for _, name := range sorted.Keys(ldapMap) {
 		fmt.Fprintln(fh, "aaa-server", name, "protocol ldap")
 		fmt.Fprintln(fh, "aaa-server", name, "host X")
 		fmt.Fprintln(fh, " ldap-attribute-map", name)

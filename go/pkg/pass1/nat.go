@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/maps"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 	"golang.org/x/exp/slices"
 )
 
@@ -48,9 +48,7 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
 	for _, n := range c.allNetworks {
-		tags := maps.Keys(n.nat)
-		sort.Strings(tags)
-		for _, tag := range tags {
+		for _, tag := range sorted.Keys(n.nat) {
 			getTyp := func(natNet *network) string {
 				switch {
 				case natNet.hidden:
@@ -964,9 +962,7 @@ func (c *spoc) checkNatCompatibility() {
 			if nat == nil {
 				return
 			}
-			tags := maps.Keys(nat)
-			sort.Strings(tags)
-			for _, tag := range tags {
+			for _, tag := range sorted.Keys(nat) {
 				objIP := nat[tag]
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {

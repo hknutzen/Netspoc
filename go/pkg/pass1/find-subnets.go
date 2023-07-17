@@ -2,9 +2,11 @@ package pass1
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
+
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
+	"golang.org/x/exp/maps"
 
 	"go4.org/netipx"
 )
@@ -744,11 +746,12 @@ func (c *spoc) findUselessSubnetOf() {
 	}
 }
 
-//############################################################################
+// ############################################################################
 // Returns: Map with domains as keys and partition ID as values.
 // Result : NAT domains get different partition ID, if they belong to
-//          parts of topology that are strictly separated by crypto
-//          interfaces or partitioned toplology.
+//
+//	parts of topology that are strictly separated by crypto
+//	interfaces or partitioned toplology.
 func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 	partitions := make(map[*natDomain]int)
 	var markNatPartition func(*natDomain, int)
@@ -778,9 +781,9 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 
 // Find subnet relation between networks in different NAT domains.
 // Mark networks, having subnet in other zone: bignet.hasOtherSubnet
-// 1. If set, this prevents secondary optimization.
-// 2. If rule has src or dst with attribute .hasOtherSubnet,
-//    it is later checked for missing supernets.
+//  1. If set, this prevents secondary optimization.
+//  2. If rule has src or dst with attribute .hasOtherSubnet,
+//     it is later checked for missing supernets.
 func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
 	for _, z := range c.allZones {
@@ -803,12 +806,10 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		part := dom2Part[n.zone.natDomain]
 		part2Nets[part] = append(part2Nets[part], n)
 	}
-	partList := maps.Keys(part2Doms)
-	sort.Ints(partList)
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-		for _, part := range partList {
+		for _, part := range sorted.Keys(part2Doms) {
 			c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
 		}
 	})

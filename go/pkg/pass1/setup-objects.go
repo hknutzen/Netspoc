@@ -17,6 +17,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 
 	"go4.org/netipx"
 )
@@ -235,9 +236,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel) {
 
 func (c *spoc) setAscendingServices() {
 	s := c.symTable
-	names := maps.Keys(s.service)
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range sorted.Keys(s.service) {
 		c.ascendingServices = append(c.ascendingServices, s.service[name])
 	}
 }
@@ -3267,8 +3266,7 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 			c.err("Unexpected %s\n Use '%s;' only.", what, name)
 			continue
 		}
-		valid := maps.Keys(knownMod)
-		sort.Strings(valid)
+		valid := sorted.Keys(knownMod)
 		oneOf := cond(r.model.canMultiLog, "", " one of")
 		c.err("Invalid %s\n Expected%s: %s",
 			what, oneOf, strings.Join(valid, "|"))
