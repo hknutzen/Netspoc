@@ -2113,3 +2113,42 @@ service:s1 = {
  ]
 }
 =END=
+
+############################################################
+=TITLE=Add Policy Distribution Point To Header
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;
+ host:netspoc = { ip = 10.1.3.9; }
+}
+router:r1@vrf = {
+ managed;
+ model = NSX,T0;
+ interface:n1 = { ip = 10.1.1.11; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+}
+router:r1 = {
+ management_instance;
+ policy_distribution_point = host:netspoc;
+ model = NSX;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:admin = {
+ user = interface:r1.n1;
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+-- r1
+#[ IP = 10.1.1.1 ]
+--
+#[ Policy_distribution_point = 10.1.3.9 ]
+=END=
+
+############################################################

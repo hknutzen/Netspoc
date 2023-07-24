@@ -1405,3 +1405,46 @@ service:s1 = {
 </service>
 </entry>
 =END=
+
+############################################################
+=TITLE=Add Policy Distribution Point To Header
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120;
+ host:netspoc = { ip = ::a01:309; }
+}
+router:r1@vrf = {
+ managed;
+ model = PAN-OS;
+ interface:n1 = { ip = ::a01:10b; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
+}
+router:r1 = {
+ management_instance;
+ policy_distribution_point = host:netspoc;
+ model = PAN-OS;
+ interface:n1 = { ip = ::a01:101; hardware = device; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+}
+service:admin = {
+ user = interface:r1.n1;
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+-- ipv6/r1
+[ BEGIN r1 ]
+[ Model = PAN-OS ]
+[ IP = ::a01:101 ]
+[ Policy_distribution_point = ::a01:309 ]
+-->
+<config><devices><entry><vsys>
+=END=
+
+############################################################
