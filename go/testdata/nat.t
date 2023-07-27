@@ -4357,6 +4357,26 @@ Warning: Useless 'subnet_of = network:n2' at network:n1
 =END=
 
 ############################################################
+=TITLE=Must find subnet relation even with intermediate aggregate and NAT
+=INPUT=
+network:n0 = { ip = 10.0.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
+any:n1 = { ip = 10.1.0.0/22; link = network:n1; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.0.0.1; hardware = n0; bind_nat = h2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; }
+}
+=WARNING=
+Warning: network:n1 is subnet of network:n2
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Network is subnet of different networks
 =INPUT=
 network:n1 = { ip = 10.1.0.0/21; }

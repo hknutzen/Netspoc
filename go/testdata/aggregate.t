@@ -229,6 +229,9 @@ router:r1 = {
  interface:n3 = { ip = 10.1.0.1; hardware = n3; bind_nat = h2; }
 }
 =WARNING=
+Warning: network:n1 is subnet of network:n2
+ in nat_domain:[network:n2].
+ If desired, declare attribute 'subnet_of'
 Warning: network:n1 is subnet of network:n3
  in nat_domain:[network:n1].
  If desired, declare attribute 'subnet_of'
