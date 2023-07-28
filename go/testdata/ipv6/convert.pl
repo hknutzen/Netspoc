@@ -169,6 +169,11 @@ sub adjust_testfile {
 
         $line =~ s/any4/any6/g;
 
+        # Convert IP and Net object names for PAN-OS
+        if ($line =~ m/(NET_|IP_)($IPv6_re)/) {
+            $line =~ s/:(?=.*<ip-netmask>|.*<\/member>)/_/g;
+        }
+
         my $ipv6 = qr/(?:$IPv6_re|::)/;
 
         # Convert mask to prefix in in routes.

@@ -2,9 +2,11 @@ package pass1
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
+
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
+	"golang.org/x/exp/maps"
 
 	"go4.org/netipx"
 )
@@ -532,37 +534,39 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 
 			//debug("%s <= %s", natName(natSubnet), natName(natBignet))
-			if relationSeen[netPair{natBignet, natSubnet}] {
-				continue
-			}
-			relationSeen[netPair{natBignet, natSubnet}] = true
 			bignet := origNet[natBignet]
 
-			// Mark network having subnet in same zone, if subnet has
-			// subsubnet in other zone.
-			// Remember subnet relation in same zone in pendingOtherSubnet,
-			// if current status of subnet is not known,
-			// since status may change later.
-			if bignet.zone == subnet.zone {
-				if subnet.hasOtherSubnet || hasIdentical[subnet] {
-					bignet.hasOtherSubnet = true
-				} else {
-					pendingOtherSubnet[subnet] =
-						append(pendingOtherSubnet[subnet], bignet)
-				}
-			} else {
-				// Mark network having subnet in other zone.
-				markNetworkAndPending(bignet)
-				//debug("%s > %s", bignet, subnet)
+			pairSeen := relationSeen[netPair{natBignet, natSubnet}]
+			if !pairSeen {
+				relationSeen[netPair{natBignet, natSubnet}] = true
 
-				// Mark aggregate that has other *supernet*.
-				// In this situation, addresses of aggregate
-				// are part of supernet and located in other
-				// zone.
-				// But ignore the internet and non matching aggregate.
-				if subnet.isAggregate && bignet.ipp.Bits() != 0 {
-					markNetworkAndPending(subnet)
-					//debug("%s ~ %s", subnet, bignet)
+				// Mark network having subnet in same zone, if subnet has
+				// subsubnet in other zone.
+				// Remember subnet relation in same zone in pendingOtherSubnet,
+				// if current status of subnet is not known,
+				// since status may change later.
+				if bignet.zone == subnet.zone {
+					if subnet.hasOtherSubnet || hasIdentical[subnet] {
+						bignet.hasOtherSubnet = true
+					} else {
+						//debug("Append %s %s", subnet, bignet)
+						pendingOtherSubnet[subnet] =
+							append(pendingOtherSubnet[subnet], bignet)
+					}
+				} else {
+					// Mark network having subnet in other zone.
+					markNetworkAndPending(bignet)
+					//debug("%s > %s", bignet, subnet)
+
+					// Mark aggregate that has other *supernet*.
+					// In this situation, addresses of aggregate
+					// are part of supernet and located in other
+					// zone.
+					// But ignore the internet and non matching aggregate.
+					if subnet.isAggregate && bignet.ipp.Bits() != 0 {
+						markNetworkAndPending(subnet)
+						//debug("%s ~ %s", subnet, bignet)
+					}
 				}
 			}
 
@@ -576,7 +580,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		REALNET:
 			for natBignet.isAggregate || !visible[natBignet] {
 				for _, identNet := range identical[natBignet] {
-					if visible[identNet] && !identNet.isAggregate {
+					if !identNet.isAggregate && visible[identNet] {
 						natBignet = identNet
 						break REALNET
 					}
@@ -613,7 +617,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if bignet.zone != subnet.zone {
+			if !pairSeen && bignet.zone != subnet.zone {
 				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}
@@ -744,11 +748,12 @@ func (c *spoc) findUselessSubnetOf() {
 	}
 }
 
-//############################################################################
+// ############################################################################
 // Returns: Map with domains as keys and partition ID as values.
 // Result : NAT domains get different partition ID, if they belong to
-//          parts of topology that are strictly separated by crypto
-//          interfaces or partitioned toplology.
+//
+//	parts of topology that are strictly separated by crypto
+//	interfaces or partitioned toplology.
 func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 	partitions := make(map[*natDomain]int)
 	var markNatPartition func(*natDomain, int)
@@ -778,9 +783,9 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 
 // Find subnet relation between networks in different NAT domains.
 // Mark networks, having subnet in other zone: bignet.hasOtherSubnet
-// 1. If set, this prevents secondary optimization.
-// 2. If rule has src or dst with attribute .hasOtherSubnet,
-//    it is later checked for missing supernets.
+//  1. If set, this prevents secondary optimization.
+//  2. If rule has src or dst with attribute .hasOtherSubnet,
+//     it is later checked for missing supernets.
 func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
 	for _, z := range c.allZones {
@@ -803,12 +808,10 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		part := dom2Part[n.zone.natDomain]
 		part2Nets[part] = append(part2Nets[part], n)
 	}
-	partList := maps.Keys(part2Doms)
-	sort.Ints(partList)
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-		for _, part := range partList {
+		for _, part := range sorted.Keys(part2Doms) {
 			c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
 		}
 	})

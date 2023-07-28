@@ -36,7 +36,7 @@ func (c *spoc) collectRoutersAndNetworks() {
 		r1 := l[0]
 		m1 := r1.model.class
 		if r1.model.needManagementInstance {
-			mr := c.getRouter(r1.deviceName, r1.ipV6)
+			mr := c.getManagementInstance(r1)
 			if mr == nil {
 				c.err("Must define unmanaged router:%s\n"+
 					" with attribute 'management_instance'\n"+

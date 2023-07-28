@@ -96,7 +96,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 					if k >= len(l2) {
 						return false
 					}
-					if l1[k] != l2[k] {
+					if name != l2[k] {
 						return name < l2[k]
 					}
 				}

@@ -2,14 +2,12 @@ package api
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 type change struct {
@@ -629,10 +627,8 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 			a.ValueList = append(a.ValueList, &ast.Value{Value: s})
 		}
 	case map[string]interface{}:
-		keys := maps.Keys(x)
-		sort.Strings(keys)
 		var l []*ast.Attribute
-		for _, k := range keys {
+		for _, k := range sorted.Keys(x) {
 			attr, err := getAttribute(k, x[k])
 			if err != nil {
 				return nil, err

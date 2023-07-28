@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/maps"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 type jsonMap map[string]interface{}
@@ -99,9 +98,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		for _, acl := range l {
 			pm[acl.vrf] = append(pm[acl.vrf], acl)
 		}
-		vrfs := maps.Keys(pm)
-		sort.Strings(vrfs)
-		for _, vrf := range vrfs {
+		for _, vrf := range sorted.Keys(pm) {
 			acls := pm[vrf]
 			scope := fmt.Sprintf("/infra/tier-%ss/%s", acls[0].tier, vrf)
 			var nsxRules []jsonMap
@@ -203,9 +200,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	}
 	getServices := func() []jsonMap {
 		var result []jsonMap
-		names := maps.Keys(protoMap)
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range sorted.Keys(protoMap) {
 			pair := protoMap[name]
 			p := pair.prt
 			proto := p.protocol

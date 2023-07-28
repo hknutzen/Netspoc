@@ -76,9 +76,9 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		}
 		var name string
 		if n.IsSingleIP() {
-			name = "IP_" + n.Addr().String()
+			name = "IP_" + strings.ReplaceAll(n.Addr().String(), ":", "_")
 		} else {
-			name = "NET_" + strings.Replace(n.String(), "/", "_", 1)
+			name = "NET_" + strings.ReplaceAll(strings.Replace(n.String(), "/", "_", 1), ":", "_")
 		}
 		if !addrSeen[name] {
 			ip2addr[n] = name

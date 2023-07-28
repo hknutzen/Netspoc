@@ -417,3 +417,26 @@ Error: Must not use VRF at router:r1@v2 of model ASA
 =END=
 
 ############################################################
+=TITLE=Add Policy Distribution Point To Header
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.9; }
+}
+router:r1 = {
+ managed;
+ policy_distribution_point = host:netspoc;
+ model = NX-OS;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+service:admin = {
+ user = interface:r1.n1;
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+-- r1
+! [ IP = 10.1.1.1 ]
+--
+! [ Policy_distribution_point = 10.1.1.9 ]
+=END=
+
+############################################################

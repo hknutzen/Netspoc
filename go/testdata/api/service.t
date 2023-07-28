@@ -779,7 +779,7 @@ router:r1 = {
         "value": {
             "description": "abc def # ghi",
             "disable_at": "2099-02-03",
-            "has_unenforceable": null,
+            "has_unenforceable": [],
             "user": "network:n1",
             "rules": [{
                 "action": "permit",

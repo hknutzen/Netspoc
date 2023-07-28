@@ -71,14 +71,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 	"github.com/spf13/pflag"
 )
 
@@ -224,9 +222,7 @@ func (c *spoc) printService(
 		return strings.Join(result, " ")
 	}
 
-	names := maps.Keys(s2rules)
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range sorted.Keys(s2rules) {
 		for _, r := range s2rules[name] {
 			action := "permit"
 			if r.deny {

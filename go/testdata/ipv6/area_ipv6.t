@@ -375,10 +375,23 @@ access-group n2_in in interface n2
 =PARAMS=--ipv6
 =INPUT=
 [[topo]]
-area:a1 = {border = interface:asa1.n1,
-                    interface:asa2.n2;}
+area:a1 = { border = interface:asa1.n1, interface:asa2.n2; }
 =ERROR=
 Error: Unreachable border of area:a1:
+ - interface:asa2.n2
+=END=
+
+############################################################
+=TITLE=Unreachable inclusive_border
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+
+area:a1 = {
+ inclusive_border = interface:asa1.n2, interface:asa1.n3, interface:asa2.n2;
+}
+=ERROR=
+Error: Unreachable inclusive_border of area:a1:
  - interface:asa2.n2
 =END=
 

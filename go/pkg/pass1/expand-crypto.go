@@ -1,9 +1,11 @@
 package pass1
 
 import (
-	"golang.org/x/exp/maps"
 	"sort"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
+	"golang.org/x/exp/maps"
 )
 
 func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
@@ -27,9 +29,7 @@ func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 func (c *spoc) verifyAsaVpnAttributes(
 	name string, attributes map[string]string) {
 
-	keys := maps.Keys(attributes)
-	sort.Strings(keys)
-	for _, key := range keys {
+	for _, key := range sorted.Keys(attributes) {
 		if _, found := asaVpnAttributes[key]; !found {
 			c.err("Invalid radius_attribute '%s' at %s", key, name)
 		}

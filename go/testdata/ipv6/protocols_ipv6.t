@@ -68,7 +68,8 @@ protocol:p6 = tcp - 2 -;
 protocol:p7 = tcp 1 - 2 -;
 protocol:p8 = tcp 1 - 2 - 3;
 protocol:p9 = tcp 1 - 2 : 3 : 4;
-protocol:p10 = tcp -;
+protocol:p10 = tcp 1 . 2 . 3 - 4;
+protocol:p11 = tcp -;
 network:n1 = { ip = ::a01:100/120; }
 =ERROR=
 Error: Expected port number > 0 in protocol:p1
@@ -82,7 +83,8 @@ Error: Invalid port range in protocol:p6
 Error: Invalid port range in protocol:p7
 Error: Invalid port range in protocol:p8
 Error: Invalid port range in protocol:p9
-Error: Expected number in protocol:p10: -
+Error: Invalid port range in protocol:p10
+Error: Expected number in protocol:p11: -
 =OPTIONS=--max_errors=20
 
 ############################################################
@@ -635,5 +637,25 @@ service:s1 = {
 =ERROR=
 Error: Found recursion in definition of protocolgroup:g2
 =END=
+
+############################################################
+=TITLE=Missing rule with tcp 22 from policy_distribution_point
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:pdp = { ip = ::a01:16f; } }
+router:r1 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:pdp;
+ interface:n1 = {ip = ::a01:101; hardware = n1; }
+}
+service:s1 = {
+    user = interface:r1.[auto];
+    permit src = host:pdp; dst = user; prt = tcp 80-90;
+}
+=WARNING=
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
+ - router:r1
+=OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################

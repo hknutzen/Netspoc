@@ -43,6 +43,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 	"github.com/spf13/pflag"
 )
 
@@ -201,9 +202,7 @@ func ownersForObjects(l srvObjList) stringList {
 			names[name] = true
 		}
 	}
-	result := maps.Keys(names)
-	sort.Strings(result)
-	return result
+	return sorted.Keys(names)
 }
 
 type xOwner map[srvObj][]*owner
@@ -223,9 +222,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 			names[name] = true
 		}
 	}
-	result := maps.Keys(names)
-	sort.Strings(result)
-	return result
+	return sorted.Keys(names)
 }
 
 func protoDescr(l []*proto) stringList {
@@ -912,8 +909,7 @@ func (c *spoc) exportNatSet(dir string,
 			natSets = append(natSets, d.natSet)
 		}
 		combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-		natList := maps.Keys(combined)
-		sort.Strings(natList)
+		natList := sorted.Keys(combined)
 
 		c.createDirs(dir, "owner/"+ownerName)
 		c.exportJson(dir, "owner/"+ownerName+"/nat_set", natList)
@@ -1147,9 +1143,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	names := maps.Keys(c.symTable.owner)
-	sort.Strings(names)
-	for _, ow := range names {
+	for _, ow := range sorted.Keys(c.symTable.owner) {
 		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
@@ -1339,9 +1333,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for e, m := range email2owners {
 
 		// Sort owner names for output.
-		l := maps.Keys(m)
-		sort.Strings(l)
-		email2oList[e] = l
+		email2oList[e] = sorted.Keys(m)
 	}
 	c.exportJson(outDir, "email", email2oList)
 }
