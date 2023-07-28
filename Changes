@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.061     2023-07-28 11:20:23+02:00 Europe/Berlin
+
  - Fixed missing warnings about undeclared subnet relation.
  - Add header [ Policy_distribution_point = IP ] to generated code.
    Will be used to check if proxy is needed in upcoming release
