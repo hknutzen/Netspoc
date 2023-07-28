@@ -1,6 +1,6 @@
 {{$NEXT}}
 
- - Fixed missing warnings about undeclared subnet realation.
+ - Fixed missing warnings about undeclared subnet relation.
  - Add header [ Policy_distribution_point = IP ] to generated code.
    Will be used to check if proxy is needed in upcoming release
    of Netspoc-Approve.
