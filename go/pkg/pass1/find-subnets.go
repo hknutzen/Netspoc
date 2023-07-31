@@ -390,7 +390,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 		// Mark and analyze networks having identical IP/mask in
 		// current NAT domain.
-		hasIdentical := make(map[*network]bool)
 		for n1, l := range identical {
 			var filtered netList
 			if visible[n1] {
@@ -403,9 +402,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			if len(filtered) <= 1 {
 				continue
-			}
-			for _, n := range filtered {
-				hasIdentical[n] = true
 			}
 
 			// Compare pairs of networks with identical IP/mask.
@@ -525,7 +521,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// if current status of subnet is not known,
 			// since status may change later.
 			if bignet.zone == subnet.zone {
-				if subnet.hasOtherSubnet || hasIdentical[subnet] {
+				if subnet.hasOtherSubnet || nextVisible(subnet) != nil {
 					bignet.hasOtherSubnet = true
 				} else {
 					//debug("Append %s %s", subnet, bignet)
