@@ -370,7 +370,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 	type netPair [2]*network
-	identSeen := make(netMap)
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
 		//debug("%s", domain.name)
@@ -407,14 +406,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			for _, n := range filtered {
 				hasIdentical[n] = true
-			}
-
-			// If list has been fully analyzed once, don't check it again.
-			if identSeen[n1] {
-				continue
-			}
-			if len(filtered) == len(l) {
-				identSeen[n1] = true
 			}
 
 			// Compare pairs of networks with identical IP/mask.
