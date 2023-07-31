@@ -168,7 +168,6 @@ access-group n1_in in interface n1
 =INPUT=
 network:all_10 = { ip = 10.0.0.0/8; }
 network:super = { ip = 10.1.0.0/16; subnet_of = network:all_10; }
-any:10_1_0-1 = { ip = 10.1.0.0/17; link = network:super; }
 router:u1 = {
  interface:all_10;
  interface:super;

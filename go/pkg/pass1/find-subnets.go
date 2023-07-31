@@ -296,17 +296,22 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	// We need this in deterministic order.
 	var natNetworks netList
 
-	// Mapping from NAT network to original network.
+	// Mark aggregates and create mapping from NAT network to original
+	// network for non aggregate networks.
 	origNet := make(map[*network]*network)
 	for _, n := range networks {
+		if n.isAggregate {
+			// Aggregate mostly ever has subnet in other zone.
+			n.hasOtherSubnet = true
+			continue
+		}
 		natNetworks.push(n)
 		origNet[n] = n
 		for _, natNetwork := range n.nat {
-			if natNetwork.hidden {
-				continue
+			if !natNetwork.hidden {
+				origNet[natNetwork] = n
+				natNetworks.push(natNetwork)
 			}
-			origNet[natNetwork] = n
-			natNetworks.push(natNetwork)
 		}
 	}
 
@@ -340,6 +345,8 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 
+	markSubnetsOfAggregates(networks, prefixIPMap, identical)
+
 	// Calculate .isIn relation from IP addresses;
 	// This includes all addresses of all networks in all NAT domains.
 	isIn := make(map[*network]*network)
@@ -348,7 +355,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	})
 
 	// 2. step:
-	// Analyze .isIn and .Identical relation for different NAT domains.
+	// Analyze .isIn and identical[] relation for different NAT domains.
 
 	// Mapping from subnet to bignet in same zone.
 	// Bignet must be marked, if subnet is marked later with .hasOtherSubnet.
@@ -367,7 +374,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 	type netPair [2]*network
-	subnetInZone := make(map[netPair]map[*natDomain]bool)
 	identSeen := make(netMap)
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
@@ -418,14 +424,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			for _, natNetwork := range filtered[1:] {
 				n := origNet[natNetwork]
 				error := false
-				if other.isAggregate || n.isAggregate {
-
-					// Check supernet rules and prevent secondary optimization,
-					// if identical IP address occurrs in different zones.
-					other.hasOtherSubnet = true
-					n.hasOtherSubnet = true
-					//debug("identical %s %s", n, other)
-				} else if natOther.dynamic && natNetwork.dynamic {
+				if natOther.dynamic && natNetwork.dynamic {
 
 					// Dynamic NAT of different networks to a single new
 					// IP/mask is OK between different zones.
@@ -501,96 +500,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 			subnet := origNet[natSubnet]
-
-			// Collect subnet/supernet pairs in same zone for later check.
-			collect := func(subnet *network) {
-				z := subnet.zone
-				natBignet := natBignet
-				for {
-					bignet := origNet[natBignet]
-					if visible[natBignet] && bignet.zone == z {
-						domMap := subnetInZone[netPair{bignet, subnet}]
-						if domMap == nil {
-							domMap = make(map[*natDomain]bool)
-							subnetInZone[netPair{bignet, subnet}] = domMap
-						}
-						domMap[domain] = true
-						break
-					}
-					natBignet = isIn[natBignet]
-					if natBignet == nil {
-						break
-					}
-				}
-			}
-			if l := identical[natSubnet]; l != nil {
-				for _, n := range l {
-					if visible[n] {
-						collect(origNet[n])
-					}
-				}
-			} else {
-				collect(subnet)
-			}
-
-			//debug("%s <= %s", natName(natSubnet), natName(natBignet))
 			bignet := origNet[natBignet]
-
-			pairSeen := relationSeen[netPair{natBignet, natSubnet}]
-			if !pairSeen {
-				relationSeen[netPair{natBignet, natSubnet}] = true
-
-				// Mark network having subnet in same zone, if subnet has
-				// subsubnet in other zone.
-				// Remember subnet relation in same zone in pendingOtherSubnet,
-				// if current status of subnet is not known,
-				// since status may change later.
-				if bignet.zone == subnet.zone {
-					if subnet.hasOtherSubnet || hasIdentical[subnet] {
-						bignet.hasOtherSubnet = true
-					} else {
-						//debug("Append %s %s", subnet, bignet)
-						pendingOtherSubnet[subnet] =
-							append(pendingOtherSubnet[subnet], bignet)
-					}
-				} else {
-					// Mark network having subnet in other zone.
-					markNetworkAndPending(bignet)
-					//debug("%s > %s", bignet, subnet)
-
-					// Mark aggregate that has other *supernet*.
-					// In this situation, addresses of aggregate
-					// are part of supernet and located in other
-					// zone.
-					// But ignore the internet and non matching aggregate.
-					if subnet.isAggregate && bignet.ipp.Bits() != 0 {
-						markNetworkAndPending(subnet)
-						//debug("%s ~ %s", subnet, bignet)
-					}
-				}
-			}
-
-			// No check needed for unexpected subnet relation.
-			if subnet.isAggregate {
-				continue
-			}
-
-			// Use next larger non aggregate network when checking for
-			// unexpected subnet relation.
-		REALNET:
-			for natBignet.isAggregate || !visible[natBignet] {
-				for _, identNet := range identical[natBignet] {
-					if !identNet.isAggregate && visible[identNet] {
-						natBignet = identNet
-						break REALNET
-					}
-				}
-				natBignet = isIn[natBignet]
-				if natBignet == nil {
-					continue SUBNET
-				}
-			}
-			bignet = origNet[natBignet]
 
 			if !natSubnet.isLayer3 {
 				subnet.subnetOfUsed = true
@@ -617,85 +527,45 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if !pairSeen && bignet.zone != subnet.zone {
+			if relationSeen[netPair{natBignet, natSubnet}] {
+				continue
+			}
+			relationSeen[netPair{natBignet, natSubnet}] = true
+
+			// Mark network having subnet in same zone, if subnet has
+			// subsubnet in other zone.
+			// Remember subnet relation in same zone in pendingOtherSubnet,
+			// if current status of subnet is not known,
+			// since status may change later.
+			if bignet.zone == subnet.zone {
+				if subnet.hasOtherSubnet || hasIdentical[subnet] {
+					bignet.hasOtherSubnet = true
+				} else {
+					//debug("Append %s %s", subnet, bignet)
+					pendingOtherSubnet[subnet] =
+						append(pendingOtherSubnet[subnet], bignet)
+				}
+			} else {
+				// Mark network having subnet in other zone.
+				markNetworkAndPending(bignet)
+				//debug("%s > %s", bignet, subnet)
+			}
+
+			if bignet.zone != subnet.zone {
 				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}
 	}
+}
 
-	for pair, dom2isSubnet := range subnetInZone {
-		bignet, subnet := pair[0], pair[1]
-
-		// Ignore relation, if both are aggregates,
-		// because IP addresses of aggregates can't be changed by NAT.
-		if subnet.isAggregate && bignet.isAggregate {
-			continue
-		}
-
-		// Subnet is subnet of bignet in at least one NAT domain.
-		// Check that in each NAT domain
-		// - subnet relation holds or
-		// - at least one of both networks is hidden.
-	DOMAIN:
-		for _, domain := range domains {
-
-			// Ok, is subnet in current NAT domain.
-			if dom2isSubnet[domain] {
-				continue
-			}
-
-			// If one or both networks are hidden, this does
-			// not count as changed subnet relation.
-			m := domain.natMap
-			natBignet := getNatNetwork(bignet, m)
-			if natBignet.hidden {
-				continue
-			}
-			natSubnet := getNatNetwork(subnet, m)
-			if natSubnet.hidden {
-				continue
-			}
-
-			// Identical IP from dynamic NAT is valid as subnet relation.
-			if natSubnet.dynamic && natBignet.dynamic &&
-				natSubnet.ipp == natBignet.ipp {
-
-				continue
-			}
-
-			// Also check transient subnet relation.
-			up := subnet
-			for {
-				up2 := up.up
-				// up2 can't become nil because subnet and bignet are
-				// known to be in .up relation in zone.
-				if !subnetInZone[netPair{up2, up}][domain] {
-					break
-				}
-				if up2 == bignet {
-					continue DOMAIN
-				}
-				up = up2
-			}
-
-			// Found NAT domain, where networks are not in subnet relation.
-			// Remember at attribute unstableNat for later check.
-			u := bignet.unstableNat
-			if u == nil {
-				u = make(map[*natDomain]netList)
-				bignet.unstableNat = u
-			}
-			u[domain] = append(u[domain], subnet)
-		}
-	}
-
-	// Secondary optimization substitutes a host or interface by its
-	// largest valid supernet inside the same security zone. This
-	// supernet has already been calculated and stored in
-	// .maxRoutingNet. But .maxRoutingNet can't be used if it has
-	// a subnet in some other security zone. In this case we have to
-	// search again for a supernet without attribute .hasOtherSubnet.
-	// The result is stored in .maxSecondaryNet.
+// Secondary optimization substitutes a host or interface by its
+// largest valid supernet inside the same security zone. This
+// supernet has already been calculated and stored in
+// .maxRoutingNet. But .maxRoutingNet can't be used if it has
+// a subnet in some other security zone. In this case we have to
+// search again for a supernet without attribute .hasOtherSubnet.
+// The result is stored in .maxSecondaryNet.
+func setMaxSecondaryNet(networks []*network) {
 	for _, n := range networks {
 		max := n.maxRoutingNet
 		if max == nil {
@@ -728,6 +598,29 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	}
 }
 
+func markSubnetsOfAggregates(
+	networks []*network,
+	prefixIPMap map[int]map[netip.Addr]*network,
+	identical map[*network]netList,
+) {
+	for _, a := range networks {
+		if a.isAggregate {
+			ipp := a.ipp
+			ip := ipp.Addr()
+			len := ipp.Bits()
+			for p := len; p >= 0; p-- {
+				up, _ := ip.Prefix(p)
+				if n, found := prefixIPMap[p][up.Addr()]; found {
+					n.hasOtherSubnet = true
+					for _, o := range identical[n] {
+						o.hasOtherSubnet = true
+					}
+				}
+			}
+		}
+	}
+}
+
 func isLoopbackAtZoneBorder(sub, big *network) bool {
 	if sub.loopback {
 		z := big.zone
@@ -744,6 +637,57 @@ func (c *spoc) findUselessSubnetOf() {
 	for _, n := range c.allNetworks {
 		if bignet := n.subnetOf; bignet != nil && !n.subnetOfUsed {
 			c.warn("Useless 'subnet_of = %s' at %s", bignet, n)
+		}
+	}
+}
+
+func findUnstableNat(domains []*natDomain, networks netList) {
+	for _, subnet := range networks {
+		bignet := subnet.up
+		if bignet == nil {
+			continue
+		}
+
+		// Subnet is subnet of bignet in NAT domain of zone z.
+		// Check that in each other NAT domain
+		// - subnet relation holds or
+		// - at least one of both networks is hidden.
+		dom := subnet.zone.natDomain
+		for _, domain := range domains {
+
+			// Ok, is subnet in current NAT domain.
+			if domain == dom {
+				continue
+			}
+
+			m := domain.natMap
+			natBignet := getNatNetwork(bignet, m)
+			natSubnet := getNatNetwork(subnet, m)
+			// No NAT was applied.
+			if natSubnet == subnet && natBignet == bignet {
+				continue
+			}
+			// If one or both networks are hidden, this does not count as
+			// changed subnet relation.
+			if natBignet.hidden || natSubnet.hidden {
+				continue
+			}
+			subIpp := natSubnet.ipp
+			bigIpp := natBignet.ipp
+			// NAT addresses are still in subnet relation or
+			// are identical from dynamic NAT.
+			if bigIpp.Contains(subIpp.Addr()) && subIpp.Bits() >= bigIpp.Bits() {
+				continue
+			}
+
+			// Found NAT domain, where networks are not in subnet relation.
+			// Remember at attribute unstableNat for later check.
+			u := bignet.unstableNat
+			if u == nil {
+				u = make(map[*natDomain]netList)
+				bignet.unstableNat = u
+			}
+			u[domain] = append(u[domain], subnet)
 		}
 	}
 }
@@ -812,7 +756,11 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
 		for _, part := range sorted.Keys(part2Doms) {
-			c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
+			domains := part2Doms[part]
+			networks := part2Nets[part]
+			findUnstableNat(domains, networks)
+			c.findSubnetsInNatDomain0(domains, networks)
+			setMaxSecondaryNet(networks)
 		}
 	})
 	c.findUselessSubnetOf()

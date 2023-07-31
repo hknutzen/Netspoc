@@ -171,7 +171,6 @@ access-group n1_in in interface n1
 =INPUT=
 network:all_10 = { ip = ::a00:0/104; }
 network:super = { ip = ::a01:0/112; subnet_of = network:all_10; }
-any:10_1_0-1 = { ip = ::a01:0/113; link = network:super; }
 router:u1 = {
  interface:all_10;
  interface:super;
