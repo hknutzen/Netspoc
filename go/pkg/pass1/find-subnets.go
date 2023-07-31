@@ -461,28 +461,25 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 
 			// If invisible, search other networks with identical IP.
-			if !visible[natSubnet] {
-				foundOther := false
-				for _, n := range identical[natSubnet] {
+			nextVisible := func(nn *network) *network {
+				for _, n := range identical[nn] {
 					if visible[n] {
-						natSubnet = n
-						foundOther = true
-						break
+						return n
 					}
 				}
-				if !foundOther {
+				return nil
+			}
+			if !visible[natSubnet] {
+				if natSubnet = nextVisible(natSubnet); natSubnet == nil {
 					continue
 				}
 			}
 
 			// If invisible, search other networks with identical or larger IP.
-		BIGNET:
 			for !visible[natBignet] {
-				for _, n := range identical[natBignet] {
-					if visible[n] {
-						natBignet = n
-						break BIGNET
-					}
+				if n := nextVisible(natBignet); n != nil {
+					natBignet = n
+					break
 				}
 				natBignet = isIn[natBignet]
 				if natBignet == nil {
