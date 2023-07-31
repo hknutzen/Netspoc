@@ -333,12 +333,8 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			ipMap = make(map[netip.Addr]*network)
 			prefixIPMap[ipp.Bits()] = ipMap
 		}
+		// Collect identical networks.
 		if other := ipMap[ipp.Addr()]; other != nil {
-
-			// Bild lists of identical networks.
-			if identical[other] == nil {
-				identical[other] = netList{other}
-			}
 			identical[other] = append(identical[other], nn)
 		} else {
 			ipMap[ipp.Addr()] = nn
@@ -398,6 +394,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		hasIdentical := make(map[*network]bool)
 		for n1, l := range identical {
 			var filtered netList
+			if visible[n1] {
+				filtered.push(n1)
+			}
 			for _, n := range l {
 				if visible[n] {
 					filtered.push(n)
@@ -609,11 +608,13 @@ func markSubnetsOfAggregates(
 			ip := ipp.Addr()
 			len := ipp.Bits()
 			for p := len; p >= 0; p-- {
-				up, _ := ip.Prefix(p)
-				if n, found := prefixIPMap[p][up.Addr()]; found {
-					n.hasOtherSubnet = true
-					for _, o := range identical[n] {
-						o.hasOtherSubnet = true
+				if ip2net, found := prefixIPMap[p]; found {
+					up, _ := ip.Prefix(p)
+					if n, found := ip2net[up.Addr()]; found {
+						n.hasOtherSubnet = true
+						for _, o := range identical[n] {
+							o.hasOtherSubnet = true
+						}
 					}
 				}
 			}
