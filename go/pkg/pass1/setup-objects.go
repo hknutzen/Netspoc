@@ -2188,18 +2188,11 @@ func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
 	l := c.getValueList(a, ctx)
 	sort.Strings(l)
 	// Remove duplicates.
-	var seen string
-	j := 0
-	for _, tag := range l {
-		if tag == seen {
-			c.warn("Duplicate '%s' in 'bind_nat' of %s", tag, ctx)
-		} else {
-			seen = tag
-			l[j] = tag
-			j++
-		}
+	l2 := slices.Compact(l)
+	if len(l) != len(l2) {
+		c.warn("Ignoring duplicate element in 'bind_nat' of %s", ctx)
 	}
-	return l[:j]
+	return l2
 }
 
 func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {

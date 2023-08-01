@@ -689,7 +689,7 @@ router:filter = {
 }
 network:X = { ip = ::a08:300/120; }
 =WARNING=
-Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
+Warning: Ignoring duplicate element in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
 Warning: Ignoring useless nat:E/F bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
