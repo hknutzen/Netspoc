@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
@@ -1253,7 +1254,7 @@ func (c *spoc) setupRouter(v *ast.Router) {
 			// hardware, not on logic.
 			intf := l[0]
 			for _, other := range l[1:] {
-				if !bindNatEq(intf.bindNat, other.bindNat) {
+				if !slices.Equal(intf.bindNat, other.bindNat) {
 					c.err("%s and %s using identical 'hardware = %s'\n"+
 						" must also use identical NAT binding", intf, other, hw.name)
 				}

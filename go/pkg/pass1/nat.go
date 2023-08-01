@@ -238,20 +238,6 @@ func (c *spoc) generateMultinatDefLookup(
 	return multi
 }
 
-// Compare two list element wise.
-// Return true if both contain the same elements in same order.
-func bindNatEq(l1, l2 stringList) bool {
-	if len(l1) != len(l2) {
-		return false
-	}
-	for i, tag := range l1 {
-		if tag != l2[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // findNatDomains divides topology into NAT domains.
 //
 //	Networks and NAT domain limiting routers keep references
@@ -309,7 +295,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 				//debug("OUT %s", outIntf)
 
 				// Current NAT domain continues behind outIntf
-				if bindNatEq(outIntf.bindNat, natTags) {
+				if slices.Equal(outIntf.bindNat, natTags) {
 
 					// Prevent deep recursion inside a single NAT domain.
 					if r.activePath {
@@ -327,7 +313,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 				// Loop found: router is already marked to limit domain.
 				// Perform consistency check.
 				if other, found := r.natTags[d]; found {
-					if bindNatEq(natTags, other) {
+					if slices.Equal(natTags, other) {
 						continue
 					}
 					info := func(tags stringList) string {
