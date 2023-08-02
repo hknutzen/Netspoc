@@ -223,7 +223,7 @@ func SpocMain(d oslink.Data) int {
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
-		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
+		NATDomains, _, _ := c.distributeNatInfo()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		pRules, dRules := c.convertHostsInRules(sRules)
@@ -234,7 +234,7 @@ func SpocMain(d oslink.Data) int {
 				c.findSubnetsInNatDomain(NATDomains)
 				c.checkUnstableNatRules()
 				c.markManagedLocal()
-				c.checkDynamicNatRules(NATDomains, NATTag2natType)
+				c.checkDynamicNatRules()
 				c.checkSupernetRules(pRules)
 			},
 			func(c *spoc) {

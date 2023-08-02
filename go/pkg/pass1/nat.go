@@ -39,10 +39,6 @@ a common set of NAT tags (NAT set) is effective at every network.
 */
 
 // getLookupMapForNatType checks for equal type of NAT definitions.
-//
-//	This is used for more efficient check of dynamic NAT rules,
-//	so we need to check only once for each pair of src / dst zone.
-//
 // Returns a map, mapping NAT tag to its type: static, dynamic or hidden.
 func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)

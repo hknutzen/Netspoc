@@ -22,9 +22,7 @@ func (c *spoc) getPathPairs(r *groupedRule, s, d *zone) intfPairs {
 // 1. Check for invalid rules accessing hidden objects.
 // 2. Check host rule with dynamic NAT.
 // 3. Check for partially applied hidden or dynamic NAT on path.
-func (c *spoc) checkDynamicNatRules(
-	natDoms []*natDomain, natTag2natType map[string]string) {
-
+func (c *spoc) checkDynamicNatRules() {
 	c.progress("Checking rules with hidden or dynamic NAT")
 
 	// 1. Collect hidden or dynamic NAT tags that are defined inside zone.
