@@ -2970,6 +2970,49 @@ Error: Must not apply dynamic NAT 'd' to dst of rule
 =END=
 
 ############################################################
+=TITLE=Mixed static and dynamic NAT with same tag
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:d = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:d = { ip = 10.9.2.0/27; dynamic; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = d; }
+}
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+pathrestriction:p = interface:r2.n3, interface:r4.n2;
+
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not apply dynamic NAT 'd' to src of rule
+ permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
+ NAT 'd' is active at
+ - interface:r3.n4
+ - interface:r4.n4
+ Add pathrestriction to exclude this path
+=END=
+
+############################################################
 =TITLE=Inconsistent NAT in loop (1)
 =INPUT=
 network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
@@ -4119,32 +4162,24 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
-=TITLE=NAT definitions with different type.
+=TITLE=Mixed hidden and non hidden.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.1.0/24; } }
-network:n2 = { ip = 10.1.2.0/24; nat:x = { ip = 10.9.2.2/31; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:y = { ip = 10.9.2.2/31; dynamic; } }
 network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:lo = { ip = 10.1.5.0; loopback; nat:x = { hidden; } }
- interface:n4 = { bind_nat = x; }
+ interface:lo = { ip = 10.1.5.0; loopback; nat:y = { hidden; } }
+ interface:n4 = { bind_nat = x, y; }
 }
 =ERROR=
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - dynamic for network:n2
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for network:n3
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:x.
+ Check network:n1 and network:n3
+Error: Must not mix hidden and real NAT at nat:y.
+ Check network:n2 and interface:r1.lo
 =END=
 
 ############################################################
