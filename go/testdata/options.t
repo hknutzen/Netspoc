@@ -225,7 +225,7 @@ router:r1 = {
 }
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't open out/r1.config: permission denied
+Error: Can't open out/r1.info: permission denied
 Aborted
 =END=
 

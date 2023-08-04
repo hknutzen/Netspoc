@@ -18,6 +18,8 @@ service:s1 = {
  permit src = network:n1; dst = user; prt = ip;
 }
 =OUTPUT=
+--r1.info
+{"generated_by":"devel","model":"Linux"}
 --r1
 # [ BEGIN r1 ]
 --
