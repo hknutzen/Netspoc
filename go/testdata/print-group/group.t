@@ -107,7 +107,7 @@ router:r1 = {
 }
 router:r2 = {
  managed;
- model = ASA;
+ model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
@@ -128,6 +128,19 @@ service:s = {
 10.1.3.65-10.1.3.67	host:h3d
 =OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
+
+############################################################
+=TITLE=Find unused interface when [auto] is in use
+=INPUT=
+[[topo]]
+service:s = {
+ user = interface:r2.[auto];
+ permit src = network:n1; dst = user; prt = udp 161;
+}
+=OUTPUT=
+10.1.3.2	interface:r2.n3
+=OPTIONS=--unused
+=PARAM=interface:r2.[all]
 
 ############################################################
 =TITLE=Find unused hosts, ignore host of automatic group
