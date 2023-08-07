@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.062     2023-08-07 15:25:55+02:00 Europe/Berlin
+
  - Meta data for each device is written to new file DEVICE.info .
    This JSON file will substitute the header data,
    which is written into code file currently.
