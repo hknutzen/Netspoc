@@ -2439,25 +2439,6 @@ func (c *spoc) printNSX(fd *os.File, vrfMembers []*router, info *codeInfo) {
 	fmt.Fprintln(fd, "#insert JSON")
 }
 
-func (c *spoc) printInfoFile(path string, vrfMembers []*router) {
-	var ipList []string
-	for _, r := range vrfMembers {
-		ipList = append(ipList, r.adminIP...)
-	}
-	r := vrfMembers[0]
-	pdp := ""
-	if p := r.policyDistributionPoint; p != nil {
-		pdp = p.ip.String()
-	}
-	info := &codeInfo{
-		GeneratedBy:             version,
-		Model:                   r.model.class,
-		IPList:                  ipList,
-		PolicyDistributionPoint: pdp,
-	}
-	c.writeJson(path, info)
-}
-
 // Print generated code for each managed router.
 func (c *spoc) printRouter(r *router, dir string) string {
 	deviceName := r.deviceName
