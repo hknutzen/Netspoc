@@ -354,6 +354,9 @@ func getBlocks(data string, blocks []string) string {
 			}
 		}
 	}
+	if out == "" {
+		out = data
+	}
 	return out
 }
 

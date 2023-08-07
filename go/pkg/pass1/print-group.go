@@ -215,6 +215,7 @@ func (c *spoc) printGroup(
 	// Prepare finding unused objects by marking used objects.
 	used := make(map[groupObj]bool)
 	if showUnused {
+		c.setPath()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		process := func(rules []*serviceRule) {

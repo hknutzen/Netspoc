@@ -261,8 +261,10 @@ sub adjust_testfile {
         # Convert group names
         $line =~ s/([ >"]|Netspoc-)(g\d+[\s<"])/$1v6$2/g;
 
-        # Convert rule names
-        $line =~ s/(")(r\d+")/$1v6$2/g;
+        # Convert rule names in XML: <entry name="r2">
+        $line =~ s/(=")(r\d+")/$1v6$2/g;
+        # Convert rule names in JSON: "id": "r7",
+        $line =~ s/(: ?")(r\d+")/$1v6$2/g;
 
         # Add =PARAMS= with --ipv6 option before =INPUT=
         $line =~ s/^(=INPUT=.*)/=PARAMS=--ipv6\n$1/;

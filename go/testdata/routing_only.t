@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=IP header, route
+=TITLE=Info file, IP header, route
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -23,6 +23,8 @@ service:test = {
  permit src = user; dst = interface:r.[auto]; prt = tcp 22;
 }
 =OUTPUT=
+--r.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.1"],"policy_distribution_point":"10.1.3.10"}
 --r
 ! [ IP = 10.1.2.1 ]
 --

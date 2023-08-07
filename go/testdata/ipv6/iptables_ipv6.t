@@ -19,6 +19,8 @@ service:s1 = {
  permit src = network:n1; dst = user; prt = ip;
 }
 =OUTPUT=
+--ipv6/r1.info
+{"generated_by":"devel","model":"Linux"}
 --ipv6/r1
 # [ BEGIN r1 ]
 --

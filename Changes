@@ -1,7 +1,20 @@
+6.062     2023-08-07 15:25:55+02:00 Europe/Berlin
+
+ - Meta data for each device is written to new file DEVICE.info .
+   This JSON file will substitute the header data,
+   which is written into code file currently.
+   Header will be removed in next version, after updating Netspoc-Approve.
+ - Mixed use of static and dynamic NAT at the same NAT tag is allowed again.
+ - Fixed panic in command 'print-group' when called with option '--unused'.
+ - For aggregates (objects of type 'any:...') we now always assume
+   that they have subnets in other zone.
+   This may lead to less optimizations, but runtime improves by about 5%.
+
 6.061     2023-07-28 11:20:23+02:00 Europe/Berlin
 
  - Fixed missing warnings about undeclared subnet relation.
- - Add header [ Policy_distribution_point = IP ] to generated code.
+ - Add header [ Policy_distribution_point = IP ] to generated code,
+   if a policy_distribution_point is defined for this device.
    Will be used to check if proxy is needed in upcoming release
    of Netspoc-Approve.
 

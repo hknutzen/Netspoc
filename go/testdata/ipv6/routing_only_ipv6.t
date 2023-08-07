@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=IP header, route
+=TITLE=Info file, IP header, route
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
@@ -24,6 +24,8 @@ service:test = {
  permit src = user; dst = interface:r.[auto]; prt = tcp 22;
 }
 =OUTPUT=
+--ipv6/r.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:201"],"policy_distribution_point":"::a01:30a"}
 --ipv6/r
 ! [ IP = ::a01:201 ]
 --

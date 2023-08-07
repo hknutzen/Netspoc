@@ -689,7 +689,7 @@ router:filter = {
 }
 network:X = { ip = ::a08:300/120; }
 =WARNING=
-Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
+Warning: Ignoring duplicate element in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
 Warning: Ignoring useless nat:E/F bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
@@ -3062,6 +3062,50 @@ Error: Must not apply dynamic NAT 'd' to dst of rule
 =END=
 
 ############################################################
+=TITLE=Mixed static and dynamic NAT with same tag
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:d = { ip = ::a09:100/120; } }
+network:n2 = { ip = ::a01:200/120; nat:d = { ip = ::a09:200/123; dynamic; } }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; bind_nat = d; }
+}
+router:r4 = {
+ interface:n4 = { ip = ::a01:402; hardware = n4; bind_nat = d; }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+pathrestriction:p = interface:r2.n3, interface:r4.n2;
+
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not apply dynamic NAT 'd' to src of rule
+ permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
+ NAT 'd' is active at
+ - interface:r3.n4
+ - interface:r4.n4
+ Add pathrestriction to exclude this path
+=END=
+
+############################################################
 =TITLE=Inconsistent NAT in loop (1)
 =PARAMS=--ipv6
 =INPUT=
@@ -4244,33 +4288,25 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
-=TITLE=NAT definitions with different type.
+=TITLE=Mixed hidden and non hidden.
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:x = { ip = ::a09:100/120; } }
-network:n2 = { ip = ::a01:200/120; nat:x = { ip = ::a09:202/127; dynamic; } }
+network:n2 = { ip = ::a01:200/120; nat:y = { ip = ::a09:202/127; dynamic; } }
 network:n3 = { ip = ::a01:300/120; nat:x = { hidden; } }
 network:n4 = { ip = ::a01:400/120; }
 router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:lo = { ip = ::a01:500; loopback; nat:x = { hidden; } }
- interface:n4 = { bind_nat = x; }
+ interface:lo = { ip = ::a01:500; loopback; nat:y = { hidden; } }
+ interface:n4 = { bind_nat = x, y; }
 }
 =ERROR=
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - dynamic for network:n2
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for network:n3
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:x.
+ Check network:n1 and network:n3
+Error: Must not mix hidden and real NAT at nat:y.
+ Check network:n2 and interface:r1.lo
 =END=
 
 ############################################################

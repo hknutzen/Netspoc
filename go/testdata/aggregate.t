@@ -1271,7 +1271,7 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
-=TITLE=Don't check aggregate that is subnet of network in same zone
+=TITLE=Also check aggregate that is subnet of subnet in other zone
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
@@ -1297,13 +1297,21 @@ router:u = {
 }
 network:sub-28 = { ip = 10.1.2.48/28; subnet_of = network:sub-27; }
 any:sub-29 =     { ip = 10.1.2.48/29; link = network:n2; }
-# No warning, because we know, that addresses of any:sub-29
-# are located inside network:sub-28 and not inside network:sub-27.
+# We could analyze, that addresses of any:sub-29 are located inside
+# network:sub-28 and not inside network:sub-27, and hence show no
+# warning. But this analysis is not implemented because it is too expensive.
 service:s1 = {
  user = network:n1;
  permit src = user; dst = any:sub-29; prt = tcp 80;
 }
-=WARNING=NONE
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:sub-29; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:sub-27
+ Either replace any:sub-29 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
 
 ############################################################
 =TITLE=Don't check supernet of supernet.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
@@ -1253,7 +1254,7 @@ func (c *spoc) setupRouter(v *ast.Router) {
 			// hardware, not on logic.
 			intf := l[0]
 			for _, other := range l[1:] {
-				if !bindNatEq(intf.bindNat, other.bindNat) {
+				if !slices.Equal(intf.bindNat, other.bindNat) {
 					c.err("%s and %s using identical 'hardware = %s'\n"+
 						" must also use identical NAT binding", intf, other, hw.name)
 				}
@@ -2187,18 +2188,11 @@ func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
 	l := c.getValueList(a, ctx)
 	sort.Strings(l)
 	// Remove duplicates.
-	var seen string
-	j := 0
-	for _, tag := range l {
-		if tag == seen {
-			c.warn("Duplicate '%s' in 'bind_nat' of %s", tag, ctx)
-		} else {
-			seen = tag
-			l[j] = tag
-			j++
-		}
+	l2 := slices.Compact(l)
+	if len(l) != len(l2) {
+		c.warn("Ignoring duplicate element in 'bind_nat' of %s", ctx)
 	}
-	return l[:j]
+	return l2
 }
 
 func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {

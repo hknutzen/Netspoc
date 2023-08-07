@@ -325,11 +325,13 @@ service:s1 = {
  },
  "any:[ip=10.1.0.0/23 & network:n1]": {
   "ip": "10.1.0.0/23",
+  "is_supernet": 1,
   "owner": "a",
   "zone": "any:[network:n1]"
  },
  "any:[ip=10.2.0.0/23 & network:n1]": {
   "ip": "10.2.0.0/23",
+  "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
  },
@@ -373,6 +375,7 @@ owner:b = { admins = b@example.com; }
 {
  "any:a": {
   "ip": "0.0.0.0/0",
+  "is_supernet": 1,
   "zone": "any:a"
  },
  "interface:r.n1": {
@@ -1357,6 +1360,7 @@ service:s1 = {
 {
  "any:n1": {
   "ip": "0.0.0.0/0",
+  "is_supernet": 1,
   "owner": "n1",
   "zone": "any:n1"
  },
@@ -2830,6 +2834,7 @@ service:s1 = {
 {
  "any:[ip=10.1.3.0/24 & network:n3]": {
   "ip": "10.1.3.0/24",
+  "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n3]"
  },

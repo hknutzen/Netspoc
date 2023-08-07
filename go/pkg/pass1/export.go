@@ -870,7 +870,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
 func (c *spoc) exportNatSet(dir string,
-	natTag2multinatDef map[string][]natTagMap, natTag2natType map[string]string,
+	natTag2multinatDef map[string][]natTagMap, natTag2hidden map[string]bool,
 	pInfo, oInfo xOwner) {
 
 	c.progress("Export NAT-sets")
@@ -908,7 +908,7 @@ func (c *spoc) exportNatSet(dir string,
 		for d := range doms {
 			natSets = append(natSets, d.natSet)
 		}
-		combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
+		combined := combineNatSets(natSets, natTag2multinatDef, natTag2hidden)
 		natList := sorted.Keys(combined)
 
 		c.createDirs(dir, "owner/"+ownerName)
@@ -1358,7 +1358,7 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.readNetspoc(inDir)
 	c.setZone()
 	c.setPath()
-	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
+	natDomains, natTag2hidden, multiNAT := c.distributeNatInfo()
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := c.normalizeServicesForExport()
@@ -1376,7 +1376,7 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.exportUsersAndServiceLists(outDir, expSvcList, allObjects, pInfo, oInfo)
 	c.exportObjects(outDir, allObjects)
 	c.exportZone2Areas(outDir)
-	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
+	c.exportNatSet(outDir, multiNAT, natTag2hidden, pInfo, oInfo)
 	c.copyPolicyFile(inDir, outDir)
 	c.progress("Ready")
 }
