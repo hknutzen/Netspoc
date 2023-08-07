@@ -230,6 +230,24 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Can't write .config file of pass1
+=SETUP=
+mkdir -p out/.prev
+mkdir out/r1.config
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't open out/r1.config: is a directory
+Aborted
+=END=
+
+############################################################
 =TITLE=Can't write code file
 =SETUP=
 mkdir -p out/.prev
