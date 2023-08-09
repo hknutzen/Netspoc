@@ -1245,8 +1245,8 @@ service:test = {
  permit src = network:a; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a00:1,::a01:101 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["::a00:1","::a01:101"],"policy_distribution_point":"::a00:a"}
 =END=
 
 ############################################################
@@ -1293,8 +1293,8 @@ service:s1 = {
  permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
 }
 =OUTPUT=
---ipv6/r2
-! [ IP = ::a01:302,::a01:401 ]
+--ipv6/r2.info
+{"generated_by":"devel","model":"IOS","ip_list":["::a01:302","::a01:401"],"policy_distribution_point":"::a01:16f"}
 =END=
 
 ############################################################
@@ -1321,8 +1321,8 @@ service:s1 = {
         prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a01:201,::a01:301 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:201","::a01:301"],"policy_distribution_point":"::a01:16f"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -1357,10 +1357,10 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a01:203 ]
---ipv6/r2
-! [ IP = ::a01:202 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:203"],"policy_distribution_point":"::a01:309"}
+--ipv6/r2.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:202"],"policy_distribution_point":"::a01:309"}
 =END=
 
 ############################################################

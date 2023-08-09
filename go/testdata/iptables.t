@@ -21,10 +21,6 @@ service:s1 = {
 --r1.info
 {"generated_by":"devel","model":"Linux"}
 --r1
-# [ BEGIN r1 ]
---
-# [ Model = Linux ]
---
 # [ PREFIX ]
 --
 #!/sbin/iptables-restore <<EOF

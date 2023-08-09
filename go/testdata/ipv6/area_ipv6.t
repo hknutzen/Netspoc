@@ -124,10 +124,10 @@ service:pdp3 = {
  permit src = host:h3; dst = user; prt = ip;
 }
 =OUTPUT=
---ipv6/asa1
-! [ IP = ::a01:101 ]
---ipv6/asa2
-! [ IP = ::a01:302 ]
+--ipv6/asa1.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:101"],"policy_distribution_point":"::a01:10a"}
+--ipv6/asa2.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:302"],"policy_distribution_point":"::a01:30a"}
 =OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################

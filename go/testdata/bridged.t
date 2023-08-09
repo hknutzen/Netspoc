@@ -404,8 +404,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -417,8 +417,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -430,8 +430,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################

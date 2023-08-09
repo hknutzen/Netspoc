@@ -265,8 +265,8 @@ service:admin = {
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- ipv6/r1
-! [ IP = ::a01:102 ]
+-- ipv6/r1.info
+{"generated_by":"devel","model":"NX-OS","ip_list":["::a01:102"]}
 =END=
 
 ############################################################
@@ -293,8 +293,8 @@ service:admin = {
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- ipv6/r1
-! [ IP = ::a01:101,::a01:102 ]
+-- ipv6/r1.info
+{"generated_by":"devel","model":"NX-OS","ip_list":["::a01:101","::a01:102"],"policy_distribution_point":"::a01:109"}
 =END=
 
 ############################################################
@@ -405,8 +405,8 @@ service:admin = {
  permit src = host:h1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- ipv6/r1
-! [ IP = ::a01:201,::a01:302 ]
+-- ipv6/r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["::a01:201","::a01:302"],"policy_distribution_point":"::a01:10a"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -427,30 +427,6 @@ router:r1@v2 = {
 =ERROR=
 Error: Must not use VRF at router:r1@v1 of model ASA
 Error: Must not use VRF at router:r1@v2 of model ASA
-=END=
-
-############################################################
-=TITLE=Add Policy Distribution Point To Header
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:109; }
-}
-router:r1 = {
- managed;
- policy_distribution_point = host:netspoc;
- model = NX-OS;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
-}
-service:admin = {
- user = interface:r1.n1;
- permit src = host:netspoc; dst = user; prt = tcp 22;
-}
-=OUTPUT=
--- ipv6/r1
-! [ IP = ::a01:101 ]
---
-! [ Policy_distribution_point = ::a01:109 ]
 =END=
 
 ############################################################

@@ -1211,8 +1211,8 @@ service:test = {
  permit src = network:a; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.0.0.1,10.1.1.1 ]
+--r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["10.0.0.1","10.1.1.1"],"policy_distribution_point":"10.0.0.10"}
 =END=
 
 ############################################################
@@ -1258,8 +1258,8 @@ service:s1 = {
  permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
 }
 =OUTPUT=
---r2
-! [ IP = 10.1.3.2,10.1.4.1 ]
+--r2.info
+{"generated_by":"devel","model":"IOS","ip_list":["10.1.3.2","10.1.4.1"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -1285,8 +1285,8 @@ service:s1 = {
         prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.1.2.1,10.1.3.1 ]
+--r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.1","10.1.3.1"],"policy_distribution_point":"10.1.1.111"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -1320,10 +1320,10 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.1.2.3 ]
---r2
-! [ IP = 10.1.2.2 ]
+--r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.3"],"policy_distribution_point":"10.1.3.9"}
+--r2.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.2"],"policy_distribution_point":"10.1.3.9"}
 =END=
 
 ############################################################

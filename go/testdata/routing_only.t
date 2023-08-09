@@ -26,8 +26,6 @@ service:test = {
 --r.info
 {"generated_by":"devel","model":"ASA","ip_list":["10.1.2.1"],"policy_distribution_point":"10.1.3.10"}
 --r
-! [ IP = 10.1.2.1 ]
---
 ! [ Routing ]
 route n2 10.1.3.0 255.255.255.0 10.1.2.2
 =END=
