@@ -696,6 +696,66 @@ Warning: Ignoring useless nat:h bound at interface:r3.n3
 =END=
 
 ############################################################
+=TITLE=Bound to same interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2, n3; }
+ interface:n5 = { bind_nat = n1, n2, n3; }
+}
+=WARNING=
+Warning: nat:n1 and nat:n2 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n1 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n2 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+=END=
+
+############################################################
+=TITLE=Bound to same and different interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n2, n3; }
+ interface:n6 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Bound to same interfaces, but one is hidden
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { hidden; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Non matching static NAT mask
 =INPUT=
 network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.8.8.0/23; } }
@@ -2226,7 +2286,7 @@ network:t = { ip = 10.2.3.0/24; }
 router:r2 =  {
  managed;
  model = ASA;
- interface:t  = { ip = 10.2.3.2; hardware = t; }
+ interface:t  = { ip = 10.2.3.2; hardware = t; bind_nat = t1; }
  interface:k1 = { ip = 10.2.1.2; hardware = k1; bind_nat = h1; }
  interface:k2 = { ip = 10.2.2.2; hardware = k2; bind_nat = h2; }
 }
@@ -2256,7 +2316,7 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = t3; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:t  = { ip = 10.2.0.1; hardware = t; bind_nat = t1, t3; }
@@ -2438,7 +2498,7 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
-=TITLE=Groupd NAT tags with multiple NAT domains
+=TITLE=Grouped NAT tags with multiple NAT domains
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -2456,11 +2516,11 @@ network:n8 = { ip = 10.1.8.0/24;
  nat:n1b = { ip = 10.9.8.0/24; }
 }
 router:r1 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n3 = { bind_nat = n1b; }
 }
 router:r3 = {
@@ -3690,7 +3750,7 @@ network:t = { ip = 10.9.1.0/24; }
 router:r2 = {
  managed;
  model = ASA;
- interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:t = { ip = 10.9.1.2; hardware = t; bind_nat = intern1; }
  interface:extern = { ip = 2.2.2.2; hardware = outside; }
 }
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
@@ -3718,8 +3778,8 @@ access-group t_in in interface t
 -- r2
 ! t_in
 object-group network g0
- network-object 2.1.1.0 255.255.255.0
  network-object 2.1.2.0 255.255.255.0
+ network-object 10.1.1.0 255.255.255.0
 access-list t_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
@@ -4169,17 +4229,17 @@ network:n2 = { ip = 10.1.2.0/24; nat:y = { ip = 10.9.2.2/31; dynamic; } }
 network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
- interface:n1;
+ interface:n1 = { bind_nat = y; }
  interface:n2;
  interface:n3;
  interface:lo = { ip = 10.1.5.0; loopback; nat:y = { hidden; } }
- interface:n4 = { bind_nat = x, y; }
+ interface:n4 = { bind_nat = x; }
 }
 =ERROR=
-Error: Must not mix hidden and real NAT at nat:x.
- Check network:n1 and network:n3
 Error: Must not mix hidden and real NAT at nat:y.
  Check network:n2 and interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:x.
+ Check network:n3 and network:n1
 =END=
 
 ############################################################

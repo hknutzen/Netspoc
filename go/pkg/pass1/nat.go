@@ -66,15 +66,17 @@ func (c *spoc) getHiddenNatMap() map[string]bool {
 //  1. unused NAT definitions,
 //  2. useless bind_nat, referencing unknown NAT definition.
 //     Remove useless tags from bind_nat.
+//  3. different NAT tags bound to identical set of interfaces
+//     and hence should be merged into a single NAT tag.
 func (c *spoc) checkNatDefinitions(natTag2hidden map[string]bool) {
-	natUsed := make(map[string]bool)
+	natBound := make(map[string][]*routerIntf)
 	for _, n := range c.allNetworks {
 		for _, intf := range n.interfaces {
 			j := 0
 			l := intf.bindNat
 			for _, tag := range l {
 				if _, found := natTag2hidden[tag]; found {
-					natUsed[tag] = true
+					natBound[tag] = append(natBound[tag], intf)
 					l[j] = tag
 					j++
 				} else {
@@ -84,16 +86,23 @@ func (c *spoc) checkNatDefinitions(natTag2hidden map[string]bool) {
 			intf.bindNat = l[:j]
 		}
 	}
-	var messages stringList
-	for tag := range natTag2hidden {
-		if !natUsed[tag] {
-			messages.push(
-				"nat:" + tag + " is defined, but not bound to any interface")
+	tags := sorted.Keys(natBound)
+	for i, tag1 := range tags {
+		l1 := natBound[tag1]
+		h1 := natTag2hidden[tag1]
+		for _, tag2 := range tags[i+1:] {
+			if h1 == natTag2hidden[tag2] &&
+				slices.Equal(l1, natBound[tag2]) {
+
+				c.warn("nat:%s and nat:%s are bound to same interfaces\n"+
+					" and should be merged into a single definition", tag1, tag2)
+			}
 		}
 	}
-	sort.Strings(messages)
-	for _, m := range messages {
-		c.warn(m)
+	for tag := range natTag2hidden {
+		if _, found := natBound[tag]; !found {
+			c.warn("nat:%s is defined, but not bound to any interface", tag)
+		}
 	}
 }
 

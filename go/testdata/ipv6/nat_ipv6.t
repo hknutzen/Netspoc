@@ -2297,7 +2297,7 @@ network:t = { ip = ::a02:300/120; }
 router:r2 =  {
  managed;
  model = ASA;
- interface:t  = { ip = ::a02:302; hardware = t; }
+ interface:t  = { ip = ::a02:302; hardware = t; bind_nat = t1; }
  interface:k1 = { ip = ::a02:102; hardware = k1; bind_nat = h1; }
  interface:k2 = { ip = ::a02:202; hardware = k2; bind_nat = h2; }
 }
@@ -2328,7 +2328,7 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = t3; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
  interface:n3 = { ip = ::a01:301; hardware = n3; }
  interface:t  = { ip = ::a02:1; hardware = t; bind_nat = t1, t3; }
@@ -2514,7 +2514,7 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
-=TITLE=Groupd NAT tags with multiple NAT domains
+=TITLE=Grouped NAT tags with multiple NAT domains
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -2533,11 +2533,11 @@ network:n8 = { ip = ::a01:800/120;
  nat:n1b = { ip = ::a09:800/120; }
 }
 router:r1 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n3 = { bind_nat = n1b; }
 }
 router:r3 = {
@@ -3802,7 +3802,7 @@ network:t = { ip = ::a09:100/120; }
 router:r2 = {
  managed;
  model = ASA;
- interface:t = { ip = ::a09:102; hardware = t; }
+ interface:t = { ip = ::a09:102; hardware = t; bind_nat = intern1; }
  interface:extern = { ip = ::202:202; hardware = outside; }
 }
 network:extern = { ip = ::202:200/120; nat:extern = { ip = ::a02:200/120; } }
@@ -3830,8 +3830,8 @@ access-group t_in in interface t
 -- ipv6/r2
 ! t_in
 object-group network v6g0
- network-object ::201:100/120
  network-object ::201:200/120
+ network-object ::a01:100/120
 access-list t_in extended permit tcp object-group v6g0 ::202:200/120 eq 22
 access-list t_in extended deny ip any6 any6
 access-group t_in in interface t
@@ -4296,17 +4296,17 @@ network:n2 = { ip = ::a01:200/120; nat:y = { ip = ::a09:202/127; dynamic; } }
 network:n3 = { ip = ::a01:300/120; nat:x = { hidden; } }
 network:n4 = { ip = ::a01:400/120; }
 router:r1 = {
- interface:n1;
+ interface:n1 = { bind_nat = y; }
  interface:n2;
  interface:n3;
  interface:lo = { ip = ::a01:500; loopback; nat:y = { hidden; } }
- interface:n4 = { bind_nat = x, y; }
+ interface:n4 = { bind_nat = x; }
 }
 =ERROR=
-Error: Must not mix hidden and real NAT at nat:x.
- Check network:n1 and network:n3
 Error: Must not mix hidden and real NAT at nat:y.
  Check network:n2 and interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:x.
+ Check network:n3 and network:n1
 =END=
 
 ############################################################

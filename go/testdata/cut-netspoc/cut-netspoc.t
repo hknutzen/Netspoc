@@ -2160,6 +2160,7 @@ network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
 network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
 network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -2171,6 +2172,7 @@ router:asa2 = {
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3, n4; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = n1, n4; }
 }
 router:asa3 = {
  managed;
@@ -2180,7 +2182,7 @@ router:asa3 = {
 }
 service:test = {
  user = network:n2;
- permit src = user; dst = network:n3; prt = tcp 80;
+ permit src = user; dst = network:n3, network:n5; prt = tcp 80;
 }
 =OUTPUT=
 network:n2 = {
@@ -2191,6 +2193,7 @@ network:n3 = {
  ip = 10.1.3.0/24;
  nat:n3 = { ip = 10.9.3.0/24; }
 }
+network:n5 = { ip = 10.1.5.0/24; }
 router:asa2 = {
  managed;
  model = ASA;
@@ -2204,11 +2207,14 @@ router:asa2 = {
   hardware = n3;
   bind_nat = n2;
  }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 }
 service:test = {
  user = network:n2;
  permit src = user;
-        dst = network:n3;
+        dst = network:n3,
+              network:n5,
+              ;
         prt = tcp 80;
 }
 =END=

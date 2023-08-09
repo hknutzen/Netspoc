@@ -3753,7 +3753,7 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n0 = { ip = 10.1.0.1; hardware = n0; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2a; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n2, n2a; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n3, n3a; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = n4; }
