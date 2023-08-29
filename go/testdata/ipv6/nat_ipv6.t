@@ -721,6 +721,69 @@ Warning: Ignoring useless nat:h bound at interface:r3.n3
 =END=
 
 ############################################################
+=TITLE=Bound to same interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a09:100/120; } }
+network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::a09:200/120; } }
+network:n3 = { ip = ::a01:300/120; nat:n3 = { ip = ::a09:300/125; dynamic; }}
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2, n3; }
+ interface:n5 = { bind_nat = n1, n2, n3; }
+}
+=WARNING=
+Warning: nat:n1 and nat:n2 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n1 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n2 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+=END=
+
+############################################################
+=TITLE=Bound to same and different interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a09:100/120; } }
+network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::a09:200/120; } }
+network:n3 = { ip = ::a01:300/120; nat:n3 = { ip = ::a09:300/125; dynamic; }}
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+network:n6 = { ip = ::a01:600/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n2, n3; }
+ interface:n6 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Bound to same interfaces, but one is hidden
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:n1 = { hidden; } }
+network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::a09:200/120; } }
+network:n3 = { ip = ::a01:300/120; nat:n3 = { ip = ::a09:300/125; dynamic; }}
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Non matching static NAT mask
 =PARAMS=--ipv6
 =INPUT=

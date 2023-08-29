@@ -137,7 +137,6 @@ cat <<END > old/r1.info
 {"generated_by":"devel","model":"ASA","name_list":["r1"]}
 END
 cat <<END > old/r1.config
-
 END
 cat <<END > old/r1.rules
 {"model":"ASA","acls":null,"do_objectgroup":true}
