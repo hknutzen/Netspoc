@@ -33,7 +33,7 @@ ipv6 route ::a01:200/120 ::a01:101
 Warning: Ignoring path raw/aaa
 Warning: Found unused file raw/r0
 =OUTPUT=
---ipv6/r1.raw
+--r1.raw
 ! manual route
 ipv6 route ::a01:200/120 ::a01:101
 =END=

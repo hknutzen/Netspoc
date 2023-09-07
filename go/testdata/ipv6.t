@@ -491,27 +491,3 @@ router:r1 = {
 Error: Can't mkdir out/ipv6: file exists
 Aborted
 =OPTIONS=--ipv6
-
-############################################################
-=TITLE=Can't copy raw file
-=SETUP=
-mkdir -p out/.prev
-mkdir -p out/ipv6/r1.raw/r1
-=PARAMS=--ipv6
-=INPUT=
---topo
-network:n1 = { ip = ::a01:100/120; }
-router:r1 = {
-  model = IOS;
-  managed;
-  interface:n1 = { ip = ::a01:101; hardware = n1; }
-}
---raw/r1
-ipv6 route ::a01:200/120 ::a01:101
-=WITH_OUTDIR=
-=ERROR=
-Error: Can't cp raw/r1 to out/ipv6/r1.raw: exit status 1
-cp: cannot overwrite directory 'out/ipv6/r1.raw/r1' with non-directory
-
-Aborted
-=END=

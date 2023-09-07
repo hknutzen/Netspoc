@@ -258,8 +258,8 @@ service:admin = {
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- r1
-! [ IP = 10.1.1.2 ]
+-- r1.info
+{"generated_by":"devel","model":"NX-OS","ip_list":["10.1.1.2"]}
 =END=
 
 ############################################################
@@ -285,8 +285,8 @@ service:admin = {
  permit src = host:netspoc; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- r1
-! [ IP = 10.1.1.1,10.1.1.2 ]
+-- r1.info
+{"generated_by":"devel","model":"NX-OS","ip_list":["10.1.1.1","10.1.1.2"],"policy_distribution_point":"10.1.1.9"}
 =END=
 
 ############################################################
@@ -393,8 +393,8 @@ service:admin = {
  permit src = host:h1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
--- r1
-! [ IP = 10.1.2.1,10.1.3.2 ]
+-- r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["10.1.2.1","10.1.3.2"],"policy_distribution_point":"10.1.1.10"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -414,29 +414,6 @@ router:r1@v2 = {
 =ERROR=
 Error: Must not use VRF at router:r1@v1 of model ASA
 Error: Must not use VRF at router:r1@v2 of model ASA
-=END=
-
-############################################################
-=TITLE=Add Policy Distribution Point To Header
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24;
- host:netspoc = { ip = 10.1.1.9; }
-}
-router:r1 = {
- managed;
- policy_distribution_point = host:netspoc;
- model = NX-OS;
- interface:n1 = { ip = 10.1.1.1; hardware = v1; }
-}
-service:admin = {
- user = interface:r1.n1;
- permit src = host:netspoc; dst = user; prt = tcp 22;
-}
-=OUTPUT=
--- r1
-! [ IP = 10.1.1.1 ]
---
-! [ Policy_distribution_point = 10.1.1.9 ]
 =END=
 
 ############################################################

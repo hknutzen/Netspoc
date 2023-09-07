@@ -27,8 +27,6 @@ service:test = {
 --ipv6/r.info
 {"generated_by":"devel","model":"ASA","ip_list":["::a01:201"],"policy_distribution_point":"::a01:30a"}
 --ipv6/r
-! [ IP = ::a01:201 ]
---
 ! [ Routing ]
 ipv6 route n2 ::a01:300/120 ::a01:202
 =END=

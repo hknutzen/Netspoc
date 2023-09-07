@@ -245,7 +245,7 @@ sub adjust_testfile {
 
         # Change path of to be checked output files.
         # IPv6 files are generated in ipv6/ subdirectory.
-        if ($line !~ m(topology|config|file|raw/| raw$|private) and
+        if ($line !~ m(topology|config|file|raw/|[.]raw$| raw$|private) and
             $filename !~ /export.t/)
         {
             $line =~ s/^(-+[ ]*)([^\s>-]+)([ ]*)$/${1}ipv6\/$2$3/;

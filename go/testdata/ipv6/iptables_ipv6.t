@@ -22,10 +22,6 @@ service:s1 = {
 --ipv6/r1.info
 {"generated_by":"devel","model":"Linux"}
 --ipv6/r1
-# [ BEGIN r1 ]
---
-# [ Model = Linux ]
---
 # [ PREFIX ]
 --
 #!/sbin/iptables-restore <<EOF

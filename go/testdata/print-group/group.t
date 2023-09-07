@@ -332,7 +332,7 @@ network:n1 = {
 }
 network:n2 = {
  ip = 10.1.2.0/24;
- nat:t2 = { ip = 10.9.2.0/24; }
+ nat:t1 = { ip = 10.9.2.0/24; }
  host:h2 = { ip = 10.1.2.10; }
 }
 network:n3 = {
@@ -346,7 +346,7 @@ router:r1 =  {
  interface:n1 = { ip = 10.1.1.1; nat:t1 = { ip = 10.9.1.1; } hardware = n1; }
  interface:n2 = { negotiated; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t2, t3; }
+ interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t3; }
 }
 network:t1 = { unnumbered; }
 router:r2 = {
