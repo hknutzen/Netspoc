@@ -10,7 +10,6 @@ type RouterData struct {
 	ACLs          []*ACLInfo `json:"acls"`
 	FilterOnly    []string   `json:"filter_only,omitempty"`
 	DoObjectgroup bool       `json:"do_objectgroup,omitempty"`
-	LogDeny       string     `json:"log_deny,omitempty"`
 }
 
 type ACLInfo struct {
@@ -27,6 +26,7 @@ type ACLInfo struct {
 	IsCryptoACL  bool     `json:"is_crypto_acl,omitempty"`
 	Tier         string   `json:"tier,omitempty"`
 	VRF          string   `json:"vrf,omitempty"`
+	LogDeny      string   `json:"log_deny,omitempty"`
 }
 
 type Rule struct {

@@ -2245,6 +2245,10 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			if t := model.tier; t != "" {
 				jACL.Tier = t
 			}
+			if r.logDeny == "" {
+				r.logDeny = r.logDefault
+			}
+			jACL.LogDeny = r.logDeny
 			return jACL
 		}
 
@@ -2280,10 +2284,6 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		}
 		result.FilterOnly = list
 	}
-	if r.logDeny == "" {
-		r.logDeny = r.logDefault
-	}
-	result.LogDeny = r.logDeny
 	c.writeJson(path, result)
 }
 
