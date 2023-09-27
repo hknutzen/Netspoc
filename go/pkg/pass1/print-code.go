@@ -1423,20 +1423,15 @@ func printCryptoMapAttributes(fh *os.File, prefix, cryptoType, cryptoAclName, cr
 
 	if pair := ipsec.lifetime; pair != nil {
 		sec, kb := pair[0], pair[1]
-		args := ""
 
 		// Don't print default values for backend IOS.
 		if sec != -1 && !(sec == 3600 && cryptoType == "IOS") {
-			args += "seconds " + strconv.Itoa(sec)
+			fmt.Fprintln(fh, prefix, "set security-association lifetime seconds",
+				strconv.Itoa(sec))
 		}
 		if kb != -1 && !(kb == 4608000 && cryptoType == "IOS") {
-			if args != "" {
-				args += " "
-			}
-			args += "kilobytes " + strconv.Itoa(kb)
-		}
-		if args != "" {
-			fmt.Fprintln(fh, prefix, "set security-association lifetime", args)
+			fmt.Fprintln(fh, prefix, "set security-association lifetime kilobytes",
+				strconv.Itoa(kb))
 		}
 	}
 }
