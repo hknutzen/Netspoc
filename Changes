@@ -1,5 +1,10 @@
 {{$NEXT}}
 
+ - Use two separate commands to set security-association lifetime for
+   seconds and kilobytes in generated code.
+   Previously a single command was generated, that was split by
+   Netspoc-Approve into separate commands.
+
 6.063     2023-09-07 13:58:15+02:00 Europe/Berlin
 
  - Command 'format-netspoc' now also sorts IPv6 addresses:
