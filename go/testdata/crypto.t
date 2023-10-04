@@ -2552,7 +2552,8 @@ crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  peer-id-validate nocheck
@@ -3586,7 +3587,8 @@ crypto map crypto-GigabitEthernet0 1 set peer 192.168.1.1
 crypto map crypto-GigabitEthernet0 1 match address crypto-192.168.1.1
 crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
 crypto map crypto-GigabitEthernet0 1 set pfs group2
-crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime kilobytes 100000
 tunnel-group 192.168.1.1 type ipsec-l2l
 tunnel-group 192.168.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3701,7 +3703,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3753,7 +3756,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3831,7 +3835,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -4038,7 +4043,8 @@ crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3

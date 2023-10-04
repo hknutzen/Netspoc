@@ -997,8 +997,8 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 			}
 			if rule.log != "" {
 				result += " " + rule.log
-			} else if rule.deny && routerData.logDeny != "" {
-				result += " " + routerData.logDeny
+			} else if rule.deny && aclInfo.logDeny != "" {
+				result += " " + aclInfo.logDeny
 			}
 
 			// Add line numbers.

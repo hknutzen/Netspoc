@@ -1023,6 +1023,153 @@ router:r1@v1 = {
 =END=
 
 ############################################################
+=TITLE=Log Deny for multiple vrfs
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = ::a01:101; }
+}
+router:r1@v1 = {
+ model = NSX, T1;
+ managed;
+ log_deny = tag:r1@v1;
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
+}
+router:r1@v2 = {
+ model = NSX, T1;
+ managed;
+ log_deny = tag:r1@v2;
+ interface:n1 = { ip = ::a01:103; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
+}
+=OUTPUT=
+--ipv6/r1
+{
+ "groups": null,
+ "policies": [
+  {
+   "id": "Netspoc-v1",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/v1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ],
+     "tag": "r1@v1"
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/v1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ],
+     "tag": "r1@v1"
+    }
+   ]
+  },
+  {
+   "id": "Netspoc-v2",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/v2"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ],
+     "tag": "r1@v2"
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/v2"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ],
+     "tag": "r1@v2"
+    }
+   ]
+  }
+ ],
+ "services": null
+}
+=END=
+
+############################################################
 =TITLE=ICMP and numeric protocol with mixed logging
 =PARAMS=--ipv6
 =INPUT=

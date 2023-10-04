@@ -32,7 +32,7 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {},
-  "VERSION" => "6.063",
+  "VERSION" => "6.064",
   "test" => {
     "TESTS" => ""
   }

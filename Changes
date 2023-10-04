@@ -1,3 +1,13 @@
+6.064     2023-10-04 12:30:29+02:00 Europe/Berlin
+
+ - Fixed attribute "log_deny" for device with multiple VRFs.
+   Different values of "log_deny" configured at multiple VRFs are now
+   respected.
+ - Two separate commands are used now to set security-association
+   lifetime for seconds and kilobytes in generated code for ASA and IOS.
+   Previously a single command was used, that was split by
+   Netspoc-Approve into separate commands.
+
 6.063     2023-09-07 13:58:15+02:00 Europe/Berlin
 
  - Command 'format-netspoc' now also sorts IPv6 addresses:

@@ -79,10 +79,10 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
 		return "/infra/services/" + name
 	}
-	addLog := func(ru *ciscoRule, j jsonMap) {
+	addLog := func(ru *ciscoRule, j jsonMap, aclInfo *aclInfo) {
 		modifier := ru.log
 		if modifier == "" && ru.deny {
-			modifier = rData.logDeny
+			modifier = aclInfo.logDeny
 		}
 		if modifier != "" {
 			j["logged"] = true
@@ -163,7 +163,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						"sequence_number":    seqNum,
 						"profiles":           single("ANY"),
 					}
-					addLog(rule, nsxRule)
+					addLog(rule, nsxRule, acl)
 					nsxRules = append(nsxRules, nsxRule)
 				}
 			}

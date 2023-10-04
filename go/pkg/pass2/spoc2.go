@@ -191,6 +191,7 @@ type aclInfo struct {
 	objectGroups                                     []*objGroup
 	tier                                             string
 	vrf                                              string
+	logDeny                                          string
 }
 
 func convertACLs(
@@ -229,6 +230,7 @@ func convertACLs(
 		addDeny:      jACL.AddDeny,
 		tier:         jACL.Tier,
 		vrf:          jACL.VRF,
+		logDeny:      jACL.LogDeny,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -308,7 +310,6 @@ func readJSON(path string) *routerData {
 		rData.ipv6 = true
 	}
 	rData.model = jData.Model
-	rData.logDeny = jData.LogDeny
 	rData.doObjectgroup = jData.DoObjectgroup
 	acls := make([]*aclInfo, len(jData.ACLs))
 	for i, jACL := range jData.ACLs {

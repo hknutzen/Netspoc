@@ -114,11 +114,11 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange, name: name}
 		return member(name)
 	}
-	getLog := func(ru *ciscoRule) string {
+	getLog := func(ru *ciscoRule, aclInfo *aclInfo) string {
 		result := ""
 		modifiers := ru.log
 		if modifiers == "" && ru.deny {
-			modifiers = rData.logDeny
+			modifiers = aclInfo.logDeny
 		}
 		if modifiers != "" {
 			for _, log := range strings.Split(modifiers, " ") {
@@ -149,7 +149,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 				source := getAddress(rule.src)
 				destination := getAddress(rule.dst)
 				service := getService(rule)
-				log := getLog(rule)
+				log := getLog(rule, acl)
 				fmt.Fprintf(fd,
 					`<entry name="%s">
 <action>%s</action>
