@@ -1,6 +1,5 @@
 // Package ast declares the types used to represent syntax trees for Netspoc
 // files.
-//
 package ast
 
 import (
@@ -120,7 +119,7 @@ type AggAuto struct {
 func (a *AggAuto) String() string {
 	var ext string
 	if a.Net != "" {
-		ext = a.Net + "&"
+		ext = "ip=" + a.Net + "&"
 	}
 	return a.GetType() + ":[" + ext + joinElements(a.Elements, ",") + "]"
 }
