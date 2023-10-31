@@ -16,6 +16,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
+	"github.com/hknutzen/Netspoc/go/pkg/exportsyntax"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -58,6 +59,7 @@ var tests = []test{
 	{"transpose-service", chgInputT, transposeservice.Main, chgInputCheck},
 	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
+	{"export-netspoc-syntax", stdoutT, exportsyntax.Main, jsonCheck},
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
 	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},
@@ -432,6 +434,10 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 	// Remove empty lines.
 	stdout = strings.ReplaceAll(stdout, "\n\n", "\n")
 	countEq(t, expected, stdout)
+}
+
+func jsonCheck(t *testing.T, expected, stdout string) {
+	jsonEq(t, expected, []byte(stdout))
 }
 
 func countEq(t *testing.T, expected, got string) {

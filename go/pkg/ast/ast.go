@@ -39,6 +39,7 @@ type Toplevel interface {
 
 type ToplevelWithAttr interface {
 	Toplevel
+	GetAttributes() []*Attribute
 	GetAttr(string) *Attribute
 	RemoveAttr(string)
 }
