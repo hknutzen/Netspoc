@@ -4,7 +4,7 @@
 =INPUT=#
 =PARAMS=-h
 =ERROR=
-Usage: PROGRAM [options] netspoc-data [typed-name ...]
+Usage: PROGRAM [options] netspoc-data [TYPE:NAME|TYPE: ...]
   -q, --quiet   Flag is ignored
 =END=
 
@@ -20,7 +20,7 @@ Error: unknown flag: --abc
 =TITLE=No input file
 =INPUT=NONE
 =ERROR=
-Usage: PROGRAM [options] netspoc-data [typed-name ...]
+Usage: PROGRAM [options] netspoc-data [TYPE:NAME|TYPE: ...]
   -q, --quiet   Flag is ignored
 =END=
 
@@ -272,7 +272,7 @@ router:r1 = {
 =END=
 
 ############################################################
-=TITLE=Filter objects
+=TITLE=Filter objects by name
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -284,7 +284,6 @@ area:a1 = {
  inclusive_border = interface:r2.n2, interface:r3.n3;
  router_attributes = { policy_distribution_point = host:netspoc; }
 }
-=PARAMS= network:n1 group:g2 area:a1
 =OUTPUT=
 {"area":
   [{
@@ -306,4 +305,41 @@ area:a1 = {
    "name":"network:n1",
    "ip":["10.1.1.0/24"]}]
 }
-=END=
+=PARAMS= network:n1 group:g2 area:a1
+
+
+############################################################
+=TITLE=Filter objects by type
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+group:g1 = network:n1;
+group:g2 = group:g1;
+area:a1 = {
+ owner = o2;
+ border = interface:r1.n1;
+ inclusive_border = interface:r2.n2, interface:r3.n3;
+ router_attributes = { policy_distribution_point = host:netspoc; }
+}
+=OUTPUT=
+{"area":
+  [{
+   "name": "area:a1",
+   "owner": [ "o2" ],
+   "router_attributes": {
+    "policy_distribution_point": [ "host:netspoc" ]
+   },
+   "border": [ "interface:r1.n1" ],
+   "inclusive_border": [ "interface:r2.n2", "interface:r3.n3" ]
+  }],
+ "group":
+  [{
+   "name": "group:g1",
+   "elements": [ "network:n1" ]
+  },
+  {
+   "name":"group:g2",
+   "elements": ["group:g1"]
+  }]
+}
+=PARAMS= group: area:

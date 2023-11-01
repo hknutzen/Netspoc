@@ -17,7 +17,7 @@ func Main(d oslink.Data) int {
 	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 	fs.Usage = func() {
 		fmt.Fprintf(d.Stderr,
-			"Usage: %s [options] netspoc-data [typed-name ...]\n%s",
+			"Usage: %s [options] netspoc-data [TYPE:NAME|TYPE: ...]\n%s",
 			d.Args[0], fs.FlagUsages())
 	}
 	fs.BoolP("quiet", "q", false, "Flag is ignored")
@@ -53,8 +53,8 @@ func Main(d oslink.Data) int {
 		}
 		for _, node := range aF.Nodes {
 			name := node.GetName()
-			if len(filter) == 0 || filter[name] {
-				typ, _, _ := strings.Cut(name, ":")
+			typ, _, _ := strings.Cut(name, ":")
+			if len(filter) == 0 || filter[name] || filter[typ+":"] {
 				definitions[typ] = append(definitions[typ], convertToMap(node))
 			}
 		}
