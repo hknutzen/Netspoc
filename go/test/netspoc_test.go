@@ -450,10 +450,13 @@ func countEq(t *testing.T, expected, got string) {
 
 func jsonEq(t *testing.T, expected string, got []byte) {
 	normalize := func(d []byte) string {
+		// Leave POLICY file of export-netspoc unchanged
+		if d[0] == '#' {
+			return string(d)
+		}
 		var v interface{}
 		if err := json.Unmarshal(d, &v); err != nil {
-			// Try to compare as non JSON value
-			return string(d)
+			t.Fatal(err)
 		}
 		var b bytes.Buffer
 		enc := json.NewEncoder(&b)
