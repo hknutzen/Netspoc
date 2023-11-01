@@ -1,5 +1,22 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=#
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] netspoc-data [typed-name ...]
+  -q, --quiet   Flag is ignored
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
 =TITLE=No input file
 =INPUT=NONE
 =ERROR=
@@ -143,7 +160,11 @@ any:ALL_10 = {
 ############################################################
 =TITLE=Router with network and service
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24;}
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.11; owner = o1; }
+ host:h2 = { range = 10.1.1.12-10.1.1.23; }
+}
 router:r1 = {
  managed;
  model = ASA;
@@ -155,12 +176,23 @@ service:s1 = {
  overlaps = service:s2, service:s3;
 
  user = foreach interface:r1.[all] &! interface:r1.n1;
+ deny   src = host:h1, network:n3; dst = user; prt = tcp 80, udp 138; log = x;
  permit src = any:[user]; dst = user; prt = ip;
 }
 =OUTPUT=
 {"network":[
  {"name":"network:n1",
-  "ip": [ "10.1.1.0/24" ]}],
+  "ip": [ "10.1.1.0/24" ],
+  "hosts": {
+   "host:h1": {
+    "ip": [ "10.1.1.11" ],
+    "owner": [ "o1" ]
+   },
+   "host:h2": {
+    "range": [ "10.1.1.12 - 10.1.1.23" ]
+   }
+  }
+ }],
  "router":[
  {"name":"router:r1",
   "managed": null,
@@ -180,12 +212,61 @@ service:s1 = {
   "overlaps": ["service:s2", "service:s3"],
   "foreach": true,
   "user":["interface:r1.[all]&!interface:r1.n1"],
-   "rules": [
+  "rules": [
+   {"action": "deny",
+    "src": [ "host:h1", "network:n3" ],
+    "dst": [ "user" ],
+    "prt": [ "tcp 80", "udp 138" ],
+    "log": [ "x" ]
+   },
    {"action": "permit",
     "src": ["any:[user]"],
     "dst": ["user"],
     "prt": ["ip"]
    }]
+ }]
+}
+=END=
+
+############################################################
+=TITLE=IPv4 and IPv6 router
+=INPUT=
+--topo
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; virtual = {ip = 10.1.1.9;} hardware = n1;}
+}
+--ipv6/topo
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = dead:beef::1; hardware = n1;}
+}
+=OUTPUT=
+{
+ "router":[
+ {"name":"router:r1",
+  "ipv6": true,
+  "managed": null,
+  "model":["ASA"],
+  "interfaces":{
+   "interface:n1":{
+    "ip": [ "dead:beef::1" ],
+    "hardware": [ "n1" ]
+   }
+  }
+ },
+ {"name":"router:r1",
+  "managed": null,
+  "model":["ASA"],
+  "interfaces":{
+   "interface:n1":{
+    "ip": [ "10.1.1.1" ],
+    "hardware": [ "n1" ],
+    "virtual": { "ip": [ "10.1.1.9" ] }
+   }
+  }
  }]
 }
 =END=
@@ -198,7 +279,9 @@ network:n2 = { ip = 10.1.2.0/24; }
 group:g1 = network:n1;
 group:g2 = group:g1;
 area:a1 = {
- border = interface:r1.n1; owner = o2;
+ owner = o2;
+ border = interface:r1.n1;
+ inclusive_border = interface:r2.n2, interface:r3.n3;
  router_attributes = { policy_distribution_point = host:netspoc; }
 }
 =PARAMS= network:n1 group:g2 area:a1
@@ -210,7 +293,8 @@ area:a1 = {
    "router_attributes": {
     "policy_distribution_point": [ "host:netspoc" ]
    },
-   "border": [ "interface:r1.n1" ]
+   "border": [ "interface:r1.n1" ],
+   "inclusive_border": [ "interface:r2.n2", "interface:r3.n3" ]
   }],
  "group":
   [{
