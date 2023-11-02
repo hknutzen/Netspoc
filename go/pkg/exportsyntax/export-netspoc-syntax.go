@@ -53,8 +53,9 @@ func Main(d oslink.Data) int {
 		}
 		for _, node := range aF.Nodes {
 			name := node.GetName()
-			typ, _, _ := strings.Cut(name, ":")
-			if len(filter) == 0 || filter[name] || filter[typ+":"] {
+			i := strings.Index(name, ":")
+			if len(filter) == 0 || filter[name[:i+1]] || filter[name] {
+				typ := name[:i]
 				definitions[typ] = append(definitions[typ], convertToMap(node))
 			}
 		}
