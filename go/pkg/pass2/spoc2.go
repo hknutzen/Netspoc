@@ -285,7 +285,6 @@ type routerData struct {
 	model           string
 	ipv6            bool
 	acls            []*aclInfo
-	logDeny         string
 	filterOnlyGroup *ipNet
 	doObjectgroup   bool
 	objGroupsMap    map[groupKey][]*objGroup
