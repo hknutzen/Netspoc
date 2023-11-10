@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+ - Added new command 'export-netspoc-syntax'
+   Usage: export-netspoc-syntax FILE|DIR [TYPE:|TYPE:NAME ...]
+   This writes selected or all toplevel definitions as JSON to Stdout.
+   Each definition is written as JSON object with key value pairs.
+   Definitions are grouped by TYPE, accessible with key "TYPE",
+   e.g. "service".
+
 6.064     2023-10-04 12:30:29+02:00 Europe/Berlin
 
  - Fixed attribute "log_deny" for device with multiple VRFs.
