@@ -38,6 +38,10 @@ func (n *TopStruct) GetAttr(name string) *Attribute {
 	return nil
 }
 
+func (n *TopStruct) GetAttributes() []*Attribute {
+	return n.Attributes
+}
+
 func (obj *Attribute) GetAttr(name string) *Attribute {
 	for _, a := range obj.ComplexValue {
 		if a.Name == name {

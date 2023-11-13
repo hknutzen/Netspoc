@@ -53,6 +53,7 @@ go/cmd/add-to-netspoc/main.go
 go/cmd/check-acl/main.go
 go/cmd/cut-netspoc/main.go
 go/cmd/expand-group/main.go
+go/cmd/export-netspoc-syntax/main.go
 go/cmd/export-netspoc/main.go
 go/cmd/format-netspoc/main.go
 go/cmd/modify-netspoc-api/main.go
@@ -74,6 +75,7 @@ go/pkg/ast/order.go
 go/pkg/astset/astset.go
 go/pkg/conf/GetArgs.go
 go/pkg/expand/expand-group.go
+go/pkg/exportsyntax/export-netspoc-syntax.go
 go/pkg/fileop/file.go
 go/pkg/filetree/walk.go
 go/pkg/format/format-netspoc.go
@@ -164,6 +166,7 @@ go/testdata/cut-netspoc/cut-netspoc.t
 go/testdata/deterministic.t
 go/testdata/disabled.t
 go/testdata/expand-group/expand-group.t
+go/testdata/export-netspoc-syntax/export.t
 go/testdata/export-netspoc/export.t
 go/testdata/format-netspoc/format-netspoc.t
 go/testdata/general-permit.t

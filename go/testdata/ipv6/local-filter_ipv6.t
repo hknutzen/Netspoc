@@ -339,6 +339,54 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
+=TITLE=Non matching aggregate to non matching aggregate
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = ::/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = ::/0 & network:n2];
+        prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/d32
+! n1_in
+object-group network v6g0
+ network-object ::a3e:0/117
+ network-object ::a3e:f100/120
+access-list n1_in extended permit tcp any6 any6 eq 80
+access-list n1_in extended deny ip any6 object-group v6g0
+access-list n1_in extended permit ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Non matching aggregate to non matching aggregate with IP any
+# This generates two identical lines 'permit ip any6 any6',
+# Access-list with duplicate lines is not valid for ASA.
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = ::/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = ::/0 & network:n2];
+        prt = ip;
+}
+=OUTPUT=
+--ipv6/d32
+! n1_in
+object-group network v6g0
+ network-object ::a3e:0/117
+ network-object ::a3e:f100/120
+access-list n1_in extended permit ip any6 any6
+access-list n1_in extended deny ip any6 object-group v6g0
+access-list n1_in extended permit ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Ignore non matching local aggregate
 =PARAMS=--ipv6
 =INPUT=

@@ -377,7 +377,7 @@ group:g1 =
     }
 }
 =ERROR=
-Error: Can't find element 'any:[10.1.0.0/16&network:n1]'
+Error: Can't find element 'any:[ip=10.1.0.0/16&network:n1]'
 =END=
 
 ############################################################

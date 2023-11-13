@@ -325,6 +325,52 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
+=TITLE=Non matching aggregate to non matching aggregate
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = 0.0.0.0/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        prt = tcp 80;
+}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended permit tcp any4 any4 eq 80
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Non matching aggregate to non matching aggregate with IP any
+# This generates two identical lines 'permit ip any4 any4',
+# Access-list with duplicate lines is not valid for ASA.
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = 0.0.0.0/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        prt = ip;
+}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended permit ip any4 any4
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Ignore non matching local aggregate
 =INPUT=
 [[topo]]

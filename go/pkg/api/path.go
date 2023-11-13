@@ -685,10 +685,7 @@ ELEM:
 
 func getNamedUnion(name string, val interface{}) (*ast.NamedUnion, error) {
 	l, err := getElementList(val)
-	if err != nil {
-		return nil, err
-	}
-	return &ast.NamedUnion{Name: name, Elements: l}, nil
+	return &ast.NamedUnion{Name: name, Elements: l}, err
 }
 
 func getElementList(val interface{}) ([]ast.Element, error) {

@@ -226,9 +226,9 @@ func (s *State) DeleteHost(name string) error {
 	netName := ""
 	if strings.HasPrefix(name, "host:id:") {
 		// ID host is extended by network name: host:id:a.b@c.d.net_name
-		parts := strings.Split(name, ".")
-		netName = "network:" + parts[len(parts)-1]
-		name = strings.Join(parts[:len(parts)-1], ".")
+		i := strings.LastIndex(name, ".")
+		netName = "network:" + name[i+1:]
+		name = name[:i]
 	}
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
 		modified := false

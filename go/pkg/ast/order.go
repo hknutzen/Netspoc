@@ -236,12 +236,8 @@ func sortByIP(l []*Attribute) {
 				list := a.ValueList
 				if len(list) >= 1 {
 					v := list[0].Value
-					switch a.Name {
-					case "ip":
-					case "range":
+					if a.Name == "range" {
 						v, _, _ = strings.Cut(v, "-")
-					default:
-						continue
 					}
 					v = strings.TrimSpace(v)
 					ip, _ := netip.ParseAddr(v)

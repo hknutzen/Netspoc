@@ -1,6 +1,5 @@
 // Package ast declares the types used to represent syntax trees for Netspoc
 // files.
-//
 package ast
 
 import (
@@ -40,6 +39,7 @@ type Toplevel interface {
 
 type ToplevelWithAttr interface {
 	Toplevel
+	GetAttributes() []*Attribute
 	GetAttr(string) *Attribute
 	RemoveAttr(string)
 }
@@ -51,8 +51,8 @@ type Base struct {
 	postCmt string
 }
 
-func (a *Base) PreComment() string      { return a.preCmt }
-func (a *Base) PostComment() string     { return a.postCmt }
+func (a Base) PreComment() string       { return a.preCmt }
+func (a Base) PostComment() string      { return a.postCmt }
 func (a *Base) SetPreComment(c string)  { a.preCmt = c }
 func (a *Base) SetPostComment(c string) { a.postCmt = c }
 
@@ -60,15 +60,15 @@ type User struct {
 	Base
 }
 
-func (a *User) GetType() string { return "user" }
-func (a *User) String() string  { return "user" }
+func (a User) GetType() string { return "user" }
+func (a User) String() string  { return "user" }
 
 type TypedElt struct {
 	Base
 	Type string
 }
 
-func (a *TypedElt) GetType() string { return a.Type }
+func (a TypedElt) GetType() string { return a.Type }
 
 type NamedElem interface {
 	GetType() string
@@ -80,8 +80,8 @@ type NamedRef struct {
 	Name string
 }
 
-func (a *NamedRef) GetName() string { return a.Name }
-func (a *NamedRef) String() string  { return a.GetType() + ":" + a.GetName() }
+func (a NamedRef) GetName() string { return a.Name }
+func (a NamedRef) String() string  { return a.GetType() + ":" + a.GetName() }
 
 type IntfRef struct {
 	TypedElt
@@ -90,7 +90,7 @@ type IntfRef struct {
 	Extension string
 }
 
-func (a *IntfRef) GetName() string {
+func (a IntfRef) GetName() string {
 	n := a.Router + "." + a.Network
 	if a.Network == "[" {
 		n += a.Extension + "]"
@@ -99,16 +99,16 @@ func (a *IntfRef) GetName() string {
 	}
 	return n
 }
-func (a *IntfRef) String() string { return a.GetType() + ":" + a.GetName() }
+func (a IntfRef) String() string { return a.GetType() + ":" + a.GetName() }
 
 type SimpleAuto struct {
 	TypedElt
 	Elements []Element
 }
 
-func (a *SimpleAuto) GetElements() []Element  { return a.Elements }
+func (a SimpleAuto) GetElements() []Element   { return a.Elements }
 func (a *SimpleAuto) SetElements(l []Element) { a.Elements = l }
-func (a *SimpleAuto) String() string {
+func (a SimpleAuto) String() string {
 	return a.GetType() + ":[" + joinElements(a.Elements, ",") + "]"
 }
 
@@ -117,10 +117,10 @@ type AggAuto struct {
 	Net string
 }
 
-func (a *AggAuto) String() string {
+func (a AggAuto) String() string {
 	var ext string
 	if a.Net != "" {
-		ext = a.Net + "&"
+		ext = "ip=" + a.Net + "&"
 	}
 	return a.GetType() + ":[" + ext + joinElements(a.Elements, ",") + "]"
 }
@@ -131,7 +131,7 @@ type IntfAuto struct {
 	Selector string
 }
 
-func (a *IntfAuto) String() string {
+func (a IntfAuto) String() string {
 	var ext string
 	if a.Managed {
 		ext = "managed&"
@@ -151,16 +151,16 @@ type Complement struct {
 	Element Element
 }
 
-func (a *Complement) GetType() string { return "" }
-func (a *Complement) String() string  { return "!" + a.Element.String() }
+func (a Complement) GetType() string { return "" }
+func (a Complement) String() string  { return "!" + a.Element.String() }
 
 type Intersection struct {
 	Base
 	Elements []Element
 }
 
-func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
-func (a *Intersection) String() string {
+func (a Intersection) GetType() string { return a.Elements[0].GetType() }
+func (a Intersection) String() string {
 	return joinElements(a.Elements, "&")
 }
 
@@ -189,13 +189,13 @@ type TopBase struct {
 	IPV6        bool
 }
 
-func (a *TopBase) GetName() string              { return a.Name }
-func (a *TopBase) SetName(n string)             { a.Name = n }
-func (a *TopBase) GetDescription() *Description { return a.Description }
-func (a *TopBase) FileName() string             { return a.fileName }
-func (a *TopBase) SetFileName(n string)         { a.fileName = n }
-func (a *TopBase) GetIPV6() bool                { return a.IPV6 }
-func (a *TopBase) SetIPV6()                     { a.IPV6 = true }
+func (a TopBase) GetName() string              { return a.Name }
+func (a *TopBase) SetName(n string)            { a.Name = n }
+func (a TopBase) GetDescription() *Description { return a.Description }
+func (a TopBase) FileName() string             { return a.fileName }
+func (a *TopBase) SetFileName(n string)        { a.fileName = n }
+func (a TopBase) GetIPV6() bool                { return a.IPV6 }
+func (a *TopBase) SetIPV6()                    { a.IPV6 = true }
 
 type TopList struct {
 	TopBase

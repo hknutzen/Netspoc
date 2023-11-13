@@ -245,10 +245,9 @@ func (s *state) modifyHost(j *job) error {
 	net := ""
 	if strings.HasPrefix(host, "id:") {
 		// ID host is extended by network name: host:id:a.b@c.d.net_name
-		parts := strings.Split(host, ".")
-		l := len(parts) - 1
-		net = "network:" + parts[l]
-		host = strings.Join(parts[:l], ".")
+		i := strings.LastIndex(host, ".")
+		net = "network:" + host[i+1:]
+		host = host[:i]
 	}
 	host = "host:" + host
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
