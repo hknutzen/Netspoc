@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.065     2023-11-13 11:45:12+01:00 Europe/Berlin
+
  - Added new command 'export-netspoc-syntax'
    Usage: export-netspoc-syntax FILE|DIR [TYPE:|TYPE:NAME ...]
    This writes selected or all toplevel definitions as JSON to Stdout.
