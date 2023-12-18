@@ -109,7 +109,7 @@ network:a = {
     }
 }
 =ERROR=
-Error: Can't add to complex value of 'host:name_10_1_1_4'
+Error: Can't add duplicate definition of 'host:name_10_1_1_4'
 =END=
 
 ############################################################

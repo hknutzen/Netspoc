@@ -321,7 +321,7 @@ func patchValue(a *ast.Attribute, c change) error {
 	}
 	if a.ComplexValue != nil {
 		if c.method == "add" {
-			return fmt.Errorf("Can't add to complex value of '%s'", a.Name)
+			return fmt.Errorf("Can't add duplicate definition of '%s'", a.Name)
 		}
 		return fmt.Errorf("Can't delete from complex value of '%s'", a.Name)
 	}
