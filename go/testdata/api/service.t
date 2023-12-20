@@ -2477,6 +2477,38 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Can't remove all rules at once
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "service:s1,rules"
+    }
+}
+
+=ERROR=
+Error: Rule number must be given for 'delete'
+=END=
+
+############################################################
 =TITLE=Can't replace rules
 =INPUT=
 -- topology
