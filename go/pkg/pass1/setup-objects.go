@@ -2479,8 +2479,6 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 			switch m {
 			case "IOS":
 				switch att {
-				case "EZVPN":
-					info.crypto = "EZVPN"
 				case "FW":
 					info.stateless = false
 				default:
@@ -2493,8 +2491,6 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 					info.doAuth = true
 				case "CONTEXT":
 					info.cryptoInContext = true
-				case "EZVPN":
-					info.crypto = "ASA_EZVPN"
 				default:
 					goto FAIL
 				}
@@ -3611,10 +3607,6 @@ func (c *spoc) linkTunnels() {
 		// not pre-shared keys.
 		if model.doAuth && !needId {
 			c.err("%s needs authentication=rsasig in %s", r, isakmp.name)
-		}
-
-		if model.crypto == "EZVPN" {
-			c.err("Must not use %s of model '%s' as crypto hub", r, model.name)
 		}
 
 		// Generate a single tunnel from each spoke to single hub.
