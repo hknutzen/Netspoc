@@ -17,8 +17,8 @@ and removes the corresponding group-definition. Each group reference
 is substituted by elements of corresponding group definition.
 GROUP-NAME is given with type as "group:NAME". Substitution occurs
 textual, groups in groups are not expanded. Groups referenced in
-intersection or complement are not substituted. In this case the group
-definition is left unchanged.
+intersection or complement are only substituted in simple cases.
+If a group can't be expanded at all places, its definition is left unchanged.
 
 Changes are done in place, no backup files are created. But only
 changed files are touched.
@@ -36,7 +36,7 @@ Prints a brief help message and exits.
 
 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
