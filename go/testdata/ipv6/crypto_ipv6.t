@@ -3431,6 +3431,121 @@ Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet wi
 =END=
 
 ############################################################
+=TITLE=VPN ASA to VPN router with two local networks
+=PARAMS=--ipv6
+=INPUT=
+[[crypto_vpn]]
+network:intern = { ip = ::a01:100/120;}
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmpv6 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint3;
+  banner = Welcome at VPN service;
+  dns-server = ::a01:10a ::a01:10b;
+  wins-server = ::a01:114;
+ }
+ interface:intern = {
+  ip = ::a01:165;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = f000::c0a8:65;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = f000::c0a8:0/120; }
+router:extern = {
+ interface:dmz = { ip = f000::c0a8:1; }
+ interface:internet;
+}
+network:internet = { ip = ::/0; has_subnets; }
+router:vpn = {
+ managed;
+ model = IOS;
+ interface:internet = {
+  negotiated;
+  spoke = crypto:vpn;
+  id = abc@123.45;
+  hardware = e1;
+ }
+ interface:lan2 = {
+  ip = ::a63:201;
+  hardware = e2;
+ }
+ interface:lan3 = {
+  ip = ::a63:301;
+  hardware = e3;
+ }
+}
+network:lan2 = { ip = ::a63:200/120; }
+network:lan3 = { ip = ::a63:300/120; }
+service:test = {
+ user = network:lan2, network:lan3;
+ permit src = user; dst = network:intern; prt = tcp 80;
+ permit src = network:intern; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/asavpn
+tunnel-group VPN-single type remote-access
+tunnel-group VPN-single general-attributes
+ authorization-server-group LOCAL
+ default-group-policy global
+ authorization-required
+ username-from-certificate EA
+tunnel-group VPN-single ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
+tunnel-group-map default-group VPN-single
+--
+! vpn-filter-abc@123.45
+access-list vpn-filter-abc@123.45 extended permit ip ::a63:200/119 any6
+access-list vpn-filter-abc@123.45 extended deny ip any6 any6
+group-policy VPN-router-abc@123.45 internal
+group-policy VPN-router-abc@123.45 attributes
+ banner value Welcome at VPN service
+ dns-server value ::a01:10a ::a01:10b
+ wins-server value ::a01:114
+username abc@123.45 nopassword
+username abc@123.45 attributes
+ service-type remote-access
+ vpn-filter value vpn-filter-abc@123.45
+ vpn-group-policy VPN-router-abc@123.45
+--
+! outside_in
+access-list outside_in extended permit icmp6 ::a63:200/119 any6 3
+access-list outside_in extended permit tcp ::a63:200/119 ::a01:100/120 eq 80
+access-list outside_in extended deny ip any6 any6
+access-group outside_in in interface outside
+--ipv6/vpn
+ipv6 access-list e1_in
+ permit 50 host f000::c0a8:65 any
+ permit udp host f000::c0a8:65 eq 500 any eq 500
+ deny ipv6 any any
+--
+ipv6 access-list e2_in
+ permit tcp ::a63:200/120 ::a01:100/120 eq 80
+ permit udp ::a63:200/120 eq 123 ::a01:100/120
+ deny ipv6 any any
+--
+interface e1
+ ip address negotiated
+ crypto map crypto-e1
+ ipv6 traffic-filter e1_in in
+interface e2
+ ipv6 address ::a63:201/120
+ ipv6 traffic-filter e2_in in
+interface e3
+ ipv6 address ::a63:301/120
+ ipv6 traffic-filter e3_in in
+=END=
+
+############################################################
 =TITLE=ASA as managed VPN spoke
 =TEMPL=input
 [[crypto_sts]]
