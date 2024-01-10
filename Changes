@@ -1,6 +1,7 @@
 {{$NEXT}}
 
  - Removed support for EZVPN at Cisco devices.
+ - Syntax of loopback interfaces is checked more thoroughly.
 
 6.065     2023-11-13 11:45:12+01:00 Europe/Berlin
 

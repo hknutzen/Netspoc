@@ -1708,6 +1708,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		check(intf.owner != nil, "owner")
 		check(intf.loopback, "loopback")
 		check(vip, "vip")
+		intf.loopback = false
 	} else if vip {
 		// Attribute 'vip' is an alias for 'loopback'.
 		typ = "'vip'"
@@ -1853,6 +1854,9 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 
 	// Automatically create a network for loopback interface.
 	if intf.loopback {
+		if !isSimpleName(nName) {
+			c.err("Invalid identifier in '%s' of '%s'", v.Name, r.name)
+		}
 		var shortName string
 		var fullName string
 
