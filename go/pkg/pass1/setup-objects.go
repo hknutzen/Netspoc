@@ -3580,9 +3580,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
 	l := maps.Values(c.symTable.crypto)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].name < l[j].name
-	})
+	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
 	for _, cr := range l {
 		realHub := cr.hub
 		if realHub == nil {
