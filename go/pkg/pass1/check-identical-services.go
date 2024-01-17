@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -90,18 +91,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				if riList[i].objIsSrc != riList[j].objIsSrc {
 					return !riList[i].objIsSrc
 				}
-				l1 := riList[i].names
-				l2 := riList[j].names
-				for k, name := range l1 {
-					if k >= len(l2) {
-						return false
-					}
-					if name != l2[k] {
-						return name < l2[k]
-					}
-				}
-				// l1 is prefix of l2 or equal to l2.
-				return true
+				return slices.Compare(riList[i].names, riList[j].names) <= 0
 			})
 			var si svcInfo
 			si.count = len(riList)
