@@ -51,14 +51,13 @@ func sortElem(l []Element) {
 			if x, ok := el.(NamedElem); ok {
 				n := x.GetName()
 				ip := findIPInName(n)
-				return n, ip
+				return strings.ToLower(n), ip
 			}
 			return "", netip.Addr{}
 		}
 		n1, ip1 := getNameIP(l[i])
 		n2, ip2 := getNameIP(l[j])
-		return ip1 == ip2 && strings.ToLower(n1) < strings.ToLower(n2) ||
-			ip1.Less(ip2)
+		return ip1.Less(ip2) || ip1 == ip2 && n1 < n2
 	})
 }
 
