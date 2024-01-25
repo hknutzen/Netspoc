@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"log"
 	"os"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Descr struct {
@@ -131,10 +131,6 @@ func (s *state) parse() ([]*Descr, error) {
 			if err := s.templDef(); err != nil {
 				return nil, err
 			}
-		case "DATE":
-			if err := s.dateDef(d); err != nil {
-				return nil, err
-			}
 
 		default:
 			if d == nil {
@@ -249,22 +245,13 @@ func (s *state) templDef() error {
 		return err
 	}
 	text = strings.TrimSuffix(text, "\n")
-	s.templates[name], err =
-		template.New(name).Option("missingkey=zero").Parse(text)
-	return err
-}
-
-func (s *state) dateDef(d *Descr) error {
-	line := s.getLine()
-	s.rest = s.rest[len(line):]
-	line = strings.TrimSpace(line)
-	days, err := strconv.Atoi(line)
-	if err != nil {
-		return err
+	fMap := template.FuncMap{
+		"DATE": func(offset int) string {
+			return time.Now().AddDate(0, 0, offset).Format("2006-01-02")
+		},
 	}
-	date := time.Now().AddDate(0, 0, days)
-	s.templates["DATE"], err =
-		template.New("DATE").Parse(date.Format("2006-01-02"))
+	s.templates[name], err =
+		template.New(name).Option("missingkey=zero").Funcs(fMap).Parse(text)
 	return err
 }
 
