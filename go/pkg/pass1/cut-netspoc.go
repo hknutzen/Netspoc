@@ -31,7 +31,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -570,6 +570,20 @@ func (c *spoc) cutNetspoc(
 					isUsed[out.name] = true
 					isUsed[out.network.name] = true
 				}
+			}
+		}
+	}
+
+	// Mark management_instance of routers
+	for _, r := range c.managedRouters {
+		if r.model.needManagementInstance {
+			if mr := c.getRouter(r.deviceName, r.ipV6); mr != nil {
+				for _, intf := range getIntf(mr) {
+					setIntfUsed(intf, isUsed)
+					n := intf.network
+					markUnconnectedObj(n, isUsed)
+				}
+				setRouterUsed(mr, isUsed)
 			}
 		}
 	}
