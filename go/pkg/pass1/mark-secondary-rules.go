@@ -122,6 +122,9 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 		seen := make(map[*network]bool)
 		for _, other := range otherList {
 			otherNet := other.getNetwork()
+			if max := otherNet.maxSecondaryNet; max != nil {
+				otherNet = max
+			}
 			if seen[otherNet] {
 				continue
 			}

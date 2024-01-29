@@ -367,6 +367,112 @@ access-group Trans_in in interface Trans
 =END=
 
 ############################################################
+=TITLE=No optimization with subnet in zone
+# Must recognize related rules even with subnet relation inside zone.
+=INPUT=
+network:n1_sub = {
+ ip = 10.1.1.240/28;
+ subnet_of = network:n1;
+ host:h1 = { ip = 10.1.1.251; }
+}
+
+router:u = {
+ interface:n1_sub;
+ interface:n1 = { ip = 10.1.1.2; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.5.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.5.0/24; }
+
+service:any = {
+ user = network:n1;
+ permit src = user; dst = any:[ip = 10.1.4.0/23 & network:n2]; prt = tcp 22;
+}
+
+service:host = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! n2_in
+access-list n2_in extended permit tcp host 10.1.1.251 10.1.5.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=No optimization with sub subnet in zone
+=INPUT=
+network:n1_subsub = {
+ ip = 10.1.1.48/28;
+ subnet_of = network:n1_sub;
+ host:h1 = { ip = 10.1.1.51; }
+}
+
+network:n1_sub = { ip = 10.1.1.32/27; subnet_of = network:n1; }
+
+router:u = {
+ interface:n1_subsub;
+ interface:n1_sub;
+ interface:n1 = { ip = 10.1.1.2; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.5.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.5.0/24; }
+
+service:any = {
+ user = network:n1_sub;
+ permit src = user; dst = any:[ip = 10.1.4.0/23 & network:n2]; prt = tcp 22;
+}
+
+service:host = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! n2_in
+access-list n2_in extended permit tcp host 10.1.1.51 10.1.5.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Optimize even if src range is different
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
