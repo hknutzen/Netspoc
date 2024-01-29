@@ -1,7 +1,14 @@
 {{$NEXT}}
 
+6.066     2024-01-29 15:07:57+01:00 Europe/Berlin
+
+ - Fixed check that disables secondary optimization.
+   A corresponding supernet rule is found now, even if networks are
+   not identical, but in relation 'subnet in zone'.
  - Removed support for EZVPN at Cisco devices.
  - Syntax of loopback interfaces is checked more thoroughly.
+ - Program 'cut-netspoc' now collects "management_instance"
+   for routers of type NSX and PAN-OS.
 
 6.065     2023-11-13 11:45:12+01:00 Europe/Berlin
 
