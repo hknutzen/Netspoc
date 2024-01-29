@@ -3431,8 +3431,9 @@ Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet wi
 =END=
 
 ############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks
-=TEMPL=input
+=TITLE=VPN ASA to VPN router with two local networks
+=PARAMS=--ipv6
+=INPUT=
 [[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
@@ -3463,7 +3464,7 @@ router:extern = {
 network:internet = { ip = ::/0; has_subnets; }
 router:vpn = {
  managed;
- model = IOS, EZVPN;
+ model = IOS;
  interface:internet = {
   negotiated;
   spoke = crypto:vpn;
@@ -3486,8 +3487,6 @@ service:test = {
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=PARAMS=--ipv6
-=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 tunnel-group VPN-single type remote-access
@@ -3524,26 +3523,6 @@ access-list outside_in extended permit tcp ::a63:200/119 ::a01:100/120 eq 80
 access-list outside_in extended deny ip any6 any6
 access-group outside_in in interface outside
 --ipv6/vpn
-crypto ipsec client ezvpn vpn
- connect auto
- mode network-extension
- peer f000::c0a8:65
- acl ACL-Split-Tunnel
- virtual-interface 1
- username test pass test
- xauth userid mode local
-ipv6 access-list ACL-Split-Tunnel
- permit ipv6 ::a63:200/120 any
- permit ipv6 ::a63:300/120 any
-ipv6 access-list ACL-crypto-filter
- deny ipv6 any host ::a63:201
- deny ipv6 any host ::a63:301
- permit udp ::a01:100/120 ::a63:200/119 eq 123
- permit tcp ::a01:100/120 ::a63:200/119 established
- deny ipv6 any any
-interface Virtual-Template1 type tunnel
- ipv6 traffic-filter ACL-crypto-filter in
---
 ipv6 access-list e1_in
  permit 50 host f000::c0a8:65 any
  permit udp host f000::c0a8:65 eq 500 any eq 500
@@ -3556,69 +3535,14 @@ ipv6 access-list e2_in
 --
 interface e1
  ip address negotiated
- crypto ipsec client ezvpn vpn
+ crypto map crypto-e1
  ipv6 traffic-filter e1_in in
 interface e2
  ipv6 address ::a63:201/120
- crypto ipsec client ezvpn vpn inside
  ipv6 traffic-filter e2_in in
 interface e3
  ipv6 address ::a63:301/120
- crypto ipsec client ezvpn vpn inside
  ipv6 traffic-filter e3_in in
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks authenticated only
-# Protocol 50 is also used if only esp_authentication.
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/esp_encryption = aes256;//
-=OUTPUT=
---ipv6/vpn
-ipv6 access-list e1_in
- permit 50 host f000::c0a8:65 any
- permit udp host f000::c0a8:65 eq 500 any eq 500
- deny ipv6 any any
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN ASA with two local networks
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=OUTPUT=
---ipv6/vpn
-! [ Routing ]
-ipv6 route e1 ::/0 e1
---
-! VPN traffic is filtered at interface ACL
-no sysopt connection permit-vpn
---
-! e1_in
-access-list e1_in extended permit udp ::a01:100/120 ::a63:200/119 eq 123
-access-list e1_in extended deny ip any6 any6
-access-group e1_in in interface e1
---
-! e2_in
-access-list e2_in extended permit tcp ::a63:200/120 ::a01:100/120 eq 80
-access-list e2_in extended deny ip any6 any6
-access-group e2_in in interface e2
---
-! e3_in
-access-list e3_in extended permit tcp ::a63:300/120 ::a01:100/120 eq 80
-access-list e3_in extended deny ip any6 any6
-access-group e3_in in interface e3
-=END=
-
-############################################################
-=TITLE=Missing ID at EZVPN router to VPN ASA
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=SUBST=/id =/#id/
-=ERROR=
-Error: interface:vpn.tunnel:vpn needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
 =END=
 
 ############################################################
@@ -4081,15 +4005,6 @@ interface dmz
  ipv6 address f000::c0a8:65/120
  crypto map crypto-dmz
  ipv6 traffic-filter dmz_in in
-=END=
-
-############################################################
-=TITLE=Must not use EZVPN as hub
-=PARAMS=--ipv6
-=INPUT=[[topo]]
-=SUBST=/IOS/IOS, EZVPN/
-=ERROR=
-Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
 =END=
 
 ############################################################

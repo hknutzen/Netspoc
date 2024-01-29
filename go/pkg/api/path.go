@@ -297,7 +297,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
 			if c.val != nil {
-				err := patchValue(a, names, c)
+				err := patchValue(a, c)
 				if err != nil || len(a.ValueList) != 0 || c.method != "delete" {
 					return err
 				}
@@ -313,7 +313,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 	return newAttribute(l, name, c)
 }
 
-func patchValue(a *ast.Attribute, names []string, c change) error {
+func patchValue(a *ast.Attribute, c change) error {
 	if c.method == "set" ||
 		c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
 
@@ -321,7 +321,7 @@ func patchValue(a *ast.Attribute, names []string, c change) error {
 	}
 	if a.ComplexValue != nil {
 		if c.method == "add" {
-			return fmt.Errorf("Can't add to complex value of '%s'", a.Name)
+			return fmt.Errorf("Can't add duplicate definition of '%s'", a.Name)
 		}
 		return fmt.Errorf("Can't delete from complex value of '%s'", a.Name)
 	}

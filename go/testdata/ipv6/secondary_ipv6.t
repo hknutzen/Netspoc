@@ -374,6 +374,114 @@ access-group Trans_in in interface Trans
 =END=
 
 ############################################################
+=TITLE=No optimization with subnet in zone
+# Must recognize related rules even with subnet relation inside zone.
+=PARAMS=--ipv6
+=INPUT=
+network:n1_sub = {
+ ip = ::a01:1f0/124;
+ subnet_of = network:n1;
+ host:h1 = { ip = ::a01:1fb; }
+}
+
+router:u = {
+ interface:n1_sub;
+ interface:n1 = { ip = ::a01:102; }
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+
+network:n2 = { ip = ::a01:200/120; }
+
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:501; hardware = n3; }
+}
+
+network:n3 = { ip = ::a01:500/120; }
+
+service:any = {
+ user = network:n1;
+ permit src = user; dst = any:[ip = ::a01:400/119 & network:n2]; prt = tcp 22;
+}
+
+service:host = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/r2
+! n2_in
+access-list n2_in extended permit tcp host ::a01:1fb ::a01:500/120 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=No optimization with sub subnet in zone
+=PARAMS=--ipv6
+=INPUT=
+network:n1_subsub = {
+ ip = ::a01:130/124;
+ subnet_of = network:n1_sub;
+ host:h1 = { ip = ::a01:133; }
+}
+
+network:n1_sub = { ip = ::a01:120/123; subnet_of = network:n1; }
+
+router:u = {
+ interface:n1_subsub;
+ interface:n1_sub;
+ interface:n1 = { ip = ::a01:102; }
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+
+network:n2 = { ip = ::a01:200/120; }
+
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:501; hardware = n3; }
+}
+
+network:n3 = { ip = ::a01:500/120; }
+
+service:any = {
+ user = network:n1_sub;
+ permit src = user; dst = any:[ip = ::a01:400/119 & network:n2]; prt = tcp 22;
+}
+
+service:host = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/r2
+! n2_in
+access-list n2_in extended permit tcp host ::a01:133 ::a01:500/120 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Optimize even if src range is different
 =PARAMS=--ipv6
 =INPUT=

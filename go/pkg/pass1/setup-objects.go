@@ -1708,6 +1708,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		check(intf.owner != nil, "owner")
 		check(intf.loopback, "loopback")
 		check(vip, "vip")
+		intf.loopback = false
 	} else if vip {
 		// Attribute 'vip' is an alias for 'loopback'.
 		typ = "'vip'"
@@ -1853,6 +1854,9 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 
 	// Automatically create a network for loopback interface.
 	if intf.loopback {
+		if !isSimpleName(nName) {
+			c.err("Invalid identifier in '%s' of '%s'", v.Name, r.name)
+		}
 		var shortName string
 		var fullName string
 
@@ -2479,8 +2483,6 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 			switch m {
 			case "IOS":
 				switch att {
-				case "EZVPN":
-					info.crypto = "EZVPN"
 				case "FW":
 					info.stateless = false
 				default:
@@ -2493,8 +2495,6 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 					info.doAuth = true
 				case "CONTEXT":
 					info.cryptoInContext = true
-				case "EZVPN":
-					info.crypto = "ASA_EZVPN"
 				default:
 					goto FAIL
 				}
@@ -3580,9 +3580,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
 	l := maps.Values(c.symTable.crypto)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].name < l[j].name
-	})
+	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
 	for _, cr := range l {
 		realHub := cr.hub
 		if realHub == nil {
@@ -3611,10 +3609,6 @@ func (c *spoc) linkTunnels() {
 		// not pre-shared keys.
 		if model.doAuth && !needId {
 			c.err("%s needs authentication=rsasig in %s", r, isakmp.name)
-		}
-
-		if model.crypto == "EZVPN" {
-			c.err("Must not use %s of model '%s' as crypto hub", r, model.name)
 		}
 
 		// Generate a single tunnel from each spoke to single hub.

@@ -680,6 +680,16 @@ Error: Can't resolve interface:r.n.123.nn in user of service:s1
 =END=
 
 ############################################################
+=TITLE=Invalid name of loopback interface
+=INPUT=
+router:r1 = {
+ interface:lo-10.1.2.3 = { ip = 10.1.2.3; loopback; }
+}
+=ERROR=
+Error: Invalid identifier in 'interface:lo-10.1.2.3' of 'router:r1'
+=END=
+
+############################################################
 =TITLE=Missing [any|all]
 # No IPv6
 =INPUT=

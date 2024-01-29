@@ -4,6 +4,7 @@ package ast
 import (
 	"net/netip"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,14 +52,13 @@ func sortElem(l []Element) {
 			if x, ok := el.(NamedElem); ok {
 				n := x.GetName()
 				ip := findIPInName(n)
-				return n, ip
+				return strings.ToLower(n), ip
 			}
 			return "", netip.Addr{}
 		}
 		n1, ip1 := getNameIP(l[i])
 		n2, ip2 := getNameIP(l[j])
-		return ip1 == ip2 && strings.ToLower(n1) < strings.ToLower(n2) ||
-			ip1.Less(ip2)
+		return ip1.Less(ip2) || ip1 == ip2 && n1 < n2
 	})
 }
 
@@ -145,15 +145,7 @@ func sortProto(l []*Value) {
 			n1 = conv(d1[1:])
 			n2 = conv(d2[1:])
 		}
-		for i, d1 := range n1 {
-			if i >= len(n2) {
-				return false
-			}
-			if d2 := n2[i]; d1 != d2 {
-				return d1 < d2
-			}
-		}
-		return true
+		return slices.Compare(n1, n2) == -1
 	})
 }
 

@@ -122,6 +122,9 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 		seen := make(map[*network]bool)
 		for _, other := range otherList {
 			otherNet := other.getNetwork()
+			if max := otherNet.maxSecondaryNet; max != nil {
+				otherNet = max
+			}
 			if seen[otherNet] {
 				continue
 			}
@@ -159,16 +162,16 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // src--R1--any--R2--dst,
 // with R1 is "managed=secondary"
 // Rules:
-// 1. permit any->net:dst, telnet
+// 1. permit any->net:dst, ssh
 // 2. permit host:src->host:dst, http
 // Generated ACLs:
 // R1:
 // permit net:src->net:dst ip (with secondary optimization)
 // R2:
-// permit any net:dst telnet
+// permit any net:dst ssh
 // permit host:src host:dst http
 // Problem:
-//   - src would be able to access dst with telnet, but only http was permitted,
+//   - src would be able to access dst with ssh, but only http was permitted,
 //   - the whole network of src would be able to access dst, even if
 //     only a single host of src was permitted.
 //   - src would be able to access the whole network of dst, even if
@@ -179,11 +182,11 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // src--R1--any--R2--dst,
 // with R2 is "managed=secondary"
 // Rules:
-// 1. permit net:src->any, telnet
+// 1. permit net:src->any, ssh
 // 2. permit host:src->host:dst, http
 // Generated ACLs:
 // R1:
-// permit net:src any telnet
+// permit net:src any ssh
 // permit host:src host:dst http
 // R2
 // permit net:src net:dst ip

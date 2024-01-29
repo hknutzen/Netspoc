@@ -171,6 +171,69 @@ group:g7 =
 =PARAMS=group:g1 group:g2 group:g3
 
 ############################################################
+=TITLE=Order of given groups doesn't matter
+=INPUT=
+group:g1 = group:g2 &! host:b &! host:c;
+group:g2 = group:g3, group:g4;
+group:g3 = host:a, host:b;
+group:g4 = host:c, host:d;
+=OUTPUT=
+group:g1 =
+ host:a,
+ host:d,
+;
+=PARAMS=group:g2 group:g3 group:g4
+
+############################################################
+=TITLE=Expand group in complement
+=INPUT=
+group:g1 = group:g2 &! group:g4;
+group:g2 = group:g3, group:g4;
+group:g3 = host:a, host:b;
+group:g4 = host:c, host:d;
+=OUTPUT=
+group:g1 =
+ group:g3,
+;
+group:g3 =
+ host:a,
+ host:b,
+;
+group:g4 =
+ host:c,
+ host:d,
+;
+=PARAMS=group:g2
+
+############################################################
+=TITLE=Can't expand intersection
+=INPUT=
+group:g1 = group:g2 &! host:b &! host:c & group:g5;
+group:g2 = group:g3, group:g4;
+group:g3 = host:a, host:b;
+group:g4 = host:c, host:d;
+group:g5 = host:a, host:c;
+=OUTPUT=
+group:g1 =
+ group:g2
+ & group:g5
+ &! host:b
+ &! host:c
+ ,
+;
+group:g2 =
+ host:a,
+ host:b,
+ host:c,
+ host:d,
+;
+group:g5 =
+ host:a,
+ host:c,
+;
+=PARAMS=group:g2 group:g3 group:g4 group:g5
+
+############################################################
 =TITLE=Expand group with single element even in complex intersection
 =INPUT=
 group:g1 = host:[network:n];

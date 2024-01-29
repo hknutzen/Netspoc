@@ -12,6 +12,7 @@ bin/check-acl
 bin/cut-netspoc
 bin/expand-group
 bin/export-netspoc
+bin/export-netspoc-syntax
 bin/format-netspoc
 bin/modify-netspoc-api
 bin/netspoc

@@ -19,6 +19,7 @@ my %WriteMakefileArgs = (
     "bin/cut-netspoc",
     "bin/expand-group",
     "bin/export-netspoc",
+    "bin/export-netspoc-syntax",
     "bin/format-netspoc",
     "bin/modify-netspoc-api",
     "bin/netspoc",
@@ -32,7 +33,7 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {},
-  "VERSION" => "6.065",
+  "VERSION" => "6.066",
   "test" => {
     "TESTS" => ""
   }

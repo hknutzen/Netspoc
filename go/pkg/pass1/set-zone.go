@@ -576,10 +576,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		sort.SliceStable(l, func(i, j int) bool {
 			si := size(l[i])
 			sj := size(l[j])
-			if si == sj {
-				return l[i].name < l[j].name
-			}
-			return si < sj
+			return si < sj || si == sj && l[i].name < l[j].name
 		})
 	}
 

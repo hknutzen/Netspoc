@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2023 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2024 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -738,9 +738,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
 		l := maps.Keys(m)
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].name < l[j].name
-		})
+		sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
 		return l
 	}
 
