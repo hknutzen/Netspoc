@@ -53,7 +53,7 @@ func (c *spoc) expandTypedName(typ, name string) ipVxGroupObj {
 	return obj
 }
 
-type networkAutoIntfKey = struct {
+type networkAutoIntfKey struct {
 	network *network
 	managed bool
 }
