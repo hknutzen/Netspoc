@@ -27,7 +27,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/rename"
 	"github.com/hknutzen/Netspoc/go/pkg/transposeservice"
 	"github.com/hknutzen/Netspoc/go/test/capture"
-	"github.com/hknutzen/Netspoc/go/test/tstdata"
+	"github.com/hknutzen/testtxt"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -82,14 +82,32 @@ func TestNetspoc(t *testing.T) {
 	})
 }
 
+type descr struct {
+	Title      string
+	Setup      string
+	Input      string
+	ReusePrev  string
+	Options    string
+	FileOption string
+	Job        string
+	Param      string
+	Params     string
+	Output     string
+	Warning    string
+	Error      string
+	ShowDiag   bool
+	Todo       bool
+	WithOutdir bool
+}
+
 func runTestFiles(t *testing.T, tc test) {
-	dataFiles := tstdata.GetFiles("../testdata/" + tc.dir)
+	dataFiles := testtxt.GetFiles("../testdata/" + tc.dir)
 	for _, file := range dataFiles {
 		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
 			t.Parallel()
-			l, err := tstdata.ParseFile(file)
-			if err != nil {
+			var l []descr
+			if err := testtxt.ParseFile(file, &l); err != nil {
 				t.Fatal(err)
 			}
 			for _, descr := range l {
@@ -103,8 +121,16 @@ func runTestFiles(t *testing.T, tc test) {
 	}
 }
 
-func runTest(t *testing.T, tc test, d *tstdata.Descr) {
-
+func runTest(t *testing.T, tc test, d descr) {
+	if d.Input == "" {
+		t.Fatal("missing =INPUT= in test")
+	}
+	if d.Output == "" && d.Warning == "" && d.Error == "" {
+		t.Fatal("missing =OUTPUT|WARNING|ERROR= in test")
+	}
+	if d.Error != "" && d.Warning != "" {
+		t.Fatalf("must not define =ERROR= together with =WARNING=")
+	}
 	if d.Todo {
 		t.Skip("skipping TODO test")
 	}
@@ -116,7 +142,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	// Prepare output directory.
 	var outDir string
 	if tc.typ == outDirT && d.Output != "" || tc.typ == outDirStdoutT ||
-		d.WithOutD {
+		d.WithOutdir {
 
 		outDir = path.Join(workDir, "out")
 	}
@@ -133,9 +159,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		}
 
 		// Prepare file for option '-f file'
-		if d.FOption != "" {
+		if d.FileOption != "" {
 			name := path.Join(workDir, "file")
-			if err := os.WriteFile(name, []byte(d.FOption), 0644); err != nil {
+			if err := os.WriteFile(name, []byte(d.FileOption), 0644); err != nil {
 				t.Fatal(err)
 			}
 			args = append(args, "-f", name)
@@ -144,7 +170,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		var inDir string
 		if input != "NONE" || outDir != "" {
 			// Prepare input file or directory.
-			inDir = tstdata.PrepareInDir(workDir, input)
+			src := path.Join(workDir, "netspoc")
+			inDir = testtxt.PrepareInDir(src, "INPUT", input)
 			args = append(args, inDir)
 
 			// Add location of output directory.

@@ -62,7 +62,7 @@ deny   10.1.1.11 10.0.0.0 tcp 85
 =TITLE=Packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 10.1.1.11 10.1.2.12 tcp 85
 10.1.1.11 10.0.0.0 udp 123
 10.1.1.11 10.1.2.12 icmp 3/3
@@ -78,7 +78,7 @@ deny   10.1.1.11 10.1.2.12 icmp 3/13
 =TITLE=Duplicate packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 10.1.1.11 10.1.2.12 tcp 085
 10.1.1.11 10.1.2.12 tcp 85
 10.1.1.11 10.0.0.0 tcp 85
@@ -183,7 +183,7 @@ Warning: Ignored packet with invalid protocol number: 999
 =TITLE=Bad packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 # Comment, then empty line
 
 10.1.1.11 10.1.2.12 tcp 85

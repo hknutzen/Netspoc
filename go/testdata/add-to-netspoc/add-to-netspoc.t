@@ -321,7 +321,7 @@ group:g =
  host:abc,
  host:id:xyz@dom,
 ;
-=FOPTION=
+=FILE_OPTION=
 host:abc network:abx
 network:xyz host:id:xyz@dom
 any:aaa group:bbb

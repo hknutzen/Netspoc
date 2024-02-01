@@ -473,7 +473,7 @@ group:g =
  network:xxxx,
  host:a1,
 ;
-=FOPTION=
+=FILE_OPTION=
 host:abc host:a1
 owner:foo owner:büro
 nat:tick nat:t1
