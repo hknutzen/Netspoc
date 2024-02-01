@@ -2,8 +2,6 @@ module github.com/hknutzen/Netspoc/go
 
 go 1.21.4
 
-replace github.com/hknutzen/testtxt => ../../testtxt
-
 require (
 	github.com/google/go-cmp v0.5.9
 	github.com/hknutzen/testtxt v0.0.0-20240201092256-1f14e38b7e01
