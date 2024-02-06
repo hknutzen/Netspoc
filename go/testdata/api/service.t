@@ -1635,6 +1635,11 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+--protocols
+protocol:tftp = udp 69, oneway;
+protocol:ping_net     = icmp 8, src_net, dst_net;
+protocol:ping_net_rev = icmp 8, src_net, dst_net, reversed;
+protocolgroup:ping_both = protocol:ping_net, protocol:ping_net_rev;
 --service
 service:s1 = {
  user = network:n1;
@@ -1646,6 +1651,8 @@ service:s1 = {
               udp 161-162,
               udp 427,
               icmp 3/13,
+              protocolgroup:ping_both,
+              protocol:tftp,
               ;
 }
 =JOB=
@@ -1653,14 +1660,19 @@ service:s1 = {
   "method": "delete",
   "params": {
     "value": [
+        "protocol:tftp",
+        "protocolgroup:ping_both",
         "icmp 3/13",
         "tcp 443",
         "tcp 9300-9302",
         "udp 161 - 162",
-        "udp 427" ],
+        "udp 427"
+    ],
     "path": "service:s1,rules,1,prt"
   }
 }
+=WARNING=
+Warning: unused protocolgroup:ping_both
 =OUTPUT=
 @@ service
   user = network:n1;
@@ -1672,6 +1684,8 @@ service:s1 = {
 -              udp 161-162,
 -              udp 427,
 -              icmp 3/13,
+-              protocolgroup:ping_both,
+-              protocol:tftp,
 -              ;
 +        prt = tcp 80;
  }
