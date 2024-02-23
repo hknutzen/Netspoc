@@ -223,7 +223,7 @@ func SpocMain(d oslink.Data) int {
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
-		NATDomains, _, _ := c.distributeNatInfo()
+		NATDomains, _ := c.distributeNatInfo()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		pRules, dRules := c.convertHostsInRules(sRules)

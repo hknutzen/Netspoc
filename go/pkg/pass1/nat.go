@@ -91,9 +91,7 @@ func (c *spoc) checkNatDefinitions(natTag2hidden map[string]bool) {
 		l1 := natBound[tag1]
 		h1 := natTag2hidden[tag1]
 		for _, tag2 := range tags[i+1:] {
-			if h1 == natTag2hidden[tag2] &&
-				slices.Equal(l1, natBound[tag2]) {
-
+			if h1 == natTag2hidden[tag2] && slices.Equal(l1, natBound[tag2]) {
 				c.warn("nat:%s and nat:%s are bound to same interfaces\n"+
 					" and should be merged into a single definition", tag1, tag2)
 			}
@@ -1081,9 +1079,7 @@ func distributeNatMapsToInterfaces(doms []*natDomain) {
 
 // distributeNatInfo determines NAT domains
 // and generates NAT set for every NAT domain.
-func (c *spoc) distributeNatInfo() (
-	[]*natDomain, map[string]bool, map[string][]natTagMap) {
-
+func (c *spoc) distributeNatInfo() ([]*natDomain, map[string][]natTagMap) {
 	c.progress("Distributing NAT")
 	tag2hidden := c.getHiddenNatMap()
 	c.checkNatDefinitions(tag2hidden)
@@ -1099,8 +1095,7 @@ func (c *spoc) distributeNatInfo() (
 	c.checkInterfacesWithDynamicNat()
 	c.convertNatSetToNatMap(natdomains)
 	distributeNatMapsToInterfaces(natdomains)
-
-	return natdomains, tag2hidden, multi
+	return natdomains, multi
 }
 
 // Combine different natSets into a single natSet in a way
@@ -1111,16 +1106,10 @@ func (c *spoc) distributeNatInfo() (
 // Hidden NAT tag is ignored if combined with a real NAT tag,
 // because hidden tag doesn't affect address calculation.
 // Multiple hidden tags without real tag are ignored.
-func combineNatSets(
-	sets []natSet,
-	multi map[string][]natTagMap,
-	natTag2hidden map[string]bool,
-) natSet {
-
+func combineNatSets(sets []natSet, multi map[string][]natTagMap) natSet {
 	if len(sets) == 1 {
 		return sets[0]
 	}
-
 	// Collect single NAT tags and multi NAT maps.
 	combined := make(natSet)
 	var activeMulti []map[string]*network
@@ -1145,7 +1134,6 @@ func combineNatSets(
 			}
 		}
 	}
-
 	// Build intersection for NAT tags of all sets.
 	activeMultiSets := make([]map[string]bool, len(activeMulti))
 	for i := range activeMultiSets {
@@ -1168,19 +1156,17 @@ func combineNatSets(
 			activeMultiSets[i][active] = true
 		}
 	}
-
 	// Process multi NAT tags.
 	// Collect to be added and to be ignored tags.
 	ignore := make(map[string]bool)
 	toAdd := make(map[string]bool)
-	for _, m := range activeMultiSets {
+	for i, m := range activeMultiSets {
 		add := ""
-
 		// Analyze active and inactive tags.
 		if !m[""] {
 			realTag := ""
 			for tag := range m {
-				if !natTag2hidden[tag] {
+				if !activeMulti[i][tag].hidden {
 					if realTag != "" {
 						// Ignore multiple real tags.
 						realTag = ""
