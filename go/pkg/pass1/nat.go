@@ -935,9 +935,6 @@ func (c *spoc) checkNatCompatibility() {
 	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
 			nat := obj.nat
-			if nat == nil {
-				return
-			}
 			for _, tag := range sorted.Keys(nat) {
 				objIP := nat[tag]
 				natNet := n.nat[tag]
@@ -976,13 +973,10 @@ func (c *spoc) checkInterfacesWithDynamicNat() {
 				continue
 			}
 			for _, intf := range n.interfaces {
-				intfNat := intf.nat
-
 				// Interface has static translation,
-				if _, found := intfNat[tag]; found {
+				if _, found := intf.nat[tag]; found {
 					continue
 				}
-
 				r := intf.router
 				if !r.needProtect {
 					continue
