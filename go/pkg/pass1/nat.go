@@ -114,8 +114,10 @@ func (c *spoc) checkNatDefinitions(natTag2hidden map[string]bool) {
 //   - if a network:n1 exists having NAT definitions for both t1 and t2
 //   - and some other network:n2 exists having a NAT definition for t1,
 //     but not for t2.
-func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMap {
-	result := make(map[string]natTagMap)
+type invalidNAT map[[2]string]*network
+
+func markInvalidNatTransitions(multi map[string][]natTagMap) invalidNAT {
+	result := make(invalidNAT)
 	for _, list := range multi {
 		if len(list) == 1 {
 			continue
@@ -132,14 +134,9 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 				continue
 			}
 			for tag1, natNet := range multiNatMap {
-				m := result[tag1]
-				if m == nil {
-					m = make(natTagMap)
-					result[tag1] = m
-				}
 				for tag2 := range union {
 					if multiNatMap[tag2] == nil {
-						m[tag2] = natNet
+						result[[2]string{tag1, tag2}] = natNet
 					}
 				}
 			}
@@ -612,7 +609,7 @@ func getNatDomainBorders(d *natDomain) intfList {
 //	    where transition from t1 to t2 is invalid.
 //	r: router where NAT transition occurs at.
 func (c *spoc) checkForProperNatTransition(
-	tag, tag2 string, nat natTagMap, invalid map[string]natTagMap, r *router) {
+	tag, tag2 string, nat natTagMap, invalid invalidNAT, r *router) {
 
 	natInfo := nat[tag]
 	nextInfo := nat[tag2]
@@ -634,7 +631,7 @@ func (c *spoc) checkForProperNatTransition(
 		// Transition from dynamic to static NAT is invalid.
 		c.err("Must not change dynamic nat:%s to static using nat:%s\n"+
 			" for %s at %s", tag, tag2, natInfo, r)
-	} else if n := invalid[tag][tag2]; n != nil {
+	} else if n := invalid[[2]string{tag, tag2}]; n != nil {
 		// Transition from tag to tag2 is invalid,
 		// if tag occurs somewhere not grouped with tag2.
 		c.err("Invalid transition from nat:%s to nat:%s at %s.\n"+
@@ -662,7 +659,7 @@ func (c *spoc) checkForProperNatTransition(
 // false on success,	true on error, if same NAT tag is reached twice.
 func (c *spoc) distributeNat1(
 	inRouter *router, d *natDomain, tag string,
-	multinatMaps []natTagMap, invalid map[string]natTagMap,
+	multinatMaps []natTagMap, invalid invalidNAT,
 ) bool {
 	//debug("nat:%s at %s from %s", tag, d.name, inRouter)
 
@@ -747,7 +744,7 @@ ROUTER:
 // Returns:    true if NAT errors have occured.
 func (c *spoc) distributeNat(
 	in *router, d *natDomain, tag string,
-	multinatMaps []natTagMap, invalid map[string]natTagMap,
+	multinatMaps []natTagMap, invalid invalidNAT,
 ) bool {
 	if c.distributeNat1(in, d, tag, multinatMaps, invalid) {
 		c.errMissingBindNat(in, d, tag, multinatMaps)
