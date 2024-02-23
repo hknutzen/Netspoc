@@ -1078,7 +1078,7 @@ func distributeNatMapsToInterfaces(doms []*natDomain) {
 }
 
 // distributeNatInfo determines NAT domains
-// and generates NAT set for every NAT domain.
+// and calculates a NAT map for every NAT domain.
 func (c *spoc) distributeNatInfo() ([]*natDomain, map[string][]natTagMap) {
 	c.progress("Distributing NAT")
 	tag2hidden := c.getHiddenNatMap()
