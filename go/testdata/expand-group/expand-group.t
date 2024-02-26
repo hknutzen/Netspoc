@@ -103,7 +103,7 @@ group:g3 =
  host:b,
  host:c,
 ;
-=FOPTION=
+=FILE_OPTION=
 group:g2
 group:g1
 =END=

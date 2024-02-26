@@ -1,3 +1,7 @@
+6.067     2024-02-26 10:13:31+01:00 Europe/Berlin
+
+ - Hidden NAT may be applied multiple times to the same network now.
+
 6.066     2024-01-29 15:07:57+01:00 Europe/Berlin
 
  - Fixed check that disables secondary optimization.

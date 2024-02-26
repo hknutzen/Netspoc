@@ -2601,12 +2601,96 @@ Error: Must not change dynamic nat:t1 to static using nat:t2
 =END=
 
 ############################################################
-=TITLE=Prevent NAT from hidden back to IP
+=TITLE=Inconsistent NAT in loop with multiple hidden NAT tags
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ nat:h2 = { hidden; }
+ nat:h3 = { hidden; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ interface:n3;
+ interface:n4 = { bind_nat = h1; }
+ interface:n5 = { bind_nat = h3; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5;
+ interface:n6 = { bind_nat = h2; }
+}
+=ERROR=
+Error: Inconsistent NAT in loop at router:r2:
+ nat:h3 vs. nat:h1
+=END=
+
+############################################################
+=TITLE=Multiple hidden NAT applied in sequence
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ nat:h2 = { hidden; }
+ nat:h3 = { hidden; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h1; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4 = { bind_nat = h2; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5 = { bind_nat = h3; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n3, network:n4, network:n5; prt = tcp 80;
+}
+=ERROR=
+Error: network:n1 is hidden by nat:h1 in rule
+ permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
+Error: network:n1 is hidden by nat:h2 in rule
+ permit src=network:n1; dst=network:n4; prt=tcp 80; of service:s1
+Error: network:n1 is hidden by nat:h2 in rule
+ permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
+Error: network:n2 is hidden by nat:h2 in rule
+ permit src=network:n2; dst=network:n4; prt=tcp 80; of service:s1
+Error: network:n2 is hidden by nat:h3 in rule
+ permit src=network:n2; dst=network:n5; prt=tcp 80; of service:s1
+=END=
+
+############################################################
+=TITLE=Multiple hidden NAT is ok
 =INPUT=
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
- nat:t2 = { ip = 10.9.9.0/24; }
+ nat:t2 = { hidden; }
 }
 router:R0 = {
  interface:U1;
@@ -2620,18 +2704,15 @@ router:R2 = {
  interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
 }
 network:K = { ip = 10.2.2.0/24; }
-=ERROR=
-Error: Must not change hidden nat:t1 using nat:t2
- for network:U1 at router:R2
-=END=
+=WARNING=NONE
 
 ############################################################
-=TITLE=Prevent multiple hidden NAT
+=TITLE=Prevent NAT from hidden back to IP
 =INPUT=
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
- nat:t2 = { hidden; }
+ nat:t2 = { ip = 10.9.9.0/24; }
 }
 router:R0 = {
  interface:U1;

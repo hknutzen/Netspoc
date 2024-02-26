@@ -111,7 +111,7 @@ Error: Can't find service:host:h1
 =END=
 ###############################################################
 =TITLE=Remove services with input from file
-=FOPTION=
+=FILE_OPTION=
 service:s1
 
 service:s2

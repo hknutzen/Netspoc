@@ -145,7 +145,6 @@ go/staticcheck.conf
 go/test/capture/capture.go
 go/test/netspoc_test.go
 go/test/oslink_test.go
-go/test/tstdata/testdata.go
 go/testdata/add-to-netspoc/add-to-netspoc.t
 go/testdata/adjacent-net.t
 go/testdata/aggregate.t

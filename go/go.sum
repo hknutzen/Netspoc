@@ -5,10 +5,10 @@ github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf/go.mod h1:l
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/google/go-cmp v0.5.8 h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=
-github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+github.com/hknutzen/testtxt v0.0.0-20240201092256-1f14e38b7e01 h1:LvTdRz8gy1ypFEM+o/cXH4QV7b1DRjRiK34qkyMXj1U=
+github.com/hknutzen/testtxt v0.0.0-20240201092256-1f14e38b7e01/go.mod h1:270gg+HoaF8zFBum1SBfiGYxduxu3VsW1S7mSrhXioA=
 github.com/octago/sflags v0.2.0/go.mod h1:G0bjdxh4qPRycF74a2B8pU36iTp9QHGx0w0dFZXPt80=
 github.com/octago/sflags v0.3.1-0.20210726012706-20f2a9c31dfc h1:oefEVXZ7lMGxuiONrGMbSVQzibx0bdRQ/2yNQhyGOyQ=
 github.com/octago/sflags v0.3.1-0.20210726012706-20f2a9c31dfc/go.mod h1:5bNo1x+1VBz+aQErCB82nPISPQWNiO4QWlasZKS0mFc=

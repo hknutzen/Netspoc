@@ -78,14 +78,14 @@ func markPrimary(z *zone, mark int) {
 	}
 }
 
-type conflictKey = struct {
+type conflictKey struct {
 	isSrc     bool
 	isPrimary bool
 	mark      int
 	net       *network
 }
 
-type conflictInfo = struct {
+type conflictInfo struct {
 	supernets map[*network]bool
 	rules     []*groupedRule
 }

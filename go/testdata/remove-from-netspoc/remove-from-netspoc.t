@@ -625,7 +625,7 @@ group:g =
  interface:r.n.sec,
  host:abc,
 ;
-=FOPTION=
+=FILE_OPTION=
 any:aaa
 network:abx
 host:id:xyz@dom
