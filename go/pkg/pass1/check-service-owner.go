@@ -228,9 +228,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				if hasUser != "dst" {
 					check(rule.dst)
 				}
-
-				// Store found objects and remember that first rule has
-				// been processed.
 				info.objects = objects
 			}
 		}
