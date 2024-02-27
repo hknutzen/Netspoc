@@ -1890,7 +1890,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			// Mark as automatically created.
 			n.loopback = true
 			n.subnetOf = subnetOf
-			n.isLayer3 = intf.isLayer3
 			n.ipV6 = v6
 
 			// Move NAT definition to loopback network.

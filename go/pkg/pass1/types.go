@@ -150,7 +150,6 @@ type network struct {
 	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool
-	isLayer3             bool
 	link                 *network
 	loopback             bool
 	maxRoutingNet        *network

@@ -485,7 +485,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			subnet := origNet[natSubnet]
 			bignet := origNet[natBignet]
 
-			if !natSubnet.isLayer3 {
+			if l := natSubnet.interfaces; !(len(l) == 1 && l[0].isLayer3) {
 				subnet.subnetOfUsed = true
 				if printType := c.conf.CheckSubnets; printType != "" &&
 					// Take original bignet, because currently
