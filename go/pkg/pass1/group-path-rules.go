@@ -160,16 +160,16 @@ func (c *spoc) splitRulesByPath(rules ruleList, s2u svc2unenforceable,
 		dGroupInfo := splitRuleGroup(sRule.dst)
 		for _, sInfo := range sGroupInfo {
 			for _, dInfo := range dGroupInfo {
-				rule := new(groupedRule)
-				rule.serviceRule = sRule.serviceRule
-				rule.srcPath = sInfo.path
-				rule.dstPath = dInfo.path
-				rule.src = sInfo.group
-				rule.dst = dInfo.group
-				if c.isUnenforceableRule(rule, s2u) {
-					continue
+				rule := &groupedRule{
+					serviceRule: sRule.serviceRule,
+					srcPath:     sInfo.path,
+					dstPath:     dInfo.path,
+					src:         sInfo.group,
+					dst:         dInfo.group,
 				}
-				newRules.push(rule)
+				if !c.isUnenforceableRule(rule, s2u) {
+					newRules.push(rule)
+				}
 			}
 		}
 	}
