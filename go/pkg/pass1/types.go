@@ -593,8 +593,6 @@ type service struct {
 	multiOwner                 bool
 	overlaps                   []*service
 	seenEnforceable            bool
-	seenUnenforceable          bool
-	unenforceableMap           map[objPair]bool
 	unknownOwner               bool
 	user                       []ast.Element
 }
