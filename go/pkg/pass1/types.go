@@ -592,7 +592,6 @@ type service struct {
 	identicalBody              []*service
 	multiOwner                 bool
 	overlaps                   []*service
-	owners                     []*owner
 	seenEnforceable            bool
 	seenUnenforceable          bool
 	unenforceableMap           map[objPair]bool

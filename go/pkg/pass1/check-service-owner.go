@@ -241,24 +241,23 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 		unknown2services := make(map[srvObj]stringList)
 		for svc, info := range service2info {
-
-			// Collect service owners, remember if unknown owners;
-			ownerSeen := make(map[*owner]bool)
-			hasUnknown := false
-
 			objects := info.objects
+
+			// Check if service has multiple owners or has unknown owner.
+			var objOwner *owner
+			hasMulti := false
+			hasUnknown := false
 			for obj := range objects {
 				if o := obj.getOwner(); o != nil {
-					if !ownerSeen[o] {
-						ownerSeen[o] = true
-						svc.owners = append(svc.owners, o)
+					if objOwner == nil {
+						objOwner = o
+					} else if o != objOwner {
+						hasMulti = true
 					}
 				} else {
 					hasUnknown = true
 				}
 			}
-
-			// Check for multiple owners.
 			checkAttrMultiOwner := func() bool {
 				if !svc.multiOwner {
 					return false
@@ -273,7 +272,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				}
 				return true
 			}
-			hasMulti := !info.isCoupling && len(svc.owners) > 1
+			hasMulti = !info.isCoupling && hasMulti
 			if checkAttrMultiOwner() {
 				if !hasMulti {
 					c.uselessSvcAttr("multi_owner", svc)
