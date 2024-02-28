@@ -282,7 +282,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					// Check if attribute 'multi_owner' could be avoided,
 					// if objects of user and objects of rules are swapped.
 					var userOwner *owner
-					simpleUser := true
+				USERS:
 					for _, users := range info.users {
 						for _, user := range users {
 							var o *owner
@@ -290,18 +290,18 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 								o = obj.getOwner()
 							}
 							if o == nil {
-								simpleUser = false
-								break
+								userOwner = nil
+								break USERS
 							}
 							if userOwner == nil {
 								userOwner = o
 							} else if userOwner != o {
-								simpleUser = false
-								break
+								userOwner = nil
+								break USERS
 							}
 						}
 					}
-					if simpleUser && userOwner != nil {
+					if userOwner != nil {
 						c.warn("Unnecessary 'multi_owner' at %s\n"+
 							" All 'user' objects belong to single %s.\n"+
 							" Either swap objects of 'user' and objects of rules,\n"+
