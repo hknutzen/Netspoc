@@ -167,7 +167,10 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			sameObjects bool
 			// Is set, if all rules are coupling rules.
 			isCoupling bool
-			objects    map[srvObj]bool
+			// Collect non 'user' objects.
+			objects map[srvObj]bool
+			// List of lists of users.
+			users [][]srvObj
 		}
 		service2info := make(map[*service]*svcInfo)
 
@@ -183,8 +186,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					}
 					service2info[svc] = info
 				}
-
-				// Collect non 'user' objects.
 				objects := info.objects
 
 				// Check, if service contains only coupling rules with only
@@ -222,10 +223,14 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 				}
-				if hasUser != "src" {
+				if hasUser == "src" {
+					info.users = append(info.users, rule.src)
+				} else {
 					check(rule.src)
 				}
-				if hasUser != "dst" {
+				if hasUser == "dst" {
+					info.users = append(info.users, rule.dst)
+				} else {
 					check(rule.dst)
 				}
 				info.objects = objects
@@ -278,20 +283,22 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					// if objects of user and objects of rules are swapped.
 					var userOwner *owner
 					simpleUser := true
-					for _, user := range svc.expandedUser {
-						var o *owner
-						if obj, ok := user.(srvObj); ok {
-							o = obj.getOwner()
-						}
-						if o == nil {
-							simpleUser = false
-							break
-						}
-						if userOwner == nil {
-							userOwner = o
-						} else if userOwner != o {
-							simpleUser = false
-							break
+					for _, users := range info.users {
+						for _, user := range users {
+							var o *owner
+							if obj, ok := user.(srvObj); ok {
+								o = obj.getOwner()
+							}
+							if o == nil {
+								simpleUser = false
+								break
+							}
+							if userOwner == nil {
+								userOwner = o
+							} else if userOwner != o {
+								simpleUser = false
+								break
+							}
 						}
 					}
 					if simpleUser && userOwner != nil {

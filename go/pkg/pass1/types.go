@@ -598,7 +598,6 @@ type service struct {
 	unenforceableMap           map[objPair]bool
 	unknownOwner               bool
 	user                       []ast.Element
-	expandedUser               groupObjList
 }
 
 func (x *service) String() string { return x.name }
