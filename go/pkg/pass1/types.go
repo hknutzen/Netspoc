@@ -578,23 +578,22 @@ func (x objGroup) String() string { return x.name }
 
 type service struct {
 	ipVxObj
-	name                       string
-	description                string
-	disableAt                  string
-	disabled                   bool
-	foreach                    bool
-	rules                      []*unexpRule
-	ruleCount                  int
-	duplicateCount             int
-	redundantCount             int
-	hasUnenforceable           bool
-	hasUnenforceableRestricted bool
-	identicalBody              []*service
-	multiOwner                 bool
-	overlaps                   []*service
-	seenEnforceable            bool
-	unknownOwner               bool
-	user                       []ast.Element
+	name             string
+	description      string
+	disableAt        string
+	disabled         bool
+	foreach          bool
+	rules            []*unexpRule
+	ruleCount        int
+	duplicateCount   int
+	redundantCount   int
+	hasUnenforceable bool
+	identicalBody    []*service
+	multiOwner       bool
+	overlaps         []*service
+	seenEnforceable  bool
+	unknownOwner     bool
+	user             []ast.Element
 }
 
 func (x *service) String() string { return x.name }

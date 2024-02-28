@@ -7,7 +7,11 @@ import (
 )
 
 type objPair [2]someObj
-type svc2unenforceable map[*service]map[objPair]bool
+type unenforceableInfo struct {
+	pairs          map[objPair]bool
+	seenRestricted bool
+}
+type svc2unenforceable map[*service]*unenforceableInfo
 
 // This handles a rule between objects inside a single security zone or
 // between interfaces of a single managed router.
@@ -20,20 +24,21 @@ type svc2unenforceable map[*service]map[objPair]bool
 func (c *spoc) collectUnenforceable(rule *groupedRule, s2u svc2unenforceable) {
 	uRule := rule.rule
 	sv := uRule.service
-	pairs := s2u[sv]
+	info, found := s2u[sv]
 	if uRule.hasUser == "both" && !sv.foreach {
-		if pairs == nil {
-			s2u[sv] = nil
+		if !found {
+			s2u[sv] = nil // Seen some unenforceable rule.
 		}
 		return
 	}
-	if pairs == nil {
-		pairs = make(map[objPair]bool)
-		s2u[sv] = pairs
+	if info == nil {
+		info = &unenforceableInfo{pairs: make(map[objPair]bool)}
+		s2u[sv] = info
 	}
 	if c.conf.CheckUnenforceable == "" {
 		return
 	}
+	pairs := info.pairs
 	for _, src := range rule.src {
 		for _, dst := range rule.dst {
 			if !pairs[objPair{src, dst}] {
@@ -41,8 +46,8 @@ func (c *spoc) collectUnenforceable(rule *groupedRule, s2u svc2unenforceable) {
 				dstAttr := getAttr(dst, hasUnenforceableAttr)
 				if sv.hasUnenforceable {
 					if srcAttr == restrictVal && dstAttr == restrictVal {
-						if !sv.hasUnenforceableRestricted {
-							sv.hasUnenforceableRestricted = true
+						if !info.seenRestricted {
+							info.seenRestricted = true
 							c.warn("Attribute 'has_unenforceable' is blocked at %s", sv)
 						}
 					} else {
@@ -59,8 +64,8 @@ func (c *spoc) collectUnenforceable(rule *groupedRule, s2u svc2unenforceable) {
 
 func (c *spoc) showUnenforceable(s2u svc2unenforceable) {
 	for _, sv := range c.ascendingServices {
-		pairs, found := s2u[sv]
-		if sv.hasUnenforceable && (pairs == nil || !sv.seenEnforceable) {
+		info, found := s2u[sv]
+		if sv.hasUnenforceable && (info == nil || !sv.seenEnforceable) {
 			c.uselessSvcAttr("has_unenforceable", sv)
 		}
 		// Warning about fully unenforceable service can't be suppressed by
@@ -72,9 +77,9 @@ func (c *spoc) showUnenforceable(s2u svc2unenforceable) {
 					"No firewalls found between all source/destination pairs of %s",
 					sv)
 			}
-		} else if len(pairs) != 0 {
+		} else if info != nil && len(info.pairs) != 0 {
 			var list stringList
-			for pair := range pairs {
+			for pair := range info.pairs {
 				src, dst := pair[0], pair[1]
 				list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
 			}
