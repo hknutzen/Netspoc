@@ -336,17 +336,15 @@ func (c *spoc) findNatDomains() []*natDomain {
 				r.natDomains = append(r.natDomains, d)
 			}
 
-			// Routers with same NAT tag at every interface may occur with VPN.
-			onlyVPN := true
-			for _, intf := range r.interfaces {
-				if intf.hub == nil && intf.spoke == nil {
-					onlyVPN = false
-					break
+		CHECK:
+			switch {
+			case uselessNatBinding && len(natTags) != 0:
+				// Routers with same NAT tag at every interface may occur with VPN.
+				for _, intf := range r.interfaces {
+					if intf.hub != nil || intf.spoke != nil {
+						break CHECK
+					}
 				}
-			}
-
-			if uselessNatBinding && len(natTags) != 0 && !onlyVPN {
-
 				fullTags := make(stringList, len(natTags))
 				for i, tag := range natTags {
 					fullTags[i] = "nat:" + tag
