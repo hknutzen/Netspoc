@@ -6,13 +6,13 @@ import (
 	"net/netip"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"

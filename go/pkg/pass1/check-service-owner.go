@@ -1,10 +1,9 @@
 package pass1
 
 import (
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 //#############################################################################
