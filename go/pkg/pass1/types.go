@@ -293,8 +293,7 @@ type router struct {
 	extendedKeys         map[string]string
 	filterOnly           []netip.Prefix
 	mergeTunnelSpecified []netip.Prefix
-	natDomains           []*natDomain
-	natTags              map[*natDomain]stringList
+	domInterfaces        intfList
 	natSet               natSet // Only used if aclUseRealIp
 	natMap               natMap // Only used if aclUseRealIp
 	needProtect          bool
@@ -517,11 +516,11 @@ type area struct {
 func (x area) String() string { return x.name }
 
 type natDomain struct {
-	name    string
-	natSet  natSet
-	natMap  natMap
-	routers []*router
-	zones   []*zone
+	name       string
+	natSet     natSet
+	natMap     natMap
+	interfaces intfList
+	zones      []*zone
 }
 
 type modifiers struct {

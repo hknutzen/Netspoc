@@ -2,11 +2,11 @@ package pass1
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/sorted"
-	"golang.org/x/exp/slices"
 )
 
 /*#############################################################################
@@ -234,128 +234,104 @@ func (c *spoc) generateMultinatDefLookup(
 //	interfaces.
 //	Returns nil on error.
 func (c *spoc) findNatDomains() []*natDomain {
-
-	type key struct {
-		router   *router
-		natList1 string
-		natList2 string
-	}
-	natErrSeen := make(map[key]bool)
-
+	errSeen := make(map[[2]*routerIntf]bool)
 	// Perform depth first search to collect zones and limiting
 	// routers of given NAT-domain.
 	var setNatDomain func(z *zone, d *natDomain, inIntf *routerIntf)
 	setNatDomain = func(z *zone, d *natDomain, inIntf *routerIntf) {
-
 		// Zone was processed by a former call from setNatDomain
 		// or loop found inside a NAT domain.
 		if z.natDomain != nil {
 			return
 		}
 		//debug("%s: %s", d.name, z)
-
 		z.natDomain = d
 		d.zones = append(d.zones, z)
 
 		// Find adjacent zones to proceed with.
 		for _, intf := range z.interfaces {
-
 			// Ignore interface where we reached this zone.
 			if intf == inIntf {
 				continue
 			}
-
 			//debug("IN %s", intf)
-			natTags := intf.bindNat
+			tags := intf.bindNat
 			r := intf.router
-
-			uselessNatBinding := true
+			isNATBorder := false
 			for _, outIntf := range r.interfaces {
-
 				// Don't process interface where we reached this router.
 				if outIntf == intf {
 					continue
 				}
-				//debug("OUT %s", outIntf)
-
-				// Current NAT domain continues behind outIntf
-				if slices.Equal(outIntf.bindNat, natTags) {
-
-					// Prevent deep recursion inside a single NAT domain.
-					if r.activePath {
-						continue
-					}
-					r.activePath = true
-					setNatDomain(outIntf.zone, d, outIntf)
-					r.activePath = false
-					continue
-				}
-
-				// Another NAT domain starts at current router behind outIntf.
-				uselessNatBinding = false
-
-				// Loop found: router is already marked to limit domain.
-				// Perform consistency check.
-				if other, found := r.natTags[d]; found {
-					if slices.Equal(natTags, other) {
-						continue
-					}
-					info := func(tags stringList) string {
-						if s := strings.Join(tags, ","); s != "" {
-							return s
-						} else {
-							return "(none)"
+				tags2 := outIntf.bindNat
+				// Next zone was already processed.
+				if d2 := outIntf.network.zone.natDomain; d2 != nil {
+					if d2 != d {
+						isNATBorder = true
+					} else {
+						// Found other interface to same domain.
+						// Perform consistency check.
+						natInfo := func(intf *routerIntf) string {
+							if strings.HasSuffix(intf.name, "(split2)") {
+								l := intf.router.origRouter.interfaces
+								i := slices.IndexFunc(l, func(intf *routerIntf) bool {
+									return !strings.HasSuffix(intf.name, "(split1)")
+								})
+								intf = l[i]
+							}
+							result := intf.name + ": "
+							tags := intf.bindNat
+							if tags != nil {
+								result += "bind_nat = " + strings.Join(tags, ", ")
+							} else {
+								result += "(none)"
+							}
+							return result
+						}
+						if !slices.Equal(intf.bindNat, outIntf.bindNat) &&
+							!errSeen[[2]*routerIntf{outIntf, intf}] {
+							c.err("Inconsistent bind_nat in loop\n - %s\n - %s",
+								natInfo(intf), natInfo(outIntf))
+							errSeen[[2]*routerIntf{intf, outIntf}] = true
+							isNATBorder = true
 						}
 					}
-					names1 := info(natTags)
-					names2 := info(other)
-					k := key{r, names1, names2}
-					if natErrSeen[k] {
-						continue
+				} else if slices.Equal(tags, tags2) {
+					// Current NAT domain continues behind outIntf
+					if !r.activePath {
+						r.activePath = true
+						//debug("OUT %s", outIntf)
+						setNatDomain(outIntf.zone, d, outIntf)
+						r.activePath = false
 					}
-					natErrSeen[k] = true
-					c.err("Inconsistent NAT in loop at %s:\n"+
-						" nat:%s vs. nat:%s",
-						r, names1, names2)
-					continue
+				} else {
+					isNATBorder = true
 				}
-
-				// Mark router as domain limiting,
-				// 1. add router as domain border,
-				// 2. initialized NAT set for model.aclUseRealIP
-				if r.natTags == nil {
-					r.natTags = make(map[*natDomain]stringList)
-					if r.model != nil && r.model.aclUseRealIP {
-						natSet := make(natSet)
-						r.natSet = natSet
-					}
-				}
-				r.natTags[d] = natTags
-				d.routers = append(d.routers, r)
-				//debug("ADD to %s: %s", r, d.name)
-				r.natDomains = append(r.natDomains, d)
 			}
-
-		CHECK:
-			switch {
-			case uselessNatBinding && len(natTags) != 0:
+			if isNATBorder {
+				d.interfaces.push(intf)
+				r.domInterfaces.push(intf)
+				// Initialize NAT set for model.aclUseRealIP.
+				if r.model != nil && r.model.aclUseRealIP && r.natSet == nil {
+					r.natSet = make(natSet)
+				}
+			} else if len(tags) != 0 {
 				// Routers with same NAT tag at every interface may occur with VPN.
-				for _, intf := range r.interfaces {
-					if intf.hub != nil || intf.spoke != nil {
-						break CHECK
+				if !slices.ContainsFunc(r.interfaces, func(intf *routerIntf) bool {
+					return intf.hub != nil || intf.spoke != nil
+				}) {
+					fullTags := make(stringList, len(tags))
+					for i, tag := range tags {
+						fullTags[i] = "nat:" + tag
 					}
+					list := strings.Join(fullTags, ",")
+					c.warn(
+						"Ignoring %s without effect, bound at every interface of %s",
+						list, r)
 				}
-				fullTags := make(stringList, len(natTags))
-				for i, tag := range natTags {
-					fullTags[i] = "nat:" + tag
-				}
-				list := strings.Join(fullTags, ",")
-				c.warn("Ignoring %s without effect, bound at every interface of %s",
-					list, r)
 			}
 		}
 	}
-
 	var result []*natDomain
 	for _, z := range c.allZones {
 		if z.natDomain != nil {
@@ -370,7 +346,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 		result = append(result, d)
 		setNatDomain(z, d, nil)
 	}
-	if len(natErrSeen) > 0 {
+	if len(errSeen) > 0 {
 		return nil
 	}
 	return result
@@ -378,26 +354,18 @@ func (c *spoc) findNatDomains() []*natDomain {
 
 // errMissingBindNat shows interfaces, where bind_nat for NAT tag is missing.
 func (c *spoc) errMissingBindNat(
-	inRouter *router, d *natDomain, tag string, multinatMaps []natTagMap) {
-
+	inIntf *routerIntf, d *natDomain, tag string, multinatMaps []natTagMap,
+) {
 	// Collect interfaces where bind_nat for natTag is applied correctly.
-	// First, add interface between inRouter and d.
+	// First, add inIntf.
 	// Other interfaces are added later, during traversal.
-	var natIntf intfList
-	for _, intf := range getNatDomainBorders(d) {
-		if intf.router == inRouter {
-			natIntf.push(intf)
-		}
-	}
-
+	natIntf := intfList{inIntf}
 	// Collect interfaces with missing bind_nat.
 	var missingIntf intfList
-
 	// Don't traverse these domains in other direction, if
 	// - either a valid path was found behind this domain
 	// - or a missing bind_nat is assumed at interface of this domain.
 	dSeen := make(map[*natDomain]bool)
-
 	// Cache result depending on (router, domain).
 	type key struct {
 		router *router
@@ -411,8 +379,9 @@ func (c *spoc) errMissingBindNat(
 	//  1 if valid path is found,
 	// -1 if invalid path,
 	//  0 on loop or dead end.
-	var traverse func(*router, *natDomain) int
-	traverse = func(inRouter *router, d *natDomain) int {
+	var traverse func(*routerIntf, *natDomain) int
+	traverse = func(inIntf *routerIntf, d *natDomain) int {
+		inRouter := inIntf.router
 		if inRouter.activePath {
 			return 0
 		}
@@ -425,29 +394,24 @@ func (c *spoc) errMissingBindNat(
 		// debug("ENTER %s %s" inRouter, d.name)
 		inRouter.activePath = true
 		defer func() { inRouter.activePath = false }()
-
 		// For combined result (-1, 0, 1) of all neighbor routers.
 		rResult := 0
-
 		// For collecting router where invalid path starts.
 		rInvalid := make(map[*router]bool)
-
+		domBorders := getNatDomainBorders(d)
 	ROUTER:
-		for _, r := range d.routers {
-			if r == inRouter {
+		for _, intf := range domBorders {
+			if intf == inIntf {
 				continue
 			}
-			dom2tags := r.natTags
-			inNatTags := dom2tags[d]
-
-			for _, inTag := range inNatTags {
+			r := intf.router
+			for _, inTag := range intf.bindNat {
 				if inTag == tag {
-
 					// Found valid path.
 					// debug("I %s %s", d.name, r)
 					dSeen[d] = true
 					rResult = 1
-					for _, intf := range getNatDomainBorders(d) {
+					for _, intf := range domBorders {
 						if intf.router == r {
 							natIntf.push(intf)
 						}
@@ -455,20 +419,17 @@ func (c *spoc) errMissingBindNat(
 					continue ROUTER
 				}
 			}
-
 			// For combined result (-1, 0, 1) of all neighbor domains.
 			dResult := 0
-
 			// For collecting domains where invalid path starts.
 			dInvalid := make(map[*natDomain]bool)
-
 		DOMAIN:
-			for _, outDomain := range r.natDomains {
+			for _, outIntf := range r.domInterfaces {
+				outDomain := outIntf.network.zone.natDomain
 				if outDomain == d {
 					continue
 				}
-				outNatTags := dom2tags[outDomain]
-
+				outNatTags := outIntf.bindNat
 				// Found invalid path.
 				for _, t := range outNatTags {
 					if t == tag {
@@ -484,15 +445,13 @@ func (c *spoc) errMissingBindNat(
 					for _, natTag2 := range outNatTags {
 						for _, natMap := range multinatMaps {
 							if natMap[natTag2] != nil {
-
-								// Ignore path at imlpicit border.
+								// Ignore path at implicit border.
 								continue DOMAIN
 							}
 						}
 					}
 				}
-
-				if iResult := traverse(r, outDomain); iResult != 0 {
+				if iResult := traverse(outIntf, outDomain); iResult != 0 {
 					// debug("%s- %s %s", iResult, d.name, r)
 					if iResult == -1 {
 						dInvalid[outDomain] = true
@@ -507,25 +466,24 @@ func (c *spoc) errMissingBindNat(
 			if dResult == 0 {
 				continue
 			}
-
 			// Valid and invalid paths are joining at router.
 			// Add bind_nat at inbound interface.
 			// But also add bind_nat at outbound interfaces of valid paths,
 			// to prevent duplicate NAT, effectively reverting the effect
 			// of bind_nat at inbound interface.
 			if dResult == 1 && len(dInvalid) != 0 {
-				for _, outDomain := range r.natDomains {
+				for _, outIntf := range r.domInterfaces {
+					outDomain := outIntf.network.zone.natDomain
 					if dInvalid[outDomain] {
 						continue
 					}
-					for _, intf := range getNatDomainBorders(outDomain) {
+					for _, intf := range outDomain.interfaces {
 						if intf.router == r {
 							missingIntf.push(intf)
 						}
 					}
 				}
 			}
-
 			if dResult != 1 {
 				rInvalid[r] = true
 			}
@@ -533,12 +491,11 @@ func (c *spoc) errMissingBindNat(
 				rResult = dResult
 			}
 		}
-
 		// Valid and invalid paths are joining at domain.
 		// Collect interfaces to neighbor routers located on
 		// invalid paths, where bind_nat is missing.
 		if rResult == 1 && len(rInvalid) != 0 {
-			for _, intf := range getNatDomainBorders(d) {
+			for _, intf := range domBorders {
 				if rInvalid[intf.router] {
 					missingIntf.push(intf)
 				}
@@ -548,23 +505,18 @@ func (c *spoc) errMissingBindNat(
 		cache[key{inRouter, d}] = rResult
 		return rResult
 	}
-	_ = traverse(inRouter, d)
+	_ = traverse(inIntf, d)
 
 	// No valid path was found, hence add all interfaces of current domain
 	// that have no bind_nat for tag.
 	if missingIntf == nil {
 		//debug("Add all %s ", d.name)
-	INTF:
 		for _, intf := range getNatDomainBorders(d) {
-			for _, t := range intf.bindNat {
-				if t == tag {
-					continue INTF
-				}
+			if !slices.Contains(intf.bindNat, tag) {
+				missingIntf.push(intf)
 			}
-			missingIntf.push(intf)
 		}
 	}
-
 	sortByName := func(l intfList) intfList {
 		sort.Slice(l, func(i, j int) bool {
 			return l[i].name < l[j].name
@@ -582,9 +534,8 @@ func (c *spoc) errMissingBindNat(
 
 func getNatDomainBorders(d *natDomain) intfList {
 	var result intfList
-	for _, r := range d.routers {
-		for _, intf := range getIntf(r) {
-
+	for _, domIntf := range d.interfaces {
+		for _, intf := range getIntf(domIntf.router) {
 			// Must get zone from network, because some interfaces are unmanaged.
 			if intf.network.zone.natDomain == d {
 				result.push(intf)
@@ -642,7 +593,7 @@ func (c *spoc) checkForProperNatTransition(
 // is active; checks whether NAT declarations are applied correctly.
 //
 // Parameters:
-//   - inRouter: Router domain was entered from.
+//   - inIntf: Interface where domain was entered from.
 //   - d: Domain the depth first traversal proceeds from.
 //   - tag: NAT tag that is to be distributed.
 //   - multinatMaps: List of multi NAT maps containing nat_tag.
@@ -654,7 +605,7 @@ func (c *spoc) checkForProperNatTransition(
 // Returns:
 // false on success,	true on error, if same NAT tag is reached twice.
 func (c *spoc) distributeNat1(
-	inRouter *router, d *natDomain, tag string,
+	inIntf *routerIntf, d *natDomain, tag string,
 	multinatMaps []natTagMap, invalid invalidNAT,
 ) bool {
 	//debug("nat:%s at %s from %s", tag, d.name, inRouter)
@@ -667,33 +618,29 @@ func (c *spoc) distributeNat1(
 	natSet[tag] = true
 
 	// Find adjacent domains with active 'tag' to proceed traversal.
-ROUTER:
-	for _, r := range d.routers {
-		if r == inRouter {
+INTF:
+	for _, intf := range d.interfaces {
+		if intf == inIntf {
 			continue
 		}
-		dom2tags := r.natTags
-
 		// 'tag' is deactivated at routers domain facing interface.
-		inNatTags := dom2tags[d]
-		for _, tag2 := range inNatTags {
+		for _, tag2 := range intf.bindNat {
 			if tag2 == tag {
-				continue ROUTER
+				continue INTF
 			}
 		}
-
+		r := intf.router
 		if r.model != nil && r.model.aclUseRealIP {
 			r.natSet[tag] = true
 		}
-
 		// Check whether tag is active in adjacent NAT domains.
 	DOMAIN:
-		for _, outDom := range r.natDomains {
+		for _, outIntf := range r.domInterfaces {
+			outDom := outIntf.network.zone.natDomain
 			if outDom == d {
 				continue
 			}
-			outNatTags := dom2tags[outDom]
-
+			outNatTags := outIntf.bindNat
 			// Found error: reached the same NAT tag twice.
 			// Signal this error with return value true.
 			for _, tag2 := range outNatTags {
@@ -701,7 +648,6 @@ ROUTER:
 					return true
 				}
 			}
-
 			// Non hidden 'tag' is implicitly deactivated by activation
 			// of another NAT tag used together with 'tag' in a multi NAT
 			// definition.
@@ -717,7 +663,7 @@ ROUTER:
 			}
 			// tag is active within adjacent domain: proceed traversal
 			//debug("Caller %s", d.name)
-			if c.distributeNat1(r, outDom, tag, multinatMaps, invalid) {
+			if c.distributeNat1(outIntf, outDom, tag, multinatMaps, invalid) {
 				return true
 			}
 		}
@@ -730,7 +676,7 @@ ROUTER:
 // Shows an	error message, if called function returns an error value.
 //
 // Parameters:
-//   - in: router the depth first traversal starts at.
+//   - in: Interface the depth first traversal starts at.
 //   - d: Domain the depth first traversal starts at.
 //   - tag: NAT tag that is to be distributed.
 //   - multinatMaps: List of multi NAT maps containing nat_tag.
@@ -739,7 +685,7 @@ ROUTER:
 //
 // Returns:    true if NAT errors have occured.
 func (c *spoc) distributeNat(
-	in *router, d *natDomain, tag string,
+	in *routerIntf, d *natDomain, tag string,
 	multinatMaps []natTagMap, invalid invalidNAT,
 ) bool {
 	if c.distributeNat1(in, d, tag, multinatMaps, invalid) {
@@ -758,13 +704,13 @@ func (c *spoc) distributeNatTagsToNatDomains(
 	invalid := markInvalidNatTransitions(multi)
 	var natErrors bool
 	for _, d := range doms {
-		for _, r := range d.routers {
-			natTags := r.natTags[d]
-			// debug("%s %s: %s", d.name, r, strings.Join(natTags, ",")
+		for _, intf := range d.interfaces {
+			natTags := intf.bindNat
+			// debug("%s %s: %s", d.name, intf, strings.Join(natTags, ",")
 			for _, tag := range natTags {
 				multinatMaps := multi[tag]
 				natErrors = natErrors ||
-					c.distributeNat(r, d, tag, multinatMaps, invalid)
+					c.distributeNat(intf, d, tag, multinatMaps, invalid)
 			}
 		}
 	}
@@ -801,7 +747,7 @@ func (c *spoc) checkMultinatErrors(
 					if tag2hidden[tag1] && tag2hidden[tag2] {
 						continue
 					}
-					for _, intf := range getNatDomainBorders(d) {
+					for _, intf := range d.interfaces {
 						for _, t := range intf.bindNat {
 							if t == tag1 || t == tag2 {
 								k := key{tag1, tag2, n}
@@ -860,8 +806,8 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 				for tag := range natMap {
 					if natSet[tag] {
 						var list stringerList
-						for _, r := range d.routers {
-							list = append(list, r)
+						for _, intf := range d.interfaces {
+							list = append(list, intf.router)
 						}
 						messages.push(
 							fmt.Sprintf(
@@ -887,22 +833,22 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
 	seen := make(map[*router]bool)
 	for _, d := range doms {
-		for _, r := range d.routers {
+		for _, intf := range d.interfaces {
+			r := intf.router
 			if seen[r] {
 				continue
 			}
 			seen[r] = true
 			intersect := make(map[string]bool)
-			tags := r.natTags[d]
-			for _, t := range tags {
+			for _, t := range intf.bindNat {
 				intersect[t] = true
 			}
-			for d2, tags := range r.natTags {
-				if d2 == d {
+			for _, outIntf := range r.domInterfaces {
+				if outIntf.network.zone.natDomain == d {
 					continue
 				}
 				intersect2 := make(map[string]bool)
-				for _, t := range tags {
+				for _, t := range outIntf.bindNat {
 					if intersect[t] {
 						intersect2[t] = true
 					}
