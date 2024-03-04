@@ -12,7 +12,7 @@ layout: default
 
 ## General syntax
 
-`<name>` is built from one ore more alphanumerical utf8 characters together
+`<name>` is built from one or more alphanumerical utf8 characters together
 with hyphen and underscore.
 `<external name>` is built from any characters,
 but not whitespace, no delimiters `;,=` and no quotes `"'`.
