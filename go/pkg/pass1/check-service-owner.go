@@ -105,7 +105,6 @@ func (c *spoc) propagateOwners() {
 			continue
 		}
 		var invalid stringList
-	NETWORK:
 		for _, n := range c.allNetworks {
 			if netOwner := n.owner; netOwner != nil {
 				if netOwner == o {
@@ -115,13 +114,9 @@ func (c *spoc) propagateOwners() {
 			if n.ipType == tunnelIP {
 				continue
 			}
-			z := n.zone
-			for _, wo := range z.watchingOwners {
-				if wo == o {
-					continue NETWORK
-				}
+			if !slices.Contains(n.zone.watchingOwners, o) {
+				invalid.push(n.name)
 			}
-			invalid.push(n.name)
 		}
 		if invalid != nil {
 			c.err("%s has attribute 'show_all',"+
