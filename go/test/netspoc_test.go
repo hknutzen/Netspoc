@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -101,7 +102,7 @@ type descr struct {
 }
 
 func runTestFiles(t *testing.T, tc test) {
-	dataFiles := testtxt.GetFiles("../testdata/" + tc.dir)
+	dataFiles, _ := filepath.Glob("../testdata/" + tc.dir + "/*.t")
 	for _, file := range dataFiles {
 		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
