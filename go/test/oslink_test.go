@@ -76,7 +76,7 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 			os.Chdir(workDir)
 			os.Args = []string{"PROGRAM", "-q"}
 			inDir := "netspoc"
-			testtxt.PrepareInDir(inDir, "INPUT", descr.input)
+			testtxt.PrepareInDir(t, inDir, "INPUT", descr.input)
 			os.Args = append(os.Args, inDir)
 			if p := descr.param; p != "" {
 				os.Args = append(os.Args, p)

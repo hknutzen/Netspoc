@@ -4,7 +4,7 @@ go 1.21.4
 
 require (
 	github.com/google/go-cmp v0.5.9
-	github.com/hknutzen/testtxt v0.0.0-20240201092256-1f14e38b7e01
+	github.com/hknutzen/testtxt v0.0.0-20240305140207-e6d67e884e6e
 	github.com/octago/sflags v0.3.1-0.20210726012706-20f2a9c31dfc
 	github.com/spf13/pflag v1.0.5
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
