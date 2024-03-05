@@ -239,11 +239,6 @@ func (c *spoc) findNatDomains() []*natDomain {
 	// routers of given NAT-domain.
 	var setNatDomain func(z *zone, d *natDomain, inIntf *routerIntf)
 	setNatDomain = func(z *zone, d *natDomain, inIntf *routerIntf) {
-		// Zone was processed by a former call from setNatDomain
-		// or loop found inside a NAT domain.
-		if z.natDomain != nil {
-			return
-		}
 		//debug("%s: %s", d.name, z)
 		z.natDomain = d
 		d.zones = append(d.zones, z)
