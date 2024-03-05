@@ -271,17 +271,13 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				if !hasMulti {
 					c.uselessSvcAttr("multi_owner", svc)
 				} else if info.sameObjects {
-
 					// Check if attribute 'multi_owner' could be avoided,
 					// if objects of user and objects of rules are swapped.
 					var userOwner *owner
 				USERS:
 					for _, users := range info.users {
 						for _, user := range users {
-							var o *owner
-							if obj, ok := user.(srvObj); ok {
-								o = obj.getOwner()
-							}
+							o := user.getOwner()
 							if o == nil {
 								userOwner = nil
 								break USERS
