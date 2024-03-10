@@ -593,18 +593,12 @@ func (c *spoc) setupIsakmp(v *ast.TopStruct) {
 	c.checkDuplAttr(v.Attributes, name)
 }
 
-func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string) string {
+func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string,
+) string {
 	v := c.getSingleValue(a, ctx)
 	d := descr[a.Name]
 	if l := d.values; l != nil {
-		valid := false
-		for _, v2 := range l {
-			if v == v2 {
-				valid = true
-				break
-			}
-		}
-		if !valid {
+		if !slices.Contains(l, v) {
 			c.err("Invalid value in '%s' of %s: %s", a.Name, ctx, v)
 		}
 	}
