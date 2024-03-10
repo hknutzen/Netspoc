@@ -1182,14 +1182,9 @@ func (c *spoc) setupRouter(v *ast.Router) {
 		}
 		if l3Name != "" {
 			// Check existence of layer3 interface.
-			seen := false
-			for _, a := range v.Interfaces {
-				if a.Name == l3Name {
-					seen = true
-					break
-				}
-			}
-			if !seen {
+			if !slices.ContainsFunc(v.Interfaces, func(a *ast.Attribute) bool {
+				return a.Name == l3Name
+			}) {
 				c.err("Must define %s at %s for corresponding bridge interfaces",
 					l3Name, name)
 			}
