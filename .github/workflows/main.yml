@@ -23,12 +23,9 @@ jobs:
           -covermode=count
           -coverprofile=coverage.out
         working-directory: go/test
-      - name: Convert coverage to lcov
-        uses: jandelgado/gcov2lcov-action@v1.0.9
-        with:
-          working-directory: go/test
-      - name: Coveralls
+      - name: Upload coverage
         uses: coverallsapp/github-action@v2.2.3
         with:
           github-token: ${{ secrets.github_token }}
-          file: go/test/coverage.lcov
+          file: go/test/coverage.out
+          format: golang
