@@ -897,8 +897,9 @@ func (c *spoc) inheritNAT0() {
 				continue
 			} else if n, ok := obj.(*network); ok && !n.isAggregate {
 				if n.ipType == bridgedIP && !nat2.identity {
-					c.err("Must not inherit nat:%s at bridged %s from %s",
-						tag, n, from2[tag])
+					c.err("Must not inherit nat:%s at bridged %s from %s\n"+
+						" Use 'nat:%s = { identity; }' to stop inheritance",
+						tag, n, from2[tag], tag)
 					continue
 				}
 				nat2 = c.adaptNAT(n, tag, nat2)

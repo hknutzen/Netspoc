@@ -127,6 +127,7 @@ router:bridge = {
 network:n1/right = { ip = ::a01:100/120; }
 =ERROR=
 Error: Must not inherit nat:x at bridged network:n1/left from any:a
+ Use 'nat:x = { identity; }' to stop inheritance
 =END=
 
 ############################################################
