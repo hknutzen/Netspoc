@@ -696,7 +696,7 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 			return err
 		}
 		if len(l) != 1 {
-			return fmt.Errorf("Expecting exactly on element in string")
+			return fmt.Errorf("Expecting exactly one element in string")
 		}
 		elements = append(elements, l...)
 		return nil

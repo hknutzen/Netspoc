@@ -265,7 +265,7 @@ group:g1 = ;
 }
 
 =ERROR=
-Error: Expecting exactly on element in string
+Error: Expecting exactly one element in string
 =END=
 
 ############################################################
@@ -282,7 +282,7 @@ group:g1 = ;
 }
 
 =ERROR=
-Error: Expecting exactly on element in string
+Error: Expecting exactly one element in string
 =END=
 
 ############################################################
