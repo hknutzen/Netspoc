@@ -401,7 +401,7 @@ func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
 	m, ok := c.val.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf(
-			"Expecting JSON object when reading '%s' but got: %T", name, c.val)
+			"Expecting JSON object in attribute 'value' but got: %T", c.val)
 	}
 	var t ast.Toplevel
 	var err error
