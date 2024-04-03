@@ -70,7 +70,6 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 		},
 	}
 	for _, descr := range tests {
-		descr := descr // capture range variable
 		t.Run(descr.title, func(t *testing.T) {
 			workDir := t.TempDir()
 			os.Chdir(workDir)

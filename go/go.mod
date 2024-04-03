@@ -1,6 +1,6 @@
 module github.com/hknutzen/Netspoc/go
 
-go 1.21.4
+go 1.22.1
 
 require (
 	github.com/google/go-cmp v0.5.9
