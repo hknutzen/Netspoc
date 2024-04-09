@@ -576,7 +576,7 @@ func (c *spoc) cutNetspoc(
 
 	// Mark management_instance of routers
 	for _, r := range c.managedRouters {
-		if r.model.needManagementInstance {
+		if isUsed[r.name] && r.model.needManagementInstance {
 			if mr := c.getRouter(r.deviceName, r.ipV6); mr != nil {
 				for _, intf := range getIntf(mr) {
 					setIntfUsed(intf, isUsed)

@@ -3485,7 +3485,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Retain management_instance
+=TITLE=Retain management_instance of used router
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3514,6 +3514,27 @@ service:s1 = {
 }
 =INPUT=
 [[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Ignore management_instance of unused router
+=INPUT=
+[[input]]
+router:r2 = {
+ model = NSX;
+ management_instance;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r2@v1 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = IN; }
+ interface:n4 = { ip = 10.1.4.1; hardware = OUT; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
 =OUTPUT=
 [[input]]
 =END=
