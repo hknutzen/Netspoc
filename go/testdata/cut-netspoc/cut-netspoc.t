@@ -545,6 +545,51 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Ignore area with only inherited NAT
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = a2; }
+}
+area:n1 = { border = interface:asa1.n1; }
+area:n1-n2 = { border = interface:asa2.n2; nat:a2 = { ip = 10.9.0.0/16; } }
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:n1-n2 = {
+ nat:a2 = { ip = 10.9.0.0/16; }
+ anchor = network:n2;
+}
+service:test = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp;
+}
+=END=
+
+############################################################
 =TITLE=Supernet with identity NAT masks NAT of larger area
 =TEMPL=input
 area:all = {
