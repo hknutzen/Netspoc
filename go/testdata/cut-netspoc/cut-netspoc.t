@@ -3188,8 +3188,9 @@ service:s1 = {
         prt = udp 123;
 }
 =END=
+
 ############################################################
-=TITLE=Intersection with user
+=TITLE=Leave intersection with user unchanged
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3201,21 +3202,25 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
+group:g1 =
+ network:n1,
+ network:n2,
+ network:n3,
+;
 service:s1 = {
- user = network:n1,
-        network:n2,
-        ;
+ user = group:g1;
  permit src = user
               &! network:n2
+              &! network:n3
               ;
-        dst = network:n3;
+        dst = group:g1 &! network:n1 &! network:n2;
         prt = tcp 80;
 }
 =INPUT=
 [[input]]
 =OUTPUT=
 [[input]]
-=END=
+=SUBST=/group:g1 &! network:n1 &! network:n2/network:n3/
 
 ############################################################
 =TITLE=Network auto interface
