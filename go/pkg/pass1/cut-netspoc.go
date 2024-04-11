@@ -308,7 +308,7 @@ func (c *spoc) markAndSubstElements(
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
-		return c.expandGroup([]ast.Element{el}, ctx, v6, false)
+		return c.expandGroup1([]ast.Element{el}, ctx, v6, false, false)
 	}
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
