@@ -17,15 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Calc coverage
-        run: >
-          go test
-          -coverpkg ../pkg/...
-          -covermode=count
-          -coverprofile=coverage.out
+        run: go test -coverpkg ../pkg/... -coverprofile=c.out
         working-directory: go/test
       - name: Upload coverage
         uses: coverallsapp/github-action@v2.2.3
         with:
           github-token: ${{ secrets.github_token }}
-          file: go/test/coverage.out
+          file: go/test/c.out
           format: golang
