@@ -669,15 +669,15 @@ func (c *spoc) cutNetspoc(
 			if anchor := a.anchor; anchor != nil {
 				// Change anchor to some used network
 				if !isUsed[anchor.name] {
-				ZONE:
+					found := false
 					for _, z := range a.zones {
-						for _, n := range z.networks {
-							if isUsed[n.name] {
+						processWithSubnetworks(z.networks, func(n *network) {
+							if !found && isUsed[n.name] {
 								aTop.GetAttr("anchor").ValueList =
 									[]*ast.Value{{Value: n.name}}
-								break ZONE
+								found = true
 							}
-						}
+						})
 					}
 				}
 			} else {
@@ -711,18 +711,18 @@ func (c *spoc) cutNetspoc(
 				cleanup(&aTop.InclusiveBorder)
 				// Add anchor, if all interfaces have been removed.
 				if aTop.Border == nil && aTop.InclusiveBorder == nil {
-				Z2:
+					found := false
 					for _, z := range a.zones {
-						for _, n := range z.networks {
-							if isUsed[n.name] {
+						processWithSubnetworks(z.networks, func(n *network) {
+							if !found && isUsed[n.name] {
 								aTop.Attributes = append(aTop.Attributes,
 									&ast.Attribute{
 										Name:      "anchor",
 										ValueList: []*ast.Value{{Value: n.name}},
 									})
-								break Z2
+								found = true
 							}
-						}
+						})
 					}
 				}
 			}

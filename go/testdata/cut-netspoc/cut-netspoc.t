@@ -1109,6 +1109,60 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Area with border outside of path, new anchor is subnet
+=INPUT=
+network:n1 = { ip = 10.1.1.16/28; }
+network:n2 = { ip = 10.1.1.32/28; }
+network:n3 = { ip = 10.1.1.0/24; has_subnets; }
+network:n4 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.18; }
+ interface:n3;
+ interface:n2 = { ip = 10.1.1.33; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.1.33; hardware = n2; }
+ interface:n4 = { ip = 10.1.2.1;  hardware = n4; }
+}
+owner:o1 = { admins = o1@example.com; }
+area:a1 = {
+ owner = o1;
+ inclusive_border = interface:r3.n4;
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n1; prt = tcp 22;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.16/28; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+}
+owner:o1 = {
+ admins = o1@example.com;
+}
+area:a1 = {
+ owner = o1;
+ anchor = network:n1;
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:r1.n1;
+        prt = tcp 22;
+}
+=OPTIONS=--owner
+
+############################################################
 =TITLE=Network in name of zone is located outside of path
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
