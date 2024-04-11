@@ -439,8 +439,8 @@ func (c *spoc) markAndSubstElements(
 }
 
 func (c *spoc) markElements(
-	toplevel []ast.Toplevel, m map[string]*ast.TopList, isUsed map[string]bool) {
-
+	toplevel []ast.Toplevel, m map[string]*ast.TopList, isUsed map[string]bool,
+) {
 	for _, top := range toplevel {
 		if x, ok := top.(*ast.Service); ok {
 			typedName := x.Name
@@ -448,12 +448,43 @@ func (c *spoc) markElements(
 				continue
 			}
 			v6 := x.IPV6
-			c.markAndSubstElements(&x.User.Elements, "user of "+typedName, v6, m, isUsed)
+			c.markAndSubstElements(
+				&x.User.Elements, "user of "+typedName, v6, m, isUsed)
 			for _, r := range x.Rules {
-				c.markAndSubstElements(&r.Src.Elements, "src of "+typedName, v6, m, isUsed)
-				c.markAndSubstElements(&r.Dst.Elements, "dst of "+typedName, v6, m, isUsed)
+				if !hasUserInList(r.Src.Elements) {
+					c.markAndSubstElements(
+						&r.Src.Elements, "src of "+typedName, v6, m, isUsed)
+				}
+				if !hasUserInList(r.Dst.Elements) {
+					c.markAndSubstElements(
+						&r.Dst.Elements, "dst of "+typedName, v6, m, isUsed)
+				}
 			}
 		}
+	}
+}
+
+func hasUserInList(l []ast.Element) bool {
+	for _, el := range l {
+		if hasUser(el) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUser(el ast.Element) bool {
+	switch x := el.(type) {
+	case *ast.User:
+		return true
+	case ast.AutoElem:
+		return hasUserInList(x.GetElements())
+	case *ast.Intersection:
+		return hasUserInList(x.Elements)
+	case *ast.Complement:
+		return hasUser(x.Element)
+	default:
+		return false
 	}
 }
 
