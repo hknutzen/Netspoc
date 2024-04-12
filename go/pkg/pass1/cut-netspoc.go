@@ -347,10 +347,6 @@ func (c *spoc) markAndSubstElements(
 					n := new(ast.IntfRef)
 					n.Type = typ2
 					n.Router = r
-					if left, right, found := strings.Cut(net, "."); found {
-						net = left
-						n.Extension = right
-					}
 					n.Network = net
 					a.Elements = []ast.Element{n}
 				}
