@@ -990,12 +990,14 @@ service:test = {
 }
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r2 = {
@@ -1007,6 +1009,7 @@ router:r2 = {
 service:test = {
  user = network:[
          any:[ip = 10.1.0.0/23 & network:n1],
+         any:[ip = 10.1.0.0/23 & network:n2],
         ],
         network:n3,
         ;
@@ -3221,6 +3224,70 @@ service:s1 = {
 =OUTPUT=
 [[input]]
 =SUBST=/group:g1 &! network:n1 &! network:n2/network:n3/
+
+############################################################
+=TITLE=Intersection of nested elements of different type
+=TEMPL=input
+service:s1 = {
+ user = group:g1;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.4; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  hardware = n2;
+  hub = crypto:s2s;
+ }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r3 = {
+ interface:n2 = {
+  ip = 10.1.2.2;
+  spoke = crypto:s2s;
+ }
+ interface:lo = { ip = 10.9.9.13; loopback; }{{.}}
+}
+crypto:s2s = {
+ type = ipsec:s2s;
+}
+ipsec:s2s = {
+ key_exchange = isakmp:s2s;
+ esp_encryption = aes256;
+ esp_authentication = sha256;
+ lifetime = 3600 sec 102400 kilobytes;
+}
+isakmp:s2s = {
+ ike_version = 2;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha256;
+ group = 19;
+ lifetime = 28800 sec;
+}
+=INPUT=
+group:g1 =
+ any:[ip = 10.9.9.0/24 &
+  any:[interface:r3.[all]] &! any:[network:n2]
+ ],
+;
+[[input "\n interface:n3 = { ip = 10.1.3.1; }"]]
+network:n3 = { ip = 10.1.3.0/24; }
+=OUTPUT=
+group:g1 =
+ any:[ip = 10.9.9.0/24 &
+  any:[
+   interface:r3.lo,
+  ],
+ ],
+;
+[[input ""]]
+=END=
 
 ############################################################
 =TITLE=Network auto interface

@@ -316,6 +316,7 @@ func (c *spoc) markAndSubstElements(
 		typ, name, _ := strings.Cut(name, ":")
 		switch x := obj.(type) {
 		case *host, *area:
+			isUsed[name] = true
 			a := new(ast.NamedRef)
 			a.Type = typ
 			a.Name = name
@@ -332,18 +333,37 @@ func (c *spoc) markAndSubstElements(
 				a := new(ast.AggAuto)
 				a.Type = typ
 				a.Net = ip
-				n := new(ast.NamedRef)
-				n.Type = "network"
-				n.Name = name[len("network:"):]
-				a.Elements = []ast.Element{n}
+				switch typ2, name2, _ := strings.Cut(name, ":"); typ2 {
+				case "network":
+					obj := c.symTable.network[name2]
+					markUnconnectedObj(obj, isUsed)
+					n := new(ast.NamedRef)
+					n.Type = typ2
+					n.Name = name2
+					a.Elements = []ast.Element{n}
+				case "interface":
+					isUsed[name] = true
+					r, net, _ := strings.Cut(name2, ".")
+					n := new(ast.IntfRef)
+					n.Type = typ2
+					n.Router = r
+					if left, right, found := strings.Cut(net, "."); found {
+						net = left
+						n.Extension = right
+					}
+					n.Network = net
+					a.Elements = []ast.Element{n}
+				}
 				result = a
 			} else {
+				markUnconnectedObj(x, isUsed)
 				a := new(ast.NamedRef)
 				a.Type = typ
 				a.Name = name
 				result = a
 			}
 		case *routerIntf:
+			setIntfUsed(x, isUsed)
 			r, net, _ := strings.Cut(name, ".")
 			a := new(ast.IntfRef)
 			a.Type = typ
@@ -356,6 +376,7 @@ func (c *spoc) markAndSubstElements(
 			result = a
 		case *autoIntf:
 			if r, ok := x.object.(*router); ok {
+				setRouterUsed(r, isUsed)
 				a := new(ast.IntfRef)
 				a.Type = typ
 				a.Router = r.name[len("router:"):]
@@ -364,6 +385,7 @@ func (c *spoc) markAndSubstElements(
 				result = a
 			} else {
 				net := x.object.(*network)
+				markUnconnectedObj(net, isUsed)
 				a := new(ast.IntfAuto)
 				a.Type = typ
 				a.Managed = x.managed
@@ -406,14 +428,14 @@ func (c *spoc) markAndSubstElements(
 				}
 				// Remove sub elements that would evaluate to empty list.
 				l2 := traverse(x.GetElements())
-				var l3 []ast.Element
+				j2 := 0
 				for _, el2 := range l2 {
-					x.SetElements([]ast.Element{el2})
-					if len(expand(el)) != 0 {
-						l3 = append(l3, el2)
+					if len(expand(el2)) != 0 {
+						l2[j2] = el2
+						j2++
 					}
 				}
-				x.SetElements(l3)
+				x.SetElements(l2[:j2])
 			case *ast.IntfRef:
 				for _, obj := range expand(el) {
 					switch x := obj.(type) {
