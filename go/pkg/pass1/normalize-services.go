@@ -203,9 +203,7 @@ func (c *spoc) normalizeSrcDstList(
 
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	user := c.expandUser(s)
-	s.expandedUser = user
 	hasRules := false
-
 	for _, uRule := range s.rules {
 		deny := uRule.action == "deny"
 		var store *serviceRuleList

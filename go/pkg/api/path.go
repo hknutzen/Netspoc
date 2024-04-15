@@ -401,7 +401,7 @@ func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
 	m, ok := c.val.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf(
-			"Expecting JSON object when reading '%s' but got: %T", name, c.val)
+			"Expecting JSON object in attribute 'value' but got: %T", c.val)
 	}
 	var t ast.Toplevel
 	var err error
@@ -696,7 +696,7 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 			return err
 		}
 		if len(l) != 1 {
-			return fmt.Errorf("Expecting exactly on element in string")
+			return fmt.Errorf("Expecting exactly one element in string")
 		}
 		elements = append(elements, l...)
 		return nil

@@ -308,7 +308,7 @@ func (c *spoc) markAndSubstElements(
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
-		return c.expandGroup([]ast.Element{el}, ctx, v6, false)
+		return c.expandGroup1([]ast.Element{el}, ctx, v6, false, false)
 	}
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
@@ -316,6 +316,7 @@ func (c *spoc) markAndSubstElements(
 		typ, name, _ := strings.Cut(name, ":")
 		switch x := obj.(type) {
 		case *host, *area:
+			isUsed[name] = true
 			a := new(ast.NamedRef)
 			a.Type = typ
 			a.Name = name
@@ -332,18 +333,33 @@ func (c *spoc) markAndSubstElements(
 				a := new(ast.AggAuto)
 				a.Type = typ
 				a.Net = ip
-				n := new(ast.NamedRef)
-				n.Type = "network"
-				n.Name = name[len("network:"):]
-				a.Elements = []ast.Element{n}
+				switch typ2, name2, _ := strings.Cut(name, ":"); typ2 {
+				case "network":
+					obj := c.symTable.network[name2]
+					markUnconnectedObj(obj, isUsed)
+					n := new(ast.NamedRef)
+					n.Type = typ2
+					n.Name = name2
+					a.Elements = []ast.Element{n}
+				case "interface":
+					isUsed[name] = true
+					r, net, _ := strings.Cut(name2, ".")
+					n := new(ast.IntfRef)
+					n.Type = typ2
+					n.Router = r
+					n.Network = net
+					a.Elements = []ast.Element{n}
+				}
 				result = a
 			} else {
+				markUnconnectedObj(x, isUsed)
 				a := new(ast.NamedRef)
 				a.Type = typ
 				a.Name = name
 				result = a
 			}
 		case *routerIntf:
+			setIntfUsed(x, isUsed)
 			r, net, _ := strings.Cut(name, ".")
 			a := new(ast.IntfRef)
 			a.Type = typ
@@ -356,6 +372,7 @@ func (c *spoc) markAndSubstElements(
 			result = a
 		case *autoIntf:
 			if r, ok := x.object.(*router); ok {
+				setRouterUsed(r, isUsed)
 				a := new(ast.IntfRef)
 				a.Type = typ
 				a.Router = r.name[len("router:"):]
@@ -364,6 +381,7 @@ func (c *spoc) markAndSubstElements(
 				result = a
 			} else {
 				net := x.object.(*network)
+				markUnconnectedObj(net, isUsed)
 				a := new(ast.IntfAuto)
 				a.Type = typ
 				a.Managed = x.managed
@@ -406,14 +424,14 @@ func (c *spoc) markAndSubstElements(
 				}
 				// Remove sub elements that would evaluate to empty list.
 				l2 := traverse(x.GetElements())
-				var l3 []ast.Element
+				j2 := 0
 				for _, el2 := range l2 {
-					x.SetElements([]ast.Element{el2})
-					if len(expand(el)) != 0 {
-						l3 = append(l3, el2)
+					if len(expand(el2)) != 0 {
+						l2[j2] = el2
+						j2++
 					}
 				}
-				x.SetElements(l3)
+				x.SetElements(l2[:j2])
 			case *ast.IntfRef:
 				for _, obj := range expand(el) {
 					switch x := obj.(type) {
@@ -439,8 +457,8 @@ func (c *spoc) markAndSubstElements(
 }
 
 func (c *spoc) markElements(
-	toplevel []ast.Toplevel, m map[string]*ast.TopList, isUsed map[string]bool) {
-
+	toplevel []ast.Toplevel, m map[string]*ast.TopList, isUsed map[string]bool,
+) {
 	for _, top := range toplevel {
 		if x, ok := top.(*ast.Service); ok {
 			typedName := x.Name
@@ -448,12 +466,43 @@ func (c *spoc) markElements(
 				continue
 			}
 			v6 := x.IPV6
-			c.markAndSubstElements(&x.User.Elements, "user of "+typedName, v6, m, isUsed)
+			c.markAndSubstElements(
+				&x.User.Elements, "user of "+typedName, v6, m, isUsed)
 			for _, r := range x.Rules {
-				c.markAndSubstElements(&r.Src.Elements, "src of "+typedName, v6, m, isUsed)
-				c.markAndSubstElements(&r.Dst.Elements, "dst of "+typedName, v6, m, isUsed)
+				if !hasUserInList(r.Src.Elements) {
+					c.markAndSubstElements(
+						&r.Src.Elements, "src of "+typedName, v6, m, isUsed)
+				}
+				if !hasUserInList(r.Dst.Elements) {
+					c.markAndSubstElements(
+						&r.Dst.Elements, "dst of "+typedName, v6, m, isUsed)
+				}
 			}
 		}
+	}
+}
+
+func hasUserInList(l []ast.Element) bool {
+	for _, el := range l {
+		if hasUser(el) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUser(el ast.Element) bool {
+	switch x := el.(type) {
+	case *ast.User:
+		return true
+	case ast.AutoElem:
+		return hasUserInList(x.GetElements())
+	case *ast.Intersection:
+		return hasUserInList(x.Elements)
+	case *ast.Complement:
+		return hasUser(x.Element)
+	default:
+		return false
 	}
 }
 
@@ -576,7 +625,7 @@ func (c *spoc) cutNetspoc(
 
 	// Mark management_instance of routers
 	for _, r := range c.managedRouters {
-		if r.model.needManagementInstance {
+		if isUsed[r.name] && r.model.needManagementInstance {
 			if mr := c.getRouter(r.deviceName, r.ipV6); mr != nil {
 				for _, intf := range getIntf(mr) {
 					setIntfUsed(intf, isUsed)
@@ -627,91 +676,102 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
-	// Mark areas having NAT attribute that influence their networks.
+	// Collect areas of used networks.
 	zoneCheck := make(map[*zone]bool)
 	for _, n := range c.allNetworks {
 		if isUsed[n.name] {
 			zoneCheck[n.zone] = true
 		}
 	}
+	areaCheck := make(map[string]bool)
 	for z := range zoneCheck {
 		for _, a := range zone2areas[z] {
-			att := a.routerAttributes
-			if len(a.nat) != 0 ||
-				keepOwner && (a.owner != nil || att.owner != nil) {
-
-				isUsed[a.name] = true
-			}
+			areaCheck[a.name] = true
 		}
 	}
-
-	// Remove unused anchor and border from used areas.
 	for _, top := range toplevel {
-		if aTop, ok := top.(*ast.Area); ok {
-			name := aTop.Name[len("area:"):]
+		aTop, ok := top.(*ast.Area)
+		if !ok {
+			continue
+		}
+		name := aTop.Name
+		if !areaCheck[name] {
+			continue
+		}
+		// Check areas having attributes that influence their networks.
+		// Remove unused anchor and border from used areas.
+		hasNat := func(n *ast.TopStruct) bool {
+			for _, a := range n.Attributes {
+				if strings.HasPrefix(a.Name, "nat:") {
+					return true
+				}
+			}
+			return false
+		}
+		if isUsed[name] || hasNat(&aTop.TopStruct) ||
+			keepOwner && (aTop.GetAttr("owner") != nil ||
+				aTop.GetAttr("router_attributes").GetAttr("owner") != nil) {
+
+			isUsed[name] = true
+			name := name[len("area:"):]
 			a := c.symTable.area[name]
-			if isUsed[a.name] {
+			if anchor := a.anchor; anchor != nil {
 				// Change anchor to some used network
-				if anchor := a.anchor; anchor != nil {
-					if !isUsed[anchor.name] {
-					ZONE:
-						for _, z := range a.zones {
-							for _, n := range z.networks {
-								if isUsed[n.name] {
-									for _, at := range aTop.Attributes {
-										if at.Name == "anchor" {
-											at.ValueList = []*ast.Value{{Value: n.name}}
-											break ZONE
-										}
-									}
-								}
+				if !isUsed[anchor.name] {
+					found := false
+					for _, z := range a.zones {
+						processWithSubnetworks(z.networks, func(n *network) {
+							if !found && isUsed[n.name] {
+								aTop.GetAttr("anchor").ValueList =
+									[]*ast.Value{{Value: n.name}}
+								found = true
 							}
-						}
+						})
 					}
-				} else {
-					// Remove unused interfaces from border and inclusiveBorder
-					cleanup := func(u **ast.NamedUnion) {
-						if *u == nil {
-							return
-						}
-						j := 0
-						l := (*u).Elements
-						for _, el := range l {
-							if x, ok := el.(*ast.IntfRef); ok {
-								if x.Network != "[" && x.Extension == "" {
-									name := "interface:" + x.GetName()
-									if !isUsed[name] {
-										continue
-									}
-								}
-							}
-							l[j] = el
-							j++
-						}
-						l = l[:j]
-						if len(l) == 0 {
-							*u = nil
-						} else {
-							(*u).Elements = l
-						}
+				}
+			} else {
+				// Remove unused interfaces from border and inclusiveBorder
+				cleanup := func(u **ast.NamedUnion) {
+					if *u == nil {
+						return
 					}
-					cleanup(&aTop.Border)
-					cleanup(&aTop.InclusiveBorder)
-					// Add anchor, if all interfaces have been removed.
-					if aTop.Border == nil && aTop.InclusiveBorder == nil {
-					Z2:
-						for _, z := range a.zones {
-							for _, n := range z.networks {
-								if isUsed[n.name] {
-									aTop.Attributes = append(aTop.Attributes,
-										&ast.Attribute{
-											Name:      "anchor",
-											ValueList: []*ast.Value{{Value: n.name}},
-										})
-									break Z2
+					j := 0
+					l := (*u).Elements
+					for _, el := range l {
+						if x, ok := el.(*ast.IntfRef); ok {
+							if x.Network != "[" && x.Extension == "" {
+								name := "interface:" + x.GetName()
+								if !isUsed[name] {
+									continue
 								}
 							}
 						}
+						l[j] = el
+						j++
+					}
+					l = l[:j]
+					if len(l) == 0 {
+						*u = nil
+					} else {
+						(*u).Elements = l
+					}
+				}
+				cleanup(&aTop.Border)
+				cleanup(&aTop.InclusiveBorder)
+				// Add anchor, if all interfaces have been removed.
+				if aTop.Border == nil && aTop.InclusiveBorder == nil {
+					found := false
+					for _, z := range a.zones {
+						processWithSubnetworks(z.networks, func(n *network) {
+							if !found && isUsed[n.name] {
+								aTop.Attributes = append(aTop.Attributes,
+									&ast.Attribute{
+										Name:      "anchor",
+										ValueList: []*ast.Value{{Value: n.name}},
+									})
+								found = true
+							}
+						})
 					}
 				}
 			}

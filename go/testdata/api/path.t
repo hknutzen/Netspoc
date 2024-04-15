@@ -13,6 +13,39 @@ Error: Invalid empty path
 =END=
 
 ############################################################
+=TITLE=Invalid path
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "invalid" }
+}
+=ERROR=
+Error: Expecting JSON object in attribute 'value' but got: <nil>
+=END=
+
+############################################################
+=TITLE=Invalid global definition
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "in:valid", "value": {} }
+}
+=ERROR=
+Error: Unknown global definition at line 3 of INPUT, near "--HERE-->in:valid"
+Aborted
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
++
++in:valid = {
++}
+=END=
+
+############################################################
 =TITLE=Invalid value
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -38,7 +71,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Expecting JSON object when reading 'network:n2' but got: []interface {}
+Error: Expecting JSON object in attribute 'value' but got: []interface {}
 =END=
 
 ############################################################

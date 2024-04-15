@@ -1,10 +1,9 @@
 package pass1
 
 import (
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 //#############################################################################
@@ -106,7 +105,6 @@ func (c *spoc) propagateOwners() {
 			continue
 		}
 		var invalid stringList
-	NETWORK:
 		for _, n := range c.allNetworks {
 			if netOwner := n.owner; netOwner != nil {
 				if netOwner == o {
@@ -116,13 +114,9 @@ func (c *spoc) propagateOwners() {
 			if n.ipType == tunnelIP {
 				continue
 			}
-			z := n.zone
-			for _, wo := range z.watchingOwners {
-				if wo == o {
-					continue NETWORK
-				}
+			if !slices.Contains(n.zone.watchingOwners, o) {
+				invalid.push(n.name)
 			}
-			invalid.push(n.name)
 		}
 		if invalid != nil {
 			c.err("%s has attribute 'show_all',"+
@@ -167,7 +161,10 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			sameObjects bool
 			// Is set, if all rules are coupling rules.
 			isCoupling bool
-			objects    map[srvObj]bool
+			// Collect non 'user' objects.
+			objects map[srvObj]bool
+			// List of lists of users.
+			users [][]srvObj
 		}
 		service2info := make(map[*service]*svcInfo)
 
@@ -183,8 +180,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					}
 					service2info[svc] = info
 				}
-
-				// Collect non 'user' objects.
 				objects := info.objects
 
 				// Check, if service contains only coupling rules with only
@@ -222,15 +217,16 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 				}
-				if hasUser != "src" {
+				if hasUser == "src" {
+					info.users = append(info.users, rule.src)
+				} else {
 					check(rule.src)
 				}
-				if hasUser != "dst" {
+				if hasUser == "dst" {
+					info.users = append(info.users, rule.dst)
+				} else {
 					check(rule.dst)
 				}
-
-				// Store found objects and remember that first rule has
-				// been processed.
 				info.objects = objects
 			}
 		}
@@ -239,24 +235,23 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 		unknown2services := make(map[srvObj]stringList)
 		for svc, info := range service2info {
-
-			// Collect service owners, remember if unknown owners;
-			ownerSeen := make(map[*owner]bool)
-			hasUnknown := false
-
 			objects := info.objects
+
+			// Check if service has multiple owners or has unknown owner.
+			var objOwner *owner
+			hasMulti := false
+			hasUnknown := false
 			for obj := range objects {
 				if o := obj.getOwner(); o != nil {
-					if !ownerSeen[o] {
-						ownerSeen[o] = true
-						svc.owners = append(svc.owners, o)
+					if objOwner == nil {
+						objOwner = o
+					} else if o != objOwner {
+						hasMulti = true
 					}
 				} else {
 					hasUnknown = true
 				}
 			}
-
-			// Check for multiple owners.
 			checkAttrMultiOwner := func() bool {
 				if !svc.multiOwner {
 					return false
@@ -271,33 +266,31 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				}
 				return true
 			}
-			hasMulti := !info.isCoupling && len(svc.owners) > 1
+			hasMulti = !info.isCoupling && hasMulti
 			if checkAttrMultiOwner() {
 				if !hasMulti {
 					c.uselessSvcAttr("multi_owner", svc)
 				} else if info.sameObjects {
-
 					// Check if attribute 'multi_owner' could be avoided,
 					// if objects of user and objects of rules are swapped.
 					var userOwner *owner
-					simpleUser := true
-					for _, user := range svc.expandedUser {
-						var o *owner
-						if obj, ok := user.(srvObj); ok {
-							o = obj.getOwner()
-						}
-						if o == nil {
-							simpleUser = false
-							break
-						}
-						if userOwner == nil {
-							userOwner = o
-						} else if userOwner != o {
-							simpleUser = false
-							break
+				USERS:
+					for _, users := range info.users {
+						for _, user := range users {
+							o := user.getOwner()
+							if o == nil {
+								userOwner = nil
+								break USERS
+							}
+							if userOwner == nil {
+								userOwner = o
+							} else if userOwner != o {
+								userOwner = nil
+								break USERS
+							}
 						}
 					}
-					if simpleUser && userOwner != nil {
+					if userOwner != nil {
 						c.warn("Unnecessary 'multi_owner' at %s\n"+
 							" All 'user' objects belong to single %s.\n"+
 							" Either swap objects of 'user' and objects of rules,\n"+

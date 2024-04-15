@@ -485,7 +485,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			subnet := origNet[natSubnet]
 			bignet := origNet[natBignet]
 
-			if !natSubnet.isLayer3 {
+			if l := natSubnet.interfaces; !(len(l) == 1 && l[0].isLayer3) {
 				subnet.subnetOfUsed = true
 				if printType := c.conf.CheckSubnets; printType != "" &&
 					// Take original bignet, because currently
@@ -682,29 +682,28 @@ func findUnstableNat(domains []*natDomain, networks netList) {
 // Result : NAT domains get different partition ID, if they belong to
 //
 //	parts of topology that are strictly separated by crypto
-//	interfaces or partitioned toplology.
+//	interfaces or partitioned topology.
 func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 	partitions := make(map[*natDomain]int)
 	var markNatPartition func(*natDomain, int)
-	markNatPartition = func(domain *natDomain, mark int) {
-		if partitions[domain] != 0 {
+	markNatPartition = func(dom *natDomain, mark int) {
+		if partitions[dom] != 0 {
 			return
 		}
-
 		//debug("%s %s", mark, domain.name)
-		partitions[domain] = mark
-		for _, r := range domain.routers {
-			for _, outDomain := range r.natDomains {
-				if outDomain == domain {
-					continue
+		partitions[dom] = mark
+		for _, intf := range dom.interfaces {
+			r := intf.router
+			for _, outIntf := range r.domInterfaces {
+				if outDom := outIntf.network.zone.natDomain; outDom != dom {
+					markNatPartition(outDom, mark)
 				}
-				markNatPartition(outDomain, mark)
 			}
 		}
 	}
 	mark := 1
-	for _, domain := range domains {
-		markNatPartition(domain, mark)
+	for _, dom := range domains {
+		markNatPartition(dom, mark)
 		mark++
 	}
 	return partitions

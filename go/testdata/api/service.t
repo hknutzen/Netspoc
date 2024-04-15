@@ -240,7 +240,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Expecting JSON object when reading 'service:s1' but got: string
+Error: Expecting JSON object in attribute 'value' but got: string
 =END=
 
 ############################################################

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -71,7 +72,6 @@ func TestNetspoc(t *testing.T) {
 	os.Unsetenv("LANG")
 	count = 0
 	for _, tc := range tests {
-		tc := tc // capture range variable
 		t.Run(tc.dir, func(t *testing.T) {
 			t.Parallel()
 			runTestFiles(t, tc)
@@ -101,9 +101,8 @@ type descr struct {
 }
 
 func runTestFiles(t *testing.T, tc test) {
-	dataFiles := testtxt.GetFiles("../testdata/" + tc.dir)
+	dataFiles, _ := filepath.Glob("../testdata/" + tc.dir + "/*.t")
 	for _, file := range dataFiles {
-		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
 			t.Parallel()
 			var l []descr
@@ -111,7 +110,6 @@ func runTestFiles(t *testing.T, tc test) {
 				t.Fatal(err)
 			}
 			for _, descr := range l {
-				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
 					t.Parallel()
 					runTest(t, tc, descr)
@@ -171,7 +169,7 @@ func runTest(t *testing.T, tc test, d descr) {
 		if input != "NONE" || outDir != "" {
 			// Prepare input file or directory.
 			src := path.Join(workDir, "netspoc")
-			inDir = testtxt.PrepareInDir(src, "INPUT", input)
+			inDir = testtxt.PrepareInDir(t, src, "INPUT", input)
 			args = append(args, inDir)
 
 			// Add location of output directory.

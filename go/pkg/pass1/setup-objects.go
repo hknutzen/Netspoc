@@ -6,13 +6,13 @@ import (
 	"net/netip"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
@@ -593,18 +593,12 @@ func (c *spoc) setupIsakmp(v *ast.TopStruct) {
 	c.checkDuplAttr(v.Attributes, name)
 }
 
-func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string) string {
+func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string,
+) string {
 	v := c.getSingleValue(a, ctx)
 	d := descr[a.Name]
 	if l := d.values; l != nil {
-		valid := false
-		for _, v2 := range l {
-			if v == v2 {
-				valid = true
-				break
-			}
-		}
-		if !valid {
+		if !slices.Contains(l, v) {
 			c.err("Invalid value in '%s' of %s: %s", a.Name, ctx, v)
 		}
 	}
@@ -1188,14 +1182,9 @@ func (c *spoc) setupRouter(v *ast.Router) {
 		}
 		if l3Name != "" {
 			// Check existence of layer3 interface.
-			seen := false
-			for _, a := range v.Interfaces {
-				if a.Name == l3Name {
-					seen = true
-					break
-				}
-			}
-			if !seen {
+			if !slices.ContainsFunc(v.Interfaces, func(a *ast.Attribute) bool {
+				return a.Name == l3Name
+			}) {
 				c.err("Must define %s at %s for corresponding bridge interfaces",
 					l3Name, name)
 			}
@@ -1890,7 +1879,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			// Mark as automatically created.
 			n.loopback = true
 			n.subnetOf = subnetOf
-			n.isLayer3 = intf.isLayer3
 			n.ipV6 = v6
 
 			// Move NAT definition to loopback network.

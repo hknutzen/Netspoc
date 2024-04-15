@@ -800,6 +800,43 @@ Warning: service:s1 has multiple owners:
 =END=
 
 ############################################################
+=TITLE=Useless multi_owner when expanded user objects have single owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ owner = o3;
+ host:h11 = { ip = 10.1.1.10; owner = o1; }
+ host:h12 = { ip = 10.1.1.11; owner = o2; }
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h21 = { ip = 10.1.2.10; owner = o1; }
+ host:h22 = { ip = 10.1.2.11; owner = o2; }
+}
+group:g1 = host:h11, host:h12;
+service:s1 = {
+ multi_owner;
+ user = group:g1;
+ permit src = network:[user]; dst = host:h21, host:h22; prt = tcp 80;
+ permit src = host:h21, host:h22; dst = network:[user]; prt = tcp 81;
+}
+=WARNING=
+Warning: Unnecessary 'multi_owner' at service:s1
+ All 'user' objects belong to single owner:o3.
+ Either swap objects of 'user' and objects of rules,
+ or split service into multiple parts, one for each owner.
+=END=
+
+############################################################
 =TITLE=Useless multi_owner when user objects have single owner
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
@@ -831,6 +868,38 @@ Warning: Unnecessary 'multi_owner' at service:s1
  Either swap objects of 'user' and objects of rules,
  or split service into multiple parts, one for each owner.
 =END=
+
+############################################################
+=TITLE=Need multi_owner even though user seems to have single owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ owner = o3;
+ host:h11 = { ip = 10.1.1.10; owner = o1; }
+ host:h12 = { ip = 10.1.1.11; owner = o2; }
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h21 = { ip = 10.1.2.10; owner = o1; }
+ host:h22 = { ip = 10.1.2.11; owner = o2; }
+}
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = host:[user]; dst = host:h21, host:h22; prt = tcp 80;
+ permit src = host:h21, host:h22; dst = user; prt = tcp 81;
+}
+# No Warning: Unnecessary 'multi_owner' at service:s1
+=WARNING=NONE
 
 ############################################################
 =TITLE=multi_owner ok with empty user objects

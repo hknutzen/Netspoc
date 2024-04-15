@@ -95,7 +95,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Expecting JSON object when reading 'group:g1' but got: []interface {}
+Error: Expecting JSON object in attribute 'value' but got: []interface {}
 =END=
 
 ############################################################
@@ -265,7 +265,7 @@ group:g1 = ;
 }
 
 =ERROR=
-Error: Expecting exactly on element in string
+Error: Expecting exactly one element in string
 =END=
 
 ############################################################
@@ -282,7 +282,7 @@ group:g1 = ;
 }
 
 =ERROR=
-Error: Expecting exactly on element in string
+Error: Expecting exactly one element in string
 =END=
 
 ############################################################

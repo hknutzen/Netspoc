@@ -150,7 +150,6 @@ type network struct {
 	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool
-	isLayer3             bool
 	link                 *network
 	loopback             bool
 	maxRoutingNet        *network
@@ -294,8 +293,7 @@ type router struct {
 	extendedKeys         map[string]string
 	filterOnly           []netip.Prefix
 	mergeTunnelSpecified []netip.Prefix
-	natDomains           []*natDomain
-	natTags              map[*natDomain]stringList
+	domInterfaces        intfList
 	natSet               natSet // Only used if aclUseRealIp
 	natMap               natMap // Only used if aclUseRealIp
 	needProtect          bool
@@ -518,11 +516,11 @@ type area struct {
 func (x area) String() string { return x.name }
 
 type natDomain struct {
-	name    string
-	natSet  natSet
-	natMap  natMap
-	routers []*router
-	zones   []*zone
+	name       string
+	natSet     natSet
+	natMap     natMap
+	interfaces intfList
+	zones      []*zone
 }
 
 type modifiers struct {
@@ -579,27 +577,22 @@ func (x objGroup) String() string { return x.name }
 
 type service struct {
 	ipVxObj
-	name                       string
-	description                string
-	disableAt                  string
-	disabled                   bool
-	foreach                    bool
-	rules                      []*unexpRule
-	ruleCount                  int
-	duplicateCount             int
-	redundantCount             int
-	hasUnenforceable           bool
-	hasUnenforceableRestricted bool
-	identicalBody              []*service
-	multiOwner                 bool
-	overlaps                   []*service
-	owners                     []*owner
-	seenEnforceable            bool
-	seenUnenforceable          bool
-	unenforceableMap           map[objPair]bool
-	unknownOwner               bool
-	user                       []ast.Element
-	expandedUser               groupObjList
+	name             string
+	description      string
+	disableAt        string
+	disabled         bool
+	foreach          bool
+	rules            []*unexpRule
+	ruleCount        int
+	duplicateCount   int
+	redundantCount   int
+	hasUnenforceable bool
+	identicalBody    []*service
+	multiOwner       bool
+	overlaps         []*service
+	seenEnforceable  bool
+	unknownOwner     bool
+	user             []ast.Element
 }
 
 func (x *service) String() string { return x.name }

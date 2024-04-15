@@ -70,13 +70,12 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 		},
 	}
 	for _, descr := range tests {
-		descr := descr // capture range variable
 		t.Run(descr.title, func(t *testing.T) {
 			workDir := t.TempDir()
 			os.Chdir(workDir)
 			os.Args = []string{"PROGRAM", "-q"}
 			inDir := "netspoc"
-			testtxt.PrepareInDir(inDir, "INPUT", descr.input)
+			testtxt.PrepareInDir(t, inDir, "INPUT", descr.input)
 			os.Args = append(os.Args, inDir)
 			if p := descr.param; p != "" {
 				os.Args = append(os.Args, p)

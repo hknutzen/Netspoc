@@ -2715,8 +2715,9 @@ router:r3 = {
  interface:n6 = { bind_nat = h2; }
 }
 =ERROR=
-Error: Inconsistent NAT in loop at router:r2:
- nat:h3 vs. nat:h1
+Error: Inconsistent bind_nat in loop
+ - interface:r2.n4: bind_nat = h1
+ - interface:r2.n5: bind_nat = h3
 =END=
 
 ############################################################
@@ -3269,8 +3270,9 @@ router:r2 = {
 }
 network:b = {ip = ::a9c:5a0/124;}
 =ERROR=
-Error: Inconsistent NAT in loop at router:r1:
- nat:(none) vs. nat:h
+Error: Inconsistent bind_nat in loop
+ - interface:r1.b: bind_nat = h
+ - interface:r1.a: (none)
 =END=
 
 ############################################################
@@ -3296,10 +3298,15 @@ router:r3 = {
  interface:n4 = { bind_nat = x; }
 }
 =ERROR=
-Error: Inconsistent NAT in loop at router:r2:
- nat:(none) vs. nat:x
-Error: Inconsistent NAT in loop at router:r3:
- nat:(none) vs. nat:x
+Error: Inconsistent bind_nat in loop
+ - interface:r2.n1: bind_nat = x
+ - interface:r2.n3: (none)
+Error: Inconsistent bind_nat in loop
+ - interface:r3.n4: bind_nat = x
+ - interface:r3.n3: (none)
+Error: Inconsistent bind_nat in loop
+ - interface:r3.n3: (none)
+ - interface:r3.n1: bind_nat = x
 =END=
 
 ############################################################
