@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+6.068     2024-04-15 17:58:21+02:00 Europe/Berlin
+
+ - Fixed command 'cut-netspoc'.
+   - Only retain management_instance of used router.
+   - Ignore area with only inherited NAT.
+   - Find new anchor even if it is subnet of unused network.
+   - Support 'user' in nested element.
+   - Prevent error message
+     "Must not use any:[..] .. because it has address of network"
+   - Intersection of nested elements of different type.
+
 6.067     2024-02-26 10:13:31+01:00 Europe/Berlin
 
  - Hidden NAT may be applied multiple times to the same network now.
