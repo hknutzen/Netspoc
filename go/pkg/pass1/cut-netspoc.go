@@ -953,6 +953,17 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
+	selectSubnetOf := func(ref *[]*ast.Attribute) {
+		var l []*ast.Attribute
+		for _, a := range *ref {
+			l2 := a.ValueList
+			if a.Name != "subnet_of" || len(l2) == 1 && isUsed[l2[0].Value] {
+				l = append(l, a)
+			}
+		}
+		*ref = l
+	}
+
 	selectBindNat := func(l []*ast.Value) []*ast.Value {
 		var result []*ast.Value
 		for _, v := range l {
@@ -1056,6 +1067,7 @@ func (c *spoc) cutNetspoc(
 		switch x := top.(type) {
 		case *ast.Network:
 			removeOwner(&x.Attributes)
+			selectSubnetOf(&x.Attributes)
 			selectHosts(x)
 		case *ast.Router:
 			removeOwner(&x.Attributes)

@@ -1406,10 +1406,7 @@ network:n1 = {
  ip = 10.1.1.0/24;
  nat:N = { identity; }
 }
-network:n1_subsub = {
- ip = 10.1.1.96/27;
- subnet_of = network:n1_sub;
-}
+network:n1_subsub = { ip = 10.1.1.96/27; }
 router:u = {
  interface:n1;
  interface:n1_subsub;
@@ -3735,4 +3732,63 @@ router:r2@v1 = {
 network:n4 = { ip = 10.1.4.0/24; }
 =OUTPUT=
 [[input]]
+=END=
+
+############################################################
+=TITLE=Cleanup unused subnet_of
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.1.0/26;
+ subnet_of = network:n1;
+}
+network:n3 = {
+ ip = 10.1.1.0/28;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.1.1; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.1.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n2,
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n2 = { ip = 10.1.1.0/26; }
+network:n3 = {
+ ip = 10.1.1.0/28;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ interface:n2;
+ interface:n3 = { ip = 10.1.1.1; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.1.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n2,
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
 =END=
