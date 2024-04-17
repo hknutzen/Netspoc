@@ -862,16 +862,13 @@ func (c *spoc) cutNetspoc(
 	for _, r := range c.allRouters {
 		mark2(r)
 	}
-	markCrypto := func(c *crypto) {
-		isUsed[c.name] = true
-		typ := c.ipsec
-		isUsed[typ.name] = true
-		isUsed[typ.isakmp.name] = true
-	}
 	for crypto := range spokeUsed {
 		if hubUsed[crypto] {
 			isUsed[crypto.name] = true
-			markCrypto(crypto)
+			isUsed[crypto.name] = true
+			typ := crypto.ipsec
+			isUsed[typ.name] = true
+			isUsed[typ.isakmp.name] = true
 		}
 	}
 
