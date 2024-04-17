@@ -2469,7 +2469,7 @@ service:s1 = {
 ############################################################
 # Shared topology for crypto tests
 ############################################################
-=TEMPL=topo
+=TEMPL=crypto
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -2490,6 +2490,7 @@ crypto:vpn1 = {
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
+=TEMPL=topo
 network:intern = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
@@ -2594,6 +2595,7 @@ network:customers3 = {
 ############################################################
 =TITLE=Crypto definitions with router fragments
 =TEMPL=input
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
@@ -2628,12 +2630,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn1;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2665,12 +2708,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn2;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients2 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2705,12 +2789,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn1;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2730,6 +2855,7 @@ network:customers1 = {
 ############################################################
 =TITLE=ID host in intersection
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
@@ -2746,6 +2872,7 @@ service:s1 = {
         prt = tcp 80;
 }
 =OUTPUT=
+[[crypto]]
 [[topo]]
 router:softclients1 = {
  interface:internet = {
@@ -2782,12 +2909,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients3]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn2;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients3 = {
  interface:internet = {
   spoke = crypto:vpn2;
