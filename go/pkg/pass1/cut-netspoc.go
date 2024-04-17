@@ -661,7 +661,7 @@ func (c *spoc) cutNetspoc(
 			if up == nil {
 				break
 			}
-			if nat := origNat[up]; nat != nil {
+			if origNat[up] != nil {
 				markUnconnectedObj(up, isUsed)
 			}
 		}
