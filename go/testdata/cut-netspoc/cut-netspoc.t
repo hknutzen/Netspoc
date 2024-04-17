@@ -3960,3 +3960,93 @@ service:s1 = {
         prt = tcp 80;
 }
 =END=
+
+############################################################
+=TITLE=Cleanup subnet_of in NAT
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.3.16/28; dynamic; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Cleanup subnet_of in Area
+=INPUT=
+area:n1 = {
+ nat:m2 = { ip = 10.1.2.16/28; dynamic; subnet_of = network:n2; }
+ nat:m3 = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+ border = interface:r1.n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=OUTPUT=
+area:n1 = {
+ nat:m2 = { ip = 10.1.2.16/28; dynamic; subnet_of = network:n2; }
+ nat:m3 = { ip = 10.1.3.16/28; dynamic; }
+ border = interface:r1.n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  hardware = n2;
+  bind_nat = m2;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=END=

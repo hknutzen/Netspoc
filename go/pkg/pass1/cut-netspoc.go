@@ -977,6 +977,13 @@ func (c *spoc) cutNetspoc(
 		}
 		*ref = l
 	}
+	selectSubnetOfInNAT := func(ref []*ast.Attribute) {
+		for _, a := range ref {
+			if strings.HasPrefix(a.Name, "nat:") {
+				selectSubnetOf(&a.ComplexValue)
+			}
+		}
+	}
 
 	selectBindNat := func(l []*ast.Value) []*ast.Value {
 		var result []*ast.Value
@@ -1093,6 +1100,7 @@ func (c *spoc) cutNetspoc(
 		case *ast.Network:
 			removeOwner(&x.Attributes)
 			selectSubnetOf(&x.Attributes)
+			selectSubnetOfInNAT(x.Attributes)
 			selectHosts(x)
 		case *ast.Router:
 			removeOwner(&x.Attributes)
@@ -1100,6 +1108,7 @@ func (c *spoc) cutNetspoc(
 			selectInterfaces(x)
 		case *ast.Area:
 			removeOwner(&x.Attributes)
+			selectSubnetOfInNAT(x.Attributes)
 			removeSubAttr(&x.Attributes,
 				"router_attributes", "policy_distribution_point")
 			if !keepOwner {
@@ -1108,6 +1117,7 @@ func (c *spoc) cutNetspoc(
 		case *ast.TopStruct:
 			if typ == "any" {
 				removeOwner(&x.Attributes)
+				selectSubnetOfInNAT(x.Attributes)
 			}
 		case *ast.TopList:
 			switch typ {
