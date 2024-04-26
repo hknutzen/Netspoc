@@ -39,13 +39,13 @@ Error: unknown flag: --abc
 =END=
 
 ############################################################
-=TITLE=Invalid input
+=TITLE=Invalid Netspoc config
 =INPUT=
 invalid
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
 Aborted
-=PARAMS=network:n1
+=PARAM=network:n1
 
 ############################################################
 =TITLE=Reference unknown network for NAT
@@ -55,7 +55,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 Error: Unknown network:n2 of option '--nat'
 Aborted
 =OPTIONS=--nat network:n2
-=PARAMS=network:n1
+=PARAM=network:n1
 
 ############################################################
 =TITLE=Invalid group parameter
@@ -64,7 +64,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Typed name expected at line 1 of command line, near "--HERE-->INVALID"
 Aborted
-=PARAMS=INVALID
+=PARAM=INVALID
 
 ############################################################
 =TITLE=Unexpected content after ";"
@@ -76,7 +76,66 @@ Aborted
 =PARAM=network:n1; INVALID
 
 ############################################################
-=TITLE=Trailing comma at input
+=TITLE=Empty parameter
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OUTPUT=NONE
+=WARNING=
+Warning: print-group is empty
+=PARAM=
+
+=END=
+
+############################################################
+=TITLE=Comment as parameter
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OUTPUT=NONE
+=WARNING=
+Warning: print-group is empty
+=PARAM=
+###
+=END=
+
+############################################################
+=TITLE=Unknown group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Can't resolve group:g1 in print-group
+=PARAM=group:g1
+
+############################################################
+=TITLE=Unknown group in parameter list
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+group:g1 = network:n1;
+=ERROR=
+Error: Can't resolve group:g2 in print-group
+Error: Can't resolve group:g3 in print-group
+Error: Can't resolve group:g4 in network:[..] of print-group
+=OUTPUT=
+10.1.1.0/24	network:n1
+=PARAM=group:g1, group:g2, group:g3, network:[group:g4]
+
+############################################################
+=TITLE=Show warnings
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+group:g1 = network:n1;
+group:g2 = group:g1 &! network:n1;
+=WARNING=
+Warning: Empty intersection in group:g2:
+group:g1
+&! network:n1
+Warning: Duplicate elements in print-group:
+ - network:n1
+=OUTPUT=
+10.1.1.0/24	network:n1
+=PARAM=group:g1,network:n1,group:g2
+
+############################################################
+=TITLE=Ignore trailing comma at input
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 =OUTPUT=
@@ -418,6 +477,7 @@ short	interface:r2.k1
 network:n1 = { ip = 10.1.1.0/24; }
  group:g1 = ;
 =WARNING=NONE
+=OUTPUT=NONE
 =PARAM=group:g1
 
 ############################################################
