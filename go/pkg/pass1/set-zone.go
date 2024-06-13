@@ -699,13 +699,10 @@ func (c *spoc) processAggregates() {
 		}
 
 		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
-		prefixlen := agg.ipp.Bits()
-		if prefixlen == 0 {
-			if agg.noCheckSupernetRules {
-				for _, z2 := range cluster {
-					z2.noCheckSupernetRules = true
-					c.checkAttrNoCheckSupernetRules(z2)
-				}
+		if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
+			for _, z2 := range cluster {
+				z2.noCheckSupernetRules = true
+				c.checkAttrNoCheckSupernetRules(z2)
 			}
 		}
 
@@ -720,18 +717,25 @@ func (c *spoc) processAggregates() {
 }
 
 func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
-	var errList netList
+	var withHosts, loopbacks netList
 	// z.networks currently contains all networks of zone,
 	// subnets are discared later in findSubnetsInZone.
 	for _, n := range z.networks {
 		if len(n.hosts) > 0 {
-			errList.push(n)
+			withHosts.push(n)
+		} else if n.loopback {
+			loopbacks.push(n)
 		}
 	}
-	if errList != nil {
+	if withHosts != nil {
 		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
 			" with networks having host definitions:\n%s",
-			z, errList.nameList())
+			z, withHosts.nameList())
+	}
+	if loopbacks != nil {
+		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+			" having loopback/vip interfaces:\n%s",
+			z, loopbacks.nameList())
 	}
 }
 
