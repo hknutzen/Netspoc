@@ -672,9 +672,6 @@ Comments : Has to be called after zones have been set up. But before
 findSubnetsInZone calculates .up and .networks relation.
 */
 func (c *spoc) processAggregates() {
-
-	// Collect all aggregates inside zone clusters.
-	var aggInCluster netList
 	aggList := make(netList, 0, len(c.symTable.aggregate))
 	for _, agg := range c.symTable.aggregate {
 		aggList.push(agg)
@@ -684,20 +681,14 @@ func (c *spoc) processAggregates() {
 	})
 	for _, agg := range aggList {
 		z := agg.link.zone
-
 		// Assure that no other aggregate with same IP and mask exists in cluster
 		ipp := agg.ipp
 		cluster := z.cluster
-		if len(cluster) > 1 {
-			// Collect aggregates inside clusters
-			aggInCluster.push(agg)
-		}
 		for _, z2 := range cluster {
 			if other := z2.ipPrefix2aggregate[ipp]; other != nil {
 				c.err("Duplicate %s and %s in %s", other, agg, z)
 			}
 		}
-
 		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
 		if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
 			for _, z2 := range cluster {
@@ -705,13 +696,11 @@ func (c *spoc) processAggregates() {
 				c.checkAttrNoCheckSupernetRules(z2)
 			}
 		}
-
 		// Link aggragate and zone (also setting z.ipPrefix2aggregate)
 		c.linkAggregateToZone(agg, z, ipp)
 	}
-
 	// Add aggregate to all zones in zone cluster.
-	for _, agg := range aggInCluster {
+	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
 	}
 }
