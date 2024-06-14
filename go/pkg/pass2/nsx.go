@@ -13,15 +13,17 @@ import (
 type jsonMap map[string]interface{}
 
 func printNSXRules(fd *os.File, rData *routerData) {
-
-	// Remove redundant rules and find object-groups.
 	prepareACLs(rData)
-
 	for _, acl := range rData.acls {
 		optimizeRules(acl)
 		joinRanges(acl)
+		hasFinalPermit := checkFinalPermit(acl)
 		findObjectgroups(acl, rData)
-		addFinalPermitDenyRule(acl)
+		if len(acl.filterOnly) > 0 && !acl.addPermit {
+			addLocalDenyRules(acl, rData)
+		} else if !hasFinalPermit {
+			addFinalPermitDenyRule(acl)
+		}
 	}
 
 	// Print JSON.
