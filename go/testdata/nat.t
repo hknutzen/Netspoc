@@ -929,8 +929,8 @@ network:Test =  {
 }
 router:C = {
  {{.}}
- model = ASA;
- interface:Test = { ip = 10.9.1.1; hardware = inside;}
+ model = IOS;
+ interface:Test = { ip = 10.9.1.1; hardware = inside; nat:C = { ip = 1.9.2.11; }}
  interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
 }
 network:Trans = { ip = 10.0.0.0/24; }
@@ -2002,9 +2002,9 @@ router:asa1 = {
  policy_distribution_point = host:h3;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-router:asa2 = {
+router:r2 = {
  managed;
- model = ASA;
+ model = Linux;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = dyn; }
 }
@@ -2013,7 +2013,7 @@ service:s = {
  permit src = host:h3; dst = user; prt = tcp 22;
 }
 =ERROR=
-Error: interface:asa1.n2 needs static translation for nat:dyn at router:asa2 to be valid in rule
+Error: interface:asa1.n2 needs static translation for nat:dyn at router:r2 to be valid in rule
  permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
 =END=
 
@@ -2164,7 +2164,7 @@ router:r1 = {
 network:t = { ip = 10.4.4.0/30; }
 router:r2 = {
  managed;
- model = ASA;
+ model = Linux;
  routing = manual;
  interface:t = {ip = 10.4.4.2; hardware = t; bind_nat = b;}
  interface:b = {ip = 10.2.2.1; hardware = b;}
@@ -3570,6 +3570,43 @@ access-group inside_in in interface inside
 --
 ! outside_in
 access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=ASA checks real IP of host with dynamic NAT
+=INPUT=
+network:Test =  {
+ ip = 10.9.1.0/24;
+ nat:C = { ip = 1.9.2.0/24; dynamic;}
+ host:h3 = { ip = 10.9.1.3; }
+}
+router:C = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = inside; }
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+}
+network:Trans = { ip = 10.0.0.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = {
+  ip = 10.0.0.2;
+  hardware = inside;
+ }
+ interface:X = { ip = 10.8.3.1; hardware = outside; }
+}
+network:X = { ip = 10.8.3.0/24; }
+service:s1 = {
+ user = network:X;
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+=OUTPUT=
+-- C
+! outside_in
+access-list outside_in extended permit tcp 10.8.3.0 255.255.255.0 host 10.9.1.3 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=

@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"net/netip"
+	"slices"
 	"sort"
 )
 
@@ -217,6 +218,11 @@ func (c *spoc) checkDynamicNatRules() {
 						natTag := natNetwork.natTag
 						if _, found := objNat[natTag]; found {
 							return
+						}
+						if r.model.aclUseRealIP {
+							if slices.Contains(natIntf.bindNat, natTag) {
+								return
+							}
 						}
 						ruleTxt := "rule"
 						if reversed2 {
