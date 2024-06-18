@@ -1217,3 +1217,40 @@ service:admin = {
 =END=
 
 ############################################################
+=TITLE=managed = local not supported
+=PARAMS=--ipv6
+=INPUT=
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = ::a3e:122; }
+}
+
+network:n1 = { ip = ::a3e:120/123; }
+router:r1@vrf = {
+ model = PAN-OS;
+ managed = local;
+ routing = manual;
+ filter_only = ::a3e:0/117, ::a3e:f100/120;
+ interface:n1 = { ip = ::a3e:121; hardware = IN; }
+ interface:n2 = { ip = ::a3e:f101; hardware = OUT; }
+}
+network:n2 = { ip = ::a3e:f100/125; }
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = ::a3e:f102; hardware = inside; }
+ interface:extern = { ip = ::a7d:301; hardware = outside; }
+}
+network:extern = { ip = ::a7d:300/120; }
+service:Test = {
+ user = network:extern, network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=ERROR=
+Error: Must not use 'managed = local' at router:r1@vrf of model PAN-OS
+=END=
+
+############################################################

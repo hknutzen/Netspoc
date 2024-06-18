@@ -661,7 +661,7 @@ func (c *spoc) cutNetspoc(
 			if up == nil {
 				break
 			}
-			if nat := origNat[up]; nat != nil {
+			if origNat[up] != nil {
 				markUnconnectedObj(up, isUsed)
 			}
 		}
@@ -826,6 +826,8 @@ func (c *spoc) cutNetspoc(
 		mark1(r)
 	}
 
+	hubUsed := make(map[*crypto]bool)
+	spokeUsed := make(map[*crypto]bool)
 	mark2 := func(r *router) {
 		if !isRouterUsed(r, isUsed) {
 			return
@@ -846,10 +848,10 @@ func (c *spoc) cutNetspoc(
 			// Mark crypto definitions which are referenced by
 			// already marked interfaces.
 			for _, crypto := range intf.hub {
-				isUsed[crypto.name] = true
-				typ := crypto.ipsec
-				isUsed[typ.name] = true
-				isUsed[typ.isakmp.name] = true
+				hubUsed[crypto] = true
+			}
+			if crypto := intf.spoke; crypto != nil {
+				spokeUsed[crypto] = true
 			}
 
 			// Mark networks referenced by interfaces
@@ -859,6 +861,15 @@ func (c *spoc) cutNetspoc(
 	}
 	for _, r := range c.allRouters {
 		mark2(r)
+	}
+	for crypto := range spokeUsed {
+		if hubUsed[crypto] {
+			isUsed[crypto.name] = true
+			isUsed[crypto.name] = true
+			typ := crypto.ipsec
+			isUsed[typ.name] = true
+			isUsed[typ.isakmp.name] = true
+		}
 	}
 
 	// Collect names of marked areas, groups, protocols, protocolgroups.
@@ -953,6 +964,24 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
+	selectSubnetOf := func(ref *[]*ast.Attribute) {
+		var l []*ast.Attribute
+		for _, a := range *ref {
+			l2 := a.ValueList
+			if a.Name != "subnet_of" || len(l2) == 1 && isUsed[l2[0].Value] {
+				l = append(l, a)
+			}
+		}
+		*ref = l
+	}
+	selectSubnetOfInNAT := func(ref []*ast.Attribute) {
+		for _, a := range ref {
+			if strings.HasPrefix(a.Name, "nat:") {
+				selectSubnetOf(&a.ComplexValue)
+			}
+		}
+	}
+
 	selectBindNat := func(l []*ast.Value) []*ast.Value {
 		var result []*ast.Value
 		for _, v := range l {
@@ -1014,6 +1043,17 @@ func (c *spoc) cutNetspoc(
 							l2 = nil
 							changed = true
 						}
+					case "hub":
+						j2 := 0
+						for _, v := range l2 {
+							if isUsed[v.Value] {
+								l2[j2] = v
+								j2++
+							} else {
+								changed = true
+							}
+						}
+						l2 = l2[:j2]
 					case "spoke":
 						if len(l2) == 1 && !isUsed[l2[0].Value] {
 							l2 = nil
@@ -1056,6 +1096,8 @@ func (c *spoc) cutNetspoc(
 		switch x := top.(type) {
 		case *ast.Network:
 			removeOwner(&x.Attributes)
+			selectSubnetOf(&x.Attributes)
+			selectSubnetOfInNAT(x.Attributes)
 			selectHosts(x)
 		case *ast.Router:
 			removeOwner(&x.Attributes)
@@ -1063,6 +1105,7 @@ func (c *spoc) cutNetspoc(
 			selectInterfaces(x)
 		case *ast.Area:
 			removeOwner(&x.Attributes)
+			selectSubnetOfInNAT(x.Attributes)
 			removeSubAttr(&x.Attributes,
 				"router_attributes", "policy_distribution_point")
 			if !keepOwner {
@@ -1071,6 +1114,7 @@ func (c *spoc) cutNetspoc(
 		case *ast.TopStruct:
 			if typ == "any" {
 				removeOwner(&x.Attributes)
+				selectSubnetOfInNAT(x.Attributes)
 			}
 		case *ast.TopList:
 			switch typ {

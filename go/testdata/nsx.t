@@ -1634,3 +1634,195 @@ service:admin = {
 =END=
 
 ############################################################
+=TITLE=managed = local
+=INPUT=
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = 10.62.1.34; }
+}
+
+network:n1 = { ip = 10.62.1.32/27; }
+router:r1@T0 = {
+ model = NSX, T0;
+ managed = local;
+ routing = manual;
+ filter_only = 10.62.0.0/21, 10.62.241.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = IN; }
+ interface:n2 = { ip = 10.62.241.1; hardware = OUT; }
+}
+network:n2 = { ip = 10.62.241.0/29; }
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.62.241.2; hardware = inside; }
+ interface:extern = { ip = 10.125.3.1; hardware = outside; }
+}
+network:extern = { ip = 10.125.3.0/24; }
+service:Test = {
+ user = network:extern, network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=OUTPUT=
+--r1
+{
+ "groups": [
+  {
+   "expression": [
+    {
+     "id": "id",
+     "ip_addresses": [
+      "10.62.0.0/21",
+      "10.62.241.0/24"
+     ],
+     "resource_type": "IPAddressExpression"
+    }
+   ],
+   "id": "Netspoc-g0"
+  }
+ ],
+ "policies": [
+  {
+   "id": "Netspoc-T0",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-g0"
+     ],
+     "direction": "OUT",
+     "id": "r1",
+     "ip_protocol": "IPV4",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "/infra/domains/default/groups/Netspoc-g0"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "r2",
+     "ip_protocol": "IPV4",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "10.62.1.32/27"
+     ],
+     "direction": "IN",
+     "id": "r3",
+     "ip_protocol": "IPV4",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "10.62.241.0/29"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-g0"
+     ],
+     "direction": "IN",
+     "id": "r4",
+     "ip_protocol": "IPV4",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "/infra/domains/default/groups/Netspoc-g0"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "r5",
+     "ip_protocol": "IPV4",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 40,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  }
+ ],
+ "services": [
+  {
+   "id": "Netspoc-tcp_80",
+   "service_entries": [
+    {
+     "destination_ports": [
+      "80"
+     ],
+     "id": "id",
+     "l4_protocol": "TCP",
+     "resource_type": "L4PortSetServiceEntry",
+     "source_ports": []
+    }
+   ]
+  }
+ ]
+}
+=END=
+
+############################################################

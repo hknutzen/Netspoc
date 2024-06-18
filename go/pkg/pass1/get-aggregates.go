@@ -196,7 +196,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 //            networks inside a zone. Therefore, every zone inside a cluster
 //            gets its own copy of the defined aggregate to collect the zones
 //            networks matching the aggregates IP address.
-// TDOD     : Aggregate may be a non aggregate network,
+// TODD     : Aggregate may be a non aggregate network,
 //            e.g. a network with ip/mask 0/0. ??
 */
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {

@@ -2066,12 +2066,13 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:sub = { ip = ::a01:180/121; subnet_of = network:n1;
-{{.}}
+{{.hosts}}
 }
 router:u = {
  interface:n1;
  interface:sub;
  interface:t;
+ {{.interfaces}}
 }
 network:t = { ip = ::a09:200/120; }
 any:t = {
@@ -2093,17 +2094,30 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 80;
 }
 =PARAMS=--ipv6
-=INPUT=[[input ""]]
+=INPUT=
+[[input
+hosts: ""
+interfaces: ""
+]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
 =PARAMS=--ipv6
-=INPUT=[[input "host:h = { ip = ::a01:182; }"]]
+=INPUT=
+[[input
+hosts: "host:h = { ip = ::a01:182; }"
+interfaces: "interface:lo = { ip = ::a09:901; loopback; }
+interface:vip = { ip = ::a09:902; vip; }"
+]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:
  - network:sub
+Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
+ having loopback/vip interfaces:
+ - interface:u.lo
+ - interface:u.vip
 =END=
 
 ############################################################

@@ -672,9 +672,6 @@ Comments : Has to be called after zones have been set up. But before
 findSubnetsInZone calculates .up and .networks relation.
 */
 func (c *spoc) processAggregates() {
-
-	// Collect all aggregates inside zone clusters.
-	var aggInCluster netList
 	aggList := make(netList, 0, len(c.symTable.aggregate))
 	for _, agg := range c.symTable.aggregate {
 		aggList.push(agg)
@@ -684,54 +681,50 @@ func (c *spoc) processAggregates() {
 	})
 	for _, agg := range aggList {
 		z := agg.link.zone
-
 		// Assure that no other aggregate with same IP and mask exists in cluster
 		ipp := agg.ipp
 		cluster := z.cluster
-		if len(cluster) > 1 {
-			// Collect aggregates inside clusters
-			aggInCluster.push(agg)
-		}
 		for _, z2 := range cluster {
 			if other := z2.ipPrefix2aggregate[ipp]; other != nil {
 				c.err("Duplicate %s and %s in %s", other, agg, z)
 			}
 		}
-
 		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
-		prefixlen := agg.ipp.Bits()
-		if prefixlen == 0 {
-			if agg.noCheckSupernetRules {
-				for _, z2 := range cluster {
-					z2.noCheckSupernetRules = true
-					c.checkAttrNoCheckSupernetRules(z2)
-				}
+		if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
+			for _, z2 := range cluster {
+				z2.noCheckSupernetRules = true
+				c.checkAttrNoCheckSupernetRules(z2)
 			}
 		}
-
 		// Link aggragate and zone (also setting z.ipPrefix2aggregate)
 		c.linkAggregateToZone(agg, z, ipp)
 	}
-
 	// Add aggregate to all zones in zone cluster.
-	for _, agg := range aggInCluster {
+	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
 	}
 }
 
 func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
-	var errList netList
+	var withHosts, loopbacks netList
 	// z.networks currently contains all networks of zone,
 	// subnets are discared later in findSubnetsInZone.
 	for _, n := range z.networks {
 		if len(n.hosts) > 0 {
-			errList.push(n)
+			withHosts.push(n)
+		} else if n.loopback {
+			loopbacks.push(n)
 		}
 	}
-	if errList != nil {
+	if withHosts != nil {
 		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
 			" with networks having host definitions:\n%s",
-			z, errList.nameList())
+			z, withHosts.nameList())
+	}
+	if loopbacks != nil {
+		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+			" having loopback/vip interfaces:\n%s",
+			z, loopbacks.nameList())
 	}
 }
 

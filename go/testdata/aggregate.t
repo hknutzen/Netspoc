@@ -2008,12 +2008,13 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1;
-{{.}}
+{{.hosts}}
 }
 router:u = {
  interface:n1;
  interface:sub;
  interface:t;
+ {{.interfaces}}
 }
 network:t = { ip = 10.9.2.0/24; }
 any:t = {
@@ -2034,16 +2035,29 @@ service:s = {
  user = any:[ ip = 10.1.0.0/16 & network:n2 ];
  permit src = network:n3; dst = user; prt = tcp 80;
 }
-=INPUT=[[input ""]]
+=INPUT=
+[[input
+hosts: ""
+interfaces: ""
+]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
-=INPUT=[[input "host:h = { ip = 10.1.1.130; }"]]
+=INPUT=
+[[input
+hosts: "host:h = { ip = 10.1.1.130; }"
+interfaces: "interface:lo = { ip = 10.9.9.1; loopback; }
+interface:vip = { ip = 10.9.9.2; vip; }"
+]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:
  - network:sub
+Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
+ having loopback/vip interfaces:
+ - interface:u.lo
+ - interface:u.vip
 =END=
 
 ############################################################
