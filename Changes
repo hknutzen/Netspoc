@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+6.069     2024-06-18 10:37:48+02:00 Europe/Berlin
+
+ - Fix: No longer show error message "host:x needs static translation"
+   if dynamic NAT is applied at ASA firewall, because ASA filters real IP
+   and not NAT IP.
+ - Fixed generated ACLs for device with 'managed=local' and 'model=NSX'.
+ - Attribute 'no_check_supernet_rules' given at zone now also checks
+   that no vip and loopback interfaces are defined inside this zone.
+   Previously only hosts were checked.
+
 6.068     2024-04-15 17:58:21+02:00 Europe/Berlin
 
  - Fixed command 'cut-netspoc'.
