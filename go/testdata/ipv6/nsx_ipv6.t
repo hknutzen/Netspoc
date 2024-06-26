@@ -1846,3 +1846,562 @@ service:Test = {
 =END=
 
 ############################################################
+=TITLE=VRF members with mixed managed and managed=local
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = ::a01:122; }
+}
+
+router:r1@T0 = {
+ model = NSX, T0;
+ managed = local;
+ filter_only = ::a01:0/112;
+ interface:n1 = { ip = ::a01:102; hardware = OUT; }
+ interface:n2 = { ip = ::a01:201; hardware = IN; }
+}
+router:r1@T1 = {
+ model = NSX, T1;
+ managed;
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n3 = { ip = ::a01:302; hardware = IN; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+{
+ "groups": null,
+ "policies": [
+  {
+   "id": "Netspoc-T0",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a01:300/120"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "::a01:100/120"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "::a01:0/112"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "::a01:0/112"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 40,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "::a01:0/112"
+     ],
+     "direction": "OUT",
+     "id": "v6r4",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "::a01:0/112"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r5",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Netspoc-T1",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a01:300/120"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "::a01:100/120"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  }
+ ],
+ "services": [
+  {
+   "id": "Netspoc-tcp_80",
+   "service_entries": [
+    {
+     "destination_ports": [
+      "80"
+     ],
+     "id": "id",
+     "l4_protocol": "TCP",
+     "resource_type": "L4PortSetServiceEntry",
+     "source_ports": []
+    }
+   ]
+  }
+ ]
+}
+=END=
+
+############################################################
+=TITLE=VRF members with different value of filter_only
+=PARAMS=--ipv6
+=INPUT=
+network:n11 = { ip = ::a01:100/120; }
+network:n12 = { ip = ::a01:200/120; }
+network:n21 = { ip = ::a02:100/120; }
+network:n22 = { ip = ::a02:200/120; }
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n11 = { ip = ::a01:122; }
+}
+router:r1@v1 = {
+ model = NSX, T0;
+ managed = local;
+ filter_only = ::a01:100/120, ::a01:200/120;
+ interface:n11 = { ip = ::a01:102; hardware = OUT; }
+ interface:n12 = { ip = ::a01:201; hardware = IN; }
+}
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n12 = { ip = ::a01:202; hardware = n12; }
+ interface:n21 = { ip = ::a02:102; hardware = n21; }
+}
+router:r1@v2 = {
+ model = NSX, T0;
+ managed = local;
+ filter_only = ::a02:100/120, ::a02:200/120;
+ interface:n21 = { ip = ::a02:101; hardware = OUT; }
+ interface:n22 = { ip = ::a02:201; hardware = IN; }
+}
+service:test = {
+ user = network:n11, network:n21;
+ permit src = user; dst = network:n22; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+{
+ "groups": [
+  {
+   "expression": [
+    {
+     "id": "id",
+     "ip_addresses": [
+      "::a01:100/120",
+      "::a01:200/120"
+     ],
+     "resource_type": "IPAddressExpression"
+    }
+   ],
+   "id": "Netspoc-v6g0"
+  },
+  {
+   "expression": [
+    {
+     "id": "id",
+     "ip_addresses": [
+      "::a02:100/120",
+      "::a02:200/120"
+     ],
+     "resource_type": "IPAddressExpression"
+    }
+   ],
+   "id": "Netspoc-v6g1"
+  }
+ ],
+ "policies": [
+  {
+   "id": "Netspoc-v1",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g0"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g0"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g0"
+     ],
+     "direction": "OUT",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g0"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r4",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Netspoc-v2",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a02:200/120"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v2"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "::a02:100/120"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g1"
+     ],
+     "direction": "IN",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v2"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g1"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v2"
+     ],
+     "sequence_number": 40,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "/infra/domains/default/groups/Netspoc-v6g1"
+     ],
+     "direction": "OUT",
+     "id": "v6r4",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v2"
+     ],
+     "sequence_number": 10,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r5",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v2"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  }
+ ],
+ "services": [
+  {
+   "id": "Netspoc-tcp_80",
+   "service_entries": [
+    {
+     "destination_ports": [
+      "80"
+     ],
+     "id": "id",
+     "l4_protocol": "TCP",
+     "resource_type": "L4PortSetServiceEntry",
+     "source_ports": []
+    }
+   ]
+  }
+ ]
+}
+=END=
+
+############################################################

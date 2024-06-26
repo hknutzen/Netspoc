@@ -2,12 +2,13 @@ package pass2
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net/netip"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
 
 func optimizeRedundantRules(cmp, chg ruleTree) bool {
@@ -412,13 +413,16 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 			if len(objList) == 1 {
 				return objList[0]
 			}
-			if routerData.filterOnlyGroup != nil {
+			if ref := routerData.filterOnlyGroup[aclInfo.vrf]; ref != nil {
 
-				// Reuse object-group at all interfaces.
-				return routerData.filterOnlyGroup
+				// Reuse object-group at all interfaces of same VRF.
+				return ref
 			}
 			group := createGroup(objList, aclInfo, routerData)
-			routerData.filterOnlyGroup = group.ref
+			if routerData.filterOnlyGroup == nil {
+				routerData.filterOnlyGroup = make(map[string]*ipNet)
+			}
+			routerData.filterOnlyGroup[aclInfo.vrf] = group.ref
 			return group.ref
 		}
 		aclInfo.rules.push(

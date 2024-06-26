@@ -3,7 +3,7 @@ package pass2
 /*
 Pass 2 of Netspoc - A Network Security Policy Compiler
 
-(C) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -207,7 +207,7 @@ func convertACLs(
 	rules, hasLog2 := convertRuleObjects(
 		jACL.Rules, ipNet2obj, prt2obj)
 
-	filterOnly := ipNetList(jData.FilterOnly, ipNet2obj)
+	filterOnly := ipNetList(jACL.FilterOnly, ipNet2obj)
 
 	optNetworks := ipNetList(jACL.OptNetworks, ipNet2obj)
 	for _, obj := range optNetworks {
@@ -285,7 +285,7 @@ type routerData struct {
 	model           string
 	ipv6            bool
 	acls            []*aclInfo
-	filterOnlyGroup *ipNet
+	filterOnlyGroup map[string]*ipNet
 	doObjectgroup   bool
 	objGroupsMap    map[groupKey][]*objGroup
 	objGroupCounter int
