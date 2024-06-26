@@ -1929,6 +1929,13 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		doAuth := model.doAuth
 		activeLog := r.log
 		needProtect := getNeedProtect(r)
+		var filterOnly []string
+		if fo := r.filterOnly; fo != nil {
+			filterOnly = make([]string, len(fo))
+			for i, f := range fo {
+				filterOnly[i] = fullPrefixCode(f)
+			}
+		}
 
 		process := func(acl *aclInfo) *jcode.ACLInfo {
 			jACL := new(jcode.ACLInfo)
@@ -2142,6 +2149,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 				r.logDeny = r.logDefault
 			}
 			jACL.LogDeny = r.logDeny
+			jACL.FilterOnly = filterOnly
 			return jACL
 		}
 
@@ -2168,14 +2176,6 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		Model:         model.class,
 		ACLs:          aclList,
 		DoObjectgroup: model.canObjectgroup && !r.noGroupCode,
-	}
-
-	if filterOnly := r.filterOnly; filterOnly != nil {
-		list := make([]string, len(filterOnly))
-		for i, f := range filterOnly {
-			list[i] = fullPrefixCode(f)
-		}
-		result.FilterOnly = list
 	}
 	c.writeJson(path, result)
 }

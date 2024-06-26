@@ -966,3 +966,146 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
+=TITLE=VRF members with mixed managed and managed=local
+=INPUT=
+network:n0 = { ip = 10.0.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n0 = { ip = 10.0.1.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2v2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:test = {
+ user = network:n0, network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL for router:r1@v1 ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n2_in
+ permit tcp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+interface n1
+ ip address 10.1.1.2 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n1_in in
+interface n2
+ ip address 10.1.2.1 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n2_in in
+--
+! [ ACL for router:r1@v2 ]
+ip access-list extended n2v2_in
+ deny ip any host 10.1.3.2
+ permit tcp 10.0.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit tcp 10.1.3.0 0.0.0.255 10.0.1.0 0.0.0.255 established
+ permit tcp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip any any
+--
+interface n3
+ ip address 10.1.3.2 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n3_in in
+=END=
+
+############################################################
+=TITLE=VRF members with different value of filter_only
+=INPUT=
+network:n11 = { ip = 10.1.1.0/24; }
+network:n12 = { ip = 10.1.2.0/24; }
+network:n21 = { ip = 10.2.1.0/24; }
+network:n22 = { ip = 10.2.2.0/24; }
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ interface:n11 = { ip = 10.1.1.2; hardware = n11; }
+ interface:n12 = { ip = 10.1.2.1; hardware = n12; }
+}
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n12 = { ip = 10.1.2.2; hardware = n12; }
+ interface:n21 = { ip = 10.2.1.2; hardware = n21; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.2.0.0/16;
+ interface:n21 = { ip = 10.2.1.1; hardware = n21; }
+ interface:n22 = { ip = 10.2.2.1; hardware = n22; }
+}
+service:test = {
+ user = network:n11, network:n21;
+ permit src = user; dst = network:n22; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL for router:r1@v1 ]
+ip access-list extended n11_in
+ deny ip any 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n12_in
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+interface n11
+ ip address 10.1.1.2 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n11_in in
+interface n12
+ ip address 10.1.2.1 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n12_in in
+--
+! [ ACL for router:r1@v2 ]
+ip access-list extended n21_in
+ deny ip any host 10.2.2.1
+ permit tcp 10.2.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip 10.2.0.0 0.0.255.255 10.2.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n22_in
+ permit tcp 10.2.2.0 0.0.0.255 10.2.1.0 0.0.0.255 established
+ deny ip any 10.2.0.0 0.0.255.255
+ permit ip any any
+--
+interface n21
+ ip address 10.2.1.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n21_in in
+interface n22
+ ip address 10.2.2.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n22_in in
+=END=
+
+############################################################

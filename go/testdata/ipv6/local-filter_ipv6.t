@@ -997,3 +997,148 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
+=TITLE=VRF members with mixed managed and managed=local
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = ::a00:100/120; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n0 = { ip = ::a00:101; hardware = n0; }
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = ::a01:0/112;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = ::a01:202; hardware = n2v2; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+}
+service:test = {
+ user = network:n0, network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL for router:r1@v1 ]
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 ::a01:300/120 eq 80
+ deny ipv6 ::a01:0/112 ::a01:0/112
+ permit ipv6 any any
+--
+ipv6 access-list n2_in
+ permit tcp ::a01:300/120 ::a01:100/120 established
+ deny ipv6 ::a01:0/112 ::a01:0/112
+ permit ipv6 any any
+--
+interface n1
+ ipv6 address ::a01:102/120
+ ip vrf forwarding v1
+ ipv6 traffic-filter n1_in in
+interface n2
+ ipv6 address ::a01:201/120
+ ip vrf forwarding v1
+ ipv6 traffic-filter n2_in in
+--
+! [ ACL for router:r1@v2 ]
+ipv6 access-list n2v2_in
+ deny ipv6 any host ::a01:302
+ permit tcp ::a00:100/120 ::a01:300/120 eq 80
+ permit tcp ::a01:100/120 ::a01:300/120 eq 80
+ deny ipv6 any any
+--
+ipv6 access-list n3_in
+ permit tcp ::a01:300/120 ::a00:100/120 established
+ permit tcp ::a01:300/120 ::a01:100/120 established
+ deny ipv6 any any
+--
+interface n3
+ ipv6 address ::a01:302/120
+ ip vrf forwarding v2
+ ipv6 traffic-filter n3_in in
+=END=
+
+############################################################
+=TITLE=VRF members with different value of filter_only
+=PARAMS=--ipv6
+=INPUT=
+network:n11 = { ip = ::a01:100/120; }
+network:n12 = { ip = ::a01:200/120; }
+network:n21 = { ip = ::a02:100/120; }
+network:n22 = { ip = ::a02:200/120; }
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = ::a01:0/112;
+ interface:n11 = { ip = ::a01:102; hardware = n11; }
+ interface:n12 = { ip = ::a01:201; hardware = n12; }
+}
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n12 = { ip = ::a01:202; hardware = n12; }
+ interface:n21 = { ip = ::a02:102; hardware = n21; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed = local;
+ filter_only = ::a02:0/112;
+ interface:n21 = { ip = ::a02:101; hardware = n21; }
+ interface:n22 = { ip = ::a02:201; hardware = n22; }
+}
+service:test = {
+ user = network:n11, network:n21;
+ permit src = user; dst = network:n22; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL for router:r1@v1 ]
+ipv6 access-list n11_in
+ deny ipv6 any ::a01:0/112
+ permit ipv6 any any
+--
+ipv6 access-list n12_in
+ deny ipv6 ::a01:0/112 ::a01:0/112
+ permit ipv6 any any
+--
+interface n11
+ ipv6 address ::a01:102/120
+ ip vrf forwarding v1
+ ipv6 traffic-filter n11_in in
+interface n12
+ ipv6 address ::a01:201/120
+ ip vrf forwarding v1
+ ipv6 traffic-filter n12_in in
+--
+! [ ACL for router:r1@v2 ]
+ipv6 access-list n21_in
+ deny ipv6 any host ::a02:201
+ permit tcp ::a02:100/120 ::a02:200/120 eq 80
+ deny ipv6 ::a02:0/112 ::a02:0/112
+ permit ipv6 any any
+--
+ipv6 access-list n22_in
+ permit tcp ::a02:200/120 ::a02:100/120 established
+ deny ipv6 any ::a02:0/112
+ permit ipv6 any any
+--
+interface n21
+ ipv6 address ::a02:101/120
+ ip vrf forwarding v2
+ ipv6 traffic-filter n21_in in
+interface n22
+ ipv6 address ::a02:201/120
+ ip vrf forwarding v2
+ ipv6 traffic-filter n22_in in
+=END=
+
+############################################################
