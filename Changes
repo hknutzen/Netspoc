@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.070     2024-06-26 15:33:44+02:00 Europe/Berlin
+
  -  Fixed mixed managed=local/managed in VRFs of one device.
     Previously, the filter_only value of first VRF was used for other VRFs,
     leading to incorrect ACLs.
