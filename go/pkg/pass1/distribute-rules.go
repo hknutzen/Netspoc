@@ -110,15 +110,14 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 		}
 	}
 
-	addRule := func(intf *routerIntf, ru *groupedRule) {
-		if intfRules {
-			intf.intfRules.push(ru)
-		} else {
-			intf.rules.push(ru)
-		}
-	}
 	if in.ipType == tunnelIP {
-
+		addRule := func(intf *routerIntf, ru *groupedRule) {
+			if intfRules {
+				intf.intfRules.push(ru)
+			} else {
+				intf.rules.push(ru)
+			}
+		}
 		// Rules for single software clients are stored individually.
 		// Consistency checks have already been done at expandCrypto.
 		// Rules are needed at tunnel for generating split tunnel ACL
