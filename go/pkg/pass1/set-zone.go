@@ -232,18 +232,18 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 		// Assure outAcl at all/none of the interfaces.
 		outAclCount := 0
 		// Assure all noInAcl interfaces to border the same zone.
-		var noInAclIntf intfList
+		var noInAclZone *zone
 
 		// Process network interfaces to fill above variables.
 		for _, intf := range n.interfaces {
 			r := intf.router
-			hw := intf.hardware
 
 			// Assure correct usage of crosslink network.
 			if r.managed == "" {
 				c.err("Crosslink %s must not be connected to unmanged %s", n, r)
 				continue
 			}
+			hw := intf.hardware
 			if len(hw.interfaces) != 1 {
 				c.err("Crosslink %s must be the only network"+
 					" connected to hardware '%s' of %s", n, hw.name, r)
@@ -260,9 +260,13 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 				outAclCount++
 			}
 
-			for _, intf := range r.interfaces {
-				if intf.hardware.noInAcl {
-					noInAclIntf.push(intf)
+			if noAclIntf := r.noInAcl; noAclIntf != nil {
+				if noInAclZone == nil {
+					noInAclZone = noAclIntf.zone
+				} else if noInAclZone != noAclIntf.zone {
+					c.err("All interfaces with attribute 'no_in_acl'"+
+						" at routers connected by\n"+
+						" crosslink %s must be border of the same security zone", n)
 				}
 			}
 		}
@@ -289,16 +293,6 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 		if outAclCount != 0 && outAclCount != len(n.interfaces) {
 			c.err("All interfaces must equally use or not use outgoing ACLs"+
 				" at crosslink %s", n)
-		} else if len(noInAclIntf) >= 1 {
-			z0 := noInAclIntf[0].zone
-			for _, intf := range noInAclIntf[1:] {
-				if intf.zone != z0 {
-					c.err("All interfaces with attribute 'no_in_acl'"+
-						" at routers connected by\n"+
-						" crosslink %s must be border of the same security zone", n)
-					break
-				}
-			}
 		}
 	}
 	return crosslinkRouters
