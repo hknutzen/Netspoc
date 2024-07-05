@@ -84,6 +84,7 @@ type checkInfo struct {
 // - objects that are
 //   - element of netMap or
 //   - subnet of element of netMap.
+//
 // Result: List of found networks or aggregates.
 func findZoneNetworks(
 	z *zone, isAgg bool, ipp netip.Prefix, natMap natMap,
@@ -155,10 +156,14 @@ func findZoneNetworks(
 // rule: the rule to be checked
 // where: has value 'src' or 'dst'
 // intf: interface, where traffic reaches the device,
-//       this is used to determine natMap
+//
+//	this is used to determine natMap
+//
 // z: The zone to be checked.
-//    If where is 'src', then zone is attached to interface
-//    If where is 'dst', then zone is at other side of device.
+//
+//	If where is 'src', then zone is attached to interface
+//	If where is 'dst', then zone is at other side of device.
+//
 // reversed: the check is for reversed rule at stateless device
 func (c *spoc) checkSupernetInZone1(
 	rule *groupedRule, where string, intf *routerIntf,
@@ -294,7 +299,7 @@ func (x *routerIntf) getZone() pathObj {
 // and topology is like this:
 //
 // supernet1-R1-zone2-R2-zone3-R3-dst
-//               zone4-/
+//              zone4-/
 //
 // additional rules need to be defined as well:
 //  permit supernet(zone2) dst
@@ -306,6 +311,7 @@ func (x *routerIntf) getZone() pathObj {
 // reverse rule
 //  permit dst supernet1
 // which would accidentally permit traffic to supernet:[zone4] as well.
+
 func (c *spoc) checkSupernetSrcRule(
 	rule *groupedRule, in, out *routerIntf, info checkInfo) {
 
@@ -431,7 +437,7 @@ PRT:
 //
 // and topology is like this:
 //
-//                      /-zone4
+//                        /-zone4
 // src-R1-zone2-R2-zone3-R3-zone5
 //      \-zone1
 //
@@ -440,6 +446,7 @@ PRT:
 //  permit src supernet2
 //  permit src supernet3
 //  permit src supernet4
+
 func (c *spoc) checkSupernetDstRule(
 	rule *groupedRule, in, out *routerIntf, info checkInfo) {
 
@@ -812,14 +819,22 @@ func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 // XX--R1--any:A--R2--R3--R4--YY
 //
 // If we have rules
-//   permit XX any:A
-//   permit any:B YY
+//
+//	permit XX any:A
+//	permit any:B YY
+//
 // and
-//   the intersection I of A and B isn't empty
+//
+//	the intersection I of A and B isn't empty
+//
 // and
-//   XX and YY are subnet of I
+//
+//	XX and YY are subnet of I
+//
 // then this traffic is implicitly permitted
-//   permit XX YY
+//
+//	permit XX YY
+//
 // which may be undesired.
 // In order to avoid this, a warning is generated if the implied rule is not
 // explicitly defined.
