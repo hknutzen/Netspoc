@@ -841,6 +841,20 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
+service:t3 = {
+ user = any:any1;
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 81;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:dst; dst=any:any1; prt=tcp 81; of service:t3
+ Generated ACL at interface:r2.dst would permit access to additional networks:
+ - network:t2
+ Either replace any:any1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:[network:t2] to dst of rule.
 =OUTPUT=
 --r2
 ! outside_in
@@ -851,6 +865,7 @@ access-group outside_in in interface outside
 --
 ! inside_in
 access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any4 eq 110
+access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any4 eq 81
 access-list inside_in extended deny ip any4 10.2.0.0 255.255.0.0
 access-list inside_in extended permit ip any4 any4
 access-group inside_in in interface inside
