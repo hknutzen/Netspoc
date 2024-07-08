@@ -22,12 +22,8 @@ type clusterInfo struct {
 func (c *spoc) getManagedLocalClusters() []clusterInfo {
 	mark := 1
 	var result []clusterInfo
-	seen := make(map[*zone]bool)
 	for _, r0 := range c.managedRouters {
-		if r0.managed != "local" {
-			continue
-		}
-		if r0.localMark != 0 {
+		if r0.managed != "local" || r0.localMark != 0 {
 			continue
 		}
 		filterOnly := r0.filterOnly
@@ -40,6 +36,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		nm := r0.interfaces[0].natMap
 
 		info := clusterInfo{natMap: nm, mark: mark, filterOnly: filterOnly}
+		seen := make(map[*zone]bool)
 
 		var walk func(r *router)
 		walk = func(r *router) {
@@ -61,9 +58,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 			}
 
 			for _, in := range r.interfaces {
-				z0 := in.zone
-				cluster := z0.cluster
-				for _, z := range cluster {
+				for _, z := range in.zone.cluster {
 					if seen[z] {
 						continue
 					}
@@ -75,9 +70,9 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 						net0 := n.address(nm)
 						ip := net0.Addr()
 						bits := net0.Bits()
-						for j, net := range filterOnly {
+						for _, net := range filterOnly {
 							if bits >= net.Bits() && net.Contains(ip) {
-								matched[filterOnly[j]] = true
+								matched[net] = true
 								continue NETWORK
 							}
 						}
@@ -101,11 +96,10 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		result = append(result, info)
 		mark++
 
-		for j, net := range filterOnly {
-			if matched[filterOnly[j]] {
-				continue
+		for _, net := range filterOnly {
+			if !matched[net] {
+				c.warn("Useless 'filter_only = %s' at %s", net, r0)
 			}
-			c.warn("Useless 'filter_only = %s' at %s", net, r0)
 		}
 	}
 	return result
