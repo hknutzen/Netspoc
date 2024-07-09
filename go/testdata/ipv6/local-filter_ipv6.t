@@ -116,7 +116,7 @@ router:d32 = {
 }
 network:n2 = { ip = ::a3e:200/123; }
 =ERROR=
-Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
 =END=
 
 ############################################################
@@ -869,6 +869,20 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
+service:t3 = {
+ user = any:any1;
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 81;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:dst; dst=any:any1; prt=tcp 81; of service:t3
+ Generated ACL at interface:r2.dst would permit access to additional networks:
+ - network:t2
+ Either replace any:any1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:[network:t2] to dst of rule.
 =OUTPUT=
 --ipv6/r2
 ! outside_in
@@ -879,6 +893,7 @@ access-group outside_in in interface outside
 --
 ! inside_in
 access-list inside_in extended permit tcp ::a02:100/123 any6 eq 110
+access-list inside_in extended permit tcp ::a02:100/123 any6 eq 81
 access-list inside_in extended deny ip any6 ::a02:0/112
 access-list inside_in extended permit ip any6 any6
 access-group inside_in in interface inside
@@ -938,6 +953,93 @@ access-list n4_in extended permit tcp ::a01:400/120 ::a01:500/120 eq 25
 access-list n4_in extended deny ip ::a01:400/119 ::a01:400/119
 access-list n4_in extended permit ip any6 any6
 access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=local-filter cluster separated by semi-managed routers
+=TEMPL=semi
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a02:500/120; }
+router:r1 = {
+ managed = local;
+ filter_only = ::a01:0/112;#r1
+ routing = dynamic;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+}
+router:r3 = {
+ managed = local;
+ filter_only = ::a01:0/112;
+ routing = dynamic;
+ model = ASA;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+router:r4 = {
+ interface:n4;
+ interface:n1;
+}
+router:r5 = {
+ managed;
+ model = ASA;
+ routing = dynamic;
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n5 = { ip = ::a02:501; hardware = n5; }
+}
+pathrestriction:p1 = interface:r2.n2, interface:r4.n4;
+=PARAMS=--ipv6
+=INPUT=
+[[semi]]
+service:s1 = {
+ user = network:n1, network:n4, network:n5;
+ permit src = user; dst = network:n3; prt = tcp 25;
+}
+=OUTPUT=
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit tcp ::a01:100/120 ::a01:300/120 eq 25
+access-list n1_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n1_in extended permit ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n2_in extended permit ip any6 any6
+access-group n2_in in interface n2
+-- ipv6/r3
+! n3_in
+access-list n3_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n3_in extended permit ip any6 any6
+access-group n3_in in interface n3
+--
+! n4_in
+object-group network v6g0
+ network-object ::a01:100/120
+ network-object ::a01:400/120
+access-list n4_in extended permit tcp object-group v6g0 ::a01:300/120 eq 25
+access-list n4_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n4_in extended permit ip any6 any6
+access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=Different filter_only separated by semi-managed
+=PARAMS=--ipv6
+=INPUT=
+[[semi]]
+=SUBST=/16;#r1/18;/
+=SUBST=/112;#r1/114;/
+# Also replace in generated IPv6 test.
+=ERROR=
+Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
 =END=
 
 ############################################################
