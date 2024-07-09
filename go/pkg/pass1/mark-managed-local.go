@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"net/netip"
+	"slices"
 )
 
 // Find cluster of zones connected by 'local' routers.
@@ -41,18 +42,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
-			equal := func(f0, f []netip.Prefix) bool {
-				if len(f0) != len(f) {
-					return false
-				}
-				for i, ipp := range f {
-					if f0[i] != ipp {
-						return false
-					}
-				}
-				return true
-			}
-			if !equal(filterOnly, r.filterOnly) {
+			if !slices.Equal(filterOnly, r.filterOnly) {
 				c.err("%s and %s must have identical values"+
 					" in attribute 'filter_only'", r0, r)
 			}
