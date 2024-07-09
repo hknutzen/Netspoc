@@ -33,7 +33,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		matched := make(map[netip.Prefix]bool)
 
 		// natMap is known to be identical inside 'local' cluster,
-		// because attribute 'bind_nat' is not valid at 'local' routers.
+		// because attribute 'bind_nat' is not allowed inside this cluster.
 		nm := r0.interfaces[0].natMap
 
 		info := clusterInfo{natMap: nm, mark: mark, filterOnly: filterOnly}
@@ -42,39 +42,52 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
-			if !slices.Equal(filterOnly, r.filterOnly) {
+			if r.managed == "local" && !slices.Equal(filterOnly, r.filterOnly) {
 				c.err("%s and %s must have identical values"+
 					" in attribute 'filter_only'", r0, r)
 			}
 
 			for _, in := range r.interfaces {
-				for _, z := range in.zone.cluster {
-					if seen[z] {
+				z := in.zone
+				if seen[z] {
+					continue
+				}
+				seen[z] = true
+
+				if in.bindNat != nil {
+					var reason string
+					if r.managed == "local" {
+						reason = "with 'managed = local'"
+					} else {
+						reason = "in zone beside router with 'managed = local'"
+					}
+					c.err("Attribute 'bind_nat' is not allowed"+
+						" at %s %s", in, reason)
+				}
+				// All networks in local zone must match filterOnly.
+			NETWORK:
+				for _, n := range z.networks {
+					net0 := n.address(nm)
+					ip := net0.Addr()
+					bits := net0.Bits()
+					for _, net := range filterOnly {
+						if bits >= net.Bits() && net.Contains(ip) {
+							matched[net] = true
+							continue NETWORK
+						}
+					}
+					c.err("%s doesn't match attribute 'filter_only' of %s", n, r)
+				}
+
+				for _, out := range z.interfaces {
+					if out == in {
 						continue
 					}
-					seen[z] = true
-
-					// All networks in local zone must match filterOnly.
-				NETWORK:
-					for _, n := range z.networks {
-						net0 := n.address(nm)
-						ip := net0.Addr()
-						bits := net0.Bits()
-						for _, net := range filterOnly {
-							if bits >= net.Bits() && net.Contains(ip) {
-								matched[net] = true
-								continue NETWORK
-							}
-						}
-						c.err("%s doesn't match attribute 'filter_only' of %s", n, r)
-					}
-
-					for _, out := range z.interfaces {
-						if out == in {
-							continue
-						}
-						r2 := out.router
-						if r2.managed == "local" && r2.localMark == 0 {
+					r2 := out.router
+					switch r2.managed {
+					// Semi-managed router may be part of managed=local cluster.
+					case "local", "":
+						if r2.localMark == 0 {
 							walk(r2)
 						}
 					}

@@ -99,17 +99,24 @@ Warning: Useless 'filter_only = 10.62.3.0/24' at router:r1
 ############################################################
 =TITLE=NAT not allowed
 =INPUT=
-network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.3.0/27; } }
+network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.4.0/27; } }
+network:n2 = { ip = 10.62.2.0/27;  nat:n2 = { ip = 10.62.5.0/27; } }
+network:n3 = { ip = 10.62.3.0/27; }
 router:d32 = {
  model = ASA;
  managed = local;
+ routing = manual;
  filter_only =  10.62.0.0/19;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; bind_nat = n1;}
 }
-network:n2 = { ip = 10.62.2.0/27; }
+router:u = {
+ interface:n2;
+ interface:n3 = { bind_nat = n2; }
+}
 =ERROR=
-Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
 =END=
 
 ############################################################
