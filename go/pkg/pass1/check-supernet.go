@@ -167,16 +167,8 @@ func findZoneNetworks(
 // reversed: the check is for reversed rule at stateless device
 func (c *spoc) checkSupernetInZone1(
 	rule *groupedRule, where string, intf *routerIntf,
-	z *zone, info checkInfo, reversed bool) {
-
-	if z.noCheckSupernetRules {
-		return
-	}
-	if info.seen[z] {
-		return
-	}
-	info.seen[z] = true
-
+	z *zone, info checkInfo, reversed bool,
+) {
 	// This is only called if src or dst is some supernet.
 	var supernet *network
 	if where == "src" {
@@ -248,9 +240,17 @@ func (c *spoc) checkSupernetInZone1(
 
 func (c *spoc) checkSupernetInZone(
 	rule *groupedRule, where string, intf *routerIntf,
-	z *zone, info checkInfo, reversed bool) {
-
-	for _, z := range z.cluster {
+	z *zone, info checkInfo, reversed bool,
+) {
+	if z.noCheckSupernetRules {
+		return
+	}
+	cl := z.cluster
+	if info.seen[cl[0]] {
+		return
+	}
+	info.seen[cl[0]] = true
+	for _, z := range cl {
 		c.checkSupernetInZone1(rule, where, intf, z, info, reversed)
 	}
 }
@@ -548,7 +548,7 @@ func (c *spoc) checkMissingSupernetRules(
 		for _, obj := range list {
 			if x, ok := obj.(*network); ok {
 				if x.hasOtherSubnet {
-					supernets = append(supernets, x)
+					supernets.push(x)
 				}
 			}
 		}
