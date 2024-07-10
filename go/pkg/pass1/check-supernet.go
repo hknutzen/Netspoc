@@ -42,7 +42,7 @@ type checkInfo struct {
 }
 
 //#############################################################################
-// Check if high-level and low-level semantics of rules with an supernet
+// Check if high-level and low-level semantics of rules with a supernet
 // as source or destination are equivalent.
 //
 // I. Typically, we only use incoming ACLs.
