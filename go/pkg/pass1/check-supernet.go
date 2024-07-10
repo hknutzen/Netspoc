@@ -37,8 +37,8 @@ func shortNameList(l []someObj) string {
 }
 
 type checkInfo struct {
-	zone2netMap map[*zone]map[*network]bool
-	seen        map[*zone]bool
+	netMap map[*network]bool
+	seen   map[*zone]bool
 }
 
 //#############################################################################
@@ -190,7 +190,7 @@ func (c *spoc) checkSupernetInZone1(
 		return
 	}
 	ipp := natSuper.ipp
-	netMap := info.zone2netMap[z]
+	netMap := info.netMap
 	agg, networks :=
 		findZoneNetworks(z, supernet.isAggregate, ipp, natMap, netMap)
 
@@ -556,20 +556,15 @@ func (c *spoc) checkMissingSupernetRules(
 			continue
 		}
 
-		// Build mapping from zone to map of all src/dst networks and
-		// aggregates of current rule.
-		zone2netMap := make(map[*zone]map[*network]bool)
+		// Build mapping for all src/dst networks and aggregates of
+		// current rule.
+		netMap := make(map[*network]bool)
 		for _, obj := range list {
 			if x, ok := obj.(*network); ok {
-				netMap := zone2netMap[x.zone]
-				if netMap == nil {
-					netMap = make(map[*network]bool)
-					zone2netMap[x.zone] = netMap
-				}
 				netMap[x] = true
 			}
 		}
-		info := checkInfo{zone2netMap: zone2netMap}
+		info := checkInfo{netMap: netMap}
 
 		groupInfo := splitRuleGroup(oList)
 		checkRule := new(groupedRule)
