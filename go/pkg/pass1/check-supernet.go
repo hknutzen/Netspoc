@@ -128,7 +128,7 @@ func findZoneNetworks(
 	// Use cached result.
 	l, found := z.ipPrefix2net[ipp]
 
-	// Cheack real networks in zone without aggregates and without subnets.
+	// Check real networks in zone without aggregates and without subnets.
 	if !found {
 		bits := ipp.Bits()
 		for _, net := range z.networks {
@@ -324,13 +324,14 @@ func (c *spoc) checkSupernetSrcRule(
 	// This is only called if src is some supernet.
 	src := rule.src[0].(*network)
 
-	// Non matching rule will be ignored at 'managed=local' router and
-	// hence must no be checked.
+	// Rule will not be filtered at 'managed=local' router and
+	// hence every IP matching 'filter_only' may reach destination.
+	dstZone := rule.dstPath.getZone()
 	if !isFilteredAt(r, src, rule.dst) {
+		c.checkFilterOnlyAccess(rule, "src", in, src, dstZone, info.netMap)
 		return
 	}
 
-	dstZone := rule.dstPath.getZone()
 	inZone := in.zone
 
 	// Check case II, outgoing ACL, (A)
@@ -461,16 +462,17 @@ func (c *spoc) checkSupernetDstRule(
 		return
 	}
 
-	// This is only called if dst is some supernet.
+	// dst is known to be some supernet.
 	dst := rule.dst[0].(*network)
 
-	// Non matching rule will be ignored at 'managed=local' router and
-	// hence must not be checked.
+	// Rule will not be filtered at 'managed=local' router and
+	// hence every IP matching 'filter_only' may be reached from source.
+	srcZone := rule.srcPath.getZone()
 	if !isFilteredAt(r, dst, rule.src) {
+		c.checkFilterOnlyAccess(rule, "dst", in, dst, srcZone, info.netMap)
 		return
 	}
 
-	srcZone := rule.srcPath.getZone()
 	dstZone := dst.zone
 
 	// Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -566,10 +568,14 @@ func (c *spoc) checkMissingSupernetRules(
 		}
 		info := checkInfo{netMap: netMap}
 
+		localClusterSeen := make(map[*zone]bool)
 		groupInfo := splitRuleGroup(oList)
 		checkRule := new(groupedRule)
 		checkRule.serviceRule = rule.serviceRule
 		for _, supernet := range supernets {
+			z1 := supernet.zone
+			cl := z1.managedLocalCluster
+			// Show warnings again for each supernet.
 			info.seen = make(map[*zone]bool)
 			if what == "src" {
 				checkRule.src = []someObj{supernet}
@@ -579,8 +585,8 @@ func (c *spoc) checkMissingSupernetRules(
 				checkRule.dstPath = supernet.zone
 			}
 			for _, gi := range groupInfo {
-				z2 := gi.path.getZone()
-				if zoneEq(supernet.zone, z2) {
+				pathObj := gi.path.getZone()
+				if zoneEq(z1, pathObj) {
 					continue
 				}
 				if what == "src" {
@@ -589,6 +595,11 @@ func (c *spoc) checkMissingSupernetRules(
 				} else {
 					checkRule.srcPath = gi.path
 					checkRule.src = gi.group
+				}
+
+				if cl != nil && !localClusterSeen[cl.zones[0]] {
+					c.checkManagedLocalSupernets(
+						checkRule, what, supernet, gi, info, localClusterSeen)
 				}
 				c.pathWalk(checkRule,
 					func(r *groupedRule, i, o *routerIntf) {

@@ -106,17 +106,24 @@ Warning: Useless 'filter_only = ::a3e:300/120' at router:r1
 =TITLE=NAT not allowed
 =PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; nat:n1 = { ip = ::a3e:300/123; } }
+network:n1 = { ip = ::a3e:120/123; nat:n1 = { ip = ::a3e:400/123; } }
+network:n2 = { ip = ::a3e:200/123;  nat:n2 = { ip = ::a3e:500/123; } }
+network:n3 = { ip = ::a3e:300/123; }
 router:d32 = {
  model = ASA;
  managed = local;
+ routing = manual;
  filter_only =  ::a3e:0/115;
  interface:n1 = { ip = ::a3e:121; hardware = n1; }
  interface:n2 = { ip = ::a3e:201; hardware = n2; bind_nat = n1;}
 }
-network:n2 = { ip = ::a3e:200/123; }
+router:u = {
+ interface:n2;
+ interface:n3 = { bind_nat = n2; }
+}
 =ERROR=
 Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
 =END=
 
 ############################################################
@@ -1241,6 +1248,152 @@ interface n22
  ipv6 address ::a02:201/120
  ip vrf forwarding v2
  ipv6 traffic-filter n22_in in
+=END=
+
+############################################################
+=TITLE=Local aggregate permits local network
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:2; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip = ::a01:0/112 & network:n1];
+        prt = tcp 80;
+ permit src = any:[ip = ::a01:0/112 & network:n1];
+        dst = user;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=::a01:0/112 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n2
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=::a01:0/112 & network:n1]; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Local supernet as destination permits local network behind supernet
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a02:200/120; subnet_of = network:intern; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:2; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:intern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Supernet permits subnets in separate local cluster
+=PARAMS=--ipv6
+=INPUT=
+network:super = { ip = ::a01:0/112; }
+network:n1 = { ip = ::a01:100/120; subnet_of = network:super; }
+network:n2 = { ip = ::a01:200/120; subnet_of = network:super; }
+network:n3 = { ip = ::a01:300/120; subnet_of = network:super; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = ::a01:1; hardware = super; }
+ interface:n1    = { ip = ::a01:101; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:intern = { ip = ::a02:2; hardware = intern; }
+}
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:3; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:super;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:super;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:super; dst=network:extern; prt=tcp 80; of service:s1
+ router:r2 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:super; prt=tcp 80; of service:s2
+ router:r2 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
 =END=
 
 ############################################################

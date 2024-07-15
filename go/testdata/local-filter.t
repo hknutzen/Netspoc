@@ -1216,3 +1216,146 @@ interface n22
 =END=
 
 ############################################################
+=TITLE=Local aggregate permits local network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip = 10.1.0.0/16 & network:n1];
+        prt = tcp 80;
+ permit src = any:[ip = 10.1.0.0/16 & network:n1];
+        dst = user;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=10.1.0.0/16 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n2
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.1.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Local supernet as destination permits local network behind supernet
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.2.2.0/24; subnet_of = network:intern; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:intern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Supernet permits subnets in separate local cluster
+=INPUT=
+network:super = { ip = 10.1.0.0/16; }
+network:n1 = { ip = 10.1.1.0/24; subnet_of = network:super; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:super; }
+network:n3 = { ip = 10.1.3.0/24; subnet_of = network:super; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = 10.1.0.1; hardware = super; }
+ interface:n1    = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:intern = { ip = 10.2.0.2; hardware = intern; }
+}
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.3; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:super;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:super;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:super; dst=network:extern; prt=tcp 80; of service:s1
+ router:r2 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:super; prt=tcp 80; of service:s2
+ router:r2 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+=END=
+
+############################################################
