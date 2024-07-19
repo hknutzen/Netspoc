@@ -284,9 +284,8 @@ func (c *spoc) checkFilterOnlyAccess(
 		}
 	}
 	natNetwork := getNatNetwork(supernet, in.natMap)
-	if natNetwork.hidden {
-		return
-	}
+	// If natNetwork is hidden, bits is -1 and ipp is the zero value
+	// and won't match any other network.
 	ipp := natNetwork.ipp
 	bits := natNetwork.ipp.Bits()
 	cl := in.zone.managedLocalCluster
