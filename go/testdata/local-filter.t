@@ -1285,6 +1285,13 @@ service:s1 = {
         dst = network:intern;
         prt = tcp 80;
 }
+# Test coverage: access from supernet to interface in same cluster
+service:s2 = {
+ user = any:[network:n1];
+ permit src = user;
+        dst = interface:d32.intern;
+        prt = tcp 80;
+}
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:extern; dst=network:intern; prt=tcp 80; of service:s1
