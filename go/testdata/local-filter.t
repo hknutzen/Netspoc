@@ -1301,32 +1301,45 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
-=TITLE=Access from external aggregate matching filter_only
+=TITLE=Access from external network matching filter_only is filtered at both
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.2.2.0/24; subnet_of = network:intern; }
-network:intern = { ip = 10.2.0.0/16; }
-network:extern = { ip = 10.4.0.0/16; }
+network:n2 = { ip = 10.2.2.0/24; }
+network:intern = { ip = 10.2.3.0/24; }
+network:extern = { ip = 10.2.4.0/24; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.1.0.0/16, 10.2.0.0/16;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
- interface:intern = { ip = 10.2.0.1; hardware = intern; }
+ interface:intern = { ip = 10.2.3.1; hardware = intern; }
 }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = 10.2.0.2; hardware = inside; }
- interface:extern = { ip = 10.4.0.1; hardware = outside; }
+ interface:intern = { ip = 10.2.3.2; hardware = inside; }
+ interface:extern = { ip = 10.2.4.1; hardware = outside; }
 }
 service:s1 = {
- user = any:[ip=10.1.99.0/24 & network:extern];
+ user = network:extern;
  permit src = user;
-        dst = network:n1;
+        dst = any:[ip=10.2.0.0/16&network:n1];
         prt = tcp 80;
 }
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.2.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d31.extern would permit access to additional networks:
+ - network:intern
+ Either replace any:[ip=10.2.0.0/16 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.2.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d32.intern would permit access to additional networks:
+ - network:n2
+ Either replace any:[ip=10.2.0.0/16 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 =OUTPUT=
 --d32
 ! n1_in
@@ -1338,12 +1351,13 @@ access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
 --
 ! intern_in
+access-list intern_in extended permit tcp 10.2.4.0 255.255.255.0 10.2.0.0 255.255.0.0 eq 80
 access-list intern_in extended deny ip object-group g0 object-group g0
 access-list intern_in extended permit ip any4 any4
 access-group intern_in in interface intern
 --d31
 ! outside_in
-access-list outside_in extended permit tcp 10.1.99.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp 10.2.4.0 255.255.255.0 10.2.0.0 255.255.0.0 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
@@ -1412,5 +1426,45 @@ Warning: This supernet rule would permit unexpected access:
  - network:n2
  - network:n3
 =END=
+
+############################################################
+=TITLE=All supernets permitted in separate local cluster
+=INPUT=
+network:super = { ip = 10.1.0.0/16; }
+network:n1 = { ip = 10.1.1.0/24; subnet_of = network:super; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:super; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = 10.1.0.1; hardware = super; }
+ interface:n1    = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+
+service:s1 = {
+ user = network:super,
+        any:[ip = 10.1.0.0/16 & network:n1],
+        any:[ip = 10.1.0.0/16 & network:n2],
+        ;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+=WARNING=NONE
 
 ############################################################
