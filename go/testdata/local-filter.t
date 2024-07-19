@@ -1301,6 +1301,54 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Access from external aggregate matching filter_only
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.2.2.0/24; subnet_of = network:intern; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = any:[ip=10.1.99.0/24 & network:extern];
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.1.0.0 255.255.0.0
+ network-object 10.2.0.0 255.255.0.0
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+--
+! intern_in
+access-list intern_in extended deny ip object-group g0 object-group g0
+access-list intern_in extended permit ip any4 any4
+access-group intern_in in interface intern
+--d31
+! outside_in
+access-list outside_in extended permit tcp 10.1.99.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+=END=
+
+############################################################
 =TITLE=Supernet permits subnets in separate local cluster
 =INPUT=
 network:super = { ip = 10.1.0.0/16; }

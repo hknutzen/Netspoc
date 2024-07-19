@@ -130,14 +130,10 @@ func (c *spoc) markManagedLocal() {
 
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
-		for _, zone := range c.allZones {
-			processWithSubnetworks(zone.networks, func(n *network) {
-				natNetwork := getNatNetwork(n, cluster.natMap)
-				if natNetwork.hidden {
-					return
-				}
-				ip := natNetwork.ipp.Addr()
-				bits := natNetwork.ipp.Bits()
+		for _, z := range c.allZones {
+			setMark := func(ipp netip.Prefix, n *network) {
+				ip := ipp.Addr()
+				bits := ipp.Bits()
 				for _, net := range cluster.filterOnly {
 					if bits >= net.Bits() && net.Contains(ip) {
 
@@ -148,11 +144,9 @@ func (c *spoc) markManagedLocal() {
 							if m == nil {
 								m = make(map[int]bool)
 								obj.filterAt = m
-							}
-
-							// Has already been processed as supernet of
-							// other network.
-							if m[mark] {
+							} else if m[mark] {
+								// Has already been processed as supernet of
+								// other network.
 								break
 							}
 							m[mark] = true
@@ -162,7 +156,17 @@ func (c *spoc) markManagedLocal() {
 						}
 					}
 				}
+			}
+			processWithSubnetworks(z.networks, func(n *network) {
+				natNetwork := getNatNetwork(n, cluster.natMap)
+				if natNetwork.hidden {
+					return
+				}
+				setMark(natNetwork.ipp, n)
 			})
+			for _, agg := range z.ipPrefix2aggregate {
+				setMark(agg.ipp, agg)
+			}
 		}
 
 		// Rules from general_permit should be applied to all devices
