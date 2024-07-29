@@ -302,7 +302,7 @@ Error: IPv4 topology has unconnected parts:
 =END=
 
 ############################################################
-=TITLE=Intentionally unconnected with more than network in zone.
+=TITLE=Intentionally unconnected with more than one network in zone.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; partition = part1; }
 network:n2 = { ip = 10.1.2.0/24; }

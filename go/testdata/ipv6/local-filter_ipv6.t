@@ -106,17 +106,24 @@ Warning: Useless 'filter_only = ::a3e:300/120' at router:r1
 =TITLE=NAT not allowed
 =PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; nat:n1 = { ip = ::a3e:300/123; } }
+network:n1 = { ip = ::a3e:120/123; nat:n1 = { ip = ::a3e:400/123; } }
+network:n2 = { ip = ::a3e:200/123;  nat:n2 = { ip = ::a3e:500/123; } }
+network:n3 = { ip = ::a3e:300/123; }
 router:d32 = {
  model = ASA;
  managed = local;
+ routing = manual;
  filter_only =  ::a3e:0/115;
  interface:n1 = { ip = ::a3e:121; hardware = n1; }
  interface:n2 = { ip = ::a3e:201; hardware = n2; bind_nat = n1;}
 }
-network:n2 = { ip = ::a3e:200/123; }
+router:u = {
+ interface:n2;
+ interface:n3 = { bind_nat = n2; }
+}
 =ERROR=
-Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
 =END=
 
 ############################################################
@@ -869,6 +876,20 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
+service:t3 = {
+ user = any:any1;
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 81;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:dst; dst=any:any1; prt=tcp 81; of service:t3
+ Generated ACL at interface:r2.dst would permit access to additional networks:
+ - network:t2
+ Either replace any:any1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:[network:t2] to dst of rule.
 =OUTPUT=
 --ipv6/r2
 ! outside_in
@@ -879,6 +900,7 @@ access-group outside_in in interface outside
 --
 ! inside_in
 access-list inside_in extended permit tcp ::a02:100/123 any6 eq 110
+access-list inside_in extended permit tcp ::a02:100/123 any6 eq 81
 access-list inside_in extended deny ip any6 ::a02:0/112
 access-list inside_in extended permit ip any6 any6
 access-group inside_in in interface inside
@@ -938,6 +960,93 @@ access-list n4_in extended permit tcp ::a01:400/120 ::a01:500/120 eq 25
 access-list n4_in extended deny ip ::a01:400/119 ::a01:400/119
 access-list n4_in extended permit ip any6 any6
 access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=local-filter cluster separated by semi-managed routers
+=TEMPL=semi
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a02:500/120; }
+router:r1 = {
+ managed = local;
+ filter_only = ::a01:0/112;#r1
+ routing = dynamic;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+}
+router:r3 = {
+ managed = local;
+ filter_only = ::a01:0/112;
+ routing = dynamic;
+ model = ASA;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+router:r4 = {
+ interface:n4;
+ interface:n1;
+}
+router:r5 = {
+ managed;
+ model = ASA;
+ routing = dynamic;
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n5 = { ip = ::a02:501; hardware = n5; }
+}
+pathrestriction:p1 = interface:r2.n2, interface:r4.n4;
+=PARAMS=--ipv6
+=INPUT=
+[[semi]]
+service:s1 = {
+ user = network:n1, network:n4, network:n5;
+ permit src = user; dst = network:n3; prt = tcp 25;
+}
+=OUTPUT=
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit tcp ::a01:100/120 ::a01:300/120 eq 25
+access-list n1_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n1_in extended permit ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n2_in extended permit ip any6 any6
+access-group n2_in in interface n2
+-- ipv6/r3
+! n3_in
+access-list n3_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n3_in extended permit ip any6 any6
+access-group n3_in in interface n3
+--
+! n4_in
+object-group network v6g0
+ network-object ::a01:100/120
+ network-object ::a01:400/120
+access-list n4_in extended permit tcp object-group v6g0 ::a01:300/120 eq 25
+access-list n4_in extended deny ip ::a01:0/112 ::a01:0/112
+access-list n4_in extended permit ip any6 any6
+access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=Different filter_only separated by semi-managed
+=PARAMS=--ipv6
+=INPUT=
+[[semi]]
+=SUBST=/16;#r1/18;/
+=SUBST=/112;#r1/114;/
+# Also replace in generated IPv6 test.
+=ERROR=
+Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
 =END=
 
 ############################################################
@@ -1140,5 +1249,262 @@ interface n22
  ip vrf forwarding v2
  ipv6 traffic-filter n22_in in
 =END=
+
+############################################################
+=TITLE=Local aggregate permits local network
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:2; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip = ::a01:0/112 & network:n1];
+        prt = tcp 80;
+ permit src = any:[ip = ::a01:0/112 & network:n1];
+        dst = user;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=::a01:0/112 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n2
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=::a01:0/112 & network:n1]; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Local supernet as destination permits local network behind supernet
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a02:200/120; subnet_of = network:intern; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:2; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+# Test coverage: access from supernet to interface in same cluster
+service:s2 = {
+ user = any:[network:n1];
+ permit src = user;
+        dst = interface:d32.intern;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:intern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Access from external network matching filter_only is filtered at both
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a02:200/120; }
+network:intern = { ip = ::a02:300/120; }
+network:extern = { ip = ::a02:400/120; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:intern = { ip = ::a02:301; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:302; hardware = inside; }
+ interface:extern = { ip = ::a02:401; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip=::a02:0/112&network:n1];
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d31.extern would permit access to additional networks:
+ - network:intern
+ Either replace any:[ip=::a02:0/112 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d32.intern would permit access to additional networks:
+ - network:n2
+ Either replace any:[ip=::a02:0/112 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=OUTPUT=
+--ipv6/d32
+! n1_in
+object-group network v6g0
+ network-object ::a01:0/112
+ network-object ::a02:0/112
+access-list n1_in extended deny ip any6 object-group v6g0
+access-list n1_in extended permit ip any6 any6
+access-group n1_in in interface n1
+--
+! intern_in
+access-list intern_in extended permit tcp ::a02:400/120 ::a02:0/112 eq 80
+access-list intern_in extended deny ip object-group v6g0 object-group v6g0
+access-list intern_in extended permit ip any6 any6
+access-group intern_in in interface intern
+--ipv6/d31
+! outside_in
+access-list outside_in extended permit tcp ::a02:400/120 ::a02:0/112 eq 80
+access-list outside_in extended deny ip any6 any6
+access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=Supernet permits subnets in separate local cluster
+=PARAMS=--ipv6
+=INPUT=
+network:super = { ip = ::a01:0/112; }
+network:n1 = { ip = ::a01:100/120; subnet_of = network:super; }
+network:n2 = { ip = ::a01:200/120; subnet_of = network:super; }
+network:n3 = { ip = ::a01:300/120; subnet_of = network:super; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = ::a01:1; hardware = super; }
+ interface:n1    = { ip = ::a01:101; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:intern = { ip = ::a02:2; hardware = intern; }
+}
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:3; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+service:s1 = {
+ user = network:super;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:super;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:super; dst=network:extern; prt=tcp 80; of service:s1
+ router:r2 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:super; prt=tcp 80; of service:s2
+ router:r2 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+=END=
+
+############################################################
+=TITLE=All supernets permitted in separate local cluster
+=PARAMS=--ipv6
+=INPUT=
+network:super = { ip = ::a01:0/112; }
+network:n1 = { ip = ::a01:100/120; subnet_of = network:super; }
+network:n2 = { ip = ::a01:200/120; subnet_of = network:super; }
+network:intern = { ip = ::a02:0/112; }
+network:extern = { ip = ::a04:0/112; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = ::a01:1; hardware = super; }
+ interface:n1    = { ip = ::a01:101; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  ::a01:0/112, ::a02:0/112;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:intern = { ip = ::a02:1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = ::a02:2; hardware = inside; }
+ interface:extern = { ip = ::a04:1; hardware = outside; }
+}
+
+service:s1 = {
+ user = network:super,
+        any:[ip = ::a01:0/112 & network:n1],
+        any:[ip = ::a01:0/112 & network:n2],
+        ;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+=WARNING=NONE
 
 ############################################################

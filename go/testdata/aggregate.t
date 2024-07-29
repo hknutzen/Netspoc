@@ -271,6 +271,44 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Two warnings for split protocol with and without modifiers
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+protocol:ftp-passive-data = tcp 1024 - 65535, stateless;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = tcp 21, protocol:ftp-passive-data;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=tcp 21; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=protocol:ftp-passive-data; stateless of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
 =TITLE=Ignore hidden network in supernet check (1)
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

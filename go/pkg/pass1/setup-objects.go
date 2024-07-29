@@ -1315,7 +1315,6 @@ func (c *spoc) setupRouter(v *ast.Router) {
 
 		// Detailed interface processing for managed routers.
 		isCryptoHub := false
-		hasBindNat := false
 		for _, intf := range r.interfaces {
 			if intf.hub != nil || intf.spoke != nil {
 				if r.model.crypto == "" {
@@ -1325,9 +1324,6 @@ func (c *spoc) setupRouter(v *ast.Router) {
 			}
 			if intf.hub != nil {
 				isCryptoHub = true
-			}
-			if intf.bindNat != nil {
-				hasBindNat = true
 			}
 			// Link bridged interfaces with corresponding layer3 device.
 			// Used in findAutoInterfaces.
@@ -1340,12 +1336,6 @@ func (c *spoc) setupRouter(v *ast.Router) {
 
 		c.checkNoInAcl(r)
 
-		if r.managed == "local" {
-			if hasBindNat {
-				c.err("Attribute 'bind_nat' is not allowed"+
-					" at interface of %s with 'managed = local'", name)
-			}
-		}
 		if r.model.doAuth {
 			if !isCryptoHub {
 				c.warn("Attribute 'hub' needs to be defined"+

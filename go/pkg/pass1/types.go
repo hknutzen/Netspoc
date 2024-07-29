@@ -484,6 +484,7 @@ type zone struct {
 	statefulMark         int
 	watchingOwners       []*owner
 	cluster              []*zone
+	managedLocalCluster  *managedLocalCluster
 }
 
 func (x zone) String() string { return x.name }
