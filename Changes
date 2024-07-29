@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+6.071     2024-07-29 16:47:58+02:00 Europe/Berlin
+
+ - Fixed generated ACL at router R with managed=local for rule where
+   - source or destination is some aggregate G,
+   - G has IP address matching "filter_only" of R,
+   - G has no subnetworks in its zone,
+   - other side of rule is located inside managed-local cluster of R.
+   Previously no ACL was generated for this rule at R.
+   This has been fixed.
  - Added new check for unexpected access from supernet rule at router
    with 'managed=local':
    1. Checks rule where
