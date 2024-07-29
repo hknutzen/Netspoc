@@ -1,5 +1,22 @@
 {{$NEXT}}
 
+ - Added new check for unexpected access from supernet rule at router
+   with 'managed=local':
+   1. Checks rule where
+   - source or destination is some supernet,
+   - this supernet is located inside some managed=local cluster
+   - and other side of rule is outside of managed=local cluster.
+   In this case, the rule would not be filtered inside managed=local cluster
+   and hence access from/to subnets in same cluster
+   would be allowed by accident.
+   2. Checks path of rule at router with managed=local where
+   - both sides of rule are located outside of managed=local cluster,
+   - source or destination is some supernet,
+   - subnet of this supernet is located in managed=local cluster,
+   In this case, the rule would not be filtered inside managed=local cluster
+   and hence access from/to subnets in same cluster
+   would be allowed by accident.
+
 6.070     2024-06-26 15:33:44+02:00 Europe/Berlin
 
  -  Fixed mixed managed=local/managed in VRFs of one device.

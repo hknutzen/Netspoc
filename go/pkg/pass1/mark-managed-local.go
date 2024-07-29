@@ -261,23 +261,27 @@ ROUTER:
 	c.showManagedLocalWarning(&cp, where, r, missing)
 }
 
-// Checks path of rule at router with managed=local
-// where source or destination is some supernet
-// for subnets of supernet in current managed=local cluster.
-// If rule isn't filtered at current router, access from/to subnets in
-// cluster would be allowed by accident.
+// Checks path of rule at router with managed=local where
+// - both sides of rule are located outside of managed=local cluster,
+// - source or destination is some supernet,
+// - subnet of this supernet is located in managed=local cluster,
+// In this case, the rule would not be filtered inside managed=local cluster
+// and hence access from/to subnets in same cluster
+// would be allowed by accident.
 func (c *spoc) checkFilterOnlyAccess(
 	rule *groupedRule, where string,
 	in *routerIntf, supernet *network, other pathObj, netMap map[*network]bool,
 ) {
 	r := in.router
 	mark := r.localMark
-	// Has already been checked in checkManagedLocalSupernets.
+	// Supernet is located inside current managed=local cluster.
+	// This case has already been checked in checkManagedLocalSupernets.
 	if cl := supernet.zone.managedLocalCluster; cl != nil && cl.mark == mark {
 		return
 	}
-	// Current router and other side of rule are located in same
-	// managed=local cluster.
+	// Other side of rule is located in current managed=local cluster.
+	// If both, subnet and other are located inside same managed=local cluster,
+	// deny-rules for 'filter_only' prevent access from subnet to other.
 	if z, ok := other.(*zone); ok {
 		if cl2 := z.managedLocalCluster; cl2 != nil && cl2.mark == mark {
 			return
