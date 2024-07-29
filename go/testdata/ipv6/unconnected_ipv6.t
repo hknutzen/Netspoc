@@ -315,7 +315,7 @@ Error: IPv6 topology has unconnected parts:
 =END=
 
 ############################################################
-=TITLE=Intentionally unconnected with more than network in zone.
+=TITLE=Intentionally unconnected with more than one network in zone.
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; partition = part1; }
