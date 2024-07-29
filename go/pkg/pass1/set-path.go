@@ -207,14 +207,10 @@ func extractPartitionsConnectedBySplitRouter(partitions []*zone,
 	var unconnectedPartitions []*zone
 Partition:
 	for _, zone1 := range partitions {
-		if partition2splitCrypto[zone1] != nil {
-			for _, routerPart := range partition2splitCrypto[zone1] {
-				origRouter := routerPart.origRouter
-				if router2partition[origRouter] != nil {
-					zone2 := router2partition[origRouter]
-					if zone1 != zone2 {
-						continue Partition
-					}
+		for _, routerPart := range partition2splitCrypto[zone1] {
+			if zone2 := router2partition[routerPart.origRouter]; zone2 != nil {
+				if zone1 != zone2 {
+					continue Partition
 				}
 			}
 		}
