@@ -4577,6 +4577,29 @@ Warning: Useless 'subnet_of = network:n2' at network:n1
 =END=
 
 ############################################################
+=TITLE=Useless subnet_of with network 0/0 present
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { identity; }
+ subnet_of = network:n2;
+}
+network:n2 = {
+ ip = 10.1.0.0/21;
+ nat:h2 = { hidden; }
+}
+network:inet = { ip = 0.0.0.0/0; has_subnets; }
+router:r1 = {
+ interface:n1 = { bind_nat = h2; }
+ interface:n2 = { bind_nat = h1; }
+ interface:inet = { bind_nat = h2; }
+}
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
 =TITLE=Must find subnet relation even with intermediate aggregate and NAT
 =INPUT=
 network:n0 = { ip = 10.0.0.0/24; }

@@ -486,27 +486,29 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			bignet := origNet[natBignet]
 
 			if l := natSubnet.interfaces; !(len(l) == 1 && l[0].isLayer3) {
-				subnet.subnetOfUsed = true
-				if printType := c.conf.CheckSubnets; printType != "" &&
-					// Take original bignet, because currently
-					// there's no method to specify a natted network
-					// as value of subnet_of.
-					natSubnet.subnetOf != bignet &&
-					!(bignet.hasSubnets &&
-						(bignet.ipp.Bits() == 0 ||
-							zoneEq(bignet.zone, subnet.zone) ||
-							isLoopbackAtZoneBorder(subnet, bignet))) {
+				// Take original bignet, because currently
+				// there's no method to specify a natted network
+				// as value of subnet_of.
+				if natSubnet.subnetOf == bignet {
+					subnet.subnetOfUsed = true
+				} else if !(bignet.hasSubnets &&
+					(bignet.ipp.Bits() == 0 ||
+						zoneEq(bignet.zone, subnet.zone) ||
+						isLoopbackAtZoneBorder(subnet, bignet))) {
 
-					// Prevent multiple error messages in
-					// different NAT domains.
-					if natSubnet.subnetOf == nil {
-						natSubnet.subnetOf = bignet
+					if printType := c.conf.CheckSubnets; printType != "" {
+						// Prevent multiple error messages in
+						// different NAT domains.
+						if natSubnet.subnetOf == nil {
+							natSubnet.subnetOf = bignet
+							natSubnet.subnetOfUsed = true
+						}
+						c.warnOrErr(printType,
+							"%s is subnet of %s\n"+
+								" in %s.\n"+
+								" If desired, declare attribute 'subnet_of'",
+							natName(natSubnet), natName(natBignet), domain.name)
 					}
-					c.warnOrErr(printType,
-						"%s is subnet of %s\n"+
-							" in %s.\n"+
-							" If desired, declare attribute 'subnet_of'",
-						natName(natSubnet), natName(natBignet), domain.name)
 				}
 			}
 
