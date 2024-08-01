@@ -4319,10 +4319,9 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
-=TITLE=Multiple subnets with identical NAT IP
+=TITLE=Multiple networks with identical NAT IP
 # Must not show warning for network:n2.
-# Both subnets must be marked as subnet although they have identical
-# IP addresses in NAT domain n4.
+# Both subnets have identical IP addresses in NAT domain n4.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
@@ -4345,6 +4344,34 @@ service:s1 = {
  permit src = user; dst = network:n4; prt = tcp;
 }
 =WARNING=NONE
+
+############################################################
+=TITLE=Multiple subnets with identical NAT IP
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.127.0.1; hardware = n4; bind_nat = a; }
+}
+network:n4 = { ip = 10.127.0.0/16; }
+=WARNING=
+Warning: nat:a of network:n1 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+Warning: nat:a of network:n2 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+=END=
 
 ############################################################
 =TITLE=Mixed hidden and non hidden.

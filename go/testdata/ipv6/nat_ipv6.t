@@ -4450,10 +4450,9 @@ ipv6 access-list n2_in
 =END=
 
 ############################################################
-=TITLE=Multiple subnets with identical NAT IP
+=TITLE=Multiple networks with identical NAT IP
 # Must not show warning for network:n2.
-# Both subnets must be marked as subnet although they have identical
-# IP addresses in NAT domain n4.
+# Both subnets have identical IP addresses in NAT domain n4.
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:a = { ip = ::a7f:800/120; dynamic; } }
@@ -4477,6 +4476,35 @@ service:s1 = {
  permit src = user; dst = network:n4; prt = tcp;
 }
 =WARNING=NONE
+
+############################################################
+=TITLE=Multiple subnets with identical NAT IP
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:a = { ip = ::a7f:800/120; dynamic; } }
+network:n2 = { ip = ::a01:200/120; nat:a = { ip = ::a7f:800/120; dynamic; } }
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+network:n3 = { ip = ::a01:300/120; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a7f:1; hardware = n4; bind_nat = a; }
+}
+network:n4 = { ip = ::a7f:0/112; }
+=WARNING=
+Warning: nat:a of network:n1 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+Warning: nat:a of network:n2 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+=END=
 
 ############################################################
 =TITLE=Mixed hidden and non hidden.

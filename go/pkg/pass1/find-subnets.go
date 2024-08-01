@@ -317,7 +317,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	// 1. step:
 	// Compare IP/mask of all networks and NAT networks and find relations
-	// .isIn and .identical.
+	// isIn and identical.
 
 	// Mapping prefix -> IP -> Network|NAT Network.
 	prefixIPMap := make(map[int]map[netip.Addr]*network)
@@ -343,15 +343,18 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	markSubnetsOfAggregates(networks, prefixIPMap, identical)
 
-	// Calculate .isIn relation from IP addresses;
+	// Calculate isIn relation from IP addresses;
 	// This includes all addresses of all networks in all NAT domains.
 	isIn := make(map[*network]*network)
 	processSubnetRelation(prefixIPMap, func(sub, big *network) {
 		isIn[sub] = big
+		for _, other := range identical[sub] {
+			isIn[other] = big
+		}
 	})
 
 	// 2. step:
-	// Analyze .isIn and identical[] relation for different NAT domains.
+	// Analyze isIn and identical relation for different NAT domains.
 
 	// Mapping from subnet to bignet in same zone.
 	// Bignet must be marked, if subnet is marked later with .hasOtherSubnet.
@@ -451,6 +454,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		// Check pairs of networks, that are in subnet relation.
 	SUBNET:
 		for _, natSubnet := range natNetworks {
+			if !visible[natSubnet] {
+				continue
+			}
 			natBignet := isIn[natSubnet]
 			if natBignet == nil {
 				continue
@@ -464,11 +470,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					}
 				}
 				return nil
-			}
-			if !visible[natSubnet] {
-				if natSubnet = nextVisible(natSubnet); natSubnet == nil {
-					continue
-				}
 			}
 
 			// If invisible, search other networks with identical or larger IP.
@@ -484,6 +485,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			subnet := origNet[natSubnet]
 			bignet := origNet[natBignet]
+			if domain.name == "nat_domain:[network:VPNHH_BKA-SIDAN_BACKEND-10_154_52_64-27]" {
+				debug("%s %s", natSubnet, natBignet)
+			}
 
 			if l := natSubnet.interfaces; !(len(l) == 1 && l[0].isLayer3) {
 				// Take original bignet, because currently
