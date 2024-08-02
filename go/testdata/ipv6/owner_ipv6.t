@@ -836,6 +836,38 @@ Warning: service:s1 has multiple owners:
 =END=
 
 ############################################################
+=TITLE=Multiple service owners can be avoided
+=PARAMS=--ipv6
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = ::a01:100/120; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+network:n2 = {
+ ip = ::a01:200/120;
+ host:h1 = { ip = ::a01:20a; owner = o1; }
+ host:h2 = { ip = ::a01:20b; owner = o2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+=WARNING=
+Warning: service:s1 has multiple owners:
+ o1, o2
+ This should be avoided.
+ All 'user' objects belong to single owner:o3.
+ Either swap objects of 'user' and objects of rules,
+ or split service into multiple parts, one for each owner.
+=END=
+
+############################################################
 =TITLE=Useless multi_owner when expanded user objects have single owner
 =PARAMS=--ipv6
 =INPUT=
