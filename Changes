@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+ - Message "swap objects of 'user' and objects of rules" is shown
+   even if no attribute multi_owner is given.
+ - Fixed check for NAT network being subnet of some other network.
+   If multiple networks have dynamic NAT to same address,
+   now a warning is given for each network.
+ - Fixed check for useless attribute 'subnet_of'
+   where supernet has attribute 'has_subnets'.
+
 6.071     2024-07-29 16:47:58+02:00 Europe/Berlin
 
  - Fixed generated ACL at router R with managed=local for rule where
