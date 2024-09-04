@@ -116,8 +116,8 @@ func setupObjects(m map[string]bool, objects []string) error {
 }
 
 func process(s *astset.State, remove map[string]bool, delDef bool) {
-	var emptySvc []string
-	emptySvcRules := make(map[string][]int)
+	var emptySvc []*ast.Service
+	emptySvcRules := make(map[*ast.Service][]int)
 	retain := make(map[string]bool)
 	// Remove elements from element lists.
 	s.Modify(func(n ast.Toplevel) bool {
@@ -203,9 +203,9 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 				}
 			}
 			if userEmpty || len(emptyRules) == len(x.Rules) {
-				emptySvc = append(emptySvc, x.Name)
+				emptySvc = append(emptySvc, x)
 			} else if len(emptyRules) > 0 {
-				emptySvcRules[x.Name] = emptyRules
+				emptySvcRules[x] = emptyRules
 			}
 		}
 		return changed
@@ -232,17 +232,17 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 		}
 	}
 	// Delete definition of empty service.
-	for _, name := range emptySvc {
-		s.DeleteToplevel(name)
+	for _, sv := range emptySvc {
+		s.DeleteToplevelNode(sv)
 	}
 	deleteEmptyRules(s, emptySvcRules)
 }
 
-func deleteEmptyRules(s *astset.State, empty map[string][]int) {
-	for name, l := range empty {
+func deleteEmptyRules(s *astset.State, empty map[*ast.Service][]int) {
+	for sv, l := range empty {
 		s.Modify(func(toplevel ast.Toplevel) bool {
 			modified := false
-			if n, ok := toplevel.(*ast.Service); ok && n.Name == name {
+			if n, ok := toplevel.(*ast.Service); ok && n == sv {
 				j := 0
 				for i, a := range n.Rules {
 					if slices.Contains(l, i) {
