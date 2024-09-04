@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Fixed command 'remove-from-netspoc'.
+   A service is no longer removed accidently, if only some rules of
+   a service become empty, but other rules remain.
  - Message "swap objects of 'user' and objects of rules" is shown
    even if no attribute multi_owner is given.
  - Fixed check for NAT network being subnet of some other network.
