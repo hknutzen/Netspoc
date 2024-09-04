@@ -79,6 +79,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -116,6 +117,7 @@ func setupObjects(m map[string]bool, objects []string) error {
 
 func process(s *astset.State, remove map[string]bool, delDef bool) {
 	var emptySvc []string
+	emptySvcRules := make(map[string][]int)
 	retain := make(map[string]bool)
 	// Remove elements from element lists.
 	s.Modify(func(n ast.Toplevel) bool {
@@ -180,13 +182,10 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 			}
 			return l[:j]
 		}
-		empty := false
-		change := func(l *[]ast.Element) {
+		change := func(l *[]ast.Element) bool {
 			l2 := traverse(*l, false)
-			if len(l2) == 0 {
-				empty = true
-			}
 			*l = l2
+			return len(l2) == 0
 		}
 
 		switch x := n.(type) {
@@ -195,13 +194,18 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 				change(&x.Elements)
 			}
 		case *ast.Service:
-			change(&x.User.Elements)
-			for _, r := range x.Rules {
-				change(&r.Src.Elements)
-				change(&r.Dst.Elements)
+			userEmpty := change(&x.User.Elements)
+			var emptyRules []int
+			for i, r := range x.Rules {
+				empty := change(&r.Src.Elements)
+				if (change(&r.Dst.Elements) || empty) && !userEmpty {
+					emptyRules = append(emptyRules, i)
+				}
 			}
-			if empty {
+			if userEmpty || len(emptyRules) == len(x.Rules) {
 				emptySvc = append(emptySvc, x.Name)
+			} else if len(emptyRules) > 0 {
+				emptySvcRules[x.Name] = emptyRules
 			}
 		}
 		return changed
@@ -230,6 +234,28 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 	// Delete definition of empty service.
 	for _, name := range emptySvc {
 		s.DeleteToplevel(name)
+	}
+	deleteEmptyRules(s, emptySvcRules)
+}
+
+func deleteEmptyRules(s *astset.State, empty map[string][]int) {
+	for name, l := range empty {
+		s.Modify(func(toplevel ast.Toplevel) bool {
+			modified := false
+			if n, ok := toplevel.(*ast.Service); ok && n.Name == name {
+				j := 0
+				for i, a := range n.Rules {
+					if slices.Contains(l, i) {
+						modified = true
+					} else {
+						n.Rules[j] = a
+						j++
+					}
+				}
+				n.Rules = n.Rules[:j]
+			}
+			return modified
+		})
 	}
 }
 
