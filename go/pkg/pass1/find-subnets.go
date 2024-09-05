@@ -485,10 +485,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			subnet := origNet[natSubnet]
 			bignet := origNet[natBignet]
-			if domain.name == "nat_domain:[network:VPNHH_BKA-SIDAN_BACKEND-10_154_52_64-27]" {
-				debug("%s %s", natSubnet, natBignet)
-			}
-
 			if l := natSubnet.interfaces; !(len(l) == 1 && l[0].isLayer3) {
 				// Take original bignet, because currently
 				// there's no method to specify a natted network
