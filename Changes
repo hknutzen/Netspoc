@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.072     2024-09-05 10:22:13+02:00 Europe/Berlin
+
  - Fixed command 'remove-from-netspoc'.
    A service is no longer removed accidently, if only some rules of
    a service become empty, but other rules remain.
