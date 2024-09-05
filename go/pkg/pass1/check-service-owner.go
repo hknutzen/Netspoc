@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -266,37 +267,43 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				}
 				return true
 			}
+			// Check if attribute 'multi_owner' could be avoided,
+			// if objects of user and objects of rules are swapped.
+			isSingeUserOwner := func(info *svcInfo) string {
+				if !info.sameObjects {
+					return ""
+				}
+				var userOwner *owner
+			USERS:
+				for _, users := range info.users {
+					for _, user := range users {
+						o := user.getOwner()
+						if o == nil {
+							userOwner = nil
+							break USERS
+						}
+						if userOwner == nil {
+							userOwner = o
+						} else if userOwner != o {
+							userOwner = nil
+							break USERS
+						}
+					}
+				}
+				if userOwner == nil {
+					return ""
+				}
+				return fmt.Sprintf(" All 'user' objects belong to single %s.\n"+
+					" Either swap objects of 'user' and objects of rules,\n"+
+					" or split service into multiple parts,"+
+					" one for each owner.", userOwner)
+			}
 			hasMulti = !info.isCoupling && hasMulti
 			if checkAttrMultiOwner() {
 				if !hasMulti {
 					c.uselessSvcAttr("multi_owner", svc)
-				} else if info.sameObjects {
-					// Check if attribute 'multi_owner' could be avoided,
-					// if objects of user and objects of rules are swapped.
-					var userOwner *owner
-				USERS:
-					for _, users := range info.users {
-						for _, user := range users {
-							o := user.getOwner()
-							if o == nil {
-								userOwner = nil
-								break USERS
-							}
-							if userOwner == nil {
-								userOwner = o
-							} else if userOwner != o {
-								userOwner = nil
-								break USERS
-							}
-						}
-					}
-					if userOwner != nil {
-						c.warn("Unnecessary 'multi_owner' at %s\n"+
-							" All 'user' objects belong to single %s.\n"+
-							" Either swap objects of 'user' and objects of rules,\n"+
-							" or split service into multiple parts,"+
-							" one for each owner.", svc, userOwner)
-					}
+				} else if msg := isSingeUserOwner(info); msg != "" {
+					c.warn("Unnecessary 'multi_owner' at %s\n"+msg, svc)
 				}
 			} else if hasMulti {
 				if printType := c.conf.CheckServiceMultiOwner; printType != "" {
@@ -314,9 +321,13 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					if !ok {
 						sort.Strings(names)
 						names = slices.Compact(names)
+						unnecessary := ""
+						if msg := isSingeUserOwner(info); msg != "" {
+							unnecessary = "\n This should be avoided.\n" + msg
+						}
 						c.warnOrErr(printType,
-							"%s has multiple owners:\n %s",
-							svc, strings.Join(names, ", "))
+							"%s has multiple owners:\n %s%s",
+							svc, strings.Join(names, ", "), unnecessary)
 					}
 				}
 			}
