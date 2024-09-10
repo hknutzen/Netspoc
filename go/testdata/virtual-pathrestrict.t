@@ -467,7 +467,7 @@ Error: Virtual interfaces
 =TITLE=Follow implicit pathrestriction at unmanaged virtual interface
 # Doppelte ACL-Zeile für virtuelle IP vermeiden an
 # - Crosslink-Interface zu unmanaged Gerät
-# - mit virtueller IP auch an dem unmanged Gerät
+# - mit virtueller IP auch an dem unmanaged Gerät
 =INPUT=
 network:M = { ip = 10.1.0.0/24;}
 router:F = {
