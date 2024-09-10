@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Fixed command 'cut-netspoc':
+   Full path to management_instance is marked now.
+
 6.072     2024-09-05 10:22:13+02:00 Europe/Berlin
 
  - Fixed command 'remove-from-netspoc'.
