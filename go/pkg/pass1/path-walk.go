@@ -4,31 +4,6 @@ import (
 	"fmt"
 )
 
-func findZone1(store pathStore) *zone {
-	var obj pathObj
-	switch x := store.(type) {
-	case *routerIntf:
-		obj = x.router
-	case *router:
-		obj = x
-	case *zone:
-		obj = x
-	}
-	for {
-		if loop := obj.getLoop(); loop != nil {
-			if e := loop.exit; e != obj {
-				obj = e
-				continue
-			}
-		}
-		if intf := obj.getToZone1(); intf != nil {
-			obj = intf.toZone1
-		} else {
-			return obj.(*zone)
-		}
-	}
-}
-
 // Purpose  : Provide path node objects for objects specified as src or dst.
 // Parameter: Source or destination object.
 // Returns:
@@ -1110,13 +1085,13 @@ func loopPathWalk(
 }
 
 func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
-	zone1 := findZone1(srcPath)
-	zone2 := findZone1(dstPath)
+	tag1 := findPartitionTag(srcPath)
+	tag2 := findPartitionTag(dstPath)
 	var msg string
-	if zone1.partition != zone2.partition {
+	if tag1 != tag2 {
 		msg = " Source and destination objects are located in " +
 			"different topology partitions: " +
-			zone1.partition + ", " + zone2.partition + "."
+			tag1 + ", " + tag2 + "."
 	} else {
 		msg = " Check path restrictions and crypto interfaces."
 	}

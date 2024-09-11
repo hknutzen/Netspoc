@@ -68,10 +68,10 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.initStdProtocols()
 	c.setupObjects(toplevel)
 	c.setAscendingServices()
-	c.splitSemiManagedRouters()
 	c.stopOnErr()
 	c.linkTunnels()
 	c.linkVirtualInterfaces()
+	c.splitSemiManagedRouters()
 	c.collectRoutersAndNetworks()
 }
 
