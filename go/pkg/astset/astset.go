@@ -144,10 +144,6 @@ func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
 			}
 		case "service":
 			file = "rule"
-			if !fileop.IsDir(file) {
-				// Ignore error; it is recognized later, when file can't be written.
-				os.Mkdir(file, 0777)
-			}
 			if len(name) > 0 {
 				s0 := strings.ToUpper(name[0:1])
 				c0 := s0[0]
