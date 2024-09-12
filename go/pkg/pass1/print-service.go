@@ -48,7 +48,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -71,12 +71,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 	"github.com/spf13/pflag"
 )
 
@@ -222,7 +223,7 @@ func (c *spoc) printService(
 		return strings.Join(result, " ")
 	}
 
-	for _, name := range sorted.Keys(s2rules) {
+	for _, name := range slices.Sorted(maps.Keys(s2rules)) {
 		for _, r := range s2rules[name] {
 			action := "permit"
 			if r.deny {

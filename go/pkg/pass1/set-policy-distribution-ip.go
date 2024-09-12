@@ -1,6 +1,9 @@
 package pass1
 
-import "golang.org/x/exp/maps"
+import (
+	"maps"
+	"slices"
+)
 
 //#############################################################################
 // Find IP of each device, reachable from policy distribution point.
@@ -144,7 +147,7 @@ func (c *spoc) setPolicyDistributionIP() {
 
 		// Ready, if exactly one management interface was found.
 		if len(foundMap) == 1 {
-			result = maps.Keys(foundMap)
+			result = slices.Collect(maps.Keys(foundMap))
 		} else if r.managed != "" || r.routingOnly {
 
 			// debug("%s: %d", r.name, len(foundMap))

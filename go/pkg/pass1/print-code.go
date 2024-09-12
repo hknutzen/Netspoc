@@ -1,12 +1,15 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,12 +17,9 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 
 	"go4.org/netipx"
 )
@@ -202,9 +202,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 
 	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
-	prefixes := maps.Keys(prefix2ip2net)
-	sort.Slice(prefixes, func(i, j int) bool {
-		return prefixes[i] > prefixes[j]
+	prefixes := slices.SortedFunc(maps.Keys(prefix2ip2net), func(a, b int) int {
+		return cmp.Compare(b, a)
 	})
 	type netInfo struct {
 		netip.Prefix
@@ -265,10 +264,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	}
 
 	// Get sorted list of hops for deterministic output.
-	hops := maps.Keys(hop2netInfos)
-	sort.Slice(hops, func(i, j int) bool {
-		return hops[i].name < hops[j].name
-	})
+	hops := slices.SortedFunc(maps.Keys(hop2netInfos),
+		func(a, b *routerIntf) int { return cmp.Compare(a.name, b.name) })
 
 	if doAutoDefaultRoute {
 
@@ -628,7 +625,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	printGroupPolicy := func(name string, attributes map[string]string) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
-		for _, key := range sorted.Keys(attributes) {
+		for _, key := range slices.Sorted(maps.Keys(attributes)) {
 
 			// Ignore attributes for tunnel-group general or own attributes.
 			if spec := asaVpnAttributes[key]; spec == tgGeneral || spec == ownAttr {
@@ -700,7 +697,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
-			for _, id := range sorted.Keys(hash) {
+			for _, id := range slices.Sorted(maps.Keys(hash)) {
 				idIntf := hash[id]
 				idName := genIdName(id)
 				src := idIntf.src
@@ -925,7 +922,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
-		for _, id := range sorted.Keys(singleCertMap) {
+		for _, id := range slices.Sorted(maps.Keys(singleCertMap)) {
 			idName := genIdName(id)
 			mapName := "ca-map-" + idName
 			fmt.Fprintln(fh, "crypto ca certificate map", mapName, "10")
@@ -936,7 +933,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			certGroupMap[mapName] = defaultTunnelGroup
 		}
 		fmt.Fprintln(fh, "webvpn")
-		for _, mapName := range sorted.Keys(certGroupMap) {
+		for _, mapName := range slices.Sorted(maps.Keys(certGroupMap)) {
 			tunnelGroupMap := certGroupMap[mapName]
 			fmt.Fprintln(fh, " certificate-group-map", mapName, "10", tunnelGroupMap)
 		}
@@ -944,7 +941,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	}
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
-	for _, name := range sorted.Keys(ldapMap) {
+	for _, name := range slices.Sorted(maps.Keys(ldapMap)) {
 		fmt.Fprintln(fh, "aaa-server", name, "protocol ldap")
 		fmt.Fprintln(fh, "aaa-server", name, "host X")
 		fmt.Fprintln(fh, " ldap-attribute-map", name)

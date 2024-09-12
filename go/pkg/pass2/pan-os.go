@@ -1,12 +1,13 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
@@ -168,7 +169,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
 	}
 	printAddresses := func() {
-		l := maps.Keys(ip2addr)
+		l := slices.Collect(maps.Keys(ip2addr))
 		sort.Slice(l, func(i, j int) bool {
 			if l[i].Addr() == l[j].Addr() {
 				return l[i].Bits() > l[j].Bits()
@@ -201,19 +202,19 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</address-group>")
 	}
 	printServices := func() {
-		l := maps.Values(protoMap)
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].prt.protocol < l[j].prt.protocol ||
-				l[i].prt.protocol == l[j].prt.protocol &&
-					(l[i].prt.ports[0] < l[j].prt.ports[0] ||
-						l[i].prt.ports[0] == l[j].prt.ports[0] &&
-							(l[i].prt.ports[1] < l[j].prt.ports[1] ||
-								l[i].prt.ports[1] == l[j].prt.ports[1] &&
-									(l[i].srcRg != nil && l[j].srcRg != nil &&
-										l[i].srcRg.ports[0] < l[j].srcRg.ports[0] ||
-										l[i].srcRg.ports[0] == l[j].srcRg.ports[0] &&
-											l[i].srcRg.ports[1] < l[j].srcRg.ports[1])))
-		})
+		l := slices.SortedFunc(maps.Values(protoMap),
+			func(a, b srcRgPrt) int {
+				v := cmp.Or(
+					cmp.Compare(a.prt.protocol, b.prt.protocol),
+					cmp.Compare(a.prt.ports[0], b.prt.ports[0]),
+					cmp.Compare(a.prt.ports[1], b.prt.ports[1]))
+				if v == 0 && a.srcRg != nil && b.srcRg != nil {
+					return cmp.Or(
+						cmp.Compare(a.srcRg.ports[0], b.srcRg.ports[0]),
+						cmp.Compare(a.srcRg.ports[1], b.srcRg.ports[1]))
+				}
+				return v
+			})
 		fmt.Fprintln(fd, "<service>")
 		for _, pair := range l {
 			p := pair.prt

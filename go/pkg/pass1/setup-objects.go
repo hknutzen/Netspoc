@@ -2,7 +2,9 @@ package pass1
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
+	"maps"
 	"net/netip"
 	"path"
 	"regexp"
@@ -12,13 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 
 	"go4.org/netipx"
 )
@@ -237,7 +236,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel) {
 
 func (c *spoc) setAscendingServices() {
 	s := c.symTable
-	for _, name := range sorted.Keys(s.service) {
+	for _, name := range slices.Sorted(maps.Keys(s.service)) {
 		c.ascendingServices = append(c.ascendingServices, s.service[name])
 	}
 }
@@ -3238,7 +3237,7 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 			c.err("Unexpected %s\n Use '%s;' only.", what, name)
 			continue
 		}
-		valid := sorted.Keys(knownMod)
+		valid := slices.Sorted(maps.Keys(knownMod))
 		oneOf := cond(r.model.canMultiLog, "", " one of")
 		c.err("Invalid %s\n Expected%s: %s",
 			what, oneOf, strings.Join(valid, "|"))
@@ -3557,8 +3556,8 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 // Link tunnel networks with tunnel hubs.
 func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
-	l := maps.Values(c.symTable.crypto)
-	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
+	l := slices.SortedFunc(maps.Values(c.symTable.crypto),
+		func(a, b *crypto) int { return cmp.Compare(a.name, b.name) })
 	for _, cr := range l {
 		realHub := cr.hub
 		if realHub == nil {

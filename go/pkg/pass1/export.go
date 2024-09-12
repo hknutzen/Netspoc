@@ -26,10 +26,12 @@ https://github.com/hknutzen/Netspoc-Web
 */
 
 import (
+	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,12 +40,9 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 	"github.com/spf13/pflag"
 )
 
@@ -202,7 +201,7 @@ func ownersForObjects(l srvObjList) stringList {
 			names[name] = true
 		}
 	}
-	return sorted.Keys(names)
+	return slices.Sorted(maps.Keys(names))
 }
 
 type xOwner map[srvObj][]*owner
@@ -222,7 +221,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 			names[name] = true
 		}
 	}
-	return sorted.Keys(names)
+	return slices.Sorted(maps.Keys(names))
 }
 
 func protoDescr(l []*proto) stringList {
@@ -683,7 +682,7 @@ func (c *spoc) setupPartOwners() xOwner {
 	// Substitute map by slice.
 	pInfo := make(xOwner)
 	for ob, m := range pMap {
-		pInfo[ob] = maps.Keys(m)
+		pInfo[ob] = slices.Collect(maps.Keys(m))
 	}
 	return pInfo
 }
@@ -737,8 +736,8 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
-		l := maps.Keys(m)
-		sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
+		l := slices.SortedFunc(maps.Keys(m),
+			func(a, b *owner) int { return cmp.Compare(a.name, b.name) })
 		return l
 	}
 
@@ -907,7 +906,7 @@ func (c *spoc) exportNatSet(dir string,
 			natSets = append(natSets, d.natSet)
 		}
 		combined := combineNatSets(natSets, natTag2multinatDef)
-		natList := sorted.Keys(combined)
+		natList := slices.Sorted(maps.Keys(combined))
 
 		c.createDirs(dir, "owner/"+ownerName)
 		c.exportJson(dir, "owner/"+ownerName+"/nat_set", natList)
@@ -1141,7 +1140,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	for _, ow := range sorted.Keys(c.symTable.owner) {
+	for _, ow := range slices.Sorted(maps.Keys(c.symTable.owner)) {
 		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
@@ -1331,7 +1330,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for e, m := range email2owners {
 
 		// Sort owner names for output.
-		email2oList[e] = sorted.Keys(m)
+		email2oList[e] = slices.Sorted(maps.Keys(m))
 	}
 	c.exportJson(outDir, "email", email2oList)
 }

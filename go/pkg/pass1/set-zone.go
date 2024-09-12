@@ -1,11 +1,11 @@
 package pass1
 
 import (
+	"maps"
 	"net/netip"
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 // setZone create zones and areas.
@@ -600,7 +600,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		}
 
 		// Find ascending list of areas containing current object.
-		containing := maps.Keys(m)
+		containing := slices.Collect(maps.Keys(m))
 		sortBySize(containing)
 
 		// Take the smallest area.

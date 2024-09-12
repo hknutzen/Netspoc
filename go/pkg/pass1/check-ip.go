@@ -1,12 +1,12 @@
 package pass1
 
 import (
+	"maps"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
 
 	"go4.org/netipx"
-	"golang.org/x/exp/maps"
 )
 
 func (c *spoc) checkIPAddresses() {
@@ -73,9 +73,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 
 	// Check address conflicts for collected parts of bridged networks.
 	// Sort prefix names for deterministic error messages.
-	prefixes := maps.Keys(prefix2net)
-	sort.Strings(prefixes)
-	for _, prefix := range prefixes {
+	for _, prefix := range slices.Sorted(maps.Keys(prefix2net)) {
 		l := prefix2net[prefix]
 		dummy := new(network)
 		seen := make(map[*routerIntf]bool)

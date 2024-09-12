@@ -1,10 +1,11 @@
 package pass1
 
 import (
+	"cmp"
+	"maps"
 	"net/netip"
+	"slices"
 	"sort"
-
-	"golang.org/x/exp/maps"
 )
 
 // #############################################################################
@@ -40,10 +41,8 @@ func (c *spoc) linkImplicitAggregateToZone(
 
 	// Collect all aggregates, networks and subnets of current zone.
 	// Get aggregates in deterministic order.
-	var objects netList = maps.Values(ipPrefix2aggregate)
-	sort.Slice(objects, func(i, j int) bool {
-		return objects[i].name < objects[j].name
-	})
+	var objects netList = slices.SortedFunc(maps.Values(ipPrefix2aggregate),
+		func(a, b *network) int { return cmp.Compare(a.name, b.name) })
 	processWithSubnetworks(z.networks, func(n *network) {
 		objects.push(n)
 	})

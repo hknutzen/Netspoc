@@ -2,12 +2,12 @@ package pass2
 
 import (
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
-
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 // Needed for model=Linux.
@@ -470,7 +470,7 @@ PRT:
 		var seq2 []*prtBintree
 
 		// Process grouped icmp protocols having the same type.
-		for _, icmpType := range sorted.Keys(type2prt) {
+		for _, icmpType := range slices.Sorted(maps.Keys(type2prt)) {
 			aref2 := type2prt[icmpType]
 			var node2 *prtBintree
 

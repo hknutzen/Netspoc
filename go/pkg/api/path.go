@@ -2,12 +2,13 @@ package api
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 type change struct {
@@ -628,7 +629,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 		}
 	case map[string]interface{}:
 		var l []*ast.Attribute
-		for _, k := range sorted.Keys(x) {
+		for _, k := range slices.Sorted(maps.Keys(x)) {
 			attr, err := getAttribute(k, x[k])
 			if err != nil {
 				return nil, err

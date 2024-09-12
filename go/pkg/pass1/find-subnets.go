@@ -1,12 +1,12 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"net/netip"
+	"slices"
 	"sort"
-
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
-	"golang.org/x/exp/maps"
 
 	"go4.org/netipx"
 )
@@ -19,13 +19,12 @@ func natName(n *network) string {
 	return name
 }
 
-func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
-	work func(sub, big *network)) {
-
-	prefixList := maps.Keys(prefixIPMap)
-	sort.Slice(prefixList, func(i, j int) bool {
+func processSubnetRelation(
+	prefixIPMap map[int]map[netip.Addr]*network, work func(sub, big *network),
+) {
+	prefixList := slices.SortedFunc(maps.Keys(prefixIPMap), func(a, b int) int {
 		// Go from smaller to larger networks, i.e big prefix value first.
-		return prefixList[i] > prefixList[j]
+		return cmp.Compare(b, a)
 	})
 	for i, prefix := range prefixList {
 		upperPrefixes := prefixList[i+1:]
@@ -37,7 +36,7 @@ func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
 
 		// Sort IP addresses to get deterministic warnings and ACLs.
 		ipMap := prefixIPMap[prefix]
-		ipList := maps.Keys(ipMap)
+		ipList := slices.Collect(maps.Keys(ipMap))
 		sort.Slice(ipList, func(i, j int) bool {
 			return ipList[i].Less(ipList[j])
 		})
@@ -741,7 +740,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-		for _, part := range sorted.Keys(part2Doms) {
+		for _, part := range slices.Sorted(maps.Keys(part2Doms)) {
 			domains := part2Doms[part]
 			networks := part2Nets[part]
 			findUnstableNat(domains, networks)
