@@ -99,6 +99,7 @@ network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t  = { ip = ::a09:101; hub = crypto:x; hardware = t; }
 }
@@ -106,6 +107,7 @@ network:t = { ip = ::a09:100/120; }
 router:r2 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:t  = { ip = ::a09:102; spoke = crypto:x; hardware = t; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
@@ -113,6 +115,7 @@ network:n2 = { ip = ::a01:200/120; }
 router:r3 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n3 = { ip = ::a01:301; hardware = n3; }
 }
 network:n3 = { ip = ::a01:300/120; }
@@ -121,6 +124,47 @@ network:n3 = { ip = ::a01:300/120; }
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[network:n1]
+ - any:[network:n3]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
+=TITLE=Partition name at crypto parts
+=PARAMS=--ipv6
+=INPUT=
+[[input]]
+network:t0 = { ip = ::a09:0/120; partition = INET; }
+router:rt = {
+ interface:t0;
+ interface:t;
+}
+=ERROR=
+Error: IPv6 topology has unconnected parts:
+ - any:[network:n3]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
+=TITLE=Different partition names at crypto parts
+=PARAMS=--ipv6
+=INPUT=
+[[input]]
+network:n0 = { ip = ::a01:0/120; partition = LAN; }
+router:r0 = {
+ interface:n0;
+ interface:n1;
+}
+
+network:t0 = { ip = ::a09:0/120; partition = INET; }
+router:rt = {
+ interface:t0;
+ interface:t;
+}
+=ERROR=
+Error: Several partition names in partition any:[network:n0]:
+ - LAN
+ - INET
+Error: IPv6 topology has unconnected parts:
  - any:[network:n3]
  Use partition attribute, if intended.
 =END=
@@ -195,7 +239,7 @@ router:r1 = {
  interface:n0 = { ip = ::a00:101; hardware = n0; }
  interface:t1  = { ip = ::a01:901; hub = crypto:x1; hardware = t1; }
 }
-network:t1 = { ip = ::a01:900/120; }
+network:t1 = { ip = ::a01:900/120; partition = t1; }
 router:vpn1 = {
  managed;
  model = IOS;
@@ -222,6 +266,7 @@ service:s1 = {
  permit src = user; dst = network:t2; prt = tcp;
 }
 =ERROR=
+Warning: Spare partition name for single partition any:[network:n0]: t1.
 Error: No valid path
  from any:[network:t1]
  to any:[network:t2]
