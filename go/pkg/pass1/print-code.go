@@ -1861,15 +1861,12 @@ func (c *spoc) disableSecondOptForDynHostNet(
 
 // Precompute string representation of IP addresses when NAT is not active.
 func (c *spoc) setupStdAddr() {
-	addNet := func(n *network) {
-		n.stdAddr = n.ipp.String()
-	}
 	// Aggregates, networks, subnets.
 	for _, n := range c.allNetworks {
 		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
-		addNet(n)
+		n.stdAddr = n.ipp.String()
 		for _, s := range n.subnets {
 			s.stdAddr = s.ipp.String()
 		}
