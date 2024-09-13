@@ -5,7 +5,7 @@
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t1 = { ip = ::a09:101; hardware = t1; }
@@ -70,7 +70,7 @@ ipv6 route ::a01:400/120 ::a09:103
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t1 = { ip = ::a09:101; hardware = t1; }
@@ -159,7 +159,7 @@ Error: Can't generate static routes for interface:r2.n2 because IP address is un
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 router:r = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t1 = { ip = ::a09:101; hardware = t1; }
@@ -647,14 +647,14 @@ ipv6 route n2 ::a01:580/121 ::a01:203
 =INPUT=
 network:src = { ip = ::a01:100/120; }
 router:r = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:src = { ip = ::a01:101; hardware = src; }
  interface:t1 = { ip = ::a09:101; hardware = t1; }
 }
 network:t1 = { ip = ::a09:100/126; }
 router:hop = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:t1 = { ip = ::a09:102; hardware = inside; bind_nat = h; }
  interface:t2 = { ip = ::a09:201; hardware = outside; }
@@ -705,13 +705,13 @@ network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t1 = { ip = ::a09:101; hardware = t1; }
 }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n2 = { ip = ::a01:201; hardware = n2; }
  interface:t1 = { ip = ::a09:102; hardware = t1; }

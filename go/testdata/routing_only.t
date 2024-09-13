@@ -56,21 +56,21 @@ network:m = { ip = 10.2.2.0/24;
 }
 router:r1@v1 = {
  managed = routing_only;
- model = NX-OS;
+ model = IOS;
  interface:m = { ip = 10.2.2.1; hardware = e0; }
  interface:t1 = { ip = 10.9.1.1; hardware = e1; }
 }
 network:t1 = { ip = 10.9.1.0/24; }
 router:r1@v2 = {
  managed = routing_only;
- model = NX-OS;
+ model = IOS;
  interface:t1 = { ip = 10.9.1.2; hardware = e2; }
  interface:t2 = { ip = 10.9.2.1; hardware = e3; }
 }
 network:t2 = { ip = 10.9.2.0/24; }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:t2 = { ip = 10.9.2.2; hardware = e4; }
  interface:n = { ip = 10.1.1.1; hardware = e5; }
 }
@@ -82,14 +82,12 @@ service:test = {
 =OUTPUT=
 -- r1
 ! [ Routing for router:r1@v1 ]
-vrf context v1
- ip route 10.1.1.0/24 10.9.1.2
- ip route 10.9.2.0/24 10.9.1.2
+ip route vrf v1 10.1.1.0 255.255.255.0 10.9.1.2
+ip route vrf v1 10.9.2.0 255.255.255.0 10.9.1.2
 --
 ! [ Routing for router:r1@v2 ]
-vrf context v2
- ip route 10.2.2.0/24 10.9.1.1
- ip route 10.1.1.0/24 10.9.2.2
+ip route vrf v2 10.2.2.0 255.255.255.0 10.9.1.1
+ip route vrf v2 10.1.1.0 255.255.255.0 10.9.2.2
 =OPTIONS=--auto_default_route=0
 
 ############################################################

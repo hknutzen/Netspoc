@@ -8,7 +8,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = {{.b}};
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
@@ -70,7 +70,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
@@ -101,7 +101,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  ::a02:0/111;
  interface:cr = { ip = ::a03:302; hardware = cr; }
@@ -186,7 +186,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
@@ -209,7 +209,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n2 = { ip = ::a02:201; hardware = n2; no_in_acl; }
@@ -233,7 +233,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n1 = { ip = ::a01:102; hardware = n1; no_in_acl; }
@@ -266,7 +266,7 @@ router:r1 = {
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = ::a03:302; hardware = cr; no_in_acl; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
@@ -289,12 +289,12 @@ access-list n1_out extended deny ip any6 any6
 access-group n1_out out interface n1
 -- ipv6/r2
 ipv6 access-list n2_in
- 10 permit tcp ::a02:200/123 ::a01:100/123 established
- 20 deny ip any any
+ permit tcp ::a02:200/123 ::a01:100/123 established
+ deny ipv6 any any
 --
 ipv6 access-list n2_out
- 10 permit tcp ::a01:100/123 ::a02:200/123 eq 80
- 20 deny ip any any
+ permit tcp ::a01:100/123 ::a02:200/123 eq 80
+ deny ipv6 any any
 --
 interface cr
  ipv6 address ::a03:302/125

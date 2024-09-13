@@ -14,20 +14,25 @@ router:r@v1 = {
 }
 router:r@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  routing = manual;
  interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n3 = { ip = ::a01:301; hardware = IN; }
 }
 router:r@v3 = {
  managed = routing_only;
- model = IOS;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ model = NSX, T1;
+ interface:n3 = { ip = ::a01:302; hardware = IN; }
+ interface:n4 = { ip = ::a01:401; hardware = OUT; }
+}
+router:r = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = ::a01:101; }
 }
 =ERROR=
 Error: All instances of router:r must have identical model
-Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
+Error: Duplicate hardware 'IN' at router:r@v2 and router:r@v3
 =END=
 
 ############################################################
@@ -68,69 +73,6 @@ interface n3
  ipv6 address ::a01:301/120
  ip vrf forwarding v2
  ipv6 traffic-filter n3_in in
-=END=
-
-############################################################
-=TITLE=Combine object-groups from different VRFs
-=PARAMS=--ipv6
-=INPUT=
-network:m = { ip = ::a02:200/120; }
-router:r1@v1 = {
- managed;
- model = NX-OS;
- interface:m = { ip = ::a02:201; hardware = e0; }
- interface:t = { ip = ::a09:901; hardware = e1; }
-}
-network:t = { ip = ::a09:900/120; }
-router:r1@v2 = {
- managed;
- model = NX-OS;
- interface:t = { ip = ::a09:902; hardware = e2; }
- interface:n = { ip = ::a01:101; hardware = e3; }
-}
-network:n = {
- ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
- host:h30 = { ip = ::a01:11e; }
-}
-service:test = {
- user = host:h10, host:h20, host:h30;
- permit src = user; dst = network:m; prt = tcp 80;
-}
-=OUTPUT=
---ipv6/r1
-object-group ip address v6g0
- 10 ::a01:10a/128
- 20 ::a01:114/128
- 30 ::a01:11e/128
-ipv6 access-list e0_in
- 10 permit tcp ::a02:200/120 addrgroup v6g0 established
- 20 deny ip any any
---
-interface e0
- ipv6 address ::a02:201/120
- vrf member v1
- ipv6 traffic-filter e0_in in
---
-interface e1
- ipv6 address ::a09:901/120
- vrf member v1
- ipv6 traffic-filter e1_in in
---
-ipv6 access-list e2_in
- 10 permit tcp ::a02:200/120 addrgroup v6g0 established
- 20 deny ip any any
---
-interface e2
- ipv6 address ::a09:902/120
- vrf member v2
- ipv6 traffic-filter e2_in in
---
-interface e3
- ipv6 address ::a01:101/120
- vrf member v2
- ipv6 traffic-filter e3_in in
 =END=
 
 ############################################################
@@ -226,13 +168,13 @@ network:n1 = { ip = ::a01:100/120;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
@@ -251,12 +193,12 @@ network:n1 = { ip = ::a01:100/120;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
@@ -266,7 +208,7 @@ service:admin = {
 }
 =OUTPUT=
 -- ipv6/r1.info
-{"generated_by":"devel","model":"NX-OS","ip_list":["::a01:102"]}
+{"generated_by":"devel","model":"IOS","ip_list":["::a01:102"]}
 =END=
 
 ############################################################
@@ -278,13 +220,13 @@ network:n1 = { ip = ::a01:100/120;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
@@ -294,7 +236,7 @@ service:admin = {
 }
 =OUTPUT=
 -- ipv6/r1.info
-{"generated_by":"devel","model":"NX-OS","ip_list":["::a01:101","::a01:102"],"policy_distribution_point":"::a01:109"}
+{"generated_by":"devel","model":"IOS","ip_list":["::a01:101","::a01:102"],"policy_distribution_point":"::a01:109"}
 =END=
 
 ############################################################
@@ -306,12 +248,12 @@ network:n1 = { ip = ::a01:100/120;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }
 =ERROR=
@@ -329,13 +271,13 @@ network:n1 = { ip = ::a01:100/120;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:h8;
  interface:n1 = { ip = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:h9;
  interface:n1 = { ip = ::a01:102; hardware = v2; }
 }

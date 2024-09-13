@@ -105,7 +105,7 @@ network:n2 = {
 }
 router:r1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
  interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
 }
@@ -117,21 +117,18 @@ service:test1 = {
 }
 =OUTPUT=
 -- ipv6/r1
-object-group ip address v6g0
- 10 1000::abcd:2:12/127
- 20 1000::abcd:2:14/126
- 30 1000::abcd:2:18/125
- 40 1000::abcd:2:20/127
- 50 1000::abcd:2:22/128
- 60 1000::abcd:2:60/123
- 70 1000::abcd:2:80/121
- 80 1000::abcd:2:100/120
- 90 1000::abcd:2:200/122
- 100 1000::abcd:2:240/128
---
 ipv6 access-list E1_in
- 10 permit tcp 1000::abcd:1:0/112 addrgroup v6g0 range 80 90
- 20 deny ip any any
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:12/127 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:14/126 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:18/125 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:20/127 range 80 90
+ permit tcp 1000::abcd:1:0/112 host 1000::abcd:2:22 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:60/123 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:80/121 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:100/120 range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:200/122 range 80 90
+ permit tcp 1000::abcd:1:0/112 host 1000::abcd:2:240 range 80 90
+ deny ipv6 any any
 --
 interface E1
  ipv6 address 1000::abcd:1:1/112
@@ -223,7 +220,7 @@ router:r1 = {
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n2 = {ip = 1000::abcd:0002:0002; hardware = n2;}
  interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n3;}
 }

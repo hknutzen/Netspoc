@@ -243,7 +243,6 @@ type model struct {
 	statelessSelf          bool
 	statelessICMP          bool
 	tier                   string
-	usePrefix              bool
 	noSharedHardware       bool
 	vrfShareHardware       bool
 }

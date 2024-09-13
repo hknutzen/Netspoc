@@ -142,14 +142,14 @@ router:r1 = {
  interface:n1 = { ip = ::a3e:121; hardware = n1; }
 }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  ::a3e:f000/117, ::a3e:0/115,;
  interface:n4 = { ip = ::a3e:f202; hardware = n4; }
  interface:n2 = { ip = ::a3e:201; hardware = n2; }
 }
 router:r3 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  ::a3e:f000/118, ::a3e:0/115, ::a3e:2000/115;
  interface:n4 = { ip = ::a3e:f203; hardware = n4; }

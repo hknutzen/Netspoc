@@ -307,7 +307,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	if vrf != "" && model.routing == "IOS" {
 		iosVrf = "vrf " + vrf + " "
 	}
-	nxosPrefix := ""
 
 	for _, hop := range hops {
 		intf := hop2intf[hop]
@@ -333,20 +332,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 					adr = iosRouteCode(netinfo.Prefix)
 				}
 				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-			case "NX-OS":
-				if vrf != "" && nxosPrefix == "" {
-
-					// Print "vrf context" only once
-					// and indent "ip route" commands.
-					fmt.Fprintln(fh, "vrf context", vrf)
-					nxosPrefix = " "
-				}
-				adr := fullPrefixCode(netinfo.Prefix)
-				ip := "ip"
-				if ipv6 {
-					ip += "v6"
-				}
-				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
 			case "ASA":
 				var adr string
 				ip := ""
@@ -1189,7 +1174,7 @@ func (c *spoc) printCiscoAcls(fh *os.File, r *router) {
 			}
 
 			// Post-processing for hardware interface
-			if filter == "IOS" || filter == "NX-OS" {
+			if filter == "IOS" {
 				var filterCmd string
 				if ipv6 {
 					filterCmd = "ipv6 traffic-filter"
@@ -1718,13 +1703,8 @@ func printRouterIntf(fh *os.File, r *router) {
 			case negotiatedIP:
 				addrCmd = "ip address negotiated"
 			default:
-				if model.usePrefix || ipv6 {
-					if ipv6 {
-						addrCmd = "ipv6"
-					} else {
-						addrCmd = "ip"
-					}
-					addrCmd += " address " + netip.PrefixFrom(
+				if ipv6 {
+					addrCmd = "ipv6 address " + netip.PrefixFrom(
 						intf.ip,
 						intf.network.ipp.Bits(),
 					).String()
@@ -1739,16 +1719,12 @@ func printRouterIntf(fh *os.File, r *router) {
 				}
 			}
 			subcmd.push(addrCmd)
-			if !ipv6 || class == "NX-OS" {
+			if !ipv6 {
 				secondary = true
 			}
 		}
 		if vrf := r.vrf; vrf != "" {
-			if class == "NX-OS" {
-				subcmd.push("vrf member " + vrf)
-			} else {
-				subcmd.push("ip vrf forwarding " + vrf)
-			}
+			subcmd.push("ip vrf forwarding " + vrf)
 		}
 
 		// Add "ip inspect" as marker, that stateful filtering is expected.

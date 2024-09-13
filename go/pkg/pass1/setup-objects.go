@@ -2351,23 +2351,6 @@ var routerInfo = map[string]*model{
 		vrfShareHardware: true,
 		commentChar:      "!",
 	},
-	"NX-OS": {
-		routing:          "NX-OS",
-		filter:           "NX-OS",
-		stateless:        true,
-		statelessSelf:    true,
-		statelessICMP:    true,
-		canObjectgroup:   true,
-		inversedACLMask:  true,
-		usePrefix:        true,
-		canVRF:           true,
-		logModifiers:     map[string]string{"<empty>": "log"},
-		hasOutACL:        true,
-		needProtect:      true,
-		printRouterIntf:  true,
-		vrfShareHardware: true,
-		commentChar:      "!",
-	},
 	"ASA": {
 		routing: "ASA",
 		filter:  "ASA",
@@ -3233,10 +3216,6 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 		// Show error message for unknown log tag.
 		what := fmt.Sprintf("'%s = %s' at %s of model %s",
 			name, mod, r.name, r.model.name)
-		if len(knownMod) == 1 && knownMod["<empty>"] != "" {
-			c.err("Unexpected %s\n Use '%s;' only.", what, name)
-			continue
-		}
 		valid := slices.Sorted(maps.Keys(knownMod))
 		oneOf := cond(r.model.canMultiLog, "", " one of")
 		c.err("Invalid %s\n Expected%s: %s",

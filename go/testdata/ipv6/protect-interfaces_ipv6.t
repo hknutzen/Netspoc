@@ -99,45 +99,6 @@ ipv6 access-list e0_in
 =END=
 
 ############################################################
-=TITLE=Protect interfaces matching object group
-=PARAMS=--ipv6
-=INPUT=
-network:U = { ip = ::a01:100/120; }
-router:R = {
- managed;
- model = NX-OS;
- interface:U = { ip = ::a01:101; hardware = e0; }
- interface:l4 = { ip = ::a02:204; loopback; subnet_of = network:N2; hardware = lo4; }
- interface:l5 = { ip = ::a02:304; loopback; subnet_of = network:N3; hardware = lo5; }
- interface:l6 = { ip = ::a02:404; loopback; subnet_of = network:N4; hardware = lo6; }
- interface:N2 = { ip = ::a02:201; hardware = e1; }
- interface:N3 = { ip = ::a02:301; hardware = e1; }
- interface:N4 = { ip = ::a02:401; hardware = e1; }
-}
-network:N2 = { ip = ::a02:200/120; }
-network:N3 = { ip = ::a02:300/120; }
-network:N4 = { ip = ::a02:400/120; }
-service:test = {
-    user = network:N2, network:N3, network:N4;
-    permit src = network:U; dst = user; prt = tcp 80;
-}
-=OUTPUT=
---ipv6/R
-object-group ip address v6g0
- 10 ::a02:200/119
- 20 ::a02:400/120
-ipv6 access-list e0_in
- 10 deny ip any ::a02:204/128
- 20 deny ip any ::a02:304/128
- 30 deny ip any ::a02:404/128
- 40 deny ip any ::a02:201/128
- 50 deny ip any ::a02:301/128
- 60 deny ip any ::a02:401/128
- 70 permit tcp ::a01:100/120 addrgroup v6g0 eq 80
- 80 deny ip any any
-=END=
-
-############################################################
 =TITLE=Protect interfaces matching aggregate
 =PARAMS=--ipv6
 =INPUT=

@@ -120,7 +120,7 @@ network:inet = {
 
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:inet = { ip = ::a09:901;  hardware = inet; }
  interface:n1 = { ip = ::a01:101; hardware = n1; }
 }
@@ -137,42 +137,40 @@ service:s1 = {
 =OUTPUT=
 -- ipv6/r
 ! [ ACL ]
-object-group ip address v6g0
- 10 ::/101
- 20 ::800:0/103
- 30 ::b00:0/104
- 40 ::c00:0/102
- 50 ::1000:0/100
- 60 ::2000:0/99
- 70 ::4000:0/98
- 80 f000::8000:0/99
- 90 f000::a000:0/101
- 100 f000::a800:0/102
- 110 f000::ac00:0/108
- 120 f000::ac20:0/107
- 130 f000::ac40:0/106
- 140 f000::ac80:0/105
- 150 f000::ad00:0/104
- 160 f000::ae00:0/103
- 170 f000::b000:0/100
- 180 f000::c000:0/105
- 190 f000::c080:0/107
- 200 f000::c0a0:0/109
- 210 f000::c0a9:0/112
- 220 f000::c0aa:0/111
- 230 f000::c0ac:0/110
- 240 f000::c0b0:0/108
- 250 f000::c0c0:0/106
- 260 f000::c100:0/104
- 270 f000::c200:0/103
- 280 f000::c400:0/102
- 290 f000::c800:0/101
- 300 f000::d000:0/100
- 310 ::e000:0/99
 ipv6 access-list inet_in
- 10 deny ip any ::a01:101/128
- 20 permit tcp addrgroup v6g0 ::a01:100/120 eq 80
- 30 deny ip any any
+ deny ipv6 any host ::a01:101
+ permit tcp ::/101 ::a01:100/120 eq 80
+ permit tcp ::800:0/103 ::a01:100/120 eq 80
+ permit tcp ::b00:0/104 ::a01:100/120 eq 80
+ permit tcp ::c00:0/102 ::a01:100/120 eq 80
+ permit tcp ::1000:0/100 ::a01:100/120 eq 80
+ permit tcp ::2000:0/99 ::a01:100/120 eq 80
+ permit tcp ::4000:0/98 ::a01:100/120 eq 80
+ permit tcp f000::8000:0/99 ::a01:100/120 eq 80
+ permit tcp f000::a000:0/101 ::a01:100/120 eq 80
+ permit tcp f000::a800:0/102 ::a01:100/120 eq 80
+ permit tcp f000::ac00:0/108 ::a01:100/120 eq 80
+ permit tcp f000::ac20:0/107 ::a01:100/120 eq 80
+ permit tcp f000::ac40:0/106 ::a01:100/120 eq 80
+ permit tcp f000::ac80:0/105 ::a01:100/120 eq 80
+ permit tcp f000::ad00:0/104 ::a01:100/120 eq 80
+ permit tcp f000::ae00:0/103 ::a01:100/120 eq 80
+ permit tcp f000::b000:0/100 ::a01:100/120 eq 80
+ permit tcp f000::c000:0/105 ::a01:100/120 eq 80
+ permit tcp f000::c080:0/107 ::a01:100/120 eq 80
+ permit tcp f000::c0a0:0/109 ::a01:100/120 eq 80
+ permit tcp f000::c0a9:0/112 ::a01:100/120 eq 80
+ permit tcp f000::c0aa:0/111 ::a01:100/120 eq 80
+ permit tcp f000::c0ac:0/110 ::a01:100/120 eq 80
+ permit tcp f000::c0b0:0/108 ::a01:100/120 eq 80
+ permit tcp f000::c0c0:0/106 ::a01:100/120 eq 80
+ permit tcp f000::c100:0/104 ::a01:100/120 eq 80
+ permit tcp f000::c200:0/103 ::a01:100/120 eq 80
+ permit tcp f000::c400:0/102 ::a01:100/120 eq 80
+ permit tcp f000::c800:0/101 ::a01:100/120 eq 80
+ permit tcp f000::d000:0/100 ::a01:100/120 eq 80
+ permit tcp ::e000:0/99 ::a01:100/120 eq 80
+ deny ipv6 any any
 =END=
 
 ############################################################
