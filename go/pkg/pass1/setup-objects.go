@@ -340,8 +340,8 @@ func (c *spoc) getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
 	default:
 		c.err("Invalid port range in %s", ctx)
 	}
-	if dst[0] == 0 {
-		dst = [2]int{1, 65535}
+	if src == [2]int{1, 65535} {
+		src = [2]int{0, 0}
 	}
 	return src, dst
 }
