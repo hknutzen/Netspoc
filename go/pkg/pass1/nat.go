@@ -873,7 +873,7 @@ func (c *spoc) checkNatCompatibility() {
 	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
 			nat := obj.nat
-			for _, tag := range slices.Sorted(maps.Keys(nat)) {
+			for tag := range maps.Keys(nat) {
 				objIP := nat[tag]
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {
