@@ -204,16 +204,12 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 	printServices := func() {
 		l := slices.SortedFunc(maps.Values(protoMap),
 			func(a, b srcRgPrt) int {
-				v := cmp.Or(
+				return cmp.Or(
 					cmp.Compare(a.prt.protocol, b.prt.protocol),
 					cmp.Compare(a.prt.ports[0], b.prt.ports[0]),
-					cmp.Compare(a.prt.ports[1], b.prt.ports[1]))
-				if v == 0 && a.srcRg != nil && b.srcRg != nil {
-					return cmp.Or(
-						cmp.Compare(a.srcRg.ports[0], b.srcRg.ports[0]),
-						cmp.Compare(a.srcRg.ports[1], b.srcRg.ports[1]))
-				}
-				return v
+					cmp.Compare(a.prt.ports[1], b.prt.ports[1]),
+					// Name contains source port.
+					cmp.Compare(a.name, b.name))
 			})
 		fmt.Fprintln(fd, "<service>")
 		for _, pair := range l {

@@ -1052,6 +1052,86 @@ service:s2 = {
 =END=
 
 ############################################################
+=TITLE=Source ports
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120;
+ host:h10 = { ip = ::a01:10a; }
+ host:h20 = { ip = ::a01:114; }
+}
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = ::a01:101; }
+}
+router:r1@vsys1 = {
+ model = PAN-OS;
+ managed;
+ interface:n1 = { ip = ::a01:102; hardware = z1; }
+ interface:n2 = { ip = ::a01:201; hardware = z2; }
+}
+protocol:NTP = udp 123:123;
+protocol:sPort = udp 1-65535:123;
+protocol:highPort = udp 1024-65535:123;
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = protocol:NTP;
+ permit src = host:h10; dst = user; prt = protocol:sPort;
+ permit src = host:h20; dst = user; prt = protocol:highPort;
+}
+=OUTPUT=
+--ipv6/r1
+<entry name="vsys1">
+<rulebase><security><rules>
+<entry name="v6r1">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP___a01_10a</member></source>
+<destination><member>NET___a01_200_120</member></destination>
+<service><member>udp 123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="v6r2">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP___a01_114</member></source>
+<destination><member>NET___a01_200_120</member></destination>
+<service><member>udp 1024-65535:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="v6r3">
+<action>allow</action>
+<from><member>z2</member></from>
+<to><member>z1</member></to>
+<source><member>NET___a01_200_120</member></source>
+<destination><member>NET___a01_100_120</member></destination>
+<service><member>udp 123:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
+<entry name="IP___a01_10a"><ip-netmask>::a01:10a/128</ip-netmask></entry>
+<entry name="IP___a01_114"><ip-netmask>::a01:114/128</ip-netmask></entry>
+<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
+</address>
+<service>
+<entry name="udp 1024-65535:123"><protocol><udp><port>123</port><source-port>1024-65535</source-port></udp></protocol></entry>
+<entry name="udp 123"><protocol><udp><port>123</port></udp></protocol></entry>
+<entry name="udp 123:123"><protocol><udp><port>123</port><source-port>123</source-port></udp></protocol></entry>
+</service>
+</entry>
+=END=
+
+############################################################
 =TITLE=ICMP and numeric protocol
 =PARAMS=--ipv6
 =INPUT=
