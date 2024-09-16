@@ -848,7 +848,7 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 				var messages stringList
 				for tag := range natMap {
 					if natSet[tag] {
-						var list stringerList
+						var list stringerList[router]
 						for _, intf := range d.interfaces {
 							list = append(list, intf.router)
 						}

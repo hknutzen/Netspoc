@@ -194,7 +194,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			r.adminIP = append(r.adminIP, intf.address(natMap).Addr().String())
 		}
 	}
-	var unreachable stringerList
+	var unreachable stringerList[router]
 	for _, r := range pdpRouters {
 		if len(r.adminIP) == 0 && r.origRouter == nil {
 			unreachable = append(unreachable, r)

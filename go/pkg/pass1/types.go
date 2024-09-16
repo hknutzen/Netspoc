@@ -9,7 +9,13 @@ import (
 	"go4.org/netipx"
 )
 
-type stringerList []fmt.Stringer
+type stringerList[E fmt.Stringer] []*E
+
+func (a *stringerList[E]) push(e *E) {
+	*a = append(*a, e)
+}
+
+type intfList = stringerList[routerIntf]
 
 type stringList []string
 
@@ -202,11 +208,7 @@ func vxName(name string, ipV6, isCombined46 bool) string {
 	return name
 }
 
-type netList []*network
-
-func (a *netList) push(e *network) {
-	*a = append(*a, e)
-}
+type netList = stringerList[network]
 
 type netObj struct {
 	ipObj
@@ -413,12 +415,6 @@ func (intf routerIntf) getCrypto() *crypto {
 func (x routerIntf) isCombined46() bool { return x.combined46 != nil }
 func (x routerIntf) vxName() string {
 	return vxName(x.name, x.ipV6, x.combined46 != nil)
-}
-
-type intfList []*routerIntf
-
-func (a *intfList) push(e *routerIntf) {
-	*a = append(*a, e)
 }
 
 type idIntf struct {
