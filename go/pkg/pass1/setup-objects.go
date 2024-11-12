@@ -100,8 +100,6 @@ type symbolTable struct {
 	service map[string]*service
 	// References host, network, interface, area, aggregate, group
 	group map[string]*objGroup
-	// References interface, group+
-	pathrestriction map[string]*ast.TopList
 	// References isakmp
 	ipsec map[string]*ipsec
 	// References ipsec
@@ -123,7 +121,6 @@ func createSymbolTable() *symbolTable {
 	s.unnamedProto = make(map[string]*proto)
 	s.protocolgroup = make(map[string]*protoGroup)
 	s.group = make(map[string]*objGroup)
-	s.pathrestriction = make(map[string]*ast.TopList)
 	s.aggregate = make(map[string]*network)
 	s.owner = make(map[string]*owner)
 	s.crypto = make(map[string]*crypto)
