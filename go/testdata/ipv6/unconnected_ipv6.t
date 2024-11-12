@@ -275,6 +275,102 @@ Error: No valid path
 =END=
 
 ############################################################
+=TITLE=Cyclic reference between split crypto parts
+=PARAMS=--ipv6
+=INPUT=
+isakmp:x = {
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+ipsec:x = {
+ key_exchange = isakmp:x;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ lifetime = 3600 sec;
+}
+
+# First partition
+crypto:x1 = {
+ type = ipsec:x;
+}
+crypto:x2 = {
+ type = ipsec:x;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:t2 = { ip = ::a02:903; hardware = t2; }
+ interface:t1  = { ip = ::a01:901; hub = crypto:x1; hardware = t1; }
+}
+network:t1 = { ip = ::a01:900/120; }
+router:vpn1 = {
+ managed;
+ model = IOS;
+ interface:t1  = { ip = ::a01:902; spoke = crypto:x1; hardware = t1; }
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+network:n1 = { ip = ::a01:100/120; }
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:t1 = { ip = ::a01:903; hardware = t1; }
+ interface:t2  = { ip = ::a02:901; hub = crypto:x2; hardware = t2; }
+}
+network:t2 = { ip = ::a02:900/120; }
+router:vpn2 = {
+ managed;
+ model = IOS;
+ interface:t2  = { ip = ::a02:902; spoke = crypto:x2; hardware = t2; }
+ interface:n2 = { ip = ::a02:101; hardware = n2; }
+}
+network:n2 = { ip = ::a02:100/120; }
+
+# Second partition
+crypto:x1b = {
+ type = ipsec:x;
+}
+crypto:x2b = {
+ type = ipsec:x;
+}
+router:r1b = {
+ managed;
+ model = IOS;
+ interface:t2b = { ip = ::a02:903; hardware = t2; }
+ interface:t1b  = { ip = ::a01:901; hub = crypto:x1b; hardware = t1; }
+}
+network:t1b = { ip = ::a01:900/120; }
+router:vpn1b = {
+ managed;
+ model = IOS;
+ interface:t1b  = { ip = ::a01:902; spoke = crypto:x1b; hardware = t1; }
+ interface:n1b = { ip = ::a01:101; hardware = n1; }
+}
+network:n1b = { ip = ::a01:100/120; }
+router:r2b = {
+ managed;
+ model = IOS;
+ interface:t1b = { ip = ::a01:903; hardware = t1; }
+ interface:t2b  = { ip = ::a02:901; hub = crypto:x2b; hardware = t2; }
+}
+network:t2b = { ip = ::a02:900/120; }
+router:vpn2b = {
+ managed;
+ model = IOS;
+ interface:t2b  = { ip = ::a02:902; spoke = crypto:x2b; hardware = t2; }
+ interface:n2b = { ip = ::a02:101; hardware = n2; }
+}
+network:n2b = { ip = ::a02:100/120; }
+=ERROR=
+Error: IPv6 topology has unconnected parts:
+ - any:[network:t2]
+ - any:[network:t2b]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
 =TITLE=Intentionally unconnected, too many partition definitions
 =TEMPL=input
 network:n1 = { ip = ::a01:100/120;}
