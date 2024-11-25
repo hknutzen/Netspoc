@@ -220,7 +220,7 @@ func (p *parser) aggAuto(typ string) ast.Element {
 	a.Type = typ
 	p.next()
 	if p.check("ip") {
-		p.check("=")
+		p.expect("=")
 		a.Net = p.name()
 		p.expect("&")
 	}

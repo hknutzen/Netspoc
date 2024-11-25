@@ -46,6 +46,24 @@ Error: Invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
 =END=
 
 ############################################################
+=TITLE=Missing = after IP in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip 10.1.0.0/16 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=ERROR=
+Error: Expected '=' at line 8 of INPUT, near "ip --HERE-->10.1.0.0/16"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP in anonymous aggregate
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
