@@ -50,6 +50,25 @@ Error: Invalid CIDR address: ::a01:100o/24 in 'ip' of network:n1
 =END=
 
 ############################################################
+=TITLE=Missing = after IP in anonymous aggregate
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip ::a01:0/112 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=ERROR=
+Error: Expected '=' at line 8 of INPUT, near "ip --HERE-->::a01:0/112"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP in anonymous aggregate
 =PARAMS=--ipv6
 =INPUT=
