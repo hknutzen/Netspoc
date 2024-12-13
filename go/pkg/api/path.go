@@ -293,7 +293,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 		if a.Name == name {
 			if len(names) != 0 {
 				if len(a.ComplexValue) == 0 {
-					return fmt.Errorf("Can't descend into value of '%s'", a.Name)
+					return fmt.Errorf("Can't descend into value of '%s'", name)
 				}
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
@@ -308,8 +308,11 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				*l = append((*l)[:i], (*l)[i+1:]...)
 				return nil
 			}
-			return fmt.Errorf("Missing value to %s at '%s'", c.method, a.Name)
+			return fmt.Errorf("Missing value to %s at '%s'", c.method, name)
 		}
+	}
+	if len(names) != 0 {
+		return fmt.Errorf("Can't %s attribute of unknown '%s'", c.method, name)
 	}
 	return newAttribute(l, name, c)
 }
