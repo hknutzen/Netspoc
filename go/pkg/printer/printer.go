@@ -3,8 +3,9 @@
 package printer
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 )
 
 type printer struct {
@@ -89,7 +90,11 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 	case *ast.AggAuto:
 		p2 := x.Type + ":["
 		if x.Net != "" {
-			p2 += "ip = " + x.Net + " &"
+			p2 += "ip"
+			if x.IPV6 {
+				p2 += "6"
+			}
+			p2 += " = " + x.Net + " &"
 		}
 		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:

@@ -253,6 +253,7 @@ sub adjust_testfile {
 
         # Convert result messages.
         $line =~ s/IP address expected/IPv6 address expected/;
+        $line =~ s/IPv4 address/IPv6 address/;
         $line =~ s/IPv4 topology/IPv6 topology/;
         $line =~ s/(DIAG: Reused [.]prev)/$1\/ipv6/;
         $line =~ s/Read IPv4:/Read IPv6:/;
@@ -260,6 +261,9 @@ sub adjust_testfile {
 
         # Convert group names
         $line =~ s/([ >"]|Netspoc-)(g\d+[\s<"])/$1v6$2/g;
+
+        # Convert any:[ip =...] in error messages
+        $line =~ s/any:\[ip =/any:[ip6 =/;
 
         # Convert rule names in XML: <entry name="r2">
         $line =~ s/(=")(r\d+")/$1v6$2/g;

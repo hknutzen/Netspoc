@@ -3347,7 +3347,7 @@ Error: Duplicate any:a1 and any:a2 in any:[network:n2]
 any:a1 = { ip = 10.0.0.0/8; link = network:n1; }
 network:n1 = { ip = 10.0.0.0/8; }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3361,7 +3361,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3391,7 +3391,7 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 =ERROR=
-Error: any:a1 and network:n2 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n2 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3424,6 +3424,40 @@ service:s1 = {
 -- r2
 ! n3_in
 access-list n3_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Must not expand aggregate set of zone cluster twice
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+group:clients = any:[network:n1];
+service:s1 = {
+ user = group:clients;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! n3_in
+access-list n3_in extended permit tcp any4 10.1.4.0 255.255.255.0 eq 80
 access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 =END=

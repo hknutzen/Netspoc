@@ -120,13 +120,13 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 			prefixIPMap[ipp.Bits()] = ipMap
 		}
 
-		// Found two different networks with identical IP/mask.
+		// Found two different networks with identical address.
 		if other := ipMap[ipp.Addr()]; other != nil {
-			c.err("%s and %s have identical IP/mask in %s",
+			c.err("%s and %s have identical address in %s",
 				other.name, n.name, z0.name)
 		} else {
 
-			// Store original network under IP/mask.
+			// Store original network under its address.
 			ipMap[ipp.Addr()] = n
 		}
 	}
@@ -315,7 +315,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	}
 
 	// 1. step:
-	// Compare IP/mask of all networks and NAT networks and find relations
+	// Compare addresses of all networks and NAT networks and find relations
 	// isIn and identical.
 
 	// Mapping prefix -> IP -> Network|NAT Network.
@@ -390,7 +390,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 		}
 
-		// Mark and analyze networks having identical IP/mask in
+		// Mark and analyze networks having identical address in
 		// current NAT domain.
 		for n1, l := range identical {
 			var filtered netList
@@ -406,7 +406,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				continue
 			}
 
-			// Compare pairs of networks with identical IP/mask.
+			// Compare pairs of networks with identical address.
 			natOther := filtered[0]
 			other := origNet[natOther]
 			for _, natNetwork := range filtered[1:] {
@@ -415,14 +415,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				if natOther.dynamic && natNetwork.dynamic {
 
 					// Dynamic NAT of different networks to a single new
-					// IP/mask is OK between different zones.
+					// address is OK between different zones.
 					// But not if both networks and NAT domain are located
 					// in same zone cluster.
 					cl := n.zone.cluster[0]
 					if other.zone.cluster[0] == cl {
 						for _, z := range domain.zones {
 							if z.cluster[0] == cl {
-								c.err("%s and %s have identical IP/mask in %s",
+								c.err("%s and %s have identical address in %s",
 									n, other, z)
 								break
 							}
@@ -443,7 +443,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					error = true
 				}
 				if error {
-					c.err("%s and %s have identical IP/mask\n"+
+					c.err("%s and %s have identical address\n"+
 						" in %s",
 						natName(natNetwork), natName(natOther), domain.name)
 				}

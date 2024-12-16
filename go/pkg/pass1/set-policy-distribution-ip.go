@@ -33,13 +33,13 @@ func (c *spoc) setPolicyDistributionIP() {
 				for _, m := range l {
 					seen[m] = true
 					if p := m.policyDistributionPoint; p != nil {
-						pdpRouters = append(pdpRouters, m)
 						if found != nil && found != p {
 							c.err("Instances of router:%s must not use different"+
 								" 'policy_distribution_point':\n -%s\n -%s",
 								m.deviceName, found, p)
-							break
+							m.policyDistributionPoint = nil
 						} else {
+							pdpRouters = append(pdpRouters, m)
 							found = p
 						}
 					}

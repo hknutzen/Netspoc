@@ -52,7 +52,7 @@ router:bridge = {
 network:n1/right = { ip = ::a01:100/120; }
 =ERROR=
 Error: network:n1/right and network:n1/left must be connected by bridge
-Error: network:n1/left and network:n1/right have identical IP/mask in any:[network:n1/left]
+Error: network:n1/left and network:n1/right have identical address in any:[network:n1/left]
 =END=
 
 ############################################################

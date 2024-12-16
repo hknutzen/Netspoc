@@ -186,7 +186,7 @@ router:bridge = {
 }
 network:n1/right = { ip = ::a02:200/120; }
 =ERROR=
-Error: network:n1/left and network:n1/right must have identical ip/mask
+Error: network:n1/left and network:n1/right must have identical address
 =END=
 
 ############################################################
@@ -223,7 +223,7 @@ Error: Layer3 interface:bridge.n1 must not have secondary or virtual IP
 =END=
 
 ############################################################
-=TITLE=Layer 3 IP must match bridged network IP/mask
+=TITLE=Layer 3 IP must match bridged network address
 =PARAMS=--ipv6
 =INPUT=
 network:n1/left = { ip = ::a01:100/120; }
@@ -236,7 +236,7 @@ router:bridge = {
 }
 network:n1/right = { ip = ::a01:100/120; }
 =ERROR=
-Error: interface:bridge.n1's IP doesn't match IP/mask of bridged networks
+Error: interface:bridge.n1's IP doesn't match address of bridged networks
 =END=
 
 ############################################################

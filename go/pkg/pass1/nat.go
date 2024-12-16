@@ -878,7 +878,7 @@ func (c *spoc) checkNatCompatibility() {
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {
 					if !natNet.ipp.Contains(objIP) {
-						c.err("nat:%s: IP of %s doesn't match IP/mask of %s",
+						c.err("nat:%s: IP of %s doesn't match address of %s",
 							tag, obj, n)
 					}
 				} else {

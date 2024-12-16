@@ -77,7 +77,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: Invalid CIDR address: 10.1.0.0 in any:[ip = ...] of user of service:s1
+Error: Invalid CIDR address in any:[ip = 10.1.0.0 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -94,7 +94,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: IP and mask don't match in any:[ip = ...] of user of service:s1
+Error: IP and mask don't match in any:[ip = 10.1.1.0/16 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -547,9 +547,9 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 network:n1 = { ip = 10.1.1.0/24; host:h1 = 10.1.1.10; host:h2; }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Structured value expected in 'host:h2'
-Error: host:h2 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h2
 =END=
 
 ############################################################
@@ -924,7 +924,7 @@ Aborted
 =INPUT=
 network:n = { host:h1 = {} }
 =ERROR=
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Missing IP address for network:n
 =END=
 
@@ -934,8 +934,7 @@ Error: Missing IP address for network:n
 network:n = { ip = 10.1.1.0/24; unnumbered; ip = 10.1.2.0/24; }
 =ERROR=
 Error: Duplicate attribute 'ip' in network:n
-Error: Unnumbered network:n must not have attribute 'ip'
-Error: Unnumbered network:n must not have attribute 'ip'
+Error: Must not use both, "unnumbered" and "ip" in network:n
 =END=
 
 ############################################################

@@ -1,8 +1,9 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"sort"
+
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
 
 type stdProto struct {
@@ -19,10 +20,10 @@ type stdProto struct {
 
 func (c *spoc) initStdProtocols() {
 	define := func(s string) *proto {
-		return c.getSimpleProtocol(s, false, s)
+		return c.getSimpleProtocol(s, s)
 	}
 	defineX := func(s string) *proto {
-		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, false, s)
+		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, s)
 		p := *pSimp
 		p.name = s
 		// Link complex protocol with corresponding simple protocol.

@@ -124,5 +124,8 @@ func (c *spoc) collectRoutersAndNetworks() {
 		if !seen[n] {
 			c.allNetworks.push(n)
 		}
+		if n6 := n.combined46; n6 != nil && !seen[n6] {
+			c.allNetworks.push(n6)
+		}
 	}
 }

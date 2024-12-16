@@ -2202,7 +2202,6 @@ func (c *spoc) getDevices() []*router {
 
 	// Take only one router of multi VRF device.
 	// Ignore split part of crypto router.
-	// Create ipv6 subdirectory.
 	var result []*router
 	seen := make(map[*router]bool)
 	for _, r := range c.managedRouters {

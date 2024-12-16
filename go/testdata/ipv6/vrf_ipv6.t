@@ -285,9 +285,8 @@ router:r1@v2 = {
 Error: Instances of router:r1 must not use different 'policy_distribution_point':
  -host:h8
  -host:h9
-Warning: Missing rules to reach 2 devices from policy_distribution_point:
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
  - router:r1@v1
- - router:r1@v2
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################

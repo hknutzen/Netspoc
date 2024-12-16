@@ -84,7 +84,7 @@ router:u = {
  interface:n1b = { ip = 10.1.1.1; hardware = n1b; }
 }
 =ERROR=
-Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =END=
 
 ############################################################
@@ -109,7 +109,7 @@ service:s1 = {
  permit src = user; dst = interface:filter1.Trans; prt = tcp 22;
 }
 =ERROR=
-Error: network:B and network:A have identical IP/mask in any:[network:Trans]
+Error: network:B and network:A have identical address in any:[network:Trans]
 =END=
 
 ############################################################

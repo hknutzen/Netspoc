@@ -83,7 +83,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: Invalid CIDR address: ::a01:0 in any:[ip = ...] of user of service:s1
+Error: Invalid CIDR address in any:[ip6 = ::a01:0 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -101,7 +101,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: IP and mask don't match in any:[ip = ...] of user of service:s1
+Error: IP and mask don't match in any:[ip6 = ::a01:100/112 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -593,9 +593,9 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 network:n1 = { ip = ::a01:100/120; host:h1 = ::a01:10a; host:h2; }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Structured value expected in 'host:h2'
-Error: host:h2 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h2
 =END=
 
 ############################################################
@@ -1005,7 +1005,7 @@ Aborted
 =INPUT=
 network:n = { host:h1 = {} }
 =ERROR=
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Missing IP address for network:n
 =END=
 
@@ -1016,8 +1016,7 @@ Error: Missing IP address for network:n
 network:n = { ip = ::a01:100/120; unnumbered; ip = ::a01:200/120; }
 =ERROR=
 Error: Duplicate attribute 'ip' in network:n
-Error: Unnumbered network:n must not have attribute 'ip'
-Error: Unnumbered network:n must not have attribute 'ip'
+Error: Must not use both, "unnumbered" and "ip" in network:n
 =END=
 
 ############################################################
@@ -1563,7 +1562,7 @@ Warning: interface:[..].[all] of group:g1 is empty
 [[topo]]
 service:s1 = {
  user = interface:[managed & ].[all];
- permit src = user; dst = network:n1, any:[ip = ::a01:0/112 & ]; prt = tcp 22;
+ permit src = user; dst = network:n1, any:[ip6 = ::a01:0/112 & ]; prt = tcp 22;
 }
 =WARNING=
 Warning: interface:[..].[all] of user of service:s1 is empty

@@ -308,7 +308,7 @@ func (c *spoc) markAndSubstElements(
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
-		return c.expandGroup1([]ast.Element{el}, ctx, v6, false, false)
+		return c.expandGroup1([]ast.Element{el}, ctx, false, false)
 	}
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
@@ -626,7 +626,7 @@ func (c *spoc) cutNetspoc(
 	// Mark management_instance of routers
 	for _, r := range c.managedRouters {
 		if isUsed[r.name] && r.model.needManagementInstance {
-			if mr := c.getRouter(r.deviceName, r.ipV6); mr != nil {
+			if mr := c.symTable.router[r.deviceName]; mr != nil {
 				for _, intf := range getIntf(mr) {
 					c.markPath(intf, r.interfaces[0], isUsed)
 				}

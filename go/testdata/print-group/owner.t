@@ -42,7 +42,6 @@ router:r1 = {
 }
 =OUTPUT=
 any:[ip=10.1.0.0/20 & network:n1]	owner:o1
-any:[ip=10.1.0.0/20 & network:n1]	owner:o1
 =OPTIONS=--owner --name
 =PARAM=any:[ip = 10.1.0.0/20 & network:n1]
 
@@ -60,7 +59,6 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; }
 }
 =OUTPUT=
-any:a20	owner:o2
 any:a20	owner:o2
 =OPTIONS=--owner --name
 =PARAM=any:a20
@@ -88,8 +86,6 @@ owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
 owner:c = { admins = c@example.com; }
 =OUTPUT=
-any:a26	owner:c
-any:a26	owner:c
 any:a26	owner:c
 =OPTIONS=--owner --name
 =PARAM=any:a26

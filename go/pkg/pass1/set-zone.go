@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"cmp"
 	"maps"
 	"net/netip"
 	"slices"
@@ -75,6 +76,14 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	n.zone = z
 	if n.ipType != unnumberedIP && n.ipType != tunnelIP { // no valid src/dst
 		z.networks.push(n)
+	}
+
+	// Link IPv4 and IPv6 zone if it has at least one combined network.
+	if n2 := n.combined46; n2 != nil && z.combined46 == nil {
+		if z2 := n2.zone; z2 != nil {
+			z.combined46 = z2
+			z2.combined46 = z
+		}
 	}
 
 	//debug("%s in %s", n, z)
@@ -374,14 +383,10 @@ type bLookup map[*routerIntf]borderType
 // setAreas sets up areas, assure proper border definitions.
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
-	var sortedAreas []*area
-	for _, a := range c.symTable.area {
-		sortedAreas = append(sortedAreas, a)
-	}
-	sort.Slice(sortedAreas, func(i, j int) bool {
-		return sortedAreas[i].name < sortedAreas[j].name
+	slices.SortFunc(c.ascendingAreas, func(a, b *area) int {
+		return cmp.Compare(a.name, b.name)
 	})
-	for _, a := range sortedAreas {
+	for _, a := range c.ascendingAreas {
 		if n := a.anchor; n != nil {
 			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
@@ -573,11 +578,6 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			return si < sj || si == sj && l[i].name < l[j].name
 		})
 	}
-
-	// Fill global list of areas.
-	for _, a := range c.symTable.area {
-		c.ascendingAreas = append(c.ascendingAreas, a)
-	}
 	sortBySize(c.ascendingAreas)
 
 	// Get list of all zones and managed routers of an area.
@@ -642,7 +642,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 			// Check for duplicates.
 			if len(smallList) == len(nextList) {
-				c.err("Duplicate %s and %s", small, next)
+				c.err("Duplicate %s and %s", small.vxName(), next.vxName())
 			}
 		}
 	}
@@ -674,28 +674,46 @@ func (c *spoc) processAggregates() {
 		return aggList[i].name < aggList[j].name
 	})
 	for _, agg := range aggList {
-		z := agg.link.zone
-		// Assure that no other aggregate with same IP and mask exists in cluster
-		ipp := agg.ipp
-		cluster := z.cluster
-		for _, z2 := range cluster {
-			if other := z2.ipPrefix2aggregate[ipp]; other != nil {
-				c.err("Duplicate %s and %s in %s", other, agg, z)
-			}
-		}
-		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
-		if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
+		process := func(agg *network, z *zone) {
+			// Assure that no other aggregate with same IP and mask
+			// exists in cluster
+			ipp := agg.ipp
+			cluster := z.cluster
 			for _, z2 := range cluster {
-				z2.noCheckSupernetRules = true
-				c.checkAttrNoCheckSupernetRules(z2)
+				if other := z2.ipPrefix2aggregate[ipp]; other != nil {
+					c.err("Duplicate %s and %s in %s", other, agg, z)
+				}
 			}
+			// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
+			if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
+				for _, z2 := range cluster {
+					z2.noCheckSupernetRules = true
+					c.checkAttrNoCheckSupernetRules(z2)
+				}
+			}
+			// Link aggragate and zone (also setting z.ipPrefix2aggregate)
+			c.linkAggregateToZone(agg, z, ipp)
 		}
-		// Link aggragate and zone (also setting z.ipPrefix2aggregate)
-		c.linkAggregateToZone(agg, z, ipp)
+		z := agg.link.zone
+		process(agg, z)
+		// Add non matching aggregate to combined zone.
+		if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
+			agg2 := *agg
+			ipp2 := c.getNetwork00(!agg.ipV6).ipp
+			agg2.ipp = ipp2
+			agg2.ipV6 = !agg.ipV6
+			agg.combined46 = &agg2
+			agg2.combined46 = agg
+			process(&agg2, z2)
+		}
+
 	}
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
+		if a2 := agg.combined46; a2 != nil {
+			c.duplicateAggregateToCluster(a2, false)
+		}
 	}
 }
 
@@ -724,6 +742,7 @@ func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
 
 func (c *spoc) inheritAttributes() {
 	c.inheritAttributesFromArea()
+	c.inheritAutoIPv6Hosts()
 	c.inheritNAT()
 	c.cleanupAfterInheritance()
 }
@@ -739,7 +758,11 @@ type routerAttr interface {
 func (p *host) attrName() string         { return "policy_distribution_point" }
 func (p *host) isNil() bool              { return p == nil }
 func (p *host) equal(p2 routerAttr) bool { return p == p2 }
-func (p *host) toRouter(r *router)       { r.policyDistributionPoint = p }
+func (p *host) toRouter(r *router) {
+	if p.ipV6 == r.ipV6 {
+		r.policyDistributionPoint = p
+	}
+}
 
 func (l protoList) attrName() string { return "general_permit" }
 func (l protoList) isNil() bool      { return l == nil }
@@ -830,6 +853,44 @@ func (c *spoc) inheritRouterAttributes(
 			inherit(r)
 		}
 	}
+}
+
+// inheritAutoIPv6Hosts distributes attribute 'autoIPv6Hosts' from
+// areas to networks and then builds IPv6 hosts from IPv4 hosts.
+func (c *spoc) inheritAutoIPv6Hosts() {
+	// Areas can be nested. Proceed from small to larger ones.
+AREA:
+	for _, a := range c.ascendingAreas {
+		if !a.ipV6 {
+			continue
+		}
+		v1 := a.autoIPv6Hosts
+		if v1 == "" {
+			continue
+		}
+		// Check for redundant attribute with enclosing areas.
+		for up := a.inArea; up != nil; up = up.inArea {
+			if up.autoIPv6Hosts == v1 {
+				c.warn("Useless 'auto_ipv6_hosts = %s' at %s,\n"+
+					" it was already inherited from %s", v1, a, up)
+				continue AREA
+			}
+		}
+		for _, z := range a.zones {
+			for _, n := range z.networks {
+				if n.combined46 == nil {
+					continue
+				}
+				if n.autoIPv6Hosts == "" {
+					n.autoIPv6Hosts = v1
+				} else if n.autoIPv6Hosts == v1 {
+					c.warn("Useless 'auto_ipv6_hosts = %s' at %s,\n"+
+						" it was already inherited from %s", v1, n, a)
+				}
+			}
+		}
+	}
+	c.addAutoIPv6Hosts()
 }
 
 func (c *spoc) inheritNAT0() {

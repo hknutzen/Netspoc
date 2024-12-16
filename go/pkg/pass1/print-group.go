@@ -89,7 +89,6 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
@@ -164,24 +163,6 @@ func printAddress(obj groupObj, nm natMap) string {
 	return ""
 }
 
-// Try to expand group as IPv4 or IPv6, but don't abort on error.
-func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
-	c2 := c.bufferedSpoc()
-	expanded := c2.expandGroup(parsed, "print-group", ipv6, true)
-	ok := true
-	for _, s := range c2.messages {
-		if strings.HasPrefix(s, "Error: Must not reference IPv") {
-			ok = false
-		}
-	}
-	if ok {
-		c.sendBuf(c2)
-		return expanded
-	} else {
-		return c.expandGroup(parsed, "print-group", !ipv6, true)
-	}
-}
-
 func (c *spoc) printGroup(
 	stdout io.Writer,
 	path, group, natNet string,
@@ -248,11 +229,7 @@ func (c *spoc) printGroup(
 	}
 
 	// Expand group definition.
-	// We don't know if this expands to IPv4 or IPv6 addresses,
-	// so we try both IPv4 and IPv6.
-	ipVx := c.conf.IPV6
-	c.conf.MaxErrors = 9999
-	elements := c.tryExpand(parsed, ipVx)
+	elements := c.expandGroup(parsed, "print-group", true)
 
 	if showUnused {
 		j := 0
@@ -266,6 +243,11 @@ func (c *spoc) printGroup(
 	}
 
 	// Print IP address, name, owner, admins.
+	//
+	// Duplicate lines can result from
+	// - combined IPv4/IPv6 objects and
+	// - duplicated zones in zone cluster.
+	seen := make(map[string]bool)
 	for _, ob := range elements {
 		var result stringList
 		if showIP {
@@ -295,7 +277,11 @@ func (c *spoc) printGroup(
 				result.push(admins)
 			}
 		}
-		fmt.Fprintln(stdout, strings.Join(result, "\t"))
+		line := strings.Join(result, "\t")
+		if !seen[line] {
+			fmt.Fprintln(stdout, line)
+			seen[line] = true
+		}
 	}
 }
 

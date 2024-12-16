@@ -348,7 +348,7 @@ service:s1 = {
 }
 =INPUT=[[input r1]]
 =ERROR=
-Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
+Error: interface:r2.lo and nat:extern of network:n1 have identical address
  in nat_domain:[network:n2]
 =END=
 
@@ -356,7 +356,7 @@ Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
 =TITLE=Illegal NAT to loopback interface (2)
 =INPUT=[[input r3]]
 =ERROR=
-Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
+Error: nat:extern of network:n1 and interface:r2.lo have identical address
  in nat_domain:[interface:r2.lo]
 =END=
 

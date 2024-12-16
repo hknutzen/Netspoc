@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -234,7 +235,7 @@ func (c *spoc) checkProperPartitionUsage(
 	var unconnectedIPv6 []*zone
 	var unconnectedIPv4 []*zone
 	for _, z := range unconnected {
-		if z.ipVxObj.isIPv6() {
+		if z.isIPv6() {
 			unconnectedIPv6 = append(unconnectedIPv6, z)
 		} else {
 			unconnectedIPv4 = append(unconnectedIPv4, z)
@@ -374,10 +375,17 @@ func setLoopClusterExit(lo *loop) pathObj {
 */
 func (c *spoc) checkPathrestrictions() {
 
+	// We get two pathrestrictions from combined46 interfaces.
+	// If the IPv4 pathrestriction has interfaces that are
+	// correctly located inside loop, we put the corresponding IPv6
+	// pathrestriction into this map.
+	// This is used to suppress warning about interface outside of loop
+	// for corresponding pathrestriction.
+	otherLoopOK := make(map[*pathRestriction]bool)
 	for _, p := range c.pathrestrictions {
 
 		// Delete invalid elements of pathrestriction.
-		c.removeRestrictedIntfsInWrongOrNoLoop(p)
+		c.removeRestrictedIntfsInWrongOrNoLoop(p, otherLoopOK)
 		if len(p.elements) == 0 {
 			continue
 		}
@@ -399,9 +407,12 @@ func (c *spoc) checkPathrestrictions() {
 	c.pathrestrictions = effective
 }
 
-func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
+func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
+	p *pathRestriction, otherLoopOK map[*pathRestriction]bool,
+) {
 	var prevIntf *routerIntf
 	var prevCluster pathObj
+	loopOK := true
 	j := 0
 	for _, intf := range p.elements {
 		// Show original interface in error message.
@@ -425,9 +436,17 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 			// pathrestriction because equivalent warning was already
 			// shown for virtual interfaces.
 			if !strings.HasPrefix(p.name, "auto-virtual:") {
-				c.warn("Ignoring %s at %s\n because it isn't located "+
-					"inside cyclic graph", p.name, intf)
+				if !(otherLoopOK[p] && hasOnlyCombinedIntf(p)) {
+					vx := ""
+					if p.combined46 != nil {
+						vx = "IPv" + cond(p.elements[0].ipV6, "6", "4")
+						vx += " "
+					}
+					c.warn("Ignoring %s%s at %s\n because it isn't located "+
+						"inside cyclic graph", vx, p.name, intf)
+				}
 			}
+			loopOK = false
 			continue
 		}
 
@@ -450,6 +469,17 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 		j++
 	}
 	p.elements = p.elements[:j]
+	if loopOK {
+		if p2 := p.combined46; p2 != nil {
+			otherLoopOK[p2] = true
+		}
+	}
+}
+
+func hasOnlyCombinedIntf(p *pathRestriction) bool {
+	return !slices.ContainsFunc(p.elements, func(intf *routerIntf) bool {
+		return !intf.isCombined46()
+	})
 }
 
 // Pathrestrictions that do not affect any ACLs are useless
