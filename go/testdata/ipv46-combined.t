@@ -715,6 +715,20 @@ Error: Must not reference IPv4 network:n1 from IPv6 interface:r1.n1
 =END=
 
 ############################################################
+=TITLE=Split v4/v6 router at combined network
+=INPUT=
+--ipv6/topo
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+}
+--topo
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Different number of IPv4/IPv6 secondary IP adresses at interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
