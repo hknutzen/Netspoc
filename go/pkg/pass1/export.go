@@ -441,18 +441,9 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 					// Artificially take one of 'src' and 'dst' as user
 					// for case like
 					// src = user; dst = any:[user];
-					listEq := func(l1, l2 srvObjList) bool {
-						if len(l1) != len(l2) {
-							return false
-						}
-						for i, el := range l1 {
-							if el != l2[i] {
-								return false
-							}
-						}
-						return true
-					}
-					if hasUser == "both" && (!listEq(srcList, dstList) || foreach) {
+					if hasUser == "both" &&
+						(!slices.Equal(srcList, dstList) || foreach) {
+
 						if seenAsUser(srcList) {
 							hasUser = "src"
 						} else if seenAsUser(dstList) {
