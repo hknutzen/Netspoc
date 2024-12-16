@@ -103,22 +103,6 @@ Error: Invalid 'log:a = foo' at router:r1 of model IOS
 =END=
 
 ############################################################
-=TITLE=Unknown log severity at NX-OS
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-router:r1 = {
- managed;
- model = NX-OS;
- log:a = foo;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
-}
-=ERROR=
-Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
- Use 'log:a;' only.
-=END=
-
-############################################################
 =TITLE=Unknown log values at PAN-OS
 =PARAMS=--ipv6
 =INPUT=
@@ -387,7 +371,7 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Logging at NX-OS
+=TITLE=Simple logging at two IOS devices
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
@@ -395,14 +379,14 @@ network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
 router:r1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
  log:b;
  interface:n2 = { ip = ::a01:202; hardware = n2; }
@@ -417,15 +401,15 @@ service:t = {
 -- ipv6/r1
 ! [ ACL ]
 ipv6 access-list n1_in
- 10 permit tcp ::a01:100/120 ::a01:300/120 eq 80 log
- 20 permit tcp ::a01:100/120 ::a01:300/120 eq 81
- 30 deny ip any any
+ permit tcp ::a01:100/120 ::a01:300/120 eq 80 log
+ permit tcp ::a01:100/120 ::a01:300/120 eq 81
+ deny ipv6 any any
 -- ipv6/r2
 ! [ ACL ]
 ipv6 access-list n2_in
- 10 deny ip any ::a01:302/128
- 20 permit tcp ::a01:100/120 ::a01:300/120 range 80 81 log
- 30 deny ip any any
+ deny ipv6 any host ::a01:302
+ permit tcp ::a01:100/120 ::a01:300/120 range 80 81 log
+ deny ipv6 any any
 =END=
 
 ############################################################

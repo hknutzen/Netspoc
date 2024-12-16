@@ -1,12 +1,12 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"net/netip"
+	"slices"
 	"sort"
-
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
-	"golang.org/x/exp/maps"
 
 	"go4.org/netipx"
 )
@@ -19,13 +19,12 @@ func natName(n *network) string {
 	return name
 }
 
-func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
-	work func(sub, big *network)) {
-
-	prefixList := maps.Keys(prefixIPMap)
-	sort.Slice(prefixList, func(i, j int) bool {
+func processSubnetRelation(
+	prefixIPMap map[int]map[netip.Addr]*network, work func(sub, big *network),
+) {
+	prefixList := slices.SortedFunc(maps.Keys(prefixIPMap), func(a, b int) int {
 		// Go from smaller to larger networks, i.e big prefix value first.
-		return prefixList[i] > prefixList[j]
+		return cmp.Compare(b, a)
 	})
 	for i, prefix := range prefixList {
 		upperPrefixes := prefixList[i+1:]
@@ -37,7 +36,7 @@ func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
 
 		// Sort IP addresses to get deterministic warnings and ACLs.
 		ipMap := prefixIPMap[prefix]
-		ipList := maps.Keys(ipMap)
+		ipList := slices.Collect(maps.Keys(ipMap))
 		sort.Slice(ipList, func(i, j int) bool {
 			return ipList[i].Less(ipList[j])
 		})
@@ -121,13 +120,13 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 			prefixIPMap[ipp.Bits()] = ipMap
 		}
 
-		// Found two different networks with identical IP/mask.
+		// Found two different networks with identical address.
 		if other := ipMap[ipp.Addr()]; other != nil {
-			c.err("%s and %s have identical IP/mask in %s",
+			c.err("%s and %s have identical address in %s",
 				other.name, n.name, z0.name)
 		} else {
 
-			// Store original network under IP/mask.
+			// Store original network under its address.
 			ipMap[ipp.Addr()] = n
 		}
 	}
@@ -316,7 +315,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	}
 
 	// 1. step:
-	// Compare IP/mask of all networks and NAT networks and find relations
+	// Compare addresses of all networks and NAT networks and find relations
 	// isIn and identical.
 
 	// Mapping prefix -> IP -> Network|NAT Network.
@@ -391,7 +390,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 		}
 
-		// Mark and analyze networks having identical IP/mask in
+		// Mark and analyze networks having identical address in
 		// current NAT domain.
 		for n1, l := range identical {
 			var filtered netList
@@ -407,7 +406,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				continue
 			}
 
-			// Compare pairs of networks with identical IP/mask.
+			// Compare pairs of networks with identical address.
 			natOther := filtered[0]
 			other := origNet[natOther]
 			for _, natNetwork := range filtered[1:] {
@@ -416,14 +415,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				if natOther.dynamic && natNetwork.dynamic {
 
 					// Dynamic NAT of different networks to a single new
-					// IP/mask is OK between different zones.
+					// address is OK between different zones.
 					// But not if both networks and NAT domain are located
 					// in same zone cluster.
 					cl := n.zone.cluster[0]
 					if other.zone.cluster[0] == cl {
 						for _, z := range domain.zones {
 							if z.cluster[0] == cl {
-								c.err("%s and %s have identical IP/mask in %s",
+								c.err("%s and %s have identical address in %s",
 									n, other, z)
 								break
 							}
@@ -444,7 +443,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					error = true
 				}
 				if error {
-					c.err("%s and %s have identical IP/mask\n"+
+					c.err("%s and %s have identical address\n"+
 						" in %s",
 						natName(natNetwork), natName(natOther), domain.name)
 				}
@@ -741,7 +740,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-		for _, part := range sorted.Keys(part2Doms) {
+		for _, part := range slices.Sorted(maps.Keys(part2Doms)) {
 			domains := part2Doms[part]
 			networks := part2Nets[part]
 			findUnstableNat(domains, networks)

@@ -218,9 +218,15 @@ func (p *parser) simpleAuto(typ string) ast.Element {
 func (p *parser) aggAuto(typ string) ast.Element {
 	a := new(ast.AggAuto)
 	a.Type = typ
+	a.IPV6 = p.ipv6
 	p.next()
-	if p.check("ip") {
-		p.check("=")
+	switch p.tok {
+	case "ip6":
+		a.IPV6 = true
+		fallthrough
+	case "ip":
+		p.next()
+		p.expect("=")
 		a.Net = p.name()
 		p.expect("&")
 	}
@@ -429,6 +435,7 @@ var specialTokenAttr = map[string]func(*parser){
 	"admins":      (*parser).nextMulti,
 	"watchers":    (*parser).nextMulti,
 	"range":       (*parser).nextIPRange,
+	"range6":      (*parser).nextIPRange,
 }
 
 var specialSubTokenAttr = map[string]func(*parser){
@@ -440,6 +447,7 @@ var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
 	"general_permit": (*parser).protocolRef,
 	"lifetime":       (*parser).multiValue,
 	"range":          (*parser).multiValue,
+	"range6":         (*parser).multiValue,
 }
 
 func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {

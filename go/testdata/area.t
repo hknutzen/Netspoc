@@ -395,7 +395,7 @@ area:all = {
 network:n = { ip = 10.1.1.0/24; host:h = { ip = 10.1.1.111; } }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
   policy_distribution_point = host:h;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }

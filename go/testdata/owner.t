@@ -831,6 +831,34 @@ Warning: service:s1 has multiple owners:
 =END=
 
 ############################################################
+=TITLE=Must not swap user and rules, if rules have different objects.
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+ permit src = user; dst = host:h1; prt = tcp 81;
+}
+=WARNING=
+Warning: service:s1 has multiple owners:
+ o1, o2
+=END=
+
+############################################################
 =TITLE=Useless multi_owner when expanded user objects have single owner
 =INPUT=
 owner:o1 = { admins = a1@b.c; }

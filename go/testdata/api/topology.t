@@ -1539,6 +1539,66 @@ Error: 'vip' interface:r1.VIP_interface must have IP address
 =END=
 
 ############################################################
+=TITLE=Add attribute to short interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:n1,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't descend into value of 'interface:n1'
+=END=
+
+############################################################
+=TITLE=Set attribute of unknown interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n2,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't set attribute of unknown 'interface:n2'
+=END=
+
+############################################################
+=TITLE=Delete attribute from unknown interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1,interface:n2,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't delete attribute of unknown 'interface:n2'
+=END=
+
+############################################################
 =TITLE=Add IPv6 router
 =INPUT=
 -- topo

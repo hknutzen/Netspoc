@@ -134,14 +134,14 @@ router:r1 = {
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.62.240.0/21, 10.62.0.0/19,;
  interface:n4 = { ip = 10.62.242.2; hardware = n4; }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 router:r3 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.62.32.0/19;
  interface:n4 = { ip = 10.62.242.3; hardware = n4; }

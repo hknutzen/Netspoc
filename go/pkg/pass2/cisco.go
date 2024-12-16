@@ -552,7 +552,7 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 
 	// Leave 'intfRules' untouched, because
 	// - these rules are ignored at ASA,
-	// - NX-OS needs them individually when optimizing needProtect.
+	// - we don't support groups for IOS.
 	rules := aclInfo.rules
 
 	// Find object-groups in src / dst of rules.
@@ -811,13 +811,7 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 
 	// Object group.
 	if !obj.Prefix.IsValid() {
-		var keyword string
-		if model == "NX-OS" {
-			keyword = "addrgroup"
-		} else {
-			keyword = "object-group"
-		}
-		return keyword + " " + obj.name
+		return "object-group " + obj.name
 	}
 
 	prefix := obj.Bits()
@@ -831,9 +825,6 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 		}
 		return "any"
 	}
-	if model == "NX-OS" {
-		return obj.name
-	}
 	ipCode := ip.String()
 	if obj.Prefix.IsSingleIP() {
 		return "host " + ipCode
@@ -846,7 +837,7 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 	bytes := maskNet.Addr().As4()
 
 	// Inverse mask bits.
-	if model == "NX-OS" || model == "IOS" {
+	if model == "IOS" {
 		for i, byte := range bytes {
 			bytes[i] = ^byte
 		}
@@ -856,23 +847,12 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 }
 
 func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
-	var keyword string
-	if model == "NX-OS" {
-		keyword = "object-group ip address"
-	} else {
-		keyword = "object-group network"
-	}
+	keyword := "object-group network"
 	for _, group := range aclInfo.objectGroups {
-		numbered := 10
 		fmt.Fprintln(fd, keyword, group.name)
 		for _, element := range group.elements {
 			adr := ciscoACLAddr(element, model)
-			if model == "NX-OS" {
-				fmt.Fprintln(fd, "", numbered, adr)
-				numbered += 10
-			} else {
-				fmt.Fprintln(fd, " network-object", adr)
-			}
+			fmt.Fprintln(fd, " network-object", adr)
 		}
 	}
 }
@@ -964,20 +944,14 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 
 	name := aclInfo.name
 	ipv6 := routerData.ipv6
-	numbered := 10
 	prefix := ""
 	switch model {
-	case "IOS", "NX-OS":
+	case "IOS":
 		if ipv6 {
 			fmt.Fprintln(fd, "ipv6 access-list", name)
 			break
 		}
-		switch model {
-		case "IOS":
-			fmt.Fprintln(fd, "ip access-list extended", name)
-		case "NX-OS":
-			fmt.Fprintln(fd, "ip access-list", name)
-		}
+		fmt.Fprintln(fd, "ip access-list extended", name)
 	case "ASA":
 		prefix = "access-list " + name + " extended"
 	}
@@ -1003,12 +977,6 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 				result += " " + rule.log
 			} else if rule.deny && aclInfo.logDeny != "" {
 				result += " " + aclInfo.logDeny
-			}
-
-			// Add line numbers.
-			if model == "NX-OS" {
-				result = " " + strconv.Itoa(numbered) + result
-				numbered += 10
 			}
 			fmt.Fprintln(fd, result)
 		}

@@ -59,21 +59,21 @@ network:m = { ip = ::a02:200/120;
 }
 router:r1@v1 = {
  managed = routing_only;
- model = NX-OS;
+ model = IOS;
  interface:m = { ip = ::a02:201; hardware = e0; }
  interface:t1 = { ip = ::a09:101; hardware = e1; }
 }
 network:t1 = { ip = ::a09:100/120; }
 router:r1@v2 = {
  managed = routing_only;
- model = NX-OS;
+ model = IOS;
  interface:t1 = { ip = ::a09:102; hardware = e2; }
  interface:t2 = { ip = ::a09:201; hardware = e3; }
 }
 network:t2 = { ip = ::a09:200/120; }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:t2 = { ip = ::a09:202; hardware = e4; }
  interface:n = { ip = ::a01:101; hardware = e5; }
 }
@@ -85,14 +85,12 @@ service:test = {
 =OUTPUT=
 -- ipv6/r1
 ! [ Routing for router:r1@v1 ]
-vrf context v1
- ipv6 route ::a01:100/120 ::a09:102
- ipv6 route ::a09:200/120 ::a09:102
+ipv6 route vrf v1 ::a01:100/120 ::a09:102
+ipv6 route vrf v1 ::a09:200/120 ::a09:102
 --
 ! [ Routing for router:r1@v2 ]
-vrf context v2
- ipv6 route ::a02:200/120 ::a09:101
- ipv6 route ::a01:100/120 ::a09:202
+ipv6 route vrf v2 ::a02:200/120 ::a09:101
+ipv6 route vrf v2 ::a01:100/120 ::a09:202
 =OPTIONS=--auto_default_route=0
 
 ############################################################

@@ -114,7 +114,8 @@ func (a SimpleAuto) String() string {
 
 type AggAuto struct {
 	SimpleAuto
-	Net string
+	IPV6 bool
+	Net  string
 }
 
 func (a AggAuto) String() string {

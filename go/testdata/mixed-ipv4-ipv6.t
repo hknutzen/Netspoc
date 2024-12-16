@@ -1,56 +1,28 @@
 
 ############################################################
 =TITLE=Mixed IPv4 and IPv6
-=TEMPL=input
--- ipv4/topo/net
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
--- ipv4/topo/router
+network:n3 = { ip6 = 1000::abcd:0001:0/112;}
+network:n4 = { ip6 = 1000::abcd:0002:0/112;}
+
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n4 = {ip6 = 1000::abcd:0002:0001; hardware = n2;}
 }
--- ipv4/rules
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
--- {{.topo}}
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-network:n4 = { ip = 1000::abcd:0002:0/112;}
--- ipv6/router
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
- interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
-}
--- {{.v6}}/rules
 service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=INPUT=[[input {topo: ipv4/topo/ipv6, v6: ipv4/ipv6}]]
-=OUTPUT=
---r1
-! n1_in
-access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
-access-list n1_in extended deny ip any4 any4
-access-group n1_in in interface n1
---ipv6/r1
-! n1_in
-access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 80
-access-list n1_in extended deny ip any6 any6
-access-group n1_in in interface n1
-=END=
-
-############################################################
-=TITLE=Mixed IPv6 and IPv4
-=INPUT=[[input {topo: topo, v6: ipv6/ipv6}]]
-=OPTIONS=--ipv6
-# Identical output as before
 =OUTPUT=
 --r1
 ! n1_in
@@ -67,139 +39,74 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=IPv6 network is not subnet of 0.0.0.0/0
 =INPUT=
--- file1
+network:Internet = { ip = 0.0.0.0/0; }
 network:n1 = { ip = 10.1.1.0/24; subnet_of = network:Internet; }
 network:n2 = { ip = 10.1.2.0/24; subnet_of = network:Internet; }
-network:Internet = { ip = 0.0.0.0/0; }
+router:inet = {
+ interface:n2;
+ interface:Internet;
+}
+network:n3 = { ip6 = 1000::abcd:0001:0/112;}
+network:n4 = { ip6 = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-router:inet = {
- interface:n2;
- interface:Internet;
-}
--- ipv6/file2
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-network:n4 = { ip = 1000::abcd:0002:0/112;}
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
- interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n4 = {ip6 = 1000::abcd:0002:0001; hardware = n2;}
 }
 =WARNING=NONE
 
 ############################################################
-=TITLE=Must not reference IPv4 from IPv6
-=INPUT=
--- file1
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
--- ipv6/file2
-service:s2 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
-=ERROR=
-Error: Must not reference IPv4 network:n1 in IPv6 context user of service:s2
-Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service:s2
-=END=
-
-############################################################
-=TITLE=Reference IPv6 service from IPv4 and vice versa
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
-router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-service:s1 = {
- overlaps = service:s2, service:s1;
- identical_body = service:s1, service:s2;
- user = network:n1;
- permit src = user; dst = interface:r1.n1; prt = tcp 22;
-}
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-router:r2 = {
- managed;
- model = IOS;
- interface:n2 = { ip = 1000::abcd:0001:0001; hardware = n2; }
-}
-service:s2 = {
- identical_body = service:s1, service:s2;
- user = network:n2;
- permit src = user; dst = interface:r2.n2; prt = tcp 22;
-}
-=WARNING=
-Warning: Useless 'identical_body' at service:s1
-Warning: Useless 'identical_body' at service:s2
-Warning: Useless 'overlaps = service:s2' at service:s1
-Warning: Useless 'overlaps = service:s1' at service:s1
-=OPTIONS=--check_identical_services=warn
-
-############################################################
 =TITLE=Reference IPv4/6 policy_distribution_point from IPv6/4
 =INPUT=
--- file1
-area:a = {
- anchor = network:n1;
- router_attributes = { policy_distribution_point = host:pdp6; }
-}
 network:n1 = { ip = 10.1.1.0/24; host:netspoc = { ip = 10.1.1.11; } }
-router:r1 = {
+router:r1@vrf1 = {
  managed;
- model = ASA;
+ model = IOS;
+ policy_distribution_point = host:pdp6;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
--- ipv6/file2
 network:n3 = {
- ip = 1000::abcd:0001:0/112;
- host:pdp6 = { ip = 1000::abcd:0001:11; }
+ ip6 = 1000::abcd:0001:0/112;
+ host:pdp6 = { ip6 = 1000::abcd:0001:11; }
 }
-router:r1 = {
+router:r1@vrf2 = {
  managed;
- model = ASA;
+ model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
 }
 =ERROR=
-Error: Must not reference IPv4 host:netspoc in IPv6 context 'policy_distribution_point' of router:r1
-Error: Must not reference IPv6 host:pdp6 in IPv4 context 'policy_distribution_point' of router_attributes of area:a
+Error: Instances of router:r1 must not use different 'policy_distribution_point':
+ -host:pdp6
+ -host:netspoc
+Error: No valid path
+ from router:r1@vrf1
+ to any:[network:n3]
+ while resolving router:r1@vrf1 (destination is host:pdp6).
+ Check path restrictions and crypto interfaces.
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
+ - router:r1@vrf1
 =END=
 
 ############################################################
 =TITLE=Reference IPv4/6 network from IPv6/4 subnet_of
 =INPUT=
--- topo
 network:n1 = { ip = 10.1.1.0/24; subnet_of = network:n2; }
 router:r2 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; subnet_of = network:n1; }
+
+network:n2 = { ip6 = 1000::abcd:0001:0/112; subnet_of = network:n1; }
 router:r1 = {
- interface:n2 = { ip = 1000::abcd:0001:0001; }
+ interface:n2 = { ip6 = 1000::abcd:0001:0001; }
 }
 =ERROR=
-Error: Must not reference IPv4 network:n1 in IPv6 context 'subnet_of' of network:n2
-Error: Must not reference IPv6 network:n2 in IPv4 context 'subnet_of' of network:n1
+Error: network:n2 is subnet_of network:n1 but its IP doesn't match that's address
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
 =END=
 
 ############################################################
@@ -250,31 +157,26 @@ Aborted
 ############################################################
 =TITLE=Verbose output with progress messages
 =TEMPL=input
---ipv4
 group:v4 = ;
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+
+group:v6 = ;
+network:n3 = { ip6 = 1000::abcd:0001:0/112;}
+network:n4 = { ip6 = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n4 = {ip6 = 1000::abcd:0002:0001; hardware = n2;}
 }
 service:s1 = {
  overlaps = service:s1;
  user = network:n1;
  permit src = user; dst = host:h2; prt = tcp;
  permit src = user; dst = network:n2; prt = ip;
-}
---ipv6
-group:v6 = ;
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-network:n4 = { ip = 1000::abcd:0002:0/112;}
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
- interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
 service:s2 = {
  overlaps = service:s2;
@@ -286,7 +188,7 @@ service:s2 = {
 =REUSE_PREV=[[input]]
 =WARNING=
 Netspoc, version TESTING
-Read: 2 routers, 4 networks, 1 hosts, 2 services
+Read: 1 routers, 4 networks, 1 hosts, 2 services
 0s Arranging protocols
 0s Preparing security zones and areas
 0s Preparing fast path traversal
@@ -336,28 +238,20 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions (1)
 =TEMPL=input
--- ipv4/topo/net
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
--- ipv4/topo/router
+network:n3 = {
+ ip6 = 1000::abcd:0003:0/112;
+ {{.}}
+}
+network:n4 = { ip6 = 1000::abcd:0004:0/112; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
--- ipv4/topo/ipv6
-network:n3 = {
- ip = 1000::abcd:0003:0/112;
- {{.}}
-}
-network:n4 = { ip = 1000::abcd:0004:0/112; }
--- ipv6/router
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n1;}
- interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
+ interface:n3 = {ip6 = 1000::abcd:0003:0001; hardware = n1;}
+ interface:n4 = {ip6 = 1000::abcd:0004:0001; hardware = n2;}
 }
 =INPUT=[[input "partition = part1;"]]
 =WARNING=
@@ -381,31 +275,21 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Unconnected IPv6 and IPv4 partitions
 =INPUT=
--- topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip6 = 1000::abcd:0003:0/112; }
+network:n4 = { ip6 = 1000::abcd:0004:0/112; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = {ip6 = 1000::abcd:0003:0001; hardware = n1;}
 }
 router:r2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
--- ipv6
-network:n3 = { ip = 1000::abcd:0003:0/112; }
-network:n4 = { ip = 1000::abcd:0004:0/112; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n1;}
-}
-router:r2 = {
- managed;
- model = ASA;
- interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
+ interface:n4 = {ip6 = 1000::abcd:0004:0001; hardware = n2;}
 }
 =ERROR=
 Error: IPv6 topology has unconnected parts:
@@ -422,8 +306,8 @@ Error: IPv4 topology has unconnected parts:
 =TITLE=No unstable IPv4 subnet with IPv6 topology
 # Secondary optimization must still work.
 =INPUT=
--- ipv4
 network:n1 = { ip = 10.1.1.0/24; }
+network:n1_v6 = { ip6 = 1::/64; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
@@ -438,6 +322,7 @@ router:r1  = {
  managed = secondary;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1_v6 = { ip6 = 1::1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
@@ -455,13 +340,6 @@ router:r3 = {
 service:s1 = {
  user = network:n1;
  permit src = user; dst = host:h4; prt = tcp;
-}
--- ipv6
-network:n1_v6 = { ip = 1::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1_v6 = { ip = 1::1; hardware = n1; }
 }
 =OUTPUT=
 -- r1

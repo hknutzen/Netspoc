@@ -1,3 +1,50 @@
+6.073     2024-12-16 10:16:33+01:00 Europe/Berlin
+
+ - Added support for dual stack objects, having both, IPv4 and IPv6 addresses.
+   This simplifies the modeling of a dual stack toplology.
+   It is no longer neccessary to model a separate IPv4 and IPv6 topology.
+   Rules between dual stack objects will generate ACls for IPv4 and IPv6.
+   Rules between dual stack object and pure IPv4 object will silently ignore
+   IPv6 address and generate only ACL for IPv4.
+   New attributes have been introduced to define dual stack objects:
+   - 'ip6' at network, host, interface and aggregate.
+   - 'range6' at host.
+   - 'unnumbered6' at network and interface.
+   - 'negotiated6' at interface.
+   Other changes resulting from use of dual stack objects:
+   - If dual stack objects are used as border or inclusive border of an area,
+     this defines two areas with identical name:
+     one in IPv4 topology and one in IPv6 topology.
+   - If dual stack objects are used as interfaces of an pathrestriction,
+     this also defines two pathrestrictions in IPv4 and IPv6 topology.
+     If the second pathrestriction has only one interface or only interfaces
+     outside of a loop, it is silently ignored.
+   - New attributes 'ipv4_only' and 'ipv6_only' may be used at service or area.
+     This will enable only IPv4 or IPv6 part of dual stack objects.
+   - The following attributes are applied only to IPv4 part
+     if used in dual stack objects:
+     'nat', 'bind_nat', 'subnet_of, 'hub', 'spoke'.
+   - Command 'export-netspoc' has been changed to show IPv6 address of
+     dual stack objects in attribute 'ip6'.
+ - Added new attribute 'auto_ipv6_hosts' to automatically generate
+   dual stack hosts from pure IPv4 hosts.
+   It will generate IPv6 addresses for hosts
+   by combining its IPv4 adress with the IPv6 address of its network.
+   These attribute values are provided:
+   - auto_ipv6_hosts = readable
+     network: ip6 = 2001:db8:1:1::/64;
+     hosts: ip = 172.17.1.48;
+     ==> 2001:db8:1:1:172:17:1:48
+   - auto_ipv6_hosts = binary
+     network: ip6 = 2001:db8:1:1::/64;
+     hosts: ip = 172.17.1.48;
+     ==> 2001:db8:1:1::ac11:130
+   - auto_ipv6_hosts = none
+     No IPv6 address is generated
+   This attribute can be used at network, area and host.
+ - Fixed command 'cut-netspoc':
+   Full path to management_instance is marked now.
+
 6.072     2024-09-05 10:22:13+02:00 Europe/Berlin
 
  - Fixed command 'remove-from-netspoc'.

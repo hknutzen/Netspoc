@@ -2,11 +2,10 @@ package pass1
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
-
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 /*#############################################################################
@@ -45,7 +44,7 @@ func (c *spoc) getHiddenNatMap() map[string]bool {
 	natTag2network := make(map[string]*network)
 	natTag2hidden := make(map[string]bool)
 	for _, n := range c.allNetworks {
-		for _, tag := range sorted.Keys(n.nat) {
+		for _, tag := range slices.Sorted(maps.Keys(n.nat)) {
 			hidden1 := n.nat[tag].hidden
 			if other := natTag2network[tag]; other != nil {
 				hidden2 := other.nat[tag].hidden
@@ -86,7 +85,7 @@ func (c *spoc) checkNatDefinitions(natTag2hidden map[string]bool) {
 			intf.bindNat = l[:j]
 		}
 	}
-	tags := sorted.Keys(natBound)
+	tags := slices.Sorted(maps.Keys(natBound))
 	for i, tag1 := range tags {
 		l1 := natBound[tag1]
 		h1 := natTag2hidden[tag1]
@@ -874,12 +873,12 @@ func (c *spoc) checkNatCompatibility() {
 	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
 			nat := obj.nat
-			for _, tag := range sorted.Keys(nat) {
+			for tag := range maps.Keys(nat) {
 				objIP := nat[tag]
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {
 					if !natNet.ipp.Contains(objIP) {
-						c.err("nat:%s: IP of %s doesn't match IP/mask of %s",
+						c.err("nat:%s: IP of %s doesn't match address of %s",
 							tag, obj, n)
 					}
 				} else {
@@ -964,7 +963,7 @@ func (c *spoc) convertNatSetToNatMap(doms []*natDomain) {
 		// Use sorted NAT tags to prevent non deterministic results.
 		// This is needed because multiple hidden tags can be active in
 		// a single domain.
-		for _, tag := range sorted.Keys(n.nat) {
+		for _, tag := range slices.Sorted(maps.Keys(n.nat)) {
 			nat := n.nat[tag]
 			// Add network with NAT tag T to natMap of domain, where T is active.
 			for _, d := range tag2doms[tag] {

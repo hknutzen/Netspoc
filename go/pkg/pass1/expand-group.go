@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"fmt"
 	"net/netip"
 	"strings"
 
@@ -23,34 +24,60 @@ func processWithSubnetworks(networks netList, f func(*network)) {
 	}
 }
 
-func (c *spoc) expandTypedName(typ, name string) ipVxGroupObj {
-	var obj ipVxGroupObj
+func (c *spoc) expandTypedName(
+	typ, name string, visible, withSubnets bool, ctx string,
+) groupObjList {
+	var obj, obj6 groupObj
 	switch typ {
 	case "host":
 		if x := c.symTable.host[name]; x != nil {
 			obj = x
+			if x6 := x.combined46; x6 != nil {
+				obj6 = x6
+			}
 		}
 	case "network":
 		if x := c.symTable.network[name]; x != nil {
 			obj = x
+			if x6 := x.combined46; x6 != nil {
+				obj6 = x6
+			}
 		}
 	case "any":
 		if x := c.symTable.aggregate[name]; x != nil {
-			obj = x
+			var result groupObjList
+			// Substitute aggregate by aggregate set of zone cluster.
+			// Needed if zones of cluster are reached by different paths.
+			add := func(n *network) {
+				for _, z := range n.zone.cluster {
+					result.push(z.ipPrefix2aggregate[n.ipp])
+				}
+			}
+			add(x)
+			if x6 := x.combined46; x6 != nil {
+				add(x6)
+			}
+			return result
 		}
 	case "group":
 		if x := c.symTable.group[name]; x != nil {
-			obj = x
+			return c.expandGroupObj(x, visible, withSubnets, ctx)
 		}
 	case "area":
 		if x := c.symTable.area[name]; x != nil {
 			obj = x
+			if x6 := x.combined46; x6 != nil {
+				obj6 = x6
+			}
 		}
 	}
 	if obj == nil {
 		return nil
 	}
-	return obj
+	if obj6 == nil {
+		return groupObjList{obj}
+	}
+	return groupObjList{obj, obj6}
 }
 
 type networkAutoIntfKey struct {
@@ -116,7 +143,7 @@ func (c *spoc) removeDuplicates(list groupObjList, ctx string) groupObjList {
 }
 
 func (c *spoc) expandIntersection(
-	l []ast.Element, ctx string, ipv6, visible, withSubnets bool) groupObjList {
+	l []ast.Element, ctx string, visible, withSubnets bool) groupObjList {
 
 	var nonCompl []groupObjList
 	var compl groupObjList
@@ -128,7 +155,7 @@ func (c *spoc) expandIntersection(
 			el1 = el
 		}
 		subResult := c.expandGroup1([]ast.Element{el1},
-			"intersection of "+ctx, ipv6, visible, withSubnets)
+			"intersection of "+ctx, visible, withSubnets)
 		if _, ok := el.(*ast.Complement); ok {
 			compl = append(compl, subResult...)
 		} else {
@@ -206,8 +233,7 @@ func (c *spoc) expandIntersection(
 // Parameter 'withSubnets' controls if subnets of networks will be
 // added to result.
 func (c *spoc) expandGroup1(
-	list []ast.Element, ctx string, ipv6,
-	visible, withSubnets bool) groupObjList {
+	list []ast.Element, ctx string, visible, withSubnets bool) groupObjList {
 
 	// Silently remove unnumbered, bridged and tunnel interfaces from
 	// automatic groups.
@@ -223,7 +249,7 @@ func (c *spoc) expandGroup1(
 		switch x := el.(type) {
 		case *ast.Intersection:
 			subResult :=
-				c.expandIntersection(x.Elements, ctx, ipv6, visible, withSubnets)
+				c.expandIntersection(x.Elements, ctx, visible, withSubnets)
 			result = append(result, subResult...)
 		case *ast.Complement:
 			c.err(
@@ -239,8 +265,7 @@ func (c *spoc) expandGroup1(
 		case *ast.IntfAuto:
 			selector, managed := x.Selector, x.Managed
 			subObjects := c.expandGroup1(
-				x.Elements, "interface:[..].["+selector+"] of "+ctx,
-				ipv6, false, true)
+				x.Elements, "interface:[..].["+selector+"] of "+ctx, false, true)
 			routerSeen := make(map[*router]bool)
 			autoFromRouter := func(r *router) {
 				if routerSeen[r] {
@@ -378,16 +403,18 @@ func (c *spoc) expandGroup1(
 			if x.Network == "[" {
 				// interface:name.[xxx]
 				selector := x.Extension
-				r := c.getRouter(x.Router, ipv6)
-				if r != nil {
-					if selector == "all" {
-						for _, intf := range withSecondary(getIntf(r)) {
-							if check(intf) {
-								result.push(intf)
+				l := c.combinedRouters(x.Router)
+				if l != nil {
+					for _, r := range l {
+						if selector == "all" {
+							for _, intf := range withSecondary(getIntf(r)) {
+								if check(intf) {
+									result.push(intf)
+								}
 							}
+						} else if a := c.getRouterAutoIntf(r); a != nil {
+							result.push(a)
 						}
-					} else if a := c.getRouterAutoIntf(r); a != nil {
-						result.push(a)
 					}
 				} else {
 					c.err("Can't resolve %s:%s.[%s] in %s",
@@ -401,13 +428,16 @@ func (c *spoc) expandGroup1(
 				}
 				if intf, found := c.symTable.routerIntf[name]; found {
 					result.push(intf)
+					if intf6 := intf.combined46; intf6 != nil {
+						result.push(intf6)
+					}
 				} else {
 					c.err("Can't resolve %s:%s in %s", x.Type, name, ctx)
 				}
 			}
 		case ast.AutoElem:
 			subObjects := c.expandGroup1(x.GetElements(),
-				x.GetType()+":[..] of "+ctx, ipv6, false, false)
+				x.GetType()+":[..] of "+ctx, false, false)
 
 			getAggregates := func(obj groupObj, ipp netip.Prefix) netList {
 				var zones []*zone
@@ -470,23 +500,21 @@ func (c *spoc) expandGroup1(
 						// aggregate with IP 0/0.
 						result = append(result, x.networks...)
 					}
-				default:
-					list := getAggregates(obj, c.getNetwork00(ipv6).ipp)
-					if len(list) > 0 {
-						for _, agg := range list {
+				case *area:
+					list := getAggregates(obj, c.getNetwork00(x.ipV6).ipp)
+					for _, agg := range list {
 
-							// Check type, because getAggregates potentially
-							// returns non aggregate network if one matches
-							// 0/0.
-							if agg.isAggregate {
-								result = append(result, agg.networks...)
-							} else {
-								result.push(agg)
-							}
+						// Check type, because getAggregates potentially
+						// returns non aggregate network if one matches
+						// 0/0.
+						if agg.isAggregate {
+							result = append(result, agg.networks...)
+						} else {
+							result.push(agg)
 						}
-					} else {
-						return nil
 					}
+				default:
+					return nil
 				}
 				if withSubnets {
 					for _, n := range result {
@@ -543,19 +571,31 @@ func (c *spoc) expandGroup1(
 				}
 			case "any":
 				x := x.(*ast.AggAuto)
+				show := func() string {
+					return fmt.Sprintf(
+						"any:[%s = %s & ..]", cond(x.IPV6, "ip6", "ip"), x.Net)
+				}
 				var ipp netip.Prefix
-				if tok := x.Net; tok != "" {
+				if x.Net != "" {
 					var err error
-					ipp, err = netip.ParsePrefix(tok)
+					ipp, err = netip.ParsePrefix(x.Net)
 					if err != nil {
-						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
-							tok, ctx)
+						c.err("Invalid CIDR address in %s of %s", show(), ctx)
 					} else if ipp.Addr() != ipp.Masked().Addr() {
-						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
+						c.err("IP and mask don't match in %s of %s", show(), ctx)
+					} else if x.IPV6 && ipp.Addr().Is4() {
+						c.err("IPv6 address expected in %s of %s", show(), ctx)
+					} else if !x.IPV6 && ipp.Addr().Is6() {
+						c.err("IPv4 address expected in %s of %s", show(), ctx)
 					}
-					c.checkVxIP(ipp.Addr(), ipv6, "any:[..]", ctx)
-				} else {
-					ipp = c.getNetwork00(ipv6).ipp
+				}
+
+				hasCombined := false
+				for _, ob := range subObjects {
+					if ob.isCombined46() {
+						hasCombined = true
+						break
+					}
 				}
 
 				// Ignore duplicate aggregates resulting
@@ -564,6 +604,16 @@ func (c *spoc) expandGroup1(
 				seen := make(map[*network]bool)
 
 				for _, obj := range subObjects {
+					o6 := obj.isIPv6()
+					if x.Net == "" {
+						ipp = c.getNetwork00(o6).ipp
+					} else if o6 != x.IPV6 {
+						if !hasCombined {
+							c.err("IPv4/v6 mismatch for %s in %s of %s",
+								obj, show(), ctx)
+						}
+						continue
+					}
 					if l := getAggregates(obj, ipp); l != nil {
 						for _, agg := range l {
 							if !seen[agg] {
@@ -589,83 +639,64 @@ func (c *spoc) expandGroup1(
 			// An object named simply 'type:name'.
 			typ := x.Type
 			name := x.Name
-			obj := c.expandTypedName(typ, name)
-			if obj == nil {
+			l := c.expandTypedName(typ, name, visible, withSubnets, ctx)
+			if l == nil {
 				c.err("Can't resolve %s:%s in %s", typ, name, ctx)
-				continue
-			}
-			c.checkV4V6CrossRef(obj, ipv6, ctx)
-
-			// Split a group into its members.
-			// There may be two different versions depending on 'visible'.
-			if grp, ok := obj.(*objGroup); ok {
-
-				// Two different expanded values, depending on 'visible'.
-				var elPtr *groupObjList
-				if visible {
-					elPtr = &grp.expandedClean
-				} else {
-					elPtr = &grp.expandedNoClean
-				}
-				elements := *elPtr
-
-				// Check for recursive definition.
-				if grp.recursive {
-					c.err("Found recursion in definition of %s", ctx)
-					elements = make(groupObjList, 0)
-				} else if elements == nil {
-
-					// Group has not been converted from names to references.
-
-					// Mark group as used.
-					grp.isUsed = true
-
-					ctx := typ + ":" + name
-
-					// 'user' must not be referenced in group.
-					saved := c.userObj.elements
-					c.userObj.elements = nil
-					defer func() { c.userObj.elements = saved }()
-
-					// Add marker for detection of recursive group definition.
-					grp.recursive = true
-					if len(grp.elements) == 0 {
-						elements = make(groupObjList, 0)
-					} else {
-						elements = c.expandGroup1(
-							grp.elements, ctx, ipv6, visible, withSubnets)
-					}
-					grp.recursive = false
-
-					// Detect and remove duplicate values in group.
-					elements = c.removeDuplicates(elements, ctx)
-				}
-
-				// Cache result for further references to the same group
-				// in same visible context.
-				*elPtr = elements
-				result = append(result, elements...)
-			} else if n, ok := obj.(*network); ok && n.isAggregate {
-				// Substitute aggregate by aggregate set of zone cluster.
-				// Needed if zones of cluster are reached by different paths.
-				for _, z := range n.zone.cluster {
-					result.push(z.ipPrefix2aggregate[n.ipp])
-				}
 			} else {
-				result.push(obj)
+				result = append(result, l...)
 			}
 		}
 	}
 	return result
 }
 
-func (c *spoc) checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
-	if ipv6 != obj.isIPv6() {
-		expected := cond(ipv6, "6", "4")
-		found := cond(obj.isIPv6(), "6", "4")
-		c.err("Must not reference IPv%s %s in IPv%s context %s",
-			found, obj, expected, ctx)
+// Split a group into its members.
+// There may be two different versions depending on 'visible'.
+func (c *spoc) expandGroupObj(
+	grp *objGroup, visible, withSubnets bool, ctx string,
+) groupObjList {
+	// Two different expanded values, depending on 'visible'.
+	var elPtr *groupObjList
+	if visible {
+		elPtr = &grp.expandedClean
+	} else {
+		elPtr = &grp.expandedNoClean
 	}
+	elements := *elPtr
+
+	// Check for recursive definition.
+	if grp.recursive {
+		c.err("Found recursion in definition of %s", ctx)
+		elements = make(groupObjList, 0)
+	} else if elements == nil {
+		// Group has not been converted from names to references.
+
+		// Mark group as used.
+		grp.isUsed = true
+
+		// 'user' must not be referenced in group.
+		saved := c.userObj.elements
+		c.userObj.elements = nil
+		defer func() { c.userObj.elements = saved }()
+
+		// Add marker for detection of recursive group definition.
+		grp.recursive = true
+		if len(grp.elements) == 0 {
+			elements = make(groupObjList, 0)
+		} else {
+			elements = c.expandGroup1(
+				grp.elements, grp.name, visible, withSubnets)
+		}
+		grp.recursive = false
+
+		// Detect and remove duplicate values in group.
+		elements = c.removeDuplicates(elements, grp.name)
+	}
+
+	// Cache result for further references to the same group
+	// in same visible context.
+	*elPtr = elements
+	return elements
 }
 
 // Parameter showAll is set, if called from command "print-group".
@@ -677,9 +708,9 @@ func (c *spoc) checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
 //  2. interface:[..].[all]:
 //     Unnumbered and bridged interfaces are no longer suppressed.
 func (c *spoc) expandGroup(
-	l []ast.Element, ctx string, ipv6, showAll bool) groupObjList {
+	l []ast.Element, ctx string, showAll bool) groupObjList {
 
-	result := c.expandGroup1(l, ctx, ipv6, !showAll, showAll)
+	result := c.expandGroup1(l, ctx, !showAll, showAll)
 	return c.removeDuplicates(result, ctx)
 }
 
@@ -691,15 +722,13 @@ func (c *spoc) expandUser(sv *service) groupObjList {
 			c.warnOrErr(errType, ctx+" is empty")
 		}
 	} else {
-		user = c.expandGroup(sv.user, ctx, sv.ipV6, false)
+		user = c.expandGroup(sv.user, ctx, false)
 	}
 	return user
 }
 
-func (c *spoc) expandGroupInRule(
-	l []ast.Element, ctx string, ipv6 bool) groupObjList {
-
-	list := c.expandGroup(l, ctx, ipv6, false)
+func (c *spoc) expandGroupInRule(l []ast.Element, ctx string) groupObjList {
+	list := c.expandGroup(l, ctx, false)
 
 	// Ignore unusable objects.
 	//

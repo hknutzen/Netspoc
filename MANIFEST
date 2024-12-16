@@ -84,6 +84,7 @@ go/pkg/jcode/types.go
 go/pkg/oslink/data.go
 go/pkg/parser/parser.go
 go/pkg/pass1/address.go
+go/pkg/pass1/auto-ipv6-hosts.go
 go/pkg/pass1/background.go
 go/pkg/pass1/check-dyn-nat-rules.go
 go/pkg/pass1/check-identical-services.go
@@ -139,7 +140,6 @@ go/pkg/removeservice/remove-service.go
 go/pkg/rename/rename-netspoc.go
 go/pkg/scanner/comment.go
 go/pkg/scanner/scanner.go
-go/pkg/sorted/keys.go
 go/pkg/transposeservice/transpose-service.go
 go/staticcheck.conf
 go/test/capture/capture.go
@@ -167,6 +167,7 @@ go/testdata/deterministic.t
 go/testdata/disabled.t
 go/testdata/expand-group/expand-group.t
 go/testdata/export-netspoc-syntax/export.t
+go/testdata/export-netspoc/combined46.t
 go/testdata/export-netspoc/export.t
 go/testdata/format-netspoc/format-netspoc.t
 go/testdata/general-permit.t
@@ -179,6 +180,8 @@ go/testdata/invalid-char.t
 go/testdata/ip-check.t
 go/testdata/iptables.t
 go/testdata/ipv4.t
+go/testdata/ipv46-auto_ipv6_hosts.t
+go/testdata/ipv46-combined.t
 go/testdata/ipv6.t
 go/testdata/ipv6/adjacent-net_ipv6.t
 go/testdata/ipv6/aggregate_ipv6.t

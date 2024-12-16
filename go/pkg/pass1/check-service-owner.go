@@ -105,7 +105,7 @@ func (c *spoc) propagateOwners() {
 		if !o.showAll {
 			continue
 		}
-		var invalid stringList
+		var invalid netList
 		for _, n := range c.allNetworks {
 			if netOwner := n.owner; netOwner != nil {
 				if netOwner == o {
@@ -116,7 +116,7 @@ func (c *spoc) propagateOwners() {
 				continue
 			}
 			if !slices.Contains(n.zone.watchingOwners, o) {
-				invalid.push(n.name)
+				invalid.push(n)
 			}
 		}
 		if invalid != nil {

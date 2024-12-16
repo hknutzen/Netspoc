@@ -14,7 +14,7 @@ router:r1 = {
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = ::a01:10b,::a01:10c;  hardware = n1; }
 }
 service:t1 = {
@@ -48,12 +48,12 @@ interface n2
  ipv6 traffic-filter n2_in in
 -- ipv6/r2
 ipv6 access-list n1_in
- 10 permit tcp ::a01:100/120 ::a01:10c/128 eq 21
- 20 deny ip any any
+ permit tcp ::a01:100/120 host ::a01:10c eq 21
+ deny ipv6 any any
 --
 interface n1
  ipv6 address ::a01:10b/120
- ipv6 address ::a01:10c/120 secondary
+ ipv6 address ::a01:10c/120
  ipv6 traffic-filter n1_in in
 =END=
 

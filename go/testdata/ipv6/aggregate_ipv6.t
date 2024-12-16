@@ -279,6 +279,45 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Two warnings for split protocol with and without modifiers
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+protocol:ftp-passive-data = tcp 1024 - 65535, stateless;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = tcp 21, protocol:ftp-passive-data;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=tcp 21; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=protocol:ftp-passive-data; stateless of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
 =TITLE=Ignore hidden network in supernet check (1)
 =PARAMS=--ipv6
 =INPUT=
@@ -1408,9 +1447,9 @@ router:r1 = {
  interface:n3 = { ip = ::a03:301; hardware = n3; }
 }
 service:s1 = {
- user = any:[ip = ::a01:0/112 & area:n2],
+ user = any:[ip6 = ::a01:0/112 & area:n2],
         # This automatic group is empty.
-        network:[any:[ip = ::a01:0/112 & area:n3]],
+        network:[any:[ip6 = ::a01:0/112 & area:n3]],
         ;
  permit src = network:n1;
         dst = user;
@@ -1445,8 +1484,8 @@ router:r2 = {
  interface:n5;
 }
 service:s1 = {
- user = any:[ip = ::a01:0/112 & area:n2],
-        network:[any:[ip = ::a01:0/112 & area:n3]],
+ user = any:[ip6 = ::a01:0/112 & area:n2],
+        network:[any:[ip6 = ::a01:0/112 & area:n3]],
         ;
  permit src = network:n1;
         dst = user;
@@ -1478,7 +1517,7 @@ router:r2 = {
  interface:n5;
 }
 service:s1 = {
- user = any:[ip = ::a01:0/112 & network:n2],
+ user = any:[ip6 = ::a01:0/112 & network:n2],
         network:n4, network:n5,
         ;
  permit src = network:n1;
@@ -1511,7 +1550,7 @@ router:r2 = {
  interface:n5;
 }
 service:s1 = {
- user = any:[ip = ::a01:0/112 & network:n2],
+ user = any:[ip6 = ::a01:0/112 & network:n2],
         network:n4,
         ;
  permit src = network:n1;
@@ -2560,7 +2599,7 @@ service:s1 = {
  permit src = user; dst = any:[network:n4]; prt = udp 123;
 }
 service:s2 = {
- user = any:[ip = ::a01:400/119 & network:n4];
+ user = any:[ip6 = ::a01:400/119 & network:n4];
  permit src = user; dst = network:n5; prt = udp;
 }
 =WARNING=NONE
@@ -3402,7 +3441,7 @@ Error: Duplicate any:a1 and any:a2 in any:[network:n2]
 any:a1 = { ip = ::a00:0/104; link = network:n1; }
 network:n1 = { ip = ::a00:0/104; }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3417,7 +3456,7 @@ router:r1 = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
 }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3448,7 +3487,7 @@ router:r2 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
 =ERROR=
-Error: any:a1 and network:n2 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n2 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3487,6 +3526,41 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
+=TITLE=Must not expand aggregate set of zone cluster twice
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+}
+group:clients = any:[network:n1];
+service:s1 = {
+ user = group:clients;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/r2
+! n3_in
+access-list n3_in extended permit tcp any6 ::a01:400/120 eq 80
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
+=END=
+
+############################################################
 =TITLE=Zone cluster with keyword foreach
 =PARAMS=--ipv6
 =INPUT=
@@ -3512,7 +3586,7 @@ service:ping-local = {
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmpv6 8;
 }
 service:NTP-local = {
- user = foreach any:[ip = ::a01:200/119 & network:n3];
+ user = foreach any:[ip6 = ::a01:200/119 & network:n3];
  permit src = network:[user]; dst = interface:[any:[user]].[all]; prt = udp 123;
 }
 =WARNING=

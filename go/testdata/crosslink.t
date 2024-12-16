@@ -8,7 +8,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = {{.b}};
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
@@ -25,9 +25,9 @@ access-list cr_in extended permit ip any4 any4
 access-group cr_in in interface cr
 -r2
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n2
- ip address 10.2.2.1/27
+ ip address 10.2.2.1 255.255.255.224
  ip access-group n2_in in
 =END=
 
@@ -40,9 +40,9 @@ access-list cr_in extended deny ip any4 any4
 access-group cr_in in interface cr
 -r2
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n2
- ip address 10.2.2.1/27
+ ip address 10.2.2.1 255.255.255.224
  ip access-group n2_in in
 =END=
 
@@ -66,7 +66,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
@@ -78,9 +78,9 @@ access-list cr_in extended permit ip any4 any4
 access-group cr_in in interface cr
 -r2
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n2
- ip address 10.2.2.1/27
+ ip address 10.2.2.1 255.255.255.224
  ip access-group n2_in in
 =END=
 
@@ -96,7 +96,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.2.0.0/15;
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
@@ -117,9 +117,9 @@ access-list cr_in extended deny ip any4 any4
 access-group cr_in in interface cr
 -r2
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n2
- ip address 10.2.2.1/27
+ ip address 10.2.2.1 255.255.255.224
  ip access-group n2_in in
 -r3
 interface cr
@@ -177,7 +177,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
@@ -199,7 +199,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; no_in_acl; }
@@ -222,7 +222,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; no_in_acl; }
@@ -236,9 +236,9 @@ access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
 -r2
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n1
- ip address 10.1.1.2/27
+ ip address 10.1.1.2 255.255.255.224
  ip access-group n1_in in
 =END=
 
@@ -254,7 +254,7 @@ router:r1 = {
 }
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:cr = { ip = 10.3.3.2; hardware = cr; no_in_acl; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
@@ -276,18 +276,18 @@ access-group n1_in in interface n1
 access-list n1_out extended deny ip any4 any4
 access-group n1_out out interface n1
 -- r2
-ip access-list n2_in
- 10 permit tcp 10.2.2.0/27 10.1.1.0/27 established
- 20 deny ip any any
+ip access-list extended n2_in
+ permit tcp 10.2.2.0 0.0.0.31 10.1.1.0 0.0.0.31 established
+ deny ip any any
 --
-ip access-list n2_out
- 10 permit tcp 10.1.1.0/27 10.2.2.0/27 eq 80
- 20 deny ip any any
+ip access-list extended n2_out
+ permit tcp 10.1.1.0 0.0.0.31 10.2.2.0 0.0.0.31 eq 80
+ deny ip any any
 --
 interface cr
- ip address 10.3.3.2/29
+ ip address 10.3.3.2 255.255.255.248
 interface n2
- ip address 10.2.2.1/27
+ ip address 10.2.2.1 255.255.255.224
  ip access-group n2_in in
  ip access-group n2_out out
 =END=

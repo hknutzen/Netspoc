@@ -1469,3 +1469,19 @@ Error: Can't open f1: permission denied
 =END=
 
 ############################################################
+=TITLE=Print anonymous aggregates with ip and ip6
+=INPUT=
+service:s1 = {
+ user = any:[ip = 0.0.0.0/0 & network:n1], any:[ip6 = ::/0 & network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+service:s1 = {
+ user = any:[ip = 0.0.0.0/0 & network:n1],
+        any:[ip6 = ::/0 & network:n1],
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=END=

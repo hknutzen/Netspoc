@@ -1023,6 +1023,85 @@ service:s2 = {
 =END=
 
 ############################################################
+=TITLE=Source ports
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h20 = { ip = 10.1.1.20; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = 10.1.1.1; }
+}
+router:r1@vsys1 = {
+ model = PAN-OS;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = z1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = z2; }
+}
+protocol:NTP = udp 123:123;
+protocol:sPort = udp 1-65535:123;
+protocol:highPort = udp 1024-65535:123;
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = protocol:NTP;
+ permit src = host:h10; dst = user; prt = protocol:sPort;
+ permit src = host:h20; dst = user; prt = protocol:highPort;
+}
+=OUTPUT=
+--r1
+<entry name="vsys1">
+<rulebase><security><rules>
+<entry name="r1">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP_10.1.1.10</member></source>
+<destination><member>NET_10.1.2.0_24</member></destination>
+<service><member>udp 123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="r2">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP_10.1.1.20</member></source>
+<destination><member>NET_10.1.2.0_24</member></destination>
+<service><member>udp 1024-65535:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="r3">
+<action>allow</action>
+<from><member>z2</member></from>
+<to><member>z1</member></to>
+<source><member>NET_10.1.2.0_24</member></source>
+<destination><member>NET_10.1.1.0_24</member></destination>
+<service><member>udp 123:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET_10.1.1.0_24"><ip-netmask>10.1.1.0/24</ip-netmask></entry>
+<entry name="IP_10.1.1.10"><ip-netmask>10.1.1.10/32</ip-netmask></entry>
+<entry name="IP_10.1.1.20"><ip-netmask>10.1.1.20/32</ip-netmask></entry>
+<entry name="NET_10.1.2.0_24"><ip-netmask>10.1.2.0/24</ip-netmask></entry>
+</address>
+<service>
+<entry name="udp 1024-65535:123"><protocol><udp><port>123</port><source-port>1024-65535</source-port></udp></protocol></entry>
+<entry name="udp 123"><protocol><udp><port>123</port></udp></protocol></entry>
+<entry name="udp 123:123"><protocol><udp><port>123</port><source-port>123</source-port></udp></protocol></entry>
+</service>
+</entry>
+=END=
+
+############################################################
 =TITLE=ICMP and numeric protocol
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

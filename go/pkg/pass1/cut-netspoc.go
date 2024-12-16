@@ -281,7 +281,7 @@ func markUnconnectedObj(n *network, isUsed map[string]bool) {
 	mark(n, nil)
 }
 
-func (c *spoc) markCryptoPath(src, dst *routerIntf, isUsed map[string]bool) {
+func (c *spoc) markPath(src, dst *routerIntf, isUsed map[string]bool) {
 	isUsed[src.name] = true
 	isUsed[dst.name] = true
 	//debug("Path %s %s", src, dst)
@@ -308,7 +308,7 @@ func (c *spoc) markAndSubstElements(
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
-		return c.expandGroup1([]ast.Element{el}, ctx, v6, false, false)
+		return c.expandGroup1([]ast.Element{el}, ctx, false, false)
 	}
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
@@ -626,13 +626,10 @@ func (c *spoc) cutNetspoc(
 	// Mark management_instance of routers
 	for _, r := range c.managedRouters {
 		if isUsed[r.name] && r.model.needManagementInstance {
-			if mr := c.getRouter(r.deviceName, r.ipV6); mr != nil {
+			if mr := c.symTable.router[r.deviceName]; mr != nil {
 				for _, intf := range getIntf(mr) {
-					setIntfUsed(intf, isUsed)
-					n := intf.network
-					markUnconnectedObj(n, isUsed)
+					c.markPath(intf, r.interfaces[0], isUsed)
 				}
-				setRouterUsed(mr, isUsed)
 			}
 		}
 	}
@@ -785,11 +782,7 @@ func (c *spoc) cutNetspoc(
 
 		// Mark split router, if some split part is marked.
 		for _, intf := range getIntf(r) {
-			fragment := intf.router
-			if fragment == r {
-				continue
-			}
-			if isRouterUsed(fragment, isUsed) {
+			if frag := intf.router; frag != r && isRouterUsed(frag, isUsed) {
 				// debug("From split: %s", r)
 				setRouterUsed(r, isUsed)
 			}
@@ -801,24 +794,16 @@ func (c *spoc) cutNetspoc(
 
 		// Mark fragments of marked crypto routers.
 		for _, intf := range getIntf(r) {
-			fragment := intf.router
-			if fragment == r {
-				continue
+			if frag := intf.router; frag != r {
+				// debug("Fragment: %s", fragment)
+				setRouterUsed(frag, isUsed)
 			}
-			// debug("Fragment: %s", fragment)
-			setRouterUsed(fragment, isUsed)
 		}
 
+		// Mark path of crypto tunnel.
 		for _, intf := range getIntf(r) {
-			if !isUsed[intf.name] {
-				continue
-			}
-
-			// Mark path of crypto tunnel.
-			if intf.ipType == tunnelIP {
-				peer := intf.peer
-				real := intf.realIntf
-				c.markCryptoPath(real, peer.realIntf, isUsed)
+			if isUsed[intf.name] && intf.ipType == tunnelIP {
+				c.markPath(intf.realIntf, intf.peer.realIntf, isUsed)
 			}
 		}
 	}

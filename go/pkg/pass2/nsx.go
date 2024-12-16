@@ -3,11 +3,11 @@ package pass2
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 type jsonMap map[string]interface{}
@@ -100,7 +100,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		for _, acl := range l {
 			pm[acl.vrf] = append(pm[acl.vrf], acl)
 		}
-		for _, vrf := range sorted.Keys(pm) {
+		for _, vrf := range slices.Sorted(maps.Keys(pm)) {
 			acls := pm[vrf]
 			scope := fmt.Sprintf("/infra/tier-%ss/%s", acls[0].tier, vrf)
 			var nsxRules []jsonMap
@@ -208,7 +208,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	}
 	getServices := func() []jsonMap {
 		var result []jsonMap
-		for _, name := range sorted.Keys(protoMap) {
+		for _, name := range slices.Sorted(maps.Keys(protoMap)) {
 			pair := protoMap[name]
 			p := pair.prt
 			proto := p.protocol

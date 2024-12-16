@@ -359,9 +359,8 @@ func (c *spoc) distributeGeneralPermit() {
 						continue
 					}
 
-					// For IOS and NX-OS print this rule only
-					// once at interface filter rules below
-					// (for incoming ACL).
+					// For IOS print this rule only once at interface
+					// filter rules below (for incoming ACL).
 					if needProtect {
 						outHw := out.hardware
 

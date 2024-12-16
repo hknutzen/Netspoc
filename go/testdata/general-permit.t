@@ -17,25 +17,25 @@ service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = icmp;
 }
-=INPUT=[[input NX-OS]]
+=INPUT=[[input IOS]]
 =OUTPUT=
 --r
-ip access-list e0_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 permit udp any any
- 50 deny ip any 10.1.1.2/32
- 60 deny ip any 10.1.1.3/32
- 70 permit icmp 10.2.2.0/24 10.1.1.0/24
- 80 deny ip any any
+ip access-list extended e0_in
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ permit udp any any
+ deny ip any host 10.1.1.2
+ deny ip any host 10.1.1.3
+ permit icmp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255
+ deny ip any any
 --
-ip access-list e1_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 permit udp any any
- 50 deny ip any any
+ip access-list extended e1_in
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ permit udp any any
+ deny ip any any
 =END=
 
 ############################################################
@@ -89,7 +89,7 @@ ip access-list e1_in
 network:m = { ip = 10.2.2.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = tcp, icmp 0, icmp 3;
  interface:m = { ip = 10.2.2.2; hardware = e0; no_in_acl; }
  interface:n = { ip = 10.1.1.2, 10.1.1.3; hardware = e1; }
@@ -98,27 +98,27 @@ router:r = {
 network:n = { ip = 10.1.1.0/24; }
 =OUTPUT=
 --r
-ip access-list e0_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any 10.2.2.2/32
- 50 deny ip any 10.1.1.2/32
- 60 deny ip any 10.9.9.2/32
- 70 deny ip any 10.1.1.3/32
- 80 permit ip any any
+ip access-list extended e0_in
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ip any host 10.2.2.2
+ deny ip any host 10.1.1.2
+ deny ip any host 10.9.9.2
+ deny ip any host 10.1.1.3
+ permit ip any any
 --
-ip access-list e1_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any any
+ip access-list extended e1_in
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ip any any
 --
-ip access-list e1_out
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any any
+ip access-list extended e1_out
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ip any any
 =END=
 
 ############################################################
@@ -196,7 +196,7 @@ area:all = {
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = tcp, icmp;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
@@ -234,15 +234,15 @@ area:all = {
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = icmp;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
 =OUTPUT=
 --r
-ip access-list e1_in
- 10 permit icmp any any
- 20 deny ip any any
+ip access-list extended e1_in
+ permit icmp any any
+ deny ip any any
 =END=
 
 ############################################################
@@ -255,16 +255,16 @@ area:all = {
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = icmp 3, icmp 4;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
 =OUTPUT=
 --r
-ip access-list e1_in
- 10 permit icmp any any 3
- 20 permit icmp any any 4
- 30 deny ip any any
+ip access-list extended e1_in
+ permit icmp any any 3
+ permit icmp any any 4
+ deny ip any any
 =END=
 
 ############################################################

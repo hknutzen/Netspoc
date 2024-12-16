@@ -111,7 +111,7 @@ network:n1b = {
  nat:t2 = { ip = 10.9.2.0/24; }
 }
 =ERROR=
-Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =END=
 
 ############################################################
@@ -298,7 +298,7 @@ access-group n3_in in interface n3
 =TITLE=Declared subnet of NAT network in area doesn't match
 =INPUT=[[input 10.11.3.16/28]]
 =ERROR=
-Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's IP/mask
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's address
 =END=
 
 ############################################################
@@ -513,7 +513,7 @@ Warning: nat:C of network:Test is subnet of network:X
 =TITLE=Declared NAT network subnet doesn't match
 =INPUT=[[input  {ip: "10.8.4.240/28", sub: "subnet_of = network:X;"}]]
 =ERROR=
-Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
+Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's address
 =END=
 
 ############################################################
@@ -782,8 +782,8 @@ router:r1 = {
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
-Error: nat:x: IP of host:h1 doesn't match IP/mask of network:n1
-Error: nat:x: IP of interface:r1.n1 doesn't match IP/mask of network:n1
+Error: nat:x: IP of host:h1 doesn't match address of network:n1
+Error: nat:x: IP of interface:r1.n1 doesn't match address of network:n1
 =END=
 
 ############################################################
@@ -1968,7 +1968,7 @@ router:r2 = {
 network:n2a = { ip = 172.18.2.0/24; }
 area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
 =ERROR=
-Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical IP/mask
+Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical address
  in nat_domain:[network:n1]
 =END=
 
@@ -4445,7 +4445,7 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = tcp;
 }
 =ERROR=
-Error: any:n1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:n1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################

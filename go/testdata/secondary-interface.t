@@ -13,7 +13,7 @@ router:r1 = {
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = 10.1.1.11,10.1.1.12;  hardware = n1; }
 }
 service:t1 = {
@@ -46,13 +46,13 @@ interface n2
  ip address 10.1.2.9 255.255.255.0 secondary
  ip access-group n2_in in
 -- r2
-ip access-list n1_in
- 10 permit tcp 10.1.1.0/24 10.1.1.12/32 eq 21
- 20 deny ip any any
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.12 eq 21
+ deny ip any any
 --
 interface n1
- ip address 10.1.1.11/24
- ip address 10.1.1.12/24 secondary
+ ip address 10.1.1.11 255.255.255.0
+ ip address 10.1.1.12 255.255.255.0 secondary
  ip access-group n1_in in
 =END=
 

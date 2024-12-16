@@ -1,12 +1,15 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,12 +17,9 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 
 	"go4.org/netipx"
 )
@@ -202,9 +202,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 
 	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
-	prefixes := maps.Keys(prefix2ip2net)
-	sort.Slice(prefixes, func(i, j int) bool {
-		return prefixes[i] > prefixes[j]
+	prefixes := slices.SortedFunc(maps.Keys(prefix2ip2net), func(a, b int) int {
+		return cmp.Compare(b, a)
 	})
 	type netInfo struct {
 		netip.Prefix
@@ -265,10 +264,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	}
 
 	// Get sorted list of hops for deterministic output.
-	hops := maps.Keys(hop2netInfos)
-	sort.Slice(hops, func(i, j int) bool {
-		return hops[i].name < hops[j].name
-	})
+	hops := slices.SortedFunc(maps.Keys(hop2netInfos),
+		func(a, b *routerIntf) int { return cmp.Compare(a.name, b.name) })
 
 	if doAutoDefaultRoute {
 
@@ -310,7 +307,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	if vrf != "" && model.routing == "IOS" {
 		iosVrf = "vrf " + vrf + " "
 	}
-	nxosPrefix := ""
 
 	for _, hop := range hops {
 		intf := hop2intf[hop]
@@ -336,20 +332,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 					adr = iosRouteCode(netinfo.Prefix)
 				}
 				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-			case "NX-OS":
-				if vrf != "" && nxosPrefix == "" {
-
-					// Print "vrf context" only once
-					// and indent "ip route" commands.
-					fmt.Fprintln(fh, "vrf context", vrf)
-					nxosPrefix = " "
-				}
-				adr := fullPrefixCode(netinfo.Prefix)
-				ip := "ip"
-				if ipv6 {
-					ip += "v6"
-				}
-				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
 			case "ASA":
 				var adr string
 				ip := ""
@@ -628,7 +610,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	printGroupPolicy := func(name string, attributes map[string]string) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
-		for _, key := range sorted.Keys(attributes) {
+		for _, key := range slices.Sorted(maps.Keys(attributes)) {
 
 			// Ignore attributes for tunnel-group general or own attributes.
 			if spec := asaVpnAttributes[key]; spec == tgGeneral || spec == ownAttr {
@@ -700,7 +682,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
-			for _, id := range sorted.Keys(hash) {
+			for _, id := range slices.Sorted(maps.Keys(hash)) {
 				idIntf := hash[id]
 				idName := genIdName(id)
 				src := idIntf.src
@@ -925,7 +907,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
-		for _, id := range sorted.Keys(singleCertMap) {
+		for _, id := range slices.Sorted(maps.Keys(singleCertMap)) {
 			idName := genIdName(id)
 			mapName := "ca-map-" + idName
 			fmt.Fprintln(fh, "crypto ca certificate map", mapName, "10")
@@ -936,7 +918,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			certGroupMap[mapName] = defaultTunnelGroup
 		}
 		fmt.Fprintln(fh, "webvpn")
-		for _, mapName := range sorted.Keys(certGroupMap) {
+		for _, mapName := range slices.Sorted(maps.Keys(certGroupMap)) {
 			tunnelGroupMap := certGroupMap[mapName]
 			fmt.Fprintln(fh, " certificate-group-map", mapName, "10", tunnelGroupMap)
 		}
@@ -944,7 +926,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	}
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
-	for _, name := range sorted.Keys(ldapMap) {
+	for _, name := range slices.Sorted(maps.Keys(ldapMap)) {
 		fmt.Fprintln(fh, "aaa-server", name, "protocol ldap")
 		fmt.Fprintln(fh, "aaa-server", name, "host X")
 		fmt.Fprintln(fh, " ldap-attribute-map", name)
@@ -1192,7 +1174,7 @@ func (c *spoc) printCiscoAcls(fh *os.File, r *router) {
 			}
 
 			// Post-processing for hardware interface
-			if filter == "IOS" || filter == "NX-OS" {
+			if filter == "IOS" {
 				var filterCmd string
 				if ipv6 {
 					filterCmd = "ipv6 traffic-filter"
@@ -1721,13 +1703,8 @@ func printRouterIntf(fh *os.File, r *router) {
 			case negotiatedIP:
 				addrCmd = "ip address negotiated"
 			default:
-				if model.usePrefix || ipv6 {
-					if ipv6 {
-						addrCmd = "ipv6"
-					} else {
-						addrCmd = "ip"
-					}
-					addrCmd += " address " + netip.PrefixFrom(
+				if ipv6 {
+					addrCmd = "ipv6 address " + netip.PrefixFrom(
 						intf.ip,
 						intf.network.ipp.Bits(),
 					).String()
@@ -1742,16 +1719,12 @@ func printRouterIntf(fh *os.File, r *router) {
 				}
 			}
 			subcmd.push(addrCmd)
-			if !ipv6 || class == "NX-OS" {
+			if !ipv6 {
 				secondary = true
 			}
 		}
 		if vrf := r.vrf; vrf != "" {
-			if class == "NX-OS" {
-				subcmd.push("vrf member " + vrf)
-			} else {
-				subcmd.push("ip vrf forwarding " + vrf)
-			}
+			subcmd.push("ip vrf forwarding " + vrf)
 		}
 
 		// Add "ip inspect" as marker, that stateful filtering is expected.
@@ -1864,15 +1837,12 @@ func (c *spoc) disableSecondOptForDynHostNet(
 
 // Precompute string representation of IP addresses when NAT is not active.
 func (c *spoc) setupStdAddr() {
-	addNet := func(n *network) {
-		n.stdAddr = n.ipp.String()
-	}
 	// Aggregates, networks, subnets.
 	for _, n := range c.allNetworks {
 		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
-		addNet(n)
+		n.stdAddr = n.ipp.String()
 		for _, s := range n.subnets {
 			s.stdAddr = s.ipp.String()
 		}
@@ -2232,7 +2202,6 @@ func (c *spoc) getDevices() []*router {
 
 	// Take only one router of multi VRF device.
 	// Ignore split part of crypto router.
-	// Create ipv6 subdirectory.
 	var result []*router
 	seen := make(map[*router]bool)
 	for _, r := range c.managedRouters {

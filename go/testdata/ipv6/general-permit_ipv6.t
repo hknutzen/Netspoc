@@ -18,25 +18,25 @@ service:test = {
  permit src = user; dst = network:n; prt = icmpv6;
 }
 =PARAMS=--ipv6
-=INPUT=[[input NX-OS]]
+=INPUT=[[input IOS]]
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e0_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 permit udp any any
- 50 deny ip any ::a01:102/128
- 60 deny ip any ::a01:103/128
- 70 permit icmp ::a02:200/120 ::a01:100/120
- 80 deny ip any any
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ permit udp any any
+ deny ipv6 any host ::a01:102
+ deny ipv6 any host ::a01:103
+ permit icmp ::a02:200/120 ::a01:100/120
+ deny ipv6 any any
 --
 ipv6 access-list e1_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 permit udp any any
- 50 deny ip any any
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ permit udp any any
+ deny ipv6 any any
 =END=
 
 ############################################################
@@ -92,7 +92,7 @@ ipv6 access-list e1_in
 network:m = { ip = ::a02:200/120; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = tcp, icmpv6 0, icmpv6 3;
  interface:m = { ip = ::a02:202; hardware = e0; no_in_acl; }
  interface:n = { ip = ::a01:102, ::a01:103; hardware = e1; }
@@ -102,26 +102,26 @@ network:n = { ip = ::a01:100/120; }
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e0_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any ::a02:202/128
- 50 deny ip any ::a01:102/128
- 60 deny ip any ::a09:902/128
- 70 deny ip any ::a01:103/128
- 80 permit ip any any
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ipv6 any host ::a02:202
+ deny ipv6 any host ::a01:102
+ deny ipv6 any host ::a09:902
+ deny ipv6 any host ::a01:103
+ permit ipv6 any any
 --
 ipv6 access-list e1_in
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any any
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ipv6 any any
 --
 ipv6 access-list e1_out
- 10 permit icmp any any 0
- 20 permit icmp any any 3
- 30 permit tcp any any
- 40 deny ip any any
+ permit icmp any any 0
+ permit icmp any any 3
+ permit tcp any any
+ deny ipv6 any any
 =END=
 
 ############################################################
@@ -204,7 +204,7 @@ area:all = {
 network:n = { ip = ::a01:100/120; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = tcp, icmpv6;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
@@ -244,15 +244,15 @@ area:all = {
 network:n = { ip = ::a01:100/120; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = icmpv6;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e1_in
- 10 permit icmp any any
- 20 deny ip any any
+ permit icmp any any
+ deny ipv6 any any
 =END=
 
 ############################################################
@@ -266,16 +266,16 @@ area:all = {
 network:n = { ip = ::a01:100/120; }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
  general_permit = icmpv6 3, icmpv6 4;
  interface:n = { ip = ::a01:102; hardware = e1; }
 }
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e1_in
- 10 permit icmp any any 3
- 20 permit icmp any any 4
- 30 deny ip any any
+ permit icmp any any 3
+ permit icmp any any 4
+ deny ipv6 any any
 =END=
 
 ############################################################

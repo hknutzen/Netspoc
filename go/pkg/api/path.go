@@ -2,12 +2,13 @@ package api
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/sorted"
 )
 
 type change struct {
@@ -292,7 +293,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 		if a.Name == name {
 			if len(names) != 0 {
 				if len(a.ComplexValue) == 0 {
-					return fmt.Errorf("Can't descend into value of '%s'", a.Name)
+					return fmt.Errorf("Can't descend into value of '%s'", name)
 				}
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
@@ -307,8 +308,11 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				*l = append((*l)[:i], (*l)[i+1:]...)
 				return nil
 			}
-			return fmt.Errorf("Missing value to %s at '%s'", c.method, a.Name)
+			return fmt.Errorf("Missing value to %s at '%s'", c.method, name)
 		}
+	}
+	if len(names) != 0 {
+		return fmt.Errorf("Can't %s attribute of unknown '%s'", c.method, name)
 	}
 	return newAttribute(l, name, c)
 }
@@ -628,7 +632,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 		}
 	case map[string]interface{}:
 		var l []*ast.Attribute
-		for _, k := range sorted.Keys(x) {
+		for _, k := range slices.Sorted(maps.Keys(x)) {
 			attr, err := getAttribute(k, x[k])
 			if err != nil {
 				return nil, err

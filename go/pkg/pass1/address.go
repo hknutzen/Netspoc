@@ -64,7 +64,7 @@ func (obj *network) address(m natMap) netip.Prefix {
 
 func (obj *subnet) address(m natMap) netip.Prefix {
 	n := getNatNetwork(obj.network, m)
-	return natAddress(obj.ipp.Addr(), obj.ipp.Bits(), obj.nat, n, obj.network.ipV6)
+	return natAddress(obj.ipp.Addr(), obj.ipp.Bits(), obj.nat, n)
 }
 
 func (obj *routerIntf) address(m natMap) netip.Prefix {
@@ -72,19 +72,18 @@ func (obj *routerIntf) address(m natMap) netip.Prefix {
 	if obj.ipType == negotiatedIP {
 		return n.ipp
 	}
-	ipV6 := obj.network.ipV6
-	return natAddress(obj.ip, getHostPrefix(ipV6), obj.nat, n, ipV6)
+	return natAddress(obj.ip, obj.ip.BitLen(), obj.nat, n)
 }
 
 func natAddress(ip netip.Addr, bits int, nat map[string]netip.Addr,
-	n *network, ipV6 bool) netip.Prefix {
+	n *network) netip.Prefix {
 
 	if n.dynamic {
 		natTag := n.natTag
 		if ip, ok := nat[natTag]; ok {
 
 			// Single static NAT IP for this interface.
-			return netip.PrefixFrom(ip, getHostPrefix(ipV6))
+			return netip.PrefixFrom(ip, ip.BitLen())
 		} else {
 			return n.ipp
 		}

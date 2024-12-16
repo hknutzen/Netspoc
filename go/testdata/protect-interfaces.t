@@ -95,44 +95,6 @@ ip access-list extended e0_in
 =END=
 
 ############################################################
-=TITLE=Protect interfaces matching object group
-=INPUT=
-network:U = { ip = 10.1.1.0/24; }
-router:R = {
- managed;
- model = NX-OS;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
- interface:l4 = { ip = 10.2.2.4; loopback; subnet_of = network:N2; hardware = lo4; }
- interface:l5 = { ip = 10.2.3.4; loopback; subnet_of = network:N3; hardware = lo5; }
- interface:l6 = { ip = 10.2.4.4; loopback; subnet_of = network:N4; hardware = lo6; }
- interface:N2 = { ip = 10.2.2.1; hardware = e1; }
- interface:N3 = { ip = 10.2.3.1; hardware = e1; }
- interface:N4 = { ip = 10.2.4.1; hardware = e1; }
-}
-network:N2 = { ip = 10.2.2.0/24; }
-network:N3 = { ip = 10.2.3.0/24; }
-network:N4 = { ip = 10.2.4.0/24; }
-service:test = {
-    user = network:N2, network:N3, network:N4;
-    permit src = network:U; dst = user; prt = tcp 80;
-}
-=OUTPUT=
---R
-object-group ip address g0
- 10 10.2.2.0/23
- 20 10.2.4.0/24
-ip access-list e0_in
- 10 deny ip any 10.2.2.4/32
- 20 deny ip any 10.2.3.4/32
- 30 deny ip any 10.2.4.4/32
- 40 deny ip any 10.2.2.1/32
- 50 deny ip any 10.2.3.1/32
- 60 deny ip any 10.2.4.1/32
- 70 permit tcp 10.1.1.0/24 addrgroup g0 eq 80
- 80 deny ip any any
-=END=
-
-############################################################
 =TITLE=Protect interfaces matching aggregate
 =INPUT=
 network:U = { ip = 10.1.1.0/24; }

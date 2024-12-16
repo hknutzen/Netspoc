@@ -1,12 +1,12 @@
 package pass1
 
 import (
+	"maps"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
 
 	"go4.org/netipx"
-	"golang.org/x/exp/maps"
 )
 
 func (c *spoc) checkIPAddresses() {
@@ -29,7 +29,7 @@ func (c *spoc) checkSubnetOf() {
 				return
 			}
 			if !sn.ipp.Contains(n.ipp.Addr()) {
-				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
+				c.err("%s is subnet_of %s but its IP doesn't match that's address",
 					ctx, sn)
 			}
 		}
@@ -45,7 +45,7 @@ func (c *spoc) checkSubnetOf() {
 			checkNat(nat)
 		}
 	}
-	for _, ar := range c.symTable.area {
+	for _, ar := range c.ascendingAreas {
 		if nat := ar.nat; nat != nil {
 			checkNat(nat)
 		}
@@ -73,9 +73,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 
 	// Check address conflicts for collected parts of bridged networks.
 	// Sort prefix names for deterministic error messages.
-	prefixes := maps.Keys(prefix2net)
-	sort.Strings(prefixes)
-	for _, prefix := range prefixes {
+	for _, prefix := range slices.Sorted(maps.Keys(prefix2net)) {
 		l := prefix2net[prefix]
 		dummy := new(network)
 		seen := make(map[*routerIntf]bool)
@@ -216,7 +214,7 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 		n2 := next[0]
 		next = next[1:]
 		if n1.ipp != n2.ipp {
-			c.err("%s and %s must have identical ip/mask", n1, n2)
+			c.err("%s and %s must have identical address", n1, n2)
 		}
 		connected[n2] = true
 		for _, in := range n2.interfaces {
@@ -231,7 +229,7 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 			single := true
 			if l3 := in.layer3Intf; l3 != nil {
 				if !n1.ipp.Contains(l3.ip) {
-					c.err("%s's IP doesn't match IP/mask of bridged networks",
+					c.err("%s's IP doesn't match address of bridged networks",
 						l3)
 				}
 			}

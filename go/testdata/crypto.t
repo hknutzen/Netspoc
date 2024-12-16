@@ -880,11 +880,11 @@ Warning: Ignoring 'merge_tunnelspecified' at router:r
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = Linux;
  interface:n = { ip = 10.1.1.1; hardware = n; hub = crypto:sts; }
 }
 =ERROR=
-Error: Crypto not supported for router:r of model NX-OS
+Error: Crypto not supported for router:r of model Linux
 =END=
 
 ############################################################

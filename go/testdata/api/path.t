@@ -106,7 +106,7 @@ network:n1 = {
 }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 =OUTPUT=
 @@ INPUT
  network:n1 = {
@@ -229,7 +229,7 @@ network:n1 = {
 }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 =OUTPUT=
 @@ INPUT
  network:n1 = {

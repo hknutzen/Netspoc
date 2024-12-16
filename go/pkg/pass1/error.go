@@ -18,8 +18,12 @@ func (l intfList) nameList() string {
 
 func (l netList) nameList() string {
 	var names stringList
-	for _, intf := range l {
-		names.push(intf.name)
+	for _, n := range l {
+		name := n.name
+		if n.isCombined46() {
+			name = cond(n.ipV6, "IPv6", "IPv4") + " " + name
+		}
+		names.push(name)
 	}
 	return names.nameList()
 }

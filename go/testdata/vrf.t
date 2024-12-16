@@ -13,20 +13,25 @@ router:r@v1 = {
 }
 router:r@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n3 = { ip = 10.1.3.1; hardware = IN; }
 }
 router:r@v3 = {
  managed = routing_only;
- model = IOS;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ model = NSX, T1;
+ interface:n3 = { ip = 10.1.3.2; hardware = IN; }
+ interface:n4 = { ip = 10.1.4.1; hardware = OUT; }
+}
+router:r = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = 10.1.1.1; }
 }
 =ERROR=
 Error: All instances of router:r must have identical model
-Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
+Error: Duplicate hardware 'IN' at router:r@v2 and router:r@v3
 =END=
 
 ############################################################
@@ -66,68 +71,6 @@ interface n3
  ip address 10.1.3.1 255.255.255.0
  ip vrf forwarding v2
  ip access-group n3_in in
-=END=
-
-############################################################
-=TITLE=Combine object-groups from different VRFs
-=INPUT=
-network:m = { ip = 10.2.2.0/24; }
-router:r1@v1 = {
- managed;
- model = NX-OS;
- interface:m = { ip = 10.2.2.1; hardware = e0; }
- interface:t = { ip = 10.9.9.1; hardware = e1; }
-}
-network:t = { ip = 10.9.9.0/24; }
-router:r1@v2 = {
- managed;
- model = NX-OS;
- interface:t = { ip = 10.9.9.2; hardware = e2; }
- interface:n = { ip = 10.1.1.1; hardware = e3; }
-}
-network:n = {
- ip = 10.1.1.0/24;
- host:h10 = { ip = 10.1.1.10; }
- host:h20 = { ip = 10.1.1.20; }
- host:h30 = { ip = 10.1.1.30; }
-}
-service:test = {
- user = host:h10, host:h20, host:h30;
- permit src = user; dst = network:m; prt = tcp 80;
-}
-=OUTPUT=
---r1
-object-group ip address g0
- 10 10.1.1.10/32
- 20 10.1.1.20/32
- 30 10.1.1.30/32
-ip access-list e0_in
- 10 permit tcp 10.2.2.0/24 addrgroup g0 established
- 20 deny ip any any
---
-interface e0
- ip address 10.2.2.1/24
- vrf member v1
- ip access-group e0_in in
---
-interface e1
- ip address 10.9.9.1/24
- vrf member v1
- ip access-group e1_in in
---
-ip access-list e2_in
- 10 permit tcp 10.2.2.0/24 addrgroup g0 established
- 20 deny ip any any
---
-interface e2
- ip address 10.9.9.2/24
- vrf member v2
- ip access-group e2_in in
---
-interface e3
- ip address 10.1.1.1/24
- vrf member v2
- ip access-group e3_in in
 =END=
 
 ############################################################
@@ -220,13 +163,13 @@ network:n1 = { ip = 10.1.1.0/24;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
@@ -244,12 +187,12 @@ network:n1 = { ip = 10.1.1.0/24;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
@@ -259,7 +202,7 @@ service:admin = {
 }
 =OUTPUT=
 -- r1.info
-{"generated_by":"devel","model":"NX-OS","ip_list":["10.1.1.2"]}
+{"generated_by":"devel","model":"IOS","ip_list":["10.1.1.2"]}
 =END=
 
 ############################################################
@@ -270,13 +213,13 @@ network:n1 = { ip = 10.1.1.0/24;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
@@ -286,7 +229,7 @@ service:admin = {
 }
 =OUTPUT=
 -- r1.info
-{"generated_by":"devel","model":"NX-OS","ip_list":["10.1.1.1","10.1.1.2"],"policy_distribution_point":"10.1.1.9"}
+{"generated_by":"devel","model":"IOS","ip_list":["10.1.1.1","10.1.1.2"],"policy_distribution_point":"10.1.1.9"}
 =END=
 
 ############################################################
@@ -297,12 +240,12 @@ network:n1 = { ip = 10.1.1.0/24;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
 =ERROR=
@@ -319,13 +262,13 @@ network:n1 = { ip = 10.1.1.0/24;
 }
 router:r1@v1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:h8;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  policy_distribution_point = host:h9;
  interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
@@ -333,9 +276,8 @@ router:r1@v2 = {
 Error: Instances of router:r1 must not use different 'policy_distribution_point':
  -host:h8
  -host:h9
-Warning: Missing rules to reach 2 devices from policy_distribution_point:
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
  - router:r1@v1
- - router:r1@v2
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################

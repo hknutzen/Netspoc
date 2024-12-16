@@ -3903,6 +3903,50 @@ network:n4 = { ip = 10.1.4.0/24; }
 =END=
 
 ############################################################
+=TITLE=management_instance in separate zone
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1@v1 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+}
+router:u = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n5 = { ip = 10.1.5.2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
 =TITLE=Cleanup unused subnet_of
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

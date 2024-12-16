@@ -125,7 +125,7 @@ service:test1 = {
  prt = protocol:ICMPv6;
 }
 =ERROR=
-Error: protocol:ICMPv6 must not be used in IPv4 service:test1
+Error: 'icmpv6' must not be used in service:test1, use 'icmp' instead
 =END=
 
 ############################################################
@@ -144,7 +144,7 @@ area:a = {
  router_attributes = { general_permit = icmpv6; }
 }
 =ERROR=
-Error: icmpv6 must not be used in IPv4 general_permit of router_attributes of area:a
+Error: 'icmpv6' must not be used in general_permit of router_attributes of area:a, use 'icmp' instead
 =END=
 
 ############################################################
