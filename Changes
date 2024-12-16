@@ -1,3 +1,7 @@
+6.074     2024-12-16 11:52:23+01:00 Europe/Berlin
+
+ - Fixed wrong error on duplicate interface from router in ipv6/ directory.
+
 6.073     2024-12-16 10:16:33+01:00 Europe/Berlin
 
  - Added support for dual stack objects, having both, IPv4 and IPv6 addresses.

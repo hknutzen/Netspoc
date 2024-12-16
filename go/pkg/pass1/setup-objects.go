@@ -2260,7 +2260,7 @@ func (c *spoc) setupInterface(
 		name := intf.name
 		iName := name[len("interface:"):]
 		if other, found := c.symTable.routerIntf[iName]; found {
-			if !intf.ipV6 || other.ipV6 {
+			if intf.ipV6 == other.ipV6 {
 				c.err("Duplicate definition of %s in %s", name, r)
 			}
 			other.combined46 = intf
@@ -2269,6 +2269,9 @@ func (c *spoc) setupInterface(
 			intf.nat = nil
 			intf.hub = nil
 			intf.spoke = nil
+			if !intf.ipV6 {
+				c.symTable.routerIntf[iName] = intf
+			}
 		} else {
 			c.symTable.routerIntf[iName] = intf
 		}
