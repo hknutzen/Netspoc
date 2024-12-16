@@ -35,15 +35,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
 ## Definitions for IPv4 and IPv6
 
-### In IPv4 mode
-
-    <ip>           ::= n.n.n.n with 0 <= n <= 255
-    <prefix-len>   ::= 0 | 1 | 2 | ... | 32
-
-### In IPv6 mode
-
-    <ip>           ::= some valid IPv6 address
-    <prefix-len>   ::= 0 | 1 | 2 | ... | 128
+    <ip>           ::= some valid IPv4 or IPv6 address
+    <prefix-len>   ::= 0 | 1 | 2 | ... | 32 or 0 | 1 | 2 | ... | 128
 
 ## Netspoc configuration
 
@@ -71,6 +64,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       network:<network name> = {
          [ <description> ]
          ip = <ip-net>; | unnumbered;
+         [ ip6 = <ip-net>; | unnumbered6; ]
          <control service attr>*
          <network NAT> *
          [ subnet_of = network:<network name>; ]
@@ -78,6 +72,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ crosslink;                  ]
          [ owner = <name>;             ]
          [ partition = <name>;         ]
+         [ auto_ipv6_hosts = ( readable | binary | none ); ]
          <host definition> *
       }
 
@@ -103,6 +98,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <host definition> ::=
       host:<name> = {
          ip = <ip>; | range = <ip>-<ip>;
+         [ ip6 = <ip>; | range6 = <ip>-<ip>; ]
+         [ auto_ipv6_hosts = ( readable | binary | none ); ]
          [ owner = <name>;            ]
          <host NAT> *
       }
@@ -153,7 +150,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <interface definition> ::=
       interface:<network name> = {
-         [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
+         [ ip  = ( <ip>(, <ip>)* | unnumbered  | negotiated ); ]
+         [ ip6 = ( <ip>(, <ip>)* | unnumbered6 | negotiated6 ); ]
          <secondary interface definition> *
          [ <virtual interface definition>       ]
          (<host NAT> | <network NAT>)*
@@ -173,11 +171,15 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 where `<object set>` must expand to networks.
 
     <secondary interface definition> ::=
-      secondary:<name> = { ip = <ip>; }
+      secondary:<name> = {
+           ip = <ip>;
+           [ ip6 = <ip>; ]
+      }
 
     <virtual interface definition> ::=
       virtual = {
            ip = <ip>;
+           [ ip6 = <ip>; ]
            [ type = ( VRRP | HSRP | HSRPv2 ); ]
            [ id = <int>;             ]
       }
@@ -191,7 +193,7 @@ where `<object set>` must expand to networks.
       any:<name> = {
          [ <description> ]
          link = network:<network name>;
-         [ ip = <ip-net>;           ]
+         [ ip = <ip-net>; | ip6 = <ip-net>; ]
          [ owner = <name>;          ]
          <control service attr>*
          <network NAT> *
@@ -207,6 +209,9 @@ where `<object set>` must expand to networks.
            [ inclusive_border = <object set>; ]
          ) | anchor = network:<network name>;
          [ owner = <name>; ]
+         [ ipv4_only; ]
+         [ ipv6_only; ]
+         [ auto_ipv6_hosts = ( readable | binary | none ); ]
          <control service attr>*
          <network NAT> *
          [ <default router attributes> ]
@@ -241,7 +246,7 @@ where `<object set>` must expand to interfaces.
       interface:<router name>."["<selector>"]"
     | interface:"[" [ managed & ] <object set with area>"]"."["<selector>"]"
     | network:"["<object set with area>"]"
-    | any:"[" [ ip = <ip-net> & ] <object set with area>"]"
+    | any:"[" [ ( ip | ip6 ) = <ip-net> & ] <object set with area>"]"
     | host:"["<object set with area>"]"
 
     <selector> ::= auto | all
@@ -267,8 +272,8 @@ where `<object set>` must expand to interfaces.
       ip
     | tcp [[<range> :] <range>]
     | udp [[<range> :] <range>]
-    | icmp   [<int>[/<int>]]			(in IPv4 mode)
-    | icmpv6 [<int>[/<int>]]			(in IPv6 mode)
+    | icmp   [<int>[/<int>]]
+    | icmpv6 [<int>[/<int>]]
     | proto <int>
 
     <range> ::= <int> | <int>-<int>
@@ -301,6 +306,8 @@ where `<object set>` must expand to interfaces.
          [ has_unenforceable;         ]
          [ identical_body = service:<name>(, service:<name>)*; ]
          [ overlaps = service:<name>(, service:<name>)*; ]
+         [ ipv4_only; ]
+         [ ipv6_only; ]
          user = [ foreach ] <object set>;
          <rule> *
       }
