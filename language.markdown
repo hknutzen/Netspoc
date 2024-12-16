@@ -448,6 +448,65 @@ at the border of a cyclic subgraph of the topology.
 A path restriction is automatically added for each group of interfaces
 belonging to a VRRP or HSRP cluster.
 
+## Dual stack objects with combined IPv4 and IPv6
+
+It is possible to define dual stack objects, having both, IPv4 and
+IPv6 addresses.  This simplifies the modeling of a dual stack
+topology. Otherwise it would be necessary to model a separate IPv4 and IPv6 topology.
+
+Rules between dual stack objects will generate ACLs for IPv4 and IPv6.
+Rules between dual stack object and pure IPv4 object will silently
+ignore IPv6 address and generate only ACL for IPv4.
+
+These attributes are used to define dual stack objects:
+
+- `ip6` at network, host, interface and aggregate.
+- `range6` at host.
+- `unnumbered6` at network and interface.
+- `negotiated6` at interface.
+
+Other changes resulting from use of dual stack objects:
+
+ - If dual stack objects are used as border or inclusive border of an area,
+   this defines two areas with identical name:
+   one in IPv4 topology and one in IPv6 topology.
+ - If dual stack objects are used as interfaces of a pathrestriction,
+   this also defines two pathrestrictions in IPv4 and IPv6 topology.
+   If the second pathrestriction has only one interface or only interfaces
+   outside of a loop, it is silently ignored.
+ - New attributes `ipv4_only` and `ipv6_only` may be used at service or area.
+   This will enable only IPv4 or IPv6 part of dual stack objects.
+ - The following attributes are applied only to IPv4 part
+   if used in dual stack objects:
+   `nat`, `bind_nat`, `subnet_of, `hub`, `spoke`.
+
+## Automatic dual stack hosts from pure IPv4 hosts
+
+In dual stack networks with many hosts, the IPv6 address is often
+derived from its IPv4 address.
+
+The attribute `auto_ipv6_hosts` is used to automatically generate
+dual stack IP from pure IPv4 hosts.
+It will generate IPv6 addresses for hosts
+by combining its IPv4 adress with the IPv6 address of its network.
+
+These attribute values are provided:
+
+- `auto_ipv6_hosts = readable;`
+  Example:
+  network: ip6 = 2001:db8:1:1::/64;
+  hosts: ip = 172.17.1.48;
+  => 2001:db8:1:1:172:17:1:48
+- `auto_ipv6_hosts = binary;`
+  Example:
+  network: ip6 = 2001:db8:1:1::/64;
+  hosts: ip = 172.17.1.48;
+  => 2001:db8:1:1::ac11:130
+- `auto_ipv6_hosts = none;`
+  No IPv6 address is generated
+
+This attribute is valid at network, area and host.
+
 ## Network address translation (NAT) {#NAT}
 
 Network address translation occurs at routers.  At one side of a
