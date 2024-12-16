@@ -499,8 +499,8 @@ These attribute values are provided:
   => 2001:db8:1:1:172:17:1:48
 - `auto_ipv6_hosts = binary;`\\
   Example:\\
-  network: `ip6 = 2001:db8:1:1::/64;`
-  hosts: `ip = 172.17.1.48;`
+  network: `ip6 = 2001:db8:1:1::/64;`\\
+  hosts: `ip = 172.17.1.48;`\\
   => 2001:db8:1:1::ac11:130
 - `auto_ipv6_hosts = none;`\\
   No IPv6 address is generated
