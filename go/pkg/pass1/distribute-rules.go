@@ -1,7 +1,8 @@
 package pass1
 
 import (
-	"sort"
+	"slices"
+	"strings"
 )
 
 //#############################################################################
@@ -339,8 +340,8 @@ func (c *spoc) distributeGeneralPermit() {
 					for _, idIntf := range idRules {
 						srcList = append(srcList, idIntf.src)
 					}
-					sort.Slice(srcList, func(i, j int) bool {
-						return srcList[i].String() < srcList[j].String()
+					slices.SortFunc(srcList, func(a, b someObj) int {
+						return strings.Compare(a.String(), b.String())
 					})
 					for _, src := range srcList {
 						addRule(src)

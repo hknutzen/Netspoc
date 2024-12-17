@@ -1,8 +1,9 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -94,10 +95,11 @@ func orderRanges(protocol string, prt2obj name2Proto, up *proto) {
 	// Sort by low port. If low ports are equal, sort reverse by high port.
 	// I.e. larger ranges coming first, if there are multiple ranges
 	// with identical low port.
-	sort.Slice(ranges, func(i, j int) bool {
-		return ranges[i].ports[0] < ranges[j].ports[0] ||
-			ranges[i].ports[0] == ranges[j].ports[0] &&
-				ranges[i].ports[1] > ranges[j].ports[1]
+	slices.SortFunc(ranges, func(a, b *proto) int {
+		if cmp := cmp.Compare(a.ports[0], b.ports[0]); cmp != 0 {
+			return cmp
+		}
+		return cmp.Compare(b.ports[1], a.ports[1])
 	})
 
 	// Check current range a.ports[0,1] for sub-ranges, starting at position $i.

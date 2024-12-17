@@ -9,7 +9,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2468,7 +2467,7 @@ func (c *spoc) setupService(v *ast.Service) {
 func (c *spoc) checkLog(l stringList, ctx string) stringList {
 	var valid stringList
 	prev := ""
-	sort.Strings(l)
+	slices.Sort(l)
 	for _, tag := range l {
 		if tag == prev {
 			c.warn("Duplicate '%s' in log of %s", tag, ctx)
@@ -2622,7 +2621,7 @@ func (c *spoc) getComplexValue(
 
 func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
 	l := c.getValueList(a, ctx)
-	sort.Strings(l)
+	slices.Sort(l)
 	// Remove duplicates.
 	l2 := slices.Compact(l)
 	if len(l) != len(l2) {
@@ -3591,7 +3590,9 @@ func (c *spoc) getGeneralPermit(a *ast.Attribute, ctx string) protoList {
 	}
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
-	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
+	slices.SortFunc(l, func(a, b *proto) int {
+		return strings.Compare(a.name, b.name)
+	})
 	return l
 }
 

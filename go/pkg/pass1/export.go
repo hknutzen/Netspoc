@@ -36,7 +36,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -307,17 +306,14 @@ func protoDescr(l []*proto) stringList {
 	}
 
 	// Sort by protocol, port/type, all (if proto and num are equal)
-	sort.Slice(pList, func(i, j int) bool {
-		if cmp := strings.Compare(pList[i].pType, pList[j].pType); cmp != 0 {
-			return cmp == -1
+	slices.SortFunc(pList, func(a, b protoSort) int {
+		if cmp := strings.Compare(a.pType, b.pType); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num < pList[j].num {
-			return true
+		if cmp := cmp.Compare(a.num, b.num); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num > pList[j].num {
-			return false
-		}
-		return strings.Compare(pList[i].desc, pList[j].desc) == -1
+		return strings.Compare(a.desc, b.desc)
 	})
 
 	result := make(stringList, len(pList))
@@ -421,7 +417,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				prev = name
 				names.push(name)
 			}
-			sort.Strings(names)
+			slices.Sort(names)
 			return names
 		}
 		getUserKey := func(l srvObjList) string {
@@ -1017,12 +1013,12 @@ func (c *spoc) exportAssets(
 			}
 		}
 
-		names := make(stringList, 0)
-		for _, ob := range childs {
+		names := make(stringList, len(childs))
+		for i, ob := range childs {
 			allObjects[ob] = true
-			names.push(ob.String())
+			names[i] = ob.String()
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		return jsonMap{net.name: names}
 	}
 
@@ -1234,10 +1230,10 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 				for i, user := range users {
 					uNames[i] = user.String()
 				}
-				sort.Strings(uNames)
+				slices.Sort(uNames)
 				service2users[sName] = slices.Compact(uNames)
 			}
-			sort.Strings(sNames)
+			slices.Sort(sNames)
 			type2snames[typ] = sNames
 		}
 		c.createDirs(dir, "owner/"+ow)
@@ -1362,7 +1358,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 		}
 
 		export := func(l []string, key, path string) {
-			sort.Strings(l)
+			slices.Sort(l)
 			out := make([]map[string]string, len(l))
 			for i, e := range l {
 				m := make(map[string]string)

@@ -1,15 +1,13 @@
 package ast
 
-import (
-	"sort"
-)
+import "slices"
 
 func CreateAttr1(k, v string) *Attribute {
 	return CreateAttr(k, []string{v})
 }
 
 func CreateAttr(name string, l []string) *Attribute {
-	sort.Strings(l)
+	slices.Sort(l)
 	vl := make([]*Value, len(l))
 	for i, part := range l {
 		vl[i] = &Value{Value: part}

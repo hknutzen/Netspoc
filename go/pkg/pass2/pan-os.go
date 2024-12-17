@@ -6,7 +6,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -169,12 +168,11 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
 	}
 	printAddresses := func() {
-		l := slices.Collect(maps.Keys(ip2addr))
-		sort.Slice(l, func(i, j int) bool {
-			if l[i].Addr() == l[j].Addr() {
-				return l[i].Bits() > l[j].Bits()
+		l := slices.SortedFunc(maps.Keys(ip2addr), func(a, b *ipNet) int {
+			if cmp := a.Addr().Compare(b.Addr()); cmp != 0 {
+				return cmp
 			}
-			return l[i].Addr().Less(l[j].Addr())
+			return cmp.Compare(b.Bits(), a.Bits())
 		})
 		fmt.Fprintln(fd, "<address>")
 		for _, n := range l {

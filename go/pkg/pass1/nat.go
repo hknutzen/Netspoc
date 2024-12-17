@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -512,8 +511,8 @@ func (c *spoc) errMissingBindNat(
 		}
 	}
 	sortByName := func(l intfList) intfList {
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].name < l[j].name
+		slices.SortFunc(l, func(a, b *routerIntf) int {
+			return strings.Compare(a.name, b.name)
 		})
 		return l
 	}
@@ -782,7 +781,7 @@ func (c *spoc) checkMultinatErrors(
 			"Grouped NAT tags '%s, %s' of %s must not both be active at\n%s",
 			tag1, tag2, p.natNet, l.nameList()))
 	}
-	sort.Strings(errors)
+	slices.Sort(errors)
 	for _, m := range errors {
 		c.err(m)
 	}
@@ -812,7 +811,7 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 								list.nameList())
 					}
 				}
-				sort.Strings(messages)
+				slices.Sort(messages)
 				for _, m := range messages {
 					c.err(m)
 				}
@@ -857,7 +856,7 @@ func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
 				for t := range intersect {
 					fullTags.push("nat:" + t)
 				}
-				sort.Strings(fullTags)
+				slices.Sort(fullTags)
 				list := strings.Join(fullTags, ",")
 				c.warn("Ignoring %s without effect, bound at every interface of %s",
 					list, r)

@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"slices"
-	"sort"
+	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 )
@@ -60,7 +60,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				for i, prt := range rule.prt {
 					names[i+len(objects)] = prt.name
 				}
-				sort.Strings(names)
+				slices.Sort(names)
 				info := &ruleInfo{
 					deny:       rule.deny,
 					objIsSrc:   hasUser != "src",
@@ -84,14 +84,20 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 		for svc, riList := range svc2ruleInfoList {
 			// Sort riList, because we use attributes of first element
 			// to build hash key from.
-			sort.Slice(riList, func(i, j int) bool {
-				if riList[i].deny != riList[j].deny {
-					return riList[i].deny
+			slices.SortFunc(riList, func(a, b *ruleInfo) int {
+				if a.deny != b.deny {
+					if a.deny {
+						return -1
+					}
+					return 1
 				}
-				if riList[i].objIsSrc != riList[j].objIsSrc {
-					return !riList[i].objIsSrc
+				if a.objIsSrc != b.objIsSrc {
+					if !a.objIsSrc {
+						return -1
+					}
+					return 1
 				}
-				return slices.Compare(riList[i].names, riList[j].names) <= 0
+				return slices.Compare(a.names, b.names)
 			})
 			var si svcInfo
 			si.count = len(riList)
@@ -161,8 +167,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			return true
 		}
 		sortPrt := func(l protoList) {
-			sort.Slice(l, func(i, j int) bool {
-				return l[i].name < l[j].name
+			slices.SortFunc(l, func(a, b *proto) int {
+				return strings.Compare(a.name, b.name)
 			})
 		}
 		prtEq := func(l1, l2 protoList) bool {
@@ -217,8 +223,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 		}
 		// Check if similar rule definitions are really identical.
 		for _, l := range svcInfo2svcList {
-			sort.Slice(l, func(i, j int) bool {
-				return l[i].name < l[j].name
+			slices.SortFunc(l, func(a, b *service) int {
+				return strings.Compare(a.name, b.name)
 			})
 			for {
 				m := len(l) - 1

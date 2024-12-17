@@ -2,7 +2,8 @@ package pass1
 
 import (
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 )
 
 /*
@@ -877,8 +878,8 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 			}
 
 			// Sort for finding duplicates and for deterministic error messages.
-			sort.Slice(hopList, func(i, j int) bool {
-				return hopList[i].name < hopList[j].name
+			slices.SortFunc(hopList, func(a, b *routerIntf) int {
+				return strings.Compare(a.name, b.name)
 			})
 			j := 0
 			var prev *routerIntf
@@ -943,7 +944,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 		}
 
 		// Show collected error messages.
-		sort.Strings(errors)
+		slices.Sort(errors)
 		for _, e := range errors {
 			c.err(e)
 		}

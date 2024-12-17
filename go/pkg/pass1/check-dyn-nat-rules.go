@@ -1,9 +1,9 @@
 package pass1
 
 import (
+	"cmp"
 	"net/netip"
 	"slices"
-	"sort"
 )
 
 // Collect interfaces on path:
@@ -290,8 +290,8 @@ func (c *spoc) checkDynamicNatRules() {
 					}
 				}
 				delDupl(&natInterfaces)
-				sort.Slice(natInterfaces, func(i, j int) bool {
-					return natInterfaces[i].name < natInterfaces[j].name
+				slices.SortFunc(natInterfaces, func(a, b *routerIntf) int {
+					return cmp.Compare(a.name, b.name)
 				})
 				var typ string
 				if natNetwork.hidden {

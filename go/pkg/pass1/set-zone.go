@@ -5,7 +5,6 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -349,8 +348,8 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		cluster = nil
 		walk(r)
 
-		sort.Slice(cluster, func(i, j int) bool {
-			return cluster[i].name < cluster[j].name
+		slices.SortFunc(cluster, func(a, b *router) int {
+			return strings.Compare(a.name, b.name)
 		})
 
 		// Collect all interfaces belonging to needProtect routers of cluster...
@@ -572,10 +571,11 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 	// Sort areas by size or by name on equal size.
 	sortBySize := func(l []*area) {
-		sort.SliceStable(l, func(i, j int) bool {
-			si := size(l[i])
-			sj := size(l[j])
-			return si < sj || si == sj && l[i].name < l[j].name
+		slices.SortStableFunc(l, func(a, b *area) int {
+			if cmp := cmp.Compare(size(a), size(b)); cmp != 0 {
+				return cmp
+			}
+			return strings.Compare(a.name, b.name)
 		})
 	}
 	sortBySize(c.ascendingAreas)
@@ -666,13 +666,10 @@ Comments : Has to be called after zones have been set up. But before
 findSubnetsInZone calculates .up and .networks relation.
 */
 func (c *spoc) processAggregates() {
-	aggList := make(netList, 0, len(c.symTable.aggregate))
-	for _, agg := range c.symTable.aggregate {
-		aggList.push(agg)
-	}
-	sort.Slice(aggList, func(i, j int) bool {
-		return aggList[i].name < aggList[j].name
-	})
+	aggList := slices.SortedFunc(maps.Values(c.symTable.aggregate),
+		func(a, b *network) int {
+			return strings.Compare(a.name, b.name)
+		})
 	for _, agg := range aggList {
 		process := func(agg *network, z *zone) {
 			// Assure that no other aggregate with same IP and mask

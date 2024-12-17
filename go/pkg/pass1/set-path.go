@@ -1,8 +1,8 @@
 package pass1
 
 import (
+	"cmp"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -575,9 +575,8 @@ func (c *spoc) linkPathrestrictions() {
 
 	// Add large pathrestrictions first, so we can check if small
 	// pathrestriction is contained in large one.
-	sort.Slice(c.pathrestrictions, func(i, j int) bool {
-		return len(c.pathrestrictions[j].elements) <
-			len(c.pathrestrictions[i].elements)
+	slices.SortFunc(c.pathrestrictions, func(a, b *pathRestriction) int {
+		return cmp.Compare(len(b.elements), len(a.elements))
 	})
 	j := 0
 	for _, p := range c.pathrestrictions {
