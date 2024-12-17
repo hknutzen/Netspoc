@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Fixed command 'export-netspoc'.
+   Show IPv4 areas for combined zone. Must not accidently overwrite
+   IPv4 areas by IPv6 areas, when combined zones have same name.
+
 6.074     2024-12-16 11:52:23+01:00 Europe/Berlin
 
  - Fixed wrong error on duplicate interface from router in ipv6/ directory.
