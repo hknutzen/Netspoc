@@ -71,8 +71,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				svc2ruleInfoList[svc] = append(svc2ruleInfoList[svc], info)
 			}
 		}
-		process(sRules.permit)
 		process(sRules.deny)
+		process(sRules.permit)
 
 		// Group similar services.
 		// Use this as hash key.
@@ -89,7 +89,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 					if a.deny {
 						return -1
 					}
-					return 1
+					// Uncoverable, deny rules have been put in front of list.
+					//return 1
 				}
 				if a.objIsSrc != b.objIsSrc {
 					if !a.objIsSrc {
