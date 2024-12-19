@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+6.075     2024-12-19 11:53:37+01:00 Europe/Berlin
+
+ - Fix: Attribute 'policy_distribution_point' at dual stack router
+   is only used for matching IPv4/IPv6 part of this router.
  - Fixed command 'export-netspoc'.
    Show IPv4 areas for combined zone. Must not accidently overwrite
    IPv4 areas by IPv6 areas, when combined zones have same name.
