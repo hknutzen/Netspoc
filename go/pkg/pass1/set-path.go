@@ -273,10 +273,9 @@ func (c *spoc) errorOnUnnamedUnconnectedPartitions(
 			}
 		}
 		if len(names) >= 1 {
-			ipVersion := "IPv" + cond(unconnected[0].isIPv6(), "6", "4")
 			c.err("%s topology has unconnected parts:\n"+
 				"%s\n Use partition attribute, if intended.",
-				ipVersion, names.nameList())
+				ipvx(unconnected[0].isIPv6()), names.nameList())
 		}
 	}
 }
@@ -439,8 +438,7 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 				if !(otherLoopOK[p] && hasOnlyCombinedIntf(p)) {
 					vx := ""
 					if p.combined46 != nil {
-						vx = "IPv" + cond(p.elements[0].ipV6, "6", "4")
-						vx += " "
+						vx = ipvx(p.elements[0].ipV6) + " "
 					}
 					c.warn("Ignoring %s%s at %s\n because it isn't located "+
 						"inside cyclic graph", vx, p.name, intf)

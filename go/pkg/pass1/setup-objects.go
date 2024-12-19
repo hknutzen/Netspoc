@@ -1333,11 +1333,8 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 				ag.combined46 = &ag6
 			}
 		} else if ag.ipV6 != ag.link.ipV6 {
-			if ag.ipV6 {
-				c.err("Must not link IPv6 address to IPv4 network in %s", name)
-			} else {
-				c.err("Must not link IPv4 address to IPv6 network in %s", name)
-			}
+			c.err("Must not link %s address to %s network in %s",
+				ipvx(ag.ipV6), ipvx(ag.link.ipV6), name)
 		}
 	}
 	if ag.ipp.Bits() != 0 {
@@ -2356,14 +2353,12 @@ func (c *spoc) setupInterface(
 		if n == nil {
 			c.err("Referencing undefined network:%s from %s", nName, name)
 		} else {
-			if !v6 && n.ipV6 {
-				c.err("Must not reference IPv6 %s from IPv4 %s", n, intf)
-				n = nil
-			} else if v6 && !n.ipV6 {
+			if v6 != n.ipV6 {
 				if n.combined46 != nil {
 					n = n.combined46
 				} else {
-					c.err("Must not reference IPv4 %s from IPv6 %s", n, intf)
+					c.err("Must not reference %s %s from %s %s",
+						ipvx(n.ipV6), n, ipvx(v6), intf)
 					n = nil
 				}
 			}
@@ -3310,12 +3305,12 @@ func (c *spoc) filterV46Only(l groupObjList, v4Only, v6Only bool, ctx string,
 	}
 	j := 0
 	for _, obj := range l {
-		if obj.isIPv6() == v6Only {
+		if v6 := obj.isIPv6(); v6 == v6Only {
 			l[j] = obj
 			j++
 		} else if !obj.isCombined46() {
-			c.err("Must not use IPv%s %s with 'ip%s_only' of %s",
-				cond(obj.isIPv6(), "6", "4"), obj, cond(v6Only, "6", "4"), ctx)
+			c.err("Must not use %s %s with 'ip%s_only' of %s",
+				ipvx(v6), obj, cond(v6Only, "6", "4"), ctx)
 		}
 	}
 	return l[:j]
@@ -3881,8 +3876,7 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 	// Check compatibility of interface IP and network address.
 	ip := intf.ip
 	if !ipp.Contains(ip) {
-		c.err("IPv%s address of %s doesn't match %s",
-			cond(intf.ipV6, "6", "4"), intf, n)
+		c.err("%s address of %s doesn't match %s", ipvx(intf.ipV6), intf, n)
 	}
 	if ipp.IsSingleIP() {
 		c.warn("%s has address of its network.\n"+
