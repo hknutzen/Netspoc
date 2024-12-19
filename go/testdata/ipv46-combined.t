@@ -562,6 +562,22 @@ Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 area:a1
 =END=
 
 ############################################################
+=TITLE=Ignore IPv4 policy_distribution_point at IPv6 part of combined area
+=INPUT=
+area:a1 = { anchor = network:n1;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip = 10.1.1.10; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Use combined46 area in automatic group
 =INPUT=
 area:a23 = { inclusive_border = interface:r1.n1; }
