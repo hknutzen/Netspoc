@@ -549,6 +549,19 @@ Error: Must not use ipv4_only and ipv6_only together at area:a1
 =END=
 
 ############################################################
+=TITLE=IPv4 policy_distribution_point at IPv6 area
+=INPUT=
+area:a1 = { anchor = network:n1; ipv6_only;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip = 10.1.1.10; }
+}
+=WARNING=
+Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 area:a1
+=END=
+
+############################################################
 =TITLE=Use combined46 area in automatic group
 =INPUT=
 area:a23 = { inclusive_border = interface:r1.n1; }
@@ -655,7 +668,7 @@ Error: IPv4/v6 mismatch for area:a1 in any:[ip6 = 2001:db8::/32 & ..] of user of
 =END=
 
 ############################################################
-=TITLE=Atribute 'ip' with v6 address
+=TITLE=Attribute 'ip' with v6 address
 =INPUT=
 network:n1 = { ip = 2001:db8:1:1::/64; }
 =ERROR=

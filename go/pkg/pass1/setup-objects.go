@@ -372,6 +372,14 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 			}
 		}
 	}
+	if r.interfaces != nil && r6.interfaces != nil {
+		if a.IPV6 {
+			c.err("Must not use attributes 'ip' and 'ip6' together in %s"+
+				" defined inside directory 'ipv6/'", a.Name)
+		}
+		r.combined46 = r6
+		r6.combined46 = r
+	}
 	if r.interfaces != nil || r6.interfaces == nil {
 		r.ipV6 = false
 		stripFilterOnly(r, r6.interfaces)
@@ -383,14 +391,6 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 		stripFilterOnly(r6, r.interfaces)
 		c.setupRouter2(r6)
 		c.allRouters = append(c.allRouters, r6)
-	}
-	if r.interfaces != nil && r6.interfaces != nil {
-		if a.IPV6 {
-			c.err("Must not use attributes 'ip' and 'ip6' together in %s"+
-				" defined inside directory 'ipv6/'", a.Name)
-		}
-		r.combined46 = r6
-		r6.combined46 = r
 	}
 }
 
@@ -452,6 +452,8 @@ func stripFilterOnly(r *router, other []*routerIntf) {
 			})
 	}
 }
+
+func ipvx(v6 bool) string { return cond(v6, "IPv6", "IPv4") }
 
 func (c *spoc) checkIntf46(ai *ast.Attribute) (int, int) {
 	var v4Count, v6Count int
@@ -1464,6 +1466,17 @@ func (c *spoc) setupArea(v *ast.Area) {
 		}
 	}
 	c.ascendingAreas = append(c.ascendingAreas, ar)
+	if p := ar.routerAttributes.policyDistributionPoint; p != nil {
+		if p.ipV6 != ar.ipV6 {
+			if ar2 == nil {
+				ar.routerAttributes.policyDistributionPoint = nil
+				c.warn("Ignoring %s 'policy_distribution_point' at %s %s",
+					ipvx(p.ipV6), ipvx(ar.ipV6), ar)
+			}
+		} else if ar2 != nil {
+			ar2.routerAttributes.policyDistributionPoint = nil
+		}
+	}
 	if ar2 != nil {
 		ar.combined46 = ar2
 		ar2.combined46 = ar
@@ -1716,6 +1729,15 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router, v6 bool) {
 }
 
 func (c *spoc) setupRouter2(r *router) {
+	if p := r.policyDistributionPoint; p != nil {
+		if p.ipV6 != r.ipV6 {
+			r.policyDistributionPoint = nil
+			if !r.isCombined46() {
+				c.warn("Ignoring %s 'policy_distribution_point' at %s %s",
+					ipvx(p.ipV6), ipvx(r.ipV6), r)
+			}
+		}
+	}
 
 	// Create objects representing hardware interfaces.
 	// All logical interfaces using the same hardware are linked

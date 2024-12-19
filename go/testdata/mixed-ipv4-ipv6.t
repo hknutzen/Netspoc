@@ -79,17 +79,9 @@ router:r1@vrf2 = {
  policy_distribution_point = host:netspoc;
  interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
 }
-=ERROR=
-Error: Instances of router:r1 must not use different 'policy_distribution_point':
- -host:pdp6
- -host:netspoc
-Error: No valid path
- from router:r1@vrf1
- to any:[network:n3]
- while resolving router:r1@vrf1 (destination is host:pdp6).
- Check path restrictions and crypto interfaces.
-Warning: Missing rules to reach 1 devices from policy_distribution_point:
- - router:r1@vrf1
+=WARNING=
+Warning: Ignoring IPv6 'policy_distribution_point' at IPv4 router:r1@vrf1
+Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 router:r1@vrf2
 =END=
 
 ############################################################

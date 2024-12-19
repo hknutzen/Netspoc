@@ -755,11 +755,7 @@ type routerAttr interface {
 func (p *host) attrName() string         { return "policy_distribution_point" }
 func (p *host) isNil() bool              { return p == nil }
 func (p *host) equal(p2 routerAttr) bool { return p == p2 }
-func (p *host) toRouter(r *router) {
-	if p.ipV6 == r.ipV6 {
-		r.policyDistributionPoint = p
-	}
-}
+func (p *host) toRouter(r *router)       { r.policyDistributionPoint = p }
 
 func (l protoList) attrName() string { return "general_permit" }
 func (l protoList) isNil() bool      { return l == nil }
