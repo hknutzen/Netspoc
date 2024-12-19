@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -319,7 +318,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 					if !ok {
-						sort.Strings(names)
+						slices.Sort(names)
 						names = slices.Compact(names)
 						unnecessary := ""
 						if msg := isSingeUserOwner(info); msg != "" {
@@ -365,7 +364,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 		// Show objects with unknown owner.
 		for obj, names := range unknown2services {
-			sort.Strings(names)
+			slices.Sort(names)
 			c.warnOrErr(c.conf.CheckServiceUnknownOwner,
 				"Unknown owner for %s in %s",
 				obj, strings.Join(names, ", "))

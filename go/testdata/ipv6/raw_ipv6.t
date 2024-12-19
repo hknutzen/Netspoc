@@ -39,15 +39,13 @@ ipv6 route ::a01:200/120 ::a01:101
 =END=
 
 ############################################################
-=TITLE=Ignore hidden file and file named CVS
+=TITLE=Ignore hidden file
 =PARAMS=--ipv6
 =INPUT=
 -- topology
 network:n1 = { ip = ::a01:100/120; }
 -- raw/.hidden
 abc
--- raw/CVS
-xyz
 =WITH_OUTDIR=
 =WARNING=NONE
 

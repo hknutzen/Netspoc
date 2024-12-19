@@ -24,12 +24,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -109,14 +111,9 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 	}
 
 	// Compare networks.
-	var prefixList []int
-	for k := range prefixIPMap {
-		prefixList = append(prefixList, k)
-	}
 	// Go from small to larger networks.
-	sort.Slice(prefixList, func(i, j int) bool {
-		return prefixList[i] > prefixList[j]
-	})
+	prefixList := slices.SortedFunc(maps.Keys(prefixIPMap),
+		func(a, b int) int { return cmp.Compare(b, a) })
 	for i, prefix := range prefixList {
 		upperPrefixes := prefixList[i+1:]
 
@@ -132,8 +129,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				n, _ := ip.Prefix(p)
-				bignet, ok := prefixIPMap[p][n.Addr()]
-				if ok {
+				if bignet, ok := prefixIPMap[p][n.Addr()]; ok {
 					subnet.up = bignet
 					break
 				}
@@ -143,17 +139,13 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Propagate content of attribute optNetworks to all subnets.
 	// Go from large to smaller networks.
-	sort.Slice(prefixList, func(i, j int) bool {
-		return prefixList[i] < prefixList[j]
-	})
+	slices.Reverse(prefixList)
 	for _, prefix := range prefixList {
 		for _, n := range prefixIPMap[prefix] {
-			up := n.up
-			if up == nil {
-				continue
-			}
-			if optNetworks := up.optNetworks; optNetworks != nil {
-				n.optNetworks = optNetworks
+			if up := n.up; up != nil {
+				if optNetworks := up.optNetworks; optNetworks != nil {
+					n.optNetworks = optNetworks
+				}
 			}
 		}
 	}

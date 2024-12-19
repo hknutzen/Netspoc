@@ -36,7 +36,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -182,12 +181,17 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 	}
 }
 
-// Zone with network 0/0 doesn't have an aggregate 0/0.
 func (c *spoc) getZoneName(z *zone) string {
+	// Ignore IPv6 part of dual stack zone.
+	// This must match check in exportZone2Areas.
+	if z.ipV6 && z.combined46 != nil {
+		z = z.combined46
+	}
 	ipp := c.getNetwork00(z.ipV6).ipp
 	if any := z.ipPrefix2aggregate[ipp]; any != nil {
 		return any.name
 	} else {
+		// Zone with network 0/0 doesn't have an aggregate 0/0.
 		return z.name
 	}
 }
@@ -302,17 +306,14 @@ func protoDescr(l []*proto) stringList {
 	}
 
 	// Sort by protocol, port/type, all (if proto and num are equal)
-	sort.Slice(pList, func(i, j int) bool {
-		if cmp := strings.Compare(pList[i].pType, pList[j].pType); cmp != 0 {
-			return cmp == -1
+	slices.SortFunc(pList, func(a, b protoSort) int {
+		if cmp := strings.Compare(a.pType, b.pType); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num < pList[j].num {
-			return true
+		if cmp := cmp.Compare(a.num, b.num); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num > pList[j].num {
-			return false
-		}
-		return strings.Compare(pList[i].desc, pList[j].desc) == -1
+		return strings.Compare(a.desc, b.desc)
 	})
 
 	result := make(stringList, len(pList))
@@ -416,7 +417,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				prev = name
 				names.push(name)
 			}
-			sort.Strings(names)
+			slices.Sort(names)
 			return names
 		}
 		getUserKey := func(l srvObjList) string {
@@ -441,18 +442,9 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 					// Artificially take one of 'src' and 'dst' as user
 					// for case like
 					// src = user; dst = any:[user];
-					listEq := func(l1, l2 srvObjList) bool {
-						if len(l1) != len(l2) {
-							return false
-						}
-						for i, el := range l1 {
-							if el != l2[i] {
-								return false
-							}
-						}
-						return true
-					}
-					if hasUser == "both" && (!listEq(srcList, dstList) || foreach) {
+					if hasUser == "both" &&
+						(!slices.Equal(srcList, dstList) || foreach) {
+
 						if seenAsUser(srcList) {
 							hasUser = "src"
 						} else if seenAsUser(dstList) {
@@ -1021,12 +1013,12 @@ func (c *spoc) exportAssets(
 			}
 		}
 
-		names := make(stringList, 0)
-		for _, ob := range childs {
+		names := make(stringList, len(childs))
+		for i, ob := range childs {
 			allObjects[ob] = true
-			names.push(ob.String())
+			names[i] = ob.String()
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		return jsonMap{net.name: names}
 	}
 
@@ -1238,10 +1230,10 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 				for i, user := range users {
 					uNames[i] = user.String()
 				}
-				sort.Strings(uNames)
+				slices.Sort(uNames)
 				service2users[sName] = slices.Compact(uNames)
 			}
-			sort.Strings(sNames)
+			slices.Sort(sNames)
 			type2snames[typ] = sNames
 		}
 		c.createDirs(dir, "owner/"+ow)
@@ -1316,6 +1308,9 @@ func (c *spoc) exportMasterOwner(dir string, masterOwner string) {
 func (c *spoc) exportZone2Areas(dir string) {
 	result := make(jsonMap)
 	for _, z := range c.allZones {
+		if z.ipV6 && z.combined46 != nil {
+			continue
+		}
 		var l stringList
 		a := z.inArea
 		for a != nil {
@@ -1363,7 +1358,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 		}
 
 		export := func(l []string, key, path string) {
-			sort.Strings(l)
+			slices.Sort(l)
 			out := make([]map[string]string, len(l))
 			for i, e := range l {
 				m := make(map[string]string)

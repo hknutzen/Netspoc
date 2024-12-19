@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -276,7 +276,7 @@ func (c *spoc) showRedundantRules(ri *redundInfo) {
 		for _, pair := range rulePairs {
 			list.push(pair[0].print() + "\n< " + pair[1].print())
 		}
-		sort.Strings(list)
+		slices.Sort(list)
 		msg += strings.Join(list, "\n  ")
 		c.warnOrErr(action, msg)
 	}

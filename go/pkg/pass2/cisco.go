@@ -1,10 +1,11 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
 	"net/netip"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -247,8 +248,8 @@ func joinRanges1(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		// overlaps, because they have been split in function
 		// 'orderRanges'. There can't be sub-ranges, because they have
 		// been deleted as redundant already.
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].prt.ports[0] < list[j].prt.ports[0]
+		slices.SortFunc(list, func(a, b *ciscoRule) int {
+			return cmp.Compare(a.prt.ports[0], b.prt.ports[0])
 		})
 		ruleA := list[0]
 		proto := ruleA.prt.protocol
@@ -340,37 +341,36 @@ func moveRulesEspAh(
 		if val := a.Addr().Compare(b.Addr()); val != 0 {
 			return val
 		}
-		if a.Bits() < b.Bits() {
+		return cmp.Compare(a.Bits(), b.Bits())
+	}
+	slices.SortStableFunc(rules, func(a, b *ciscoRule) int {
+		if a.deny && b.deny {
+			return 0
+		}
+		if a.deny {
 			return -1
 		}
-		if a.Bits() > b.Bits() {
+		if b.deny {
 			return 1
 		}
-		return 0
-	}
-	sort.SliceStable(rules, func(i, j int) bool {
-		if rules[i].deny {
-			return !rules[j].deny
+		sa := needSort(a)
+		sb := needSort(b)
+		if !sa && !sb {
+			return 0
 		}
-		if rules[j].deny {
-			return false
+		if !sa {
+			return 1
 		}
-		if !needSort(rules[i]) {
-			return false
+		if !sb {
+			return -1
 		}
-		if !needSort(rules[j]) {
-			return true
+		if cmp := strings.Compare(a.prt.protocol, b.prt.protocol); cmp != 0 {
+			return cmp
 		}
-		if cmp := strings.Compare(
-			rules[i].prt.protocol,
-			rules[j].prt.protocol); cmp != 0 {
-
-			return cmp == -1
+		if cmp := cmpAddr(a.src, b.src); cmp != 0 {
+			return cmp
 		}
-		if cmp := cmpAddr(rules[i].src, rules[j].src); cmp != 0 {
-			return cmp == -1
-		}
-		return cmpAddr(rules[i].dst, rules[j].dst) == -1
+		return cmpAddr(a.dst, b.dst)
 	})
 	return rules
 }
@@ -473,8 +473,8 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	// Sort by IP address. Adjacent networks will be adjacent elements then.
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
-	sort.Slice(rules, func(i, j int) bool {
-		return get(rules[i]).Addr().Less(get(rules[j]).Addr())
+	slices.SortFunc(rules, func(a, b *ciscoRule) int {
+		return get(a).Addr().Compare(get(b).Addr())
 	})
 
 	// Find left and rigth part with identical mask and combine them

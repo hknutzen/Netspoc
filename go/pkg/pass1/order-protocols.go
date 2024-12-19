@@ -1,7 +1,8 @@
 package pass1
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
@@ -89,10 +90,11 @@ func orderRanges(l protoList, up *proto) {
 	// Sort by low port. If low ports are equal, sort reverse by high port.
 	// I.e. larger ranges coming first, if there are multiple ranges
 	// with identical low port.
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].ports[0] < l[j].ports[0] ||
-			l[i].ports[0] == l[j].ports[0] &&
-				l[i].ports[1] > l[j].ports[1]
+	slices.SortFunc(l, func(a, b *proto) int {
+		if cmp := cmp.Compare(a.ports[0], b.ports[0]); cmp != 0 {
+			return cmp
+		}
+		return cmp.Compare(b.ports[1], a.ports[1])
 	})
 
 	// Check current range [a1, a2] for sub-ranges, starting at position i.

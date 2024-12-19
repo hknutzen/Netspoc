@@ -21,7 +21,7 @@ func (l netList) nameList() string {
 	for _, n := range l {
 		name := n.name
 		if n.isCombined46() {
-			name = cond(n.ipV6, "IPv6", "IPv4") + " " + name
+			name = ipvx(n.ipV6) + " " + name
 		}
 		names.push(name)
 	}

@@ -10,7 +10,6 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -214,12 +213,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
 		ip2net := prefix2ip2net[prefix]
-		ips := make([]netip.Addr, 0, len(ip2net))
-		for k := range ip2net {
-			ips = append(ips, k)
-		}
-		sort.Slice(ips, func(i, j int) bool {
-			return ips[i].Less(ips[j])
+		ips := slices.SortedFunc(maps.Keys(ip2net), func(a, b netip.Addr) int {
+			return a.Compare(b)
 		})
 	NETWORK:
 		for _, ip := range ips {
@@ -400,8 +395,8 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 	checkRules(intf.outRules, true)
 
 	// Sort for better readability of ACL.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].ipp.Addr().Less(result[j].ipp.Addr())
+	slices.SortFunc(result, func(a, b *network) int {
+		return a.ipp.Addr().Compare(b.ipp.Addr())
 	})
 	return result
 }
@@ -485,7 +480,7 @@ func printTunnelGroupRa(
 			keys.push(k)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		out := key
 
@@ -1371,10 +1366,9 @@ func (c *spoc) printStaticCryptoMap(
 	natMap := hw.natMap
 
 	// Sort crypto maps by peer IP to get deterministic output.
-	l := make([]*routerIntf, 0, len(interfaces))
-	l = append(l, interfaces...)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].peer.realIntf.ip.Less(l[j].peer.realIntf.ip)
+	l := slices.Clone(interfaces)
+	slices.SortFunc(l, func(a, b *routerIntf) int {
+		return a.peer.realIntf.ip.Compare(b.peer.realIntf.ip)
 	})
 
 	// Build crypto map for each tunnel interface.
@@ -1428,10 +1422,9 @@ func (c *spoc) printDynamicCryptoMap(
 	seqNum := 65536
 
 	// Sort crypto maps by certificate to get deterministic output.
-	l := make([]*routerIntf, 0, len(interfaces))
-	l = append(l, interfaces...)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].peer.id < l[j].peer.id
+	l := slices.Clone(interfaces)
+	slices.SortFunc(l, func(a, b *routerIntf) int {
+		return strings.Compare(a.peer.id, b.peer.id)
 	})
 
 	// Build crypto map for each tunnel interface.
@@ -1500,8 +1493,8 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	}
 
 	// Sort entries by name to get deterministic output.
-	sort.Slice(ipsecList, func(i, j int) bool {
-		return ipsecList[i].name < ipsecList[j].name
+	slices.SortFunc(ipsecList, func(a, b *ipsec) int {
+		return strings.Compare(a.name, b.name)
 	})
 
 	// List of isakmp definitions used at current router.
@@ -2098,7 +2091,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 				a := getAddr(n, natMap)
 				addrList.push(a)
 			}
-			sort.Strings(addrList)
+			slices.Sort(addrList)
 			jACL.OptNetworks = addrList
 
 			addrList = make(stringList, 0, len(noOptAddrs))
@@ -2106,7 +2099,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 				a := getAddr(o, natMap)
 				addrList.push(a)
 			}
-			sort.Strings(addrList)
+			slices.Sort(addrList)
 			jACL.NoOptAddrs = addrList
 
 			if model.needVRF {

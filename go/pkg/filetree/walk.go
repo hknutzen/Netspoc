@@ -8,8 +8,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 )
 
-const Ignore = "CVS"
-
 type Context struct {
 	Path string
 	Data string
@@ -34,8 +32,8 @@ func Walk(fname string, v6 bool, fn parser) error {
 		if !toplevel {
 			base := path.Base(fname)
 
-			// Skip hidden, ignored file and editor backup file.
-			if base[0] == '.' || base == Ignore || base[len(base)-1] == '~' {
+			// Skip hidden file and editor backup file.
+			if base[0] == '.' || base[len(base)-1] == '~' {
 				return nil
 			}
 

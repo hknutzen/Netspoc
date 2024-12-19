@@ -1,13 +1,14 @@
 package pass1
 
 import (
-	"sort"
+	"slices"
+	"strings"
 )
 
 func (c *spoc) collectRoutersAndNetworks() {
 	rl := c.allRouters
-	sort.Slice(rl, func(i, j int) bool {
-		return rl[i].name < rl[j].name
+	slices.SortFunc(rl, func(a, b *router) int {
+		return strings.Compare(a.name, b.name)
 	})
 	for _, r := range rl {
 		if r.managed != "" || r.routingOnly {

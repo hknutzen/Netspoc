@@ -355,3 +355,26 @@ service:s1 = {
  ]
 }
 =END=
+
+############################################################
+=TITLE=Show v4 areas for combined zone
+=INPUT=
+area:all-v4 = { anchor = network:n1; ipv4_only; }
+area:all-v6 = { anchor = network:n1; ipv6_only; }
+area:a1-v4 = { border = interface:r1.n1; ipv4_only; }
+
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+=OUTPUT=
+--zone2areas
+{
+ "any:[network:n1]": [ "a1-v4", "all-v4" ],
+ "any:[network:n2]": [ "all-v6" ]
+}
+=END=

@@ -2,10 +2,10 @@
 package ast
 
 import (
+	"cmp"
 	"net/netip"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -39,11 +39,11 @@ func findIPInName(s string) netip.Addr {
 }
 
 func sortElem(l []Element) {
-	sort.SliceStable(l, func(i, j int) bool {
-		t1 := typeOrder[l[i].GetType()]
-		t2 := typeOrder[l[j].GetType()]
-		if t1 != t2 {
-			return t1 < t2
+	slices.SortStableFunc(l, func(a, b Element) int {
+		t1 := typeOrder[a.GetType()]
+		t2 := typeOrder[b.GetType()]
+		if cmp := cmp.Compare(t1, t2); cmp != 0 {
+			return cmp
 		}
 		getNameIP := func(el Element) (string, netip.Addr) {
 			if x, ok := el.(*Intersection); ok {
@@ -56,9 +56,12 @@ func sortElem(l []Element) {
 			}
 			return "", netip.Addr{}
 		}
-		n1, ip1 := getNameIP(l[i])
-		n2, ip2 := getNameIP(l[j])
-		return ip1.Less(ip2) || ip1 == ip2 && n1 < n2
+		n1, ip1 := getNameIP(a)
+		n2, ip2 := getNameIP(b)
+		if cmp := ip1.Compare(ip2); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(n1, n2)
 	})
 }
 
@@ -81,16 +84,16 @@ var protoOrder = map[string]int{
 }
 
 func sortProto(l []*Value) {
-	sort.Slice(l, func(i, j int) bool {
-		v1 := l[i].Value
-		v2 := l[j].Value
+	slices.SortFunc(l, func(a, b *Value) int {
+		v1 := a.Value
+		v2 := b.Value
 		o1 := protoOrder[getType(v1)]
 		o2 := protoOrder[getType(v2)]
-		if o1 != o2 {
-			return o1 < o2
+		if cmp := cmp.Compare(o1, o2); cmp != 0 {
+			return cmp
 		}
 		if o1 != 0 {
-			return getName(v1) < getName(v2)
+			return strings.Compare(getName(v1), getName(v2))
 		}
 		// Simple protocol
 		d1 := strings.Split(v1, " ")
@@ -98,8 +101,8 @@ func sortProto(l []*Value) {
 		// icmp < ip < proto < tcp < udp
 		p1 := d1[0]
 		p2 := d2[0]
-		if p1 != p2 {
-			return p1 < p2
+		if cmp := strings.Compare(p1, p2); cmp != 0 {
+			return cmp
 		}
 		var n1, n2 []int
 		if p1 == "tcp" || p1 == "udp" {
@@ -145,13 +148,13 @@ func sortProto(l []*Value) {
 			n1 = conv(d1[1:])
 			n2 = conv(d2[1:])
 		}
-		return slices.Compare(n1, n2) == -1
+		return slices.Compare(n1, n2)
 	})
 }
 
 func sortAttr(l []*Attribute) {
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].Name < l[j].Name
+	slices.SortFunc(l, func(a, b *Attribute) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 }
 
@@ -192,8 +195,8 @@ func (a *NamedUnion) Order() {
 
 func (a *Attribute) Order() {
 	vals := a.ValueList
-	sort.Slice(vals, func(i, j int) bool {
-		return strings.ToLower(vals[i].Value) < strings.ToLower(vals[j].Value)
+	slices.SortFunc(vals, func(a, b *Value) int {
+		return strings.Compare(strings.ToLower(a.Value), strings.ToLower(b.Value))
 	})
 }
 
@@ -239,8 +242,8 @@ func sortByIP(l []*Attribute) {
 		}
 		return netip.Addr{}
 	}
-	sort.SliceStable(l, func(i, j int) bool {
-		return getIP(l[i]).Less(getIP(l[j]))
+	slices.SortStableFunc(l, func(a, b *Attribute) int {
+		return getIP(a).Compare(getIP(b))
 	})
 }
 

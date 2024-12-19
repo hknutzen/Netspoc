@@ -5,7 +5,6 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
-	"sort"
 )
 
 // #############################################################################
@@ -81,8 +80,8 @@ func (c *spoc) linkImplicitAggregateToZone(
 			larger.push(obj)
 		}
 	}
-	sort.Slice(larger, func(i, j int) bool {
-		return larger[i].ipp.Bits() > larger[j].ipp.Bits()
+	slices.SortFunc(larger, func(a, b *network) int {
+		return cmp.Compare(b.ipp.Bits(), a.ipp.Bits())
 	})
 	for _, obj := range larger {
 		if obj.ipp.Contains(ipp.Addr()) {

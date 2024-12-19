@@ -9,7 +9,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -373,6 +372,14 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 			}
 		}
 	}
+	if r.interfaces != nil && r6.interfaces != nil {
+		if a.IPV6 {
+			c.err("Must not use attributes 'ip' and 'ip6' together in %s"+
+				" defined inside directory 'ipv6/'", a.Name)
+		}
+		r.combined46 = r6
+		r6.combined46 = r
+	}
 	if r.interfaces != nil || r6.interfaces == nil {
 		r.ipV6 = false
 		stripFilterOnly(r, r6.interfaces)
@@ -384,14 +391,6 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 		stripFilterOnly(r6, r.interfaces)
 		c.setupRouter2(r6)
 		c.allRouters = append(c.allRouters, r6)
-	}
-	if r.interfaces != nil && r6.interfaces != nil {
-		if a.IPV6 {
-			c.err("Must not use attributes 'ip' and 'ip6' together in %s"+
-				" defined inside directory 'ipv6/'", a.Name)
-		}
-		r.combined46 = r6
-		r6.combined46 = r
 	}
 }
 
@@ -453,6 +452,8 @@ func stripFilterOnly(r *router, other []*routerIntf) {
 			})
 	}
 }
+
+func ipvx(v6 bool) string { return cond(v6, "IPv6", "IPv4") }
 
 func (c *spoc) checkIntf46(ai *ast.Attribute) (int, int) {
 	var v4Count, v6Count int
@@ -1332,11 +1333,8 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 				ag.combined46 = &ag6
 			}
 		} else if ag.ipV6 != ag.link.ipV6 {
-			if ag.ipV6 {
-				c.err("Must not link IPv6 address to IPv4 network in %s", name)
-			} else {
-				c.err("Must not link IPv4 address to IPv6 network in %s", name)
-			}
+			c.err("Must not link %s address to %s network in %s",
+				ipvx(ag.ipV6), ipvx(ag.link.ipV6), name)
 		}
 	}
 	if ag.ipp.Bits() != 0 {
@@ -1465,6 +1463,17 @@ func (c *spoc) setupArea(v *ast.Area) {
 		}
 	}
 	c.ascendingAreas = append(c.ascendingAreas, ar)
+	if p := ar.routerAttributes.policyDistributionPoint; p != nil {
+		if p.ipV6 != ar.ipV6 {
+			if ar2 == nil {
+				ar.routerAttributes.policyDistributionPoint = nil
+				c.warn("Ignoring %s 'policy_distribution_point' at %s %s",
+					ipvx(p.ipV6), ipvx(ar.ipV6), ar)
+			}
+		} else if ar2 != nil {
+			ar2.routerAttributes.policyDistributionPoint = nil
+		}
+	}
 	if ar2 != nil {
 		ar.combined46 = ar2
 		ar2.combined46 = ar
@@ -1717,6 +1726,15 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router, v6 bool) {
 }
 
 func (c *spoc) setupRouter2(r *router) {
+	if p := r.policyDistributionPoint; p != nil {
+		if p.ipV6 != r.ipV6 {
+			r.policyDistributionPoint = nil
+			if !r.isCombined46() {
+				c.warn("Ignoring %s 'policy_distribution_point' at %s %s",
+					ipvx(p.ipV6), ipvx(r.ipV6), r)
+			}
+		}
+	}
 
 	// Create objects representing hardware interfaces.
 	// All logical interfaces using the same hardware are linked
@@ -2335,14 +2353,12 @@ func (c *spoc) setupInterface(
 		if n == nil {
 			c.err("Referencing undefined network:%s from %s", nName, name)
 		} else {
-			if !v6 && n.ipV6 {
-				c.err("Must not reference IPv6 %s from IPv4 %s", n, intf)
-				n = nil
-			} else if v6 && !n.ipV6 {
+			if v6 != n.ipV6 {
 				if n.combined46 != nil {
 					n = n.combined46
 				} else {
-					c.err("Must not reference IPv4 %s from IPv6 %s", n, intf)
+					c.err("Must not reference %s %s from %s %s",
+						ipvx(n.ipV6), n, ipvx(v6), intf)
 					n = nil
 				}
 			}
@@ -2468,7 +2484,7 @@ func (c *spoc) setupService(v *ast.Service) {
 func (c *spoc) checkLog(l stringList, ctx string) stringList {
 	var valid stringList
 	prev := ""
-	sort.Strings(l)
+	slices.Sort(l)
 	for _, tag := range l {
 		if tag == prev {
 			c.warn("Duplicate '%s' in log of %s", tag, ctx)
@@ -2622,7 +2638,7 @@ func (c *spoc) getComplexValue(
 
 func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
 	l := c.getValueList(a, ctx)
-	sort.Strings(l)
+	slices.Sort(l)
 	// Remove duplicates.
 	l2 := slices.Compact(l)
 	if len(l) != len(l2) {
@@ -3289,12 +3305,12 @@ func (c *spoc) filterV46Only(l groupObjList, v4Only, v6Only bool, ctx string,
 	}
 	j := 0
 	for _, obj := range l {
-		if obj.isIPv6() == v6Only {
+		if v6 := obj.isIPv6(); v6 == v6Only {
 			l[j] = obj
 			j++
 		} else if !obj.isCombined46() {
-			c.err("Must not use IPv%s %s with 'ip%s_only' of %s",
-				cond(obj.isIPv6(), "6", "4"), obj, cond(v6Only, "6", "4"), ctx)
+			c.err("Must not use %s %s with 'ip%s_only' of %s",
+				ipvx(v6), obj, cond(v6Only, "6", "4"), ctx)
 		}
 	}
 	return l[:j]
@@ -3591,7 +3607,9 @@ func (c *spoc) getGeneralPermit(a *ast.Attribute, ctx string) protoList {
 	}
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
-	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
+	slices.SortFunc(l, func(a, b *proto) int {
+		return strings.Compare(a.name, b.name)
+	})
 	return l
 }
 
@@ -3858,8 +3876,7 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 	// Check compatibility of interface IP and network address.
 	ip := intf.ip
 	if !ipp.Contains(ip) {
-		c.err("IPv%s address of %s doesn't match %s",
-			cond(intf.ipV6, "6", "4"), intf, n)
+		c.err("%s address of %s doesn't match %s", ipvx(intf.ipV6), intf, n)
 	}
 	if ipp.IsSingleIP() {
 		c.warn("%s has address of its network.\n"+

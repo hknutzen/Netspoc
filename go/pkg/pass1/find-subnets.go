@@ -6,7 +6,6 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
-	"sort"
 
 	"go4.org/netipx"
 )
@@ -36,10 +35,10 @@ func processSubnetRelation(
 
 		// Sort IP addresses to get deterministic warnings and ACLs.
 		ipMap := prefixIPMap[prefix]
-		ipList := slices.Collect(maps.Keys(ipMap))
-		sort.Slice(ipList, func(i, j int) bool {
-			return ipList[i].Less(ipList[j])
-		})
+		ipList := slices.SortedFunc(maps.Keys(ipMap),
+			func(a, b netip.Addr) int {
+				return a.Compare(b)
+			})
 		for _, ip := range ipList {
 			sub := ipMap[ip]
 

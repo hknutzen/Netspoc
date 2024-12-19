@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -83,7 +83,7 @@ func (c *spoc) showUnenforceable(s2u svc2unenforceable) {
 				src, dst := pair[0], pair[1]
 				list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
 			}
-			sort.Strings(list)
+			slices.Sort(list)
 			c.warnOrErr(c.conf.CheckUnenforceable,
 				"Some source/destination pairs of %s don't affect any firewall:\n"+
 					" %s",
