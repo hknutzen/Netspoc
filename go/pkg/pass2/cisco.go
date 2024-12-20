@@ -343,26 +343,24 @@ func moveRulesEspAh(
 		}
 		return cmp.Compare(a.Bits(), b.Bits())
 	}
+	hasLog = true
 	slices.SortStableFunc(rules, func(a, b *ciscoRule) int {
-		if a.deny && b.deny {
-			return 0
-		}
-		if a.deny {
-			return -1
-		}
-		if b.deny {
+		cmpBool := func(a, b bool) int {
+			if a == b {
+				return 0
+			}
+			if a {
+				return -1
+			}
 			return 1
+		}
+		if a.deny || b.deny {
+			return cmpBool(a.deny, b.deny)
 		}
 		sa := needSort(a)
 		sb := needSort(b)
-		if !sa && !sb {
-			return 0
-		}
-		if !sa {
-			return 1
-		}
-		if !sb {
-			return -1
+		if !sa || !sb {
+			return cmpBool(!sb, !sa)
 		}
 		if cmp := strings.Compare(a.prt.protocol, b.prt.protocol); cmp != 0 {
 			return cmp
