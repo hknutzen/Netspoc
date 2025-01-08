@@ -431,15 +431,6 @@ func (c *spoc) getAndCheckLayer3(r *router, a *ast.Router) string {
 				bName = a1.Name
 			}
 		}
-		if l3Name != "" {
-			// Check existence of layer3 interface.
-			if !slices.ContainsFunc(a.Interfaces, func(a1 *ast.Attribute) bool {
-				return a1.Name == l3Name
-			}) {
-				c.err("Must define %s at %s for corresponding bridge interfaces",
-					l3Name, a.Name)
-			}
-		}
 	}
 	return l3Name
 }
@@ -1820,6 +1811,7 @@ func (c *spoc) setupRouter2(r *router) {
 		}
 
 		isCryptoHub := false
+		var layer3Intf *routerIntf
 		for _, intf := range r.interfaces {
 			if intf.hub != nil || intf.spoke != nil {
 				if r.model.crypto == "" {
@@ -1833,9 +1825,24 @@ func (c *spoc) setupRouter2(r *router) {
 			// Link bridged interfaces with corresponding layer3 device.
 			// Used in findAutoInterfaces.
 			if intf.ipType == bridgedIP {
-				layer3Name := intf.name[len("interface:"):]
-				layer3Name, _, _ = strings.Cut(layer3Name, "/")
-				intf.layer3Intf = c.symTable.routerIntf[layer3Name]
+				if layer3Intf == nil {
+					i := slices.IndexFunc(r.interfaces, func(intf *routerIntf) bool {
+						if intf.isLayer3 {
+							return true
+						}
+						return false
+					})
+					if i == -1 {
+						l3Name, _, _ := strings.Cut(intf.vxName(), "/")
+						c.err("Must define %s for corresponding bridge interfaces",
+							l3Name)
+						// Prevent further errors.
+						layer3Intf = intf
+					} else {
+						layer3Intf = r.interfaces[i]
+					}
+				}
+				intf.layer3Intf = layer3Intf
 			}
 		}
 		if r.model.doAuth {

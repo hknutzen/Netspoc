@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Fixed dual stack bridge. IPv4 and IPv6 interfaces were accidently
+   processed together.
+
 6.075     2024-12-19 11:53:37+01:00 Europe/Berlin
 
  - Fix: Attribute 'policy_distribution_point' at dual stack router
