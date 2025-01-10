@@ -191,7 +191,7 @@ router:bridge = {
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Must define interface:n1 at router:bridge for corresponding bridge interfaces
+Error: Must define interface:bridge.n1 for corresponding bridge interfaces
 =END=
 
 ############################################################

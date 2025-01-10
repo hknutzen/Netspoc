@@ -562,6 +562,22 @@ Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 area:a1
 =END=
 
 ############################################################
+=TITLE=Ignore IPv4 policy_distribution_point at IPv6 part of combined area
+=INPUT=
+area:a1 = { anchor = network:n1;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip = 10.1.1.10; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Use combined46 area in automatic group
 =INPUT=
 area:a23 = { inclusive_border = interface:r1.n1; }
@@ -884,4 +900,80 @@ network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 =ERROR=
 Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1-v6]
 Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1-v4]
+=END=
+
+############################################################
+=TITLE=Bridged network
+=INPUT=
+network:n1/left = {
+ ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+}
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.9; ip6 = 2001:db8:1:1::9; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = {
+ ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Bridge with missing IPv6 address
+=INPUT=
+network:n1/left = {
+ ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+}
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.9; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = {
+ ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+}
+=ERROR=
+Error: Must define IPv6 interface:bridge.n1 for corresponding bridge interfaces
+=END=
+
+############################################################
+=TITLE=IPv6 part of unnumbered network has more than two interfaces
+=INPUT=
+network:u = { unnumbered; unnumbered6; }
+router:r1 = { interface:u = { unnumbered6; } }
+router:r2 = { interface:u = { unnumbered; unnumbered6; } }
+router:r3 = { interface:u = { unnumbered; unnumbered6; } }
+=ERROR=
+Error: Unnumbered IPv6 network:u is connected to more than two interfaces:
+ - interface:r1.u
+ - interface:r2.u
+ - interface:r3.u
+=END=
+
+############################################################
+=TITLE=Duplicate IPv6 address of hosts
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; }
+ host:h2 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::1; }
+}
+=ERROR=
+Error: Duplicate IP address for host:h1 and IPv6 host:h2
+=END=
+
+############################################################
+=TITLE=Duplicate IPv4 address of networks
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=ERROR=
+Error: IPv4 network:n1 and IPv4 network:n2 have identical address in any:[network:n1]
 =END=

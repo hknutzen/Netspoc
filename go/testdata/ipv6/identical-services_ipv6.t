@@ -354,6 +354,28 @@ Warning: These services have identical rule definitions.
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
+=TITLE=Changed order of equal rules (3)
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n2;
+ deny   src = host:h10; dst = user; prt = tcp 22;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = network:n1; dst = user; prt = tcp 22;
+ deny   src = host:h10; dst = user; prt = tcp 22;
+}
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
+=OPTIONS=--check_identical_services=warn --check_duplicate_rules=0
+
+############################################################
 =TITLE=Similar service, but changed src/dst
 =PARAMS=--ipv6
 =INPUT=

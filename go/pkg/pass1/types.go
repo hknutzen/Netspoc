@@ -184,6 +184,19 @@ func (x *network) getUp() someObj {
 }
 func (x *network) intfList() intfList { return x.interfaces }
 func (x network) isCombined46() bool  { return x.combined46 != nil }
+func (x network) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
+
+func vxName(name string, ipV6, isCombined46 bool) string {
+	if isCombined46 {
+		if ipV6 {
+			return "IPv6 " + name
+		}
+		return "IPv4 " + name
+	}
+	return name
+}
 
 type netList []*network
 
@@ -225,6 +238,9 @@ type host struct {
 }
 
 func (x host) isCombined46() bool { return x.combined46 != nil }
+func (x host) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
 
 type model struct {
 	commentChar            string
@@ -388,6 +404,9 @@ func (intf routerIntf) getCrypto() *crypto {
 	return intf.realIntf.spoke
 }
 func (x routerIntf) isCombined46() bool { return x.combined46 != nil }
+func (x routerIntf) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
 
 type intfList []*routerIntf
 
@@ -536,13 +555,7 @@ type area struct {
 
 func (x area) String() string { return x.name }
 func (x area) vxName() string {
-	if x.combined46 != nil {
-		if x.ipV6 {
-			return "IPv6 " + x.name
-		}
-		return "IPv4 " + x.name
-	}
-	return x.name
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
 }
 func (x area) isCombined46() bool { return x.combined46 != nil }
 

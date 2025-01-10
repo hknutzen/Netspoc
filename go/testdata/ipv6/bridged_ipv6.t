@@ -202,7 +202,7 @@ router:bridge = {
 }
 network:n1/right = { ip = ::a01:100/120; }
 =ERROR=
-Error: Must define interface:n1 at router:bridge for corresponding bridge interfaces
+Error: Must define interface:bridge.n1 for corresponding bridge interfaces
 =END=
 
 ############################################################

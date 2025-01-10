@@ -71,8 +71,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				svc2ruleInfoList[svc] = append(svc2ruleInfoList[svc], info)
 			}
 		}
-		process(sRules.permit)
 		process(sRules.deny)
+		process(sRules.permit)
 
 		// Group similar services.
 		// Use this as hash key.
@@ -85,17 +85,17 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			// Sort riList, because we use attributes of first element
 			// to build hash key from.
 			slices.SortFunc(riList, func(a, b *ruleInfo) int {
-				if a.deny != b.deny {
-					if a.deny {
+				cmpBool1 := func(a bool) int {
+					if a {
 						return -1
 					}
 					return 1
 				}
+				if a.deny != b.deny {
+					return cmpBool1(a.deny)
+				}
 				if a.objIsSrc != b.objIsSrc {
-					if !a.objIsSrc {
-						return -1
-					}
-					return 1
+					return cmpBool1(!a.objIsSrc)
 				}
 				return slices.Compare(a.names, b.names)
 			})

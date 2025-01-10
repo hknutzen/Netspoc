@@ -122,7 +122,7 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 		// Found two different networks with identical address.
 		if other := ipMap[ipp.Addr()]; other != nil {
 			c.err("%s and %s have identical address in %s",
-				other.name, n.name, z0.name)
+				other.vxName(), n.vxName(), z0.name)
 		} else {
 
 			// Store original network under its address.
@@ -422,7 +422,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 						for _, z := range domain.zones {
 							if z.cluster[0] == cl {
 								c.err("%s and %s have identical address in %s",
-									n, other, z)
+									n.vxName(), other.vxName(), z)
 								break
 							}
 						}
