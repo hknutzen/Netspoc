@@ -297,6 +297,9 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				}
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
+			if c.method == "set" {
+				return setAttrValue(a, c.val)
+			}
 			if c.val != nil {
 				err := patchValue(a, c)
 				if err != nil || len(a.ValueList) != 0 || c.method != "delete" {
@@ -308,7 +311,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				*l = append((*l)[:i], (*l)[i+1:]...)
 				return nil
 			}
-			return fmt.Errorf("Missing value to %s at '%s'", c.method, name)
+			return fmt.Errorf("Missing value to add at '%s'", name)
 		}
 	}
 	if len(names) != 0 {
@@ -318,9 +321,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 }
 
 func patchValue(a *ast.Attribute, c change) error {
-	if c.method == "set" ||
-		c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
-
+	if c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
 		return setAttrValue(a, c.val)
 	}
 	if a.ComplexValue != nil {

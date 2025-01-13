@@ -1256,6 +1256,30 @@ pathrestriction:p =
 =END=
 
 ############################################################
+=TITLE=Add loopback interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:l",
+        "value": { "ip": "10.9.9.9", "loopback" : null }
+    }
+}
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  interface:n1;
++ interface:l = { ip = 10.9.9.9; loopback; }
+ }
+=END=
+
+############################################################
 =TITLE=Add VIP Interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1556,6 +1580,135 @@ router:r1 = {
 }
 =ERROR=
 Error: Can't descend into value of 'interface:n1'
+=END=
+
+############################################################
+=TITLE=Add IP & VIP to short interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": {
+          "ip": "10.1.1.2",
+          "virtual" : { "ip": "10.1.1.1", "type": "VRRP" }
+        }
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1;
++ interface:n1 = {
++  ip = 10.1.1.2;
++  virtual = { ip = 10.1.1.1; type = VRRP; }
++ }
+ }
+=END=
+
+############################################################
+=TITLE=Delete remaining attribute from interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1,interface:n1,ip"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1 = { }
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": []
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface using null value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": null
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface using no value at all
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
 =END=
 
 ############################################################

@@ -132,6 +132,21 @@ Error: Can't descend into value of 'ip'
 =END=
 
 ############################################################
+=TITLE=Missing value to add
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip"
+    }
+}
+=ERROR=
+Error: Missing value to add at 'ip'
+=END=
+
+############################################################
 =TITLE=Missing replacement value
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -143,7 +158,12 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Missing value to set at 'ip'
+Error: Single value expected in 'ip' of network:n1
+Error: Invalid CIDR address:  in 'ip' of network:n1
+=OUTPUT=
+@@ INPUT
+-network:n1 = { ip = 10.1.1.0/24; }
++network:n1 = { ip; }
 =END=
 
 ############################################################
@@ -350,61 +370,6 @@ Warning: nat:h is defined, but not bound to any interface
 +  nat:h = { ip = 192.168.1.3; }
 + }
   host:h12 = { ip = 10.1.1.12; }
- }
-=END=
-
-############################################################
-=TITLE=Add interface
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:l",
-        "value": { "ip": "10.9.9.9", "loopback" : null }
-    }
-}
-=OUTPUT=
-@@ INPUT
- router:r1 = {
-  interface:n1;
-+ interface:l = { ip = 10.9.9.9; loopback; }
- }
-=END=
-
-############################################################
-=TITLE=Add IP & VIP to interface
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:n1",
-        "value": {
-          "ip": "10.1.1.2",
-          "virtual" : { "ip": "10.1.1.1", "type": "VRRP" }
-        }
-    }
-}
-=OUTPUT=
-@@ INPUT
- network:n1 = { ip = 10.1.1.0/24; }
- router:r1 = {
-- interface:n1;
-+ interface:n1 = {
-+  ip = 10.1.1.2;
-+  virtual = { ip = 10.1.1.1; type = VRRP; }
-+ }
  }
 =END=
 
