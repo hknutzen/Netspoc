@@ -116,6 +116,49 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Service from auto interface, identical vor IPv4, IPv6
+=INPUT=
+area:all = { anchor = network:n1; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.[auto];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": [
+     "network:n1"
+    ]
+   }
+  ]
+ }
+}
+=END=
+
+############################################################
 =TITLE=Split service from auto interface, identical vor IPv4, IPv6
 =INPUT=
 area:all = { anchor = network:n1; owner = o; }
@@ -184,6 +227,52 @@ service:s1 = {
  "s1(wE9zkFMz)": [
   "network:n1"
  ]
+}
+=END=
+
+############################################################
+=TITLE=IPv4 only network to dual stack auto interface
+=INPUT=
+area:all = { anchor = network:n1; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; }
+router:r0 = {
+ interface:n1;
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.[auto];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": [
+     "network:n1"
+    ]
+   }
+  ]
+ }
 }
 =END=
 

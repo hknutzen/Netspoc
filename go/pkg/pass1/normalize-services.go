@@ -246,6 +246,9 @@ func (c *spoc) normalizeSrcDstList(
 			c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
 		addExtra(extraDstSrc)
 
+		if expSrcList == nil && expDstList == nil {
+			return
+		}
 		resultPairs = append(resultPairs, [2]srvObjList{expSrcList, expDstList})
 		resultPairs = append(resultPairs, extraResult...)
 	}
