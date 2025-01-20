@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Fixed panic in export-netspoc with rule from IPv4 network to
+   combined IPv4/v6 auto interface.
+
 6.076     2025-01-10 09:39:54+01:00 Europe/Berlin
 
  - Fixed dual stack bridge. IPv4 and IPv6 interfaces were accidently
