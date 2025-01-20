@@ -689,19 +689,20 @@ func (c *spoc) processAggregates() {
 				}
 			}
 			// Link aggragate and zone (also setting z.ipPrefix2aggregate)
-			c.linkAggregateToZone(agg, z, ipp)
+			c.linkAggregateToZone(agg, z)
 		}
 		z := agg.link.zone
 		process(agg, z)
 		// Add non matching aggregate to combined zone.
 		if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
-			agg2 := *agg
-			ipp2 := c.getNetwork00(!agg.ipV6).ipp
-			agg2.ipp = ipp2
+			agg2 := new(network)
+			agg2.name = agg.name
+			agg2.isAggregate = true
 			agg2.ipV6 = !agg.ipV6
-			agg.combined46 = &agg2
+			agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
+			agg.combined46 = agg2
 			agg2.combined46 = agg
-			process(&agg2, z2)
+			process(agg2, z2)
 		}
 
 	}

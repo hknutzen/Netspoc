@@ -12,17 +12,14 @@ import (
 // It sets aggregate properties according to those of the linked zone.
 //
 //	It Stores aggregates in allNetworks.
-func (c *spoc) linkAggregateToZone(
-	agg *network, z *zone, ipp netip.Prefix) {
+func (c *spoc) linkAggregateToZone(agg *network, z *zone) {
 
 	// Link aggregate with zone.
 	agg.zone = z
-	z.ipPrefix2aggregate[ipp] = agg
+	z.ipPrefix2aggregate[agg.ipp] = agg
 
 	// Set aggregate properties.
-	if z.hasIdHosts {
-		agg.hasIdHosts = true
-	}
+	agg.hasIdHosts = z.hasIdHosts
 
 	// Store aggregate in global list of networks.
 	c.allNetworks.push(agg)
@@ -33,8 +30,7 @@ func (c *spoc) linkAggregateToZone(
 // Remember:
 // .up is relation inside set of all networks and aggregates.
 // .networks is attribute of aggregates and networks,	but value is list of networks.
-func (c *spoc) linkImplicitAggregateToZone(
-	agg *network, z *zone, ipp netip.Prefix) {
+func (c *spoc) linkImplicitAggregateToZone(agg *network, z *zone) {
 
 	ipPrefix2aggregate := z.ipPrefix2aggregate
 
@@ -47,6 +43,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 	})
 
 	// Find subnets of new aggregate.
+	ipp := agg.ipp
 	for _, obj := range objects {
 		if obj.ipp.Bits() <= ipp.Bits() {
 			continue
@@ -92,7 +89,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		}
 	}
 
-	c.linkAggregateToZone(agg, z, ipp)
+	c.linkAggregateToZone(agg, z)
 }
 
 // Inversed inheritance: If an implicit aggregate has no direct owner
@@ -180,9 +177,9 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 
 	// Link new aggregate object and cluster
 	if implicit {
-		c.linkImplicitAggregateToZone(agg2, z, agg.ipp)
+		c.linkImplicitAggregateToZone(agg2, z)
 	} else {
-		c.linkAggregateToZone(agg2, z, agg.ipp)
+		c.linkAggregateToZone(agg2, z)
 	}
 }
 
@@ -252,18 +249,19 @@ func (c *spoc) getAny(
 			agg.ipp = ipp
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
-			c.linkImplicitAggregateToZone(agg, z, ipp)
+			c.linkImplicitAggregateToZone(agg, z)
 			c.duplicateAggregateToCluster(agg, true)
 			// Add non matching aggregate to combined zone.
 			if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
-				agg2 := *agg
-				ipp2 := c.getNetwork00(!agg.ipV6).ipp
-				agg2.ipp = ipp2
+				agg2 := new(network)
+				agg2.name = name
+				agg2.isAggregate = true
 				agg2.ipV6 = !agg.ipV6
-				agg.combined46 = &agg2
+				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
+				agg.combined46 = agg2
 				agg2.combined46 = agg
-				c.linkImplicitAggregateToZone(&agg2, z2, ipp2)
-				c.duplicateAggregateToCluster(&agg2, true)
+				c.linkImplicitAggregateToZone(agg2, z2)
+				c.duplicateAggregateToCluster(agg2, true)
 			}
 		}
 	}

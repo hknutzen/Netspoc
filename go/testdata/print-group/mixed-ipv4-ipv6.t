@@ -139,3 +139,19 @@ area:a1
 area:a2
 =OPTIONS=-n
 =PARAM=group:g1
+
+############################################################
+=TITLE=IPv4 hosts of combined area
+=INPUT=
+area:all = { anchor = network:n1; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+ host:h4 = { ip = 10.1.1.4; }
+ host:h6 = { ip6 = 2001:db8:1:1::6; }
+}
+=OUTPUT=
+host:h4
+host:h6
+=OPTIONS=-n
+=PARAM=host:[area:all]

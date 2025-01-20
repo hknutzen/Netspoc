@@ -1,5 +1,6 @@
 {{$NEXT}}
 
+ - Fixed duplicate hosts from wrong IPv4 network in IPv6 aggregate.
  - Fixed panic in export-netspoc with rule from IPv4 network to
    combined IPv4/v6 auto interface.
 
