@@ -1,21 +1,19 @@
 
 ############################################################
 =TITLE=Owner at unmanaged router
-=PARAMS=--ipv6
 =INPUT=
 owner:o = { admins = a@example.com; }
 router:r = {
  owner = o;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =WARNING=
 Warning: Ignoring attribute 'owner' at unmanaged router:r
 =END=
 
 ############################################################
 =TITLE=Crypto hub at unmanaged router
-=PARAMS=--ipv6
 =INPUT=
 ipsec:i = {
  key_exchange = isakmp:i;
@@ -32,9 +30,9 @@ crypto:c = {
  type = ipsec:i;
 }
 router:r = {
- interface:n1 = { ip = ::a01:101; hub = crypto:c; }
+ interface:n1 = { ip6 = ::a01:101; hub = crypto:c; }
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =WARNING=
 Warning: Ignoring attribute 'hub' at unmanaged interface:r.n1
 Warning: No hub has been defined for crypto:c
@@ -42,14 +40,13 @@ Warning: No hub has been defined for crypto:c
 
 ############################################################
 =TITLE=Unmanaged bridge interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1/left = { ip = ::a01:100/120; }
+network:n1/left = { ip6 = ::a01:100/120; }
 router:bridge = {
  interface:n1/left = { hardware = inside; }
  interface:n1/right = { hardware = outside; }
 }
-network:n1/right = { ip = ::a01:100/120; }
+network:n1/right = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: network:n1/right and network:n1/left must be connected by bridge
 Error: network:n1/left and network:n1/right have identical address in any:[network:n1/left]
@@ -58,50 +55,49 @@ Error: network:n1/left and network:n1/right have identical address in any:[netwo
 ############################################################
 =TITLE=Unmanaged interfaces inside area
 # Prevent duplicate interfaces in complicated unmanaged loop.
-=PARAMS=--ipv6
 =INPUT=
-network:C1 = { ip = ::a01:0/117;}
-network:C2 = { ip = ::a02:0/117;}
-network:C3 = { ip = ::a03:0/117;}
-network:cross = {ip = ::a09:500/126;}
+network:C1 = { ip6 = ::a01:0/117;}
+network:C2 = { ip6 = ::a02:0/117;}
+network:C3 = { ip6 = ::a03:0/117;}
+network:cross = {ip6 = ::a09:500/126;}
 router:u1 = {
- interface:C1 = {ip = ::a01:3;   virtual = {ip = ::a01:1; }}
- interface:C2 = {ip = ::a02:3; virtual = {ip = ::a02:1; }}
- interface:C3 = {ip = ::a03:3; virtual = {ip = ::a03:1; }}
- interface:cross = {ip = ::a09:502;}
- interface:u1n = {ip = ::af1:d262;}
+ interface:C1 = {ip6 = ::a01:3;   virtual = {ip6 = ::a01:1; }}
+ interface:C2 = {ip6 = ::a02:3; virtual = {ip6 = ::a02:1; }}
+ interface:C3 = {ip6 = ::a03:3; virtual = {ip6 = ::a03:1; }}
+ interface:cross = {ip6 = ::a09:502;}
+ interface:u1n = {ip6 = ::af1:d262;}
 }
 router:u2 = {
- interface:C2   = {ip = ::a02:2; virtual = {ip = ::a02:1;} }
- interface:cross = {ip = ::a09:501; }
- interface:u2n = {ip = ::af1:7219; }
+ interface:C2   = {ip6 = ::a02:2; virtual = {ip6 = ::a02:1;} }
+ interface:cross = {ip6 = ::a09:501; }
+ interface:u2n = {ip6 = ::af1:7219; }
 }
 router:u3 = {
- interface:C1 = {ip = ::a01:2; virtual = {ip = ::a01:1; } }
- interface:C3 = {ip = ::a03:2; virtual = {ip = ::a03:1; } }
- interface:u3n = {ip = ::af1:7211; }
+ interface:C1 = {ip6 = ::a01:2; virtual = {ip6 = ::a01:1; } }
+ interface:C3 = {ip6 = ::a03:2; virtual = {ip6 = ::a03:1; } }
+ interface:u3n = {ip6 = ::af1:7211; }
 }
-network:u1n = {ip = ::af1:d260/126;}
-network:u2n = {ip = ::af1:7218/126;}
-network:u3n = {ip = ::af1:7210/126;}
+network:u1n = {ip6 = ::af1:d260/126;}
+network:u2n = {ip6 = ::af1:7218/126;}
+network:u3n = {ip6 = ::af1:7210/126;}
 router:b1 = {
- interface:u2n = {ip = ::af1:721a;}
- interface:u3n = {ip = ::af1:7212;}
- interface:b = {ip = ::a09:1075;}
+ interface:u2n = {ip6 = ::af1:721a;}
+ interface:u3n = {ip6 = ::af1:7212;}
+ interface:b = {ip6 = ::a09:1075;}
 }
 router:b2 = {
- interface:u1n = {ip = ::af1:d261;}
- interface:b = {ip = ::a09:1076;}
+ interface:u1n = {ip6 = ::af1:d261;}
+ interface:b = {ip6 = ::a09:1076;}
 }
-network:b = {ip = ::a09:1070/125; }
+network:b = {ip6 = ::a09:1070/125; }
 router:FW = {
  managed;
  routing = manual;
  model = ASA;
- interface:b = {ip = ::a09:1074; hardware = outside;}
- interface:D = {ip = ::a01:b01; hardware = inside;}
+ interface:b = {ip6 = ::a09:1074; hardware = outside;}
+ interface:D = {ip6 = ::a01:b01; hardware = inside;}
 }
-network:D = { ip = ::a01:b00/120;}
+network:D = { ip6 = ::a01:b00/120;}
 area:g1 = { border = interface:FW.b;}
 service:test = {
  user = interface:[area:g1].[all];

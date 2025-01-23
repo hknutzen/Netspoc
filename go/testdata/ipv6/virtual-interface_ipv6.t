@@ -1,13 +1,12 @@
 
 ############################################################
 =TITLE=Virtual interface with negotiated IP
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  negotiated;
-  virtual = { ip = ::a01:101; }
+  negotiated6;
+  virtual = { ip6 = ::a01:101; }
  }
 }
 =ERROR=
@@ -16,13 +15,12 @@ Error: No virtual IP supported for negotiated interface:r1.n1
 
 ############################################################
 =TITLE=Unknown redundancy protocol
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:101; type = XYZ; id = ff; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:101; type = XYZ; id = ff; }
  }
 }
 =ERROR=
@@ -33,13 +31,12 @@ Error: Redundancy ID is given without redundancy protocol in 'virtual' of interf
 
 ############################################################
 =TITLE=Too large redundancy ID
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:101; type = HSRP; id = 1000; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:101; type = HSRP; id = 1000; }
  }
 }
 =ERROR=
@@ -48,31 +45,31 @@ Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
 
 ############################################################
 =TITLE=Virtual interface with NAT
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; nat:n = { ip = ::a09:900/121; dynamic; }}
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; nat:n = { ip6 = ::a09:900/121; dynamic; }}
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = Linux;
  interface:n1 = {
-  ip = ::a01:101;
-  nat:n = { ip = ::a09:901; }
-  virtual = { ip = ::a01:10b; }
+  ip6 = ::a01:101;
+  nat:n = { ip6 = ::a09:901; }
+  virtual = { ip6 = ::a01:10b; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = n; }
 }
 router:r2 = {
  managed;
  model = Linux;
  interface:n1 = {
-  ip = ::a01:102;
-  nat:n = { ip = ::a09:902; }
-  virtual = { ip = ::a01:10b; }
+  ip6 = ::a01:102;
+  nat:n = { ip6 = ::a09:902; }
+  virtual = { ip6 = ::a01:10b; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:202; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; bind_nat = n; }
 }
 =ERROR=
 Error: interface:r1.n1 with virtual interface must not use attribute 'nat'
@@ -81,37 +78,36 @@ Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 
 ############################################################
 =TITLE=Virtual interface in non cyclic sub-graph at border of loop
-=PARAMS=--ipv6
 =INPUT=
 # Virtual interface outside of loop, but at border of other loop.
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n1 = { ip6 = ::a01:102; virtual = { ip6 = ::a01:101; } hardware = n1; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n1 = { ip6 = ::a01:103; virtual = { ip6 = ::a01:101; } hardware = n1; }
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 # Add loop. This isn't needed to get warnings.
 # But the virtual interfaces are located at border of this loop and hence
 # the automatically created pathrestriction is valid.
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r3 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:104; hardware = n1; }
- interface:n2 = { ip = ::a01:204; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:104; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:204; hardware = n2; }
 }
 router:r4 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:105; hardware = n1; }
- interface:n2 = { ip = ::a01:205; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:105; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:205; hardware = n2; }
 }
 service:s1 = {
  user = interface:r1.[auto], interface:r2.[auto];
@@ -124,32 +120,31 @@ Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
 
 ############################################################
 =TITLE=Virtual interfaces in non cyclic sub-graph with static routes
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n3 = { ip = ::a01:302; virtual = { ip = ::a01:301; } hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:302; virtual = { ip6 = ::a01:301; } hardware = n3; }
 }
 
 router:r2 = {
  model = IOS;
  managed;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:303; virtual = { ip = ::a01:301; }  hardware = n3; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:303; virtual = { ip6 = ::a01:301; }  hardware = n3; }
 }
 
 router:r3 = {
  model = IOS;
  managed;
- interface:n3 = { ip = ::a01:304; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:304; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 
 service:s1 = {
@@ -170,21 +165,20 @@ ipv6 route ::a01:200/120 ::a01:303
 =TITLE=Virtual interfaces prevent valid path
 # Implicit pathrestriction would permit path,
 # but virtual interfaces let path be pruned later.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:202; virtual = { ip = ::a01:201; } hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; virtual = { ip6 = ::a01:201; } hardware = n2; }
 }
 
 router:r2 = {
- interface:n2 = { ip = ::a01:203; virtual = { ip = ::a01:201; } }
+ interface:n2 = { ip6 = ::a01:203; virtual = { ip6 = ::a01:201; } }
  interface:n3;
 }
 
@@ -192,8 +186,8 @@ router:r3 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
 }
 
 pathrestriction:r3 =
@@ -215,29 +209,28 @@ Error: No valid path
 
 ############################################################
 =TITLE=Different protocol / id at related virtual interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:101; type = HSRP; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:101; type = HSRP; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:103;
-  virtual = { ip = ::a01:101; type = VRRP; id = 123; }
+  ip6 = ::a01:103;
+  virtual = { ip6 = ::a01:101; type = VRRP; id = 123; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 =ERROR=
 Error: Must use identical redundancy protocol at
@@ -250,49 +243,48 @@ Error: Must use identical ID at
 
 ############################################################
 =TITLE=Identical id at unrelated virtual interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:101;
-  virtual = { ip = ::a01:10b; type = HSRP; id = 11;}
+  ip6 = ::a01:101;
+  virtual = { ip6 = ::a01:10b; type = HSRP; id = 11;}
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:10b; type = HSRP; id = 11; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:10b; type = HSRP; id = 11; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 router:r3 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:103;
-  virtual = { ip = ::a01:11f; type = HSRP; id = 11; }
+  ip6 = ::a01:103;
+  virtual = { ip6 = ::a01:11f; type = HSRP; id = 11; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:203; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
 }
 router:r4 = {
  managed;
  model = ASA;
  interface:n1 = {
-  ip = ::a01:104;
-  virtual = { ip = ::a01:129; type = VRRP; id = 11; } # no conflict with HSRP
+  ip6 = ::a01:104;
+  virtual = { ip6 = ::a01:129; type = VRRP; id = 11; } # no conflict with HSRP
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:204; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:204; hardware = n2; }
 }
 =ERROR=
 Error: Must use different ID at unrelated
@@ -303,33 +295,33 @@ Error: Must use different ID at unrelated
 ############################################################
 =TITLE=Routers connecting networks with virtual interfaces
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a02:200/120;}
-network:n3 = { ip = ::a03:300/120;}
-network:n4 = { ip = ::a04:400/120;}
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a02:200/120;}
+network:n3 = { ip6 = ::a03:300/120;}
+network:n4 = { ip6 = ::a04:400/120;}
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = {ip = ::a01:101; hardware = E1;}
- interface:n2 = {ip = ::a02:201; hardware = E2;}
+ interface:n1 = {ip6 = ::a01:101; hardware = E1;}
+ interface:n2 = {ip6 = ::a02:201; hardware = E2;}
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E3;}
- interface:n3 = {ip = ::a03:301; {{.v1}} hardware = E4;}
+ interface:n2 = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E3;}
+ interface:n3 = {ip6 = ::a03:301; {{.v1}} hardware = E4;}
 }
 router:r3 = {
  managed;
  model = ASA;
- interface:n2 = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E5;}
- interface:n3 = {ip = ::a03:302; {{.v2}} hardware = E6;}
+ interface:n2 = {ip6 = ::a02:203; virtual = {ip6 = ::a02:209;} hardware = E5;}
+ interface:n3 = {ip6 = ::a03:302; {{.v2}} hardware = E6;}
 }
 router:r4 = {
  model = ASA;
  managed;
- interface:n3 = {ip = ::a03:303; hardware = E7;}
- interface:n4 = {ip = ::a04:401; hardware = E8;}
+ interface:n3 = {ip6 = ::a03:303; hardware = E7;}
+ interface:n4 = {ip6 = ::a04:401; hardware = E8;}
 }
 service:test = {
  user = network:n1;
@@ -337,11 +329,10 @@ service:test = {
         dst = network:n4;
         prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=
 [[input
-v1: "virtual = {ip = ::a03:309;}"
-v2: "virtual = {ip = ::a03:309;}"
+v1: "virtual = {ip6 = ::a03:309;}"
+v2: "virtual = {ip6 = ::a03:309;}"
 ]]
 =OUTPUT=
 --ipv6/r1
@@ -352,7 +343,6 @@ ipv6 route E7 ::a01:100/120 ::a03:309
 
 ############################################################
 =TITLE=Missing virtual interfaces on backward path
-=PARAMS=--ipv6
 =INPUT=[[input {v1: "", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
@@ -362,8 +352,7 @@ Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
 
 ############################################################
 =TITLE=One missing virtual interface on backward path
-=PARAMS=--ipv6
-=INPUT=[[input {v1: "virtual = {ip = ::a03:309;}", v2: ""}]]
+=INPUT=[[input {v1: "virtual = {ip6 = ::a03:309;}", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3.virtual

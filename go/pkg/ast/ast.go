@@ -33,8 +33,6 @@ type Toplevel interface {
 	GetDescription() *Description
 	FileName() string
 	SetFileName(string)
-	GetIPV6() bool
-	SetIPV6()
 }
 
 type ToplevelWithAttr interface {
@@ -121,7 +119,11 @@ type AggAuto struct {
 func (a AggAuto) String() string {
 	var ext string
 	if a.Net != "" {
-		ext = "ip=" + a.Net + "&"
+		attr := "ip"
+		if a.IPV6 {
+			attr += "6"
+		}
+		ext = attr + "=" + a.Net + "&"
 	}
 	return a.GetType() + ":[" + ext + joinElements(a.Elements, ",") + "]"
 }
@@ -187,7 +189,6 @@ type TopBase struct {
 	Name        string
 	Description *Description
 	fileName    string
-	IPV6        bool
 }
 
 func (a TopBase) GetName() string              { return a.Name }
@@ -195,8 +196,6 @@ func (a *TopBase) SetName(n string)            { a.Name = n }
 func (a TopBase) GetDescription() *Description { return a.Description }
 func (a TopBase) FileName() string             { return a.fileName }
 func (a *TopBase) SetFileName(n string)        { a.fileName = n }
-func (a TopBase) GetIPV6() bool                { return a.IPV6 }
-func (a *TopBase) SetIPV6()                    { a.IPV6 = true }
 
 type TopList struct {
 	TopBase

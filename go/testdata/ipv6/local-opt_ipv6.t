@@ -2,34 +2,33 @@
 ############################################################
 =TITLE=Aggregates with identcal IP
 =TEMPL=input
-network:N1 = { ip = ::a04:600/120;}
+network:N1 = { ip6 = ::a04:600/120;}
 router:R1 = {
  managed;
  model = IOS, FW;
- interface:N1 = {ip = ::a04:603;hardware = N1;}
- interface:T1 = {ip = ::a06:82e;hardware = T1;}
+ interface:N1 = {ip6 = ::a04:603;hardware = N1;}
+ interface:T1 = {ip6 = ::a06:82e;hardware = T1;}
 }
-network:T1 = { ip = ::a06:82c/126;}
+network:T1 = { ip6 = ::a06:82c/126;}
 router:U = {
- interface:T1 = {ip = ::a06:82d;}
- interface:T2 = {ip = ::a06:801;}
+ interface:T1 = {ip6 = ::a06:82d;}
+ interface:T2 = {ip6 = ::a06:801;}
 }
-network:T2 = { ip = ::a06:800/126;}
+network:T2 = { ip6 = ::a06:800/126;}
 router:R2 = {
  managed;
  model = IOS, FW;
- interface:T2 = {ip = ::a06:802;hardware = T2;}
- interface:N2 = {ip = ::a05:101;hardware = N2;}
+ interface:T2 = {ip6 = ::a06:802;hardware = T2;}
+ interface:N2 = {ip6 = ::a05:101;hardware = N2;}
 }
-network:N2 = {ip = ::a05:100/126;}
-any:ANY_G27 = {ip = ::/0; link = network:T1;}
+network:N2 = {ip6 = ::a05:100/126;}
+any:ANY_G27 = {ip6 = ::/0; link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip = {{.}} & network:N2];
+	dst = any:ANY_G27, any:[ip6 = {{.}} & network:N2];
 	prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input "::/0"]]
 =OUTPUT=
 --ipv6/R1
@@ -42,7 +41,6 @@ ipv6 access-list N1_in
 
 ############################################################
 =TITLE=Aggregates in subnet relation
-=PARAMS=--ipv6
 =INPUT=[[input "::a00:0/104"]]
 # Unchanged ouput
 =OUTPUT=
@@ -56,25 +54,25 @@ ipv6 access-list N1_in
 
 ############################################################
 =TITLE=Redundant port
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:A = { ip = ::a03:378/125; nat:C = { ip = ::a02:200/120; dynamic; }}
-network:B = { ip = ::a03:380/125; nat:C = { ip = ::a02:200/120; dynamic; }}
+network:A = { ip6 = ::a03:378/125; nat:C = { ip6 = ::a02:200/120; dynamic; }}
+network:B = { ip6 = ::a03:380/125; nat:C = { ip6 = ::a02:200/120; dynamic; }}
 router:ras = {
  managed;
  model = Linux;
- interface:A = { ip = ::a03:379; hardware = Fe0; }
- interface:B = { ip = ::a03:381; hardware = Fe1; }
- interface:Trans = { ip = ::a01:102; bind_nat = C; hardware = Fe2; }
+ interface:A = { ip6 = ::a03:379; hardware = Fe0; }
+ interface:B = { ip6 = ::a03:381; hardware = Fe1; }
+ interface:Trans = { ip6 = ::a01:102; bind_nat = C; hardware = Fe2; }
 }
-network:Trans = { ip = ::a01:100/120;}
+network:Trans = { ip6 = ::a01:100/120;}
 router:nak = {
  managed;
  model = IOS, FW;
- interface:Trans    = { ip = ::a01:101; hardware = eth0; }
- interface:Hosting  = { ip = ::a04:401; hardware = br0; }
+ interface:Trans    = { ip6 = ::a01:101; hardware = eth0; }
+ interface:Hosting  = { ip6 = ::a04:401; hardware = br0; }
 }
-network:Hosting = { ip = ::a04:400/120; }
+network:Hosting = { ip6 = ::a04:400/120; }
 service:A = {
  user = network:A;
  permit src = user;
@@ -98,23 +96,22 @@ ipv6 access-list eth0_in
 
 ############################################################
 =TITLE=Redundant tcp established
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n2-sub = { ip = ::a01:281; hardware = n2-sub; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n2-sub = { ip6 = ::a01:281; hardware = n2-sub; }
 }
-network:n2-sub = { ip = ::a01:280/121; subnet_of = network:n2; }
+network:n2-sub = { ip6 = ::a01:280/121; subnet_of = network:n2; }
 service:s1 = {
  user = any:[network:n1], any:[network:n2];
  permit src = user; dst = network:n2-sub; prt = tcp 80;
@@ -139,22 +136,21 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Redundant managed interface at intermediate router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:s1 = {
  user = network:n2, interface:r2.n2;
@@ -175,27 +171,28 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Redundant host
+=TODO= No IPv6
 =TEMPL=input
-network:A = { ip = ::a03:300/121; host:a = { ip = ::a03:303; } }
-network:sub = { ip = ::a03:308/125; subnet_of = network:A; }
+network:A = { ip6 = ::a03:300/121; host:a = { ip6 = ::a03:303; } }
+network:sub = { ip6 = ::a03:308/125; subnet_of = network:A; }
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:A = { ip = ::a03:301; hardware = VLAN1; }
- interface:sub = { ip = ::a03:309; hardware = VLAN9; }
- interface:Trans = { ip = ::a01:102; hardware = VLAN2; no_in_acl;}
+ interface:A = { ip6 = ::a03:301; hardware = VLAN1; }
+ interface:sub = { ip6 = ::a03:309; hardware = VLAN9; }
+ interface:Trans = { ip6 = ::a01:102; hardware = VLAN2; no_in_acl;}
 }
-network:Trans = { ip = ::a01:100/120; }
+network:Trans = { ip6 = ::a01:100/120; }
 router:r2 = {
  managed;
  model = ASA;
- interface:Trans = { ip = ::a01:101; hardware = VLAN1; bind_nat = dyn; }
- interface:Customer1 = { ip = ::a08:801; hardware = VLAN8; }
- interface:Customer2 = { ip = ::a09:901; hardware = VLAN9; }
+ interface:Trans = { ip6 = ::a01:101; hardware = VLAN1; bind_nat = dyn; }
+ interface:Customer1 = { ip6 = ::a08:801; hardware = VLAN8; }
+ interface:Customer2 = { ip6 = ::a09:901; hardware = VLAN9; }
 }
-network:Customer1 = { ip = ::a08:800/120; nat:dyn = { ip = ::a07:700/120; dynamic; } }
-network:Customer2 = { ip = ::a09:900/120; nat:dyn = { ip = ::a07:700/120; dynamic; } }
+network:Customer1 = { ip6 = ::a08:800/120; nat:dyn = { ip6 = ::a07:700/120; dynamic; } }
+network:Customer2 = { ip6 = ::a09:900/120; nat:dyn = { ip6 = ::a07:700/120; dynamic; } }
 service:test1 = {
  user = host:a;
  permit src = network:Customer1; dst = user; prt = tcp 80;
@@ -204,7 +201,6 @@ service:{{.}} = {
  user = network:A;
  permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
-=PARAMS=--ipv6
 =INPUT=[[input test2]]
 =OUTPUT=
 --ipv6/r1
@@ -215,7 +211,7 @@ ipv6 access-list VLAN1_out
 
 ############################################################
 =TITLE=Redundant host, changed order of rules
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input test0]]
 # Unchanged output
 =OUTPUT=
@@ -227,16 +223,15 @@ ipv6 access-list VLAN1_out
 
 ############################################################
 =TITLE=Join adjacent and overlapping ports
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t1 = {
  user = network:n1;
@@ -263,16 +258,15 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Join multiple adjacent ranges
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t1 = {
  user = network:n1;
@@ -294,23 +288,22 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Find object-group after join ranges
-=PARAMS=--ipv6
 =INPUT=
-network:A1 = { ip = ::a01:100/120; }
-network:A2 = { ip = ::a01:200/120; }
+network:A1 = { ip6 = ::a01:100/120; }
+network:A2 = { ip6 = ::a01:200/120; }
 router:u = {
- interface:A1 = { ip = ::a01:101; }
- interface:A2 = { ip = ::a01:201; }
- interface:t = { ip = ::a09:101; }
+ interface:A1 = { ip6 = ::a01:101; }
+ interface:A2 = { ip6 = ::a01:201; }
+ interface:t = { ip6 = ::a09:101; }
 }
-network:t = { ip = ::a09:100/120; }
+network:t = { ip6 = ::a09:100/120; }
 router:r = {
  model = ASA;
  managed;
- interface:t = { ip = ::a09:102; hardware = t; }
- interface:B = { ip = ::a02:101; hardware = B; }
+ interface:t = { ip6 = ::a09:102; hardware = t; }
+ interface:B = { ip6 = ::a02:101; hardware = B; }
 }
-network:B = { ip = ::a02:100/120; }
+network:B = { ip6 = ::a02:100/120; }
 service:s1 = {
  user = network:A1;
  permit src = user; dst = network:B; prt = tcp 80-85;
@@ -337,16 +330,15 @@ access-group B_in in interface B
 
 ############################################################
 =TITLE=Don't join adjacent TCP and UDP ports
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t1 = {
  user = network:n1;

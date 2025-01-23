@@ -6,7 +6,6 @@
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -q, --quiet        Don't print progress messages
@@ -18,7 +17,6 @@ Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -q, --quiet        Don't print progress messages

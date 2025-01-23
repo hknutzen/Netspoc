@@ -1,15 +1,15 @@
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120;
- host:h3a = { range = ::a01:30a-::a01:30f; }
- host:h3b = { ip = ::a01:31a; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120;
+ host:h3a = { range6 = ::a01:30a-::a01:30f; }
+ host:h3b = { ip6 = ::a01:31a; }
 }
-network:n3sub = { ip = ::a01:340/123; subnet_of = network:n3;
- host:h3c = { ip = ::a01:342; }
- host:h3d = { range = ::a01:341 - ::a01:343; }
+network:n3sub = { ip6 = ::a01:340/123; subnet_of = network:n3;
+ host:h3c = { ip6 = ::a01:342; }
+ host:h3d = { range6 = ::a01:341 - ::a01:343; }
 }
 router:u = {
  interface:n3;
@@ -18,21 +18,20 @@ router:u = {
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 =END=
 
 ############################################################
 =TITLE=Redundant from automatic hosts
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -47,7 +46,6 @@ Warning: Redundant rules in service:s compared to service:s:
 
 ############################################################
 =TITLE=Automatic hosts in rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -70,7 +68,6 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=No subnets in automatic network in rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -87,7 +84,6 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Unexpected interface in automatic host
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -100,7 +96,6 @@ Error: Unexpected 'interface:r1.n1' in host:[..] of user of service:s1
 
 ############################################################
 =TITLE=Intersection of complement
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -113,7 +108,6 @@ Error: Intersection needs at least one element which is not complement in user o
 
 ############################################################
 =TITLE=Complement without intersection
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -127,9 +121,8 @@ Error: Complement (!) is only supported as part of intersection in user of servi
 ############################################################
 =TITLE=Mark group in empty rule as used
 # Don't show warning "unused group:g2
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 group:g1 = ;
 group:g2 = network:n;
 service:s1 = {
@@ -141,9 +134,8 @@ service:s1 = {
 ############################################################
 =TITLE=Mark group in disabled rule as used
 # Don't show warning "unused group:g2
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 group:g1 = ;
 group:g2 = network:n;
 service:s1 = {
@@ -157,9 +149,8 @@ Warning: unused group:g1
 
 ############################################################
 =TITLE=Recursive definition of group
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 group:g1 = group:g2;
 group:g2 = network:n, group:g1;
 service:s1 = {
@@ -172,9 +163,8 @@ Error: Found recursion in definition of group:g2
 
 ############################################################
 =TITLE=Can't resolve object in group
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 group:g1 = host:h1;
 service:s1 = {
  user = network:n;
@@ -186,9 +176,8 @@ Error: Can't resolve host:h1 in group:g1
 
 ############################################################
 =TITLE=Unexpected type in group
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 
 group:g1 = foo:bar;
 
@@ -203,9 +192,8 @@ Aborted
 
 ############################################################
 =TITLE=Unexpected type of automatic group
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 
 group:g1 = area:[network:n], foo:[network:n];
 
@@ -220,17 +208,16 @@ Aborted
 
 ############################################################
 =TITLE=Duplicate elements in group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 group:g1 = network:n1, network:n2, network:n2, network:n1, network:n2;
 service:s1 = {
@@ -246,19 +233,18 @@ Warning: Duplicate elements in group:g1:
 
 ############################################################
 =TITLE=Area as element of group
-=PARAMS=--ipv6
 =INPUT=
 area:a1 = { border = interface:r1.n1; }
 area:a2 = { border = interface:r1.n2; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 group:g1 = area:a1, area:a2;
 service:s1 = {
@@ -280,18 +266,17 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Mixed area and non area as element of group
-=PARAMS=--ipv6
 =INPUT=
 area:a1 = { border = interface:r1.n1; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 group:g1 = area:a1, network:n2;
 service:s1 = {
@@ -313,17 +298,16 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Silently ignore duplicate elements from automatic interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 group:g1 = interface:r1.n1, interface:r1.n2;
 group:g2 = interface:[group:g1].[all];
@@ -335,14 +319,13 @@ service:s1 = {
 
 ############################################################
 =TITLE=Empty intersection
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 network:n3 = {
- ip = ::a01:300/120;
- host:h1 = { ip = ::a01:30a; }
- host:h2 = { ip = ::a01:30c; }
+ ip6 = ::a01:300/120;
+ host:h1 = { ip6 = ::a01:30a; }
+ host:h2 = { ip6 = ::a01:30c; }
 }
 router:u = {
  interface:n1;
@@ -352,15 +335,15 @@ router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 group:g0 = ;
 group:g1 =
  interface:r1.n2,
  interface:r1.[all] &! interface:r1.n2 &! interface:r1.n3,
  network:[any:[network:n1]] &! network:n1 &! network:n2,
- !any:[ip= ::a00:0/104 & network:n1] & any:[ip= ::a00:0/104 & network:n2],
+ !any:[ip6= ::a00:0/104 & network:n1] & any:[ip6= ::a00:0/104 & network:n2],
  # No warning on intersection with empty group.
  group:g0 &! group:g0,
 ;
@@ -406,26 +389,25 @@ interface:[..].[all]
 
 ############################################################
 =TITLE=Object group together with adjacent IP addresses
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120;
- host:h6 = { ip = ::a01:406; }
- host:h7 = { ip = ::a01:407; } }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120;
+ host:h6 = { ip6 = ::a01:406; }
+ host:h7 = { ip6 = ::a01:407; } }
 router:r1 = {
  interface:n1;
  interface:n2;
- interface:lo = { ip = ::a01:63; loopback; }
+ interface:lo = { ip6 = ::a01:63; loopback; }
  interface:n3;
 }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 service:s1 = {
  user = network:n1, network:n2;

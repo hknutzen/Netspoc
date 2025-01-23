@@ -1,21 +1,20 @@
 
 ############################################################
 =TITLE=Access named and positional secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = ::a01:101; secondary:5th = { ip = ::a01:105; } hardware = n1; }
- interface:n2 = { ip = ::a01:201, ::a01:209; hardware = n2; }
+  ip6 = ::a01:101; secondary:5th = { ip6 = ::a01:105; } hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201, ::a01:209; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:10b,::a01:10c;  hardware = n1; }
+ interface:n1 = { ip6 = ::a01:10b,::a01:10c;  hardware = n1; }
 }
 service:t1 = {
  user = network:n1, network:n2;
@@ -59,16 +58,15 @@ interface n1
 
 ############################################################
 =TITLE=Outgoing traffic from secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = ::a01:101; secondary:5th = { ip = ::a01:105; } hardware = n1; }
- interface:n2 = { ip = ::a01:201, ::a01:209; hardware = n2; }
+  ip6 = ::a01:101; secondary:5th = { ip6 = ::a01:105; } hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201, ::a01:209; hardware = n2; }
 }
 service:t1 = {
  user = network:n1, network:n2;
@@ -90,17 +88,16 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Secondary IP from multiple networks at same hardware
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n2; }
 }
 service:t1 = {
  user = network:n1;
@@ -127,14 +124,13 @@ interface n2
 
 ############################################################
 =TITLE=Duplicate named secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:101;
-  secondary:5th = { ip = ::a01:105; }
-  secondary:5th = { ip = ::a01:106; }
+  ip6 = ::a01:101;
+  secondary:5th = { ip6 = ::a01:105; }
+  secondary:5th = { ip6 = ::a01:106; }
  }
 }
 =ERROR=
@@ -144,13 +140,12 @@ Error: Duplicate definition of interface:r1.n1.5th in router:r1
 
 ############################################################
 =TITLE=Name clash for named and positional secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:101, ::a01:104;
-  secondary:2 = { ip = ::a01:106; }
+  ip6 = ::a01:101, ::a01:104;
+  secondary:2 = { ip6 = ::a01:106; }
  }
 }
 =ERROR=
@@ -159,14 +154,13 @@ Error: Duplicate definition of interface:r1.n1.2 in router:r1
 
 ############################################################
 =TITLE=Name clash for secondary and virtual interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:101;
-  secondary:virtual = { ip = ::a01:106; }
-  virtual = { ip = ::a01:109; }
+  ip6 = ::a01:101;
+  secondary:virtual = { ip6 = ::a01:106; }
+  virtual = { ip6 = ::a01:109; }
  }
 }
 =ERROR=
@@ -175,12 +169,11 @@ Error: Duplicate definition of interface:r1.n1.virtual in router:r1
 
 ############################################################
 =TITLE=Identical IP at host and secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h = { ip = ::a01:102; } }
+network:n1 = { ip6 = ::a01:100/120; host:h = { ip6 = ::a01:102; } }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:101, ::a01:102;
+  ip6 = ::a01:101, ::a01:102;
  }
 }
 =ERROR=
@@ -189,13 +182,12 @@ Error: Duplicate IP address for interface:r1.n1.2 and host:h
 
 ############################################################
 =TITLE=Identical IP at named and positional secondary interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  interface:n1 = {
-  ip = ::a01:101, ::a01:102;
-  secondary:s = { ip = ::a01:102; }
+  ip6 = ::a01:101, ::a01:102;
+  secondary:s = { ip6 = ::a01:102; }
  }
 }
 =ERROR=
@@ -204,29 +196,28 @@ Error: Duplicate IP address for interface:r1.n1.2 and interface:r1.n1.s
 
 ############################################################
 =TITLE=Move secondary interface of internally split router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 =  { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 =  { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 # r1 is split internally into two parts
 # r1 connected with n1, n2
 # r1' connected with n3
 # both connected by unnumbered network.
 router:r1 = {
- interface:n1 = { ip = ::a01:101; }
- interface:n2 = { ip = ::a01:201; }
- interface:n3 = { ip = ::a01:301; secondary:s = { ip = ::a01:363; } }
+ interface:n1 = { ip6 = ::a01:101; }
+ interface:n2 = { ip6 = ::a01:201; }
+ interface:n3 = { ip6 = ::a01:301; secondary:s = { ip6 = ::a01:363; } }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 pathrestriction:r =
  interface:r1.n3,
  interface:r2.n3,

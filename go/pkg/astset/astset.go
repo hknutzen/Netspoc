@@ -18,20 +18,18 @@ type State struct {
 	astFiles []*ast.File
 	base     string
 	files    []string
-	IPV6     bool
 	changed  map[string]bool
 }
 
-func Read(netspocBase string, v6 bool) (*State, error) {
+func Read(netspocBase string) (*State, error) {
 	s := &State{
 		base:    netspocBase,
-		IPV6:    v6,
 		changed: make(map[string]bool),
 	}
-	err := filetree.Walk(netspocBase, v6, func(input *filetree.Context) error {
+	err := filetree.Walk(netspocBase, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, input.IPV6, parser.ParseComments)
+		aF, err := parser.ParseFile(source, path, parser.ParseComments)
 		if err != nil {
 			return err
 		}
@@ -128,7 +126,7 @@ func (s *State) FindToplevel(name string) ast.Toplevel {
 	return result
 }
 
-func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
+func (s *State) AddTopLevel(n ast.Toplevel) {
 	// Netspoc config is given in single file, add new node to this file.
 	if len(s.files) == 1 && s.files[0] == s.base {
 		s.CreateToplevel("", n)
@@ -153,13 +151,6 @@ func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
 				}
 			}
 			file = path.Join(file, "other")
-		}
-	}
-	if ipv6 != s.IPV6 {
-		if s.IPV6 {
-			file = path.Join("ipv4", file)
-		} else {
-			file = path.Join("ipv6", file)
 		}
 	}
 	s.CreateToplevel(file, n)

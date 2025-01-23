@@ -283,12 +283,12 @@ Error: Must define unmanaged router:r2
 =END=
 
 ############################################################
-=TITLE=Only one IPv4 management_instance
+=TITLE=IPv4 management_instance
 # No IPv6
 =INPUT=
 -- z_sort_after_ipv6
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = ::a01:100/120; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
@@ -297,17 +297,8 @@ router:r1 = {
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
-}
--- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip = 10.1.1.2; ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
 --ipv6/r1.info
@@ -317,76 +308,28 @@ router:r1@vsys1 = {
 =END=
 
 ############################################################
-=TITLE=Only one IPv6 management_instance
+=TITLE=IPv6 management_instance
 # No IPv6
 =INPUT=
 -- z_sort_after_ipv6
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = ::a01:100/120; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = ::a01:200/120; }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = 10.1.1.2; ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = ::a01:201; hardware = OUT; }
 }
--- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =OUTPUT=
 --ipv6/r1.info
 {"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
 --r1.info
 {"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
-=END=
-
-############################################################
-=TITLE=IPv4 and IPv6 management_instance
-# No IPv6
-=INPUT=
--- z_sort_after_ipv6
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:r1 = {
- model = PAN-OS;
- management_instance;
- interface:n1 = { ip = 10.1.1.1; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
-}
--- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1 = {
- model = PAN-OS;
- management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
-=OUTPUT=
---ipv6/r1.info
-{"generated_by":"devel","model":"PAN-OS","ip_list":["10.1.1.1"],"name_list":["r1"]}
---r1.info
-{"generated_by":"devel","model":"PAN-OS","ip_list":["10.1.1.1"],"name_list":["r1"]}
 =END=
 
 ############################################################

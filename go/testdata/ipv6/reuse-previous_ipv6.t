@@ -1,27 +1,27 @@
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3 = {
  managed;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 =END=
 
@@ -34,7 +34,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =REUSE_PREV=[[input]]
 =WARNING=
@@ -62,7 +61,6 @@ access-group n3_in in interface n3
 ############################################################
 =TITLE=Reuse some code files
 =SHOW_DIAG=
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =REUSE_PREV=
 [[input]]
@@ -87,16 +85,15 @@ access-group n2_in in interface n2
 =SHOW_DIAG=
 =TEMPL=extended
 [[input]]
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =REUSE_PREV=
 [[input]]
-network:n5 = { ip = ::a01:500/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r4 = {
  managed;
  model = ASA;
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 service:test2 = {
  user = network:n4;
@@ -119,10 +116,9 @@ access-group n4_in in interface n4
 =SETUP=
 mkdir out/
 touch out/.prev
-=PARAMS=--ipv6
 =INPUT=
 -- topology
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =WITH_OUTDIR=
 =WARNING=NONE
 
@@ -144,14 +140,13 @@ END
 cp old/r1.config old/r1
 mkdir out/r1
 touch out/r1/foo
-=PARAMS=--ipv6
 =INPUT=
 -- topology
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed = routing_only;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =WITH_OUTDIR=
 =ERROR=

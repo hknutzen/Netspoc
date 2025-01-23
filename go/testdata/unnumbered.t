@@ -1,6 +1,7 @@
 
 ############################################################
 =TITLE=Unnumbered network must not have attributes
+# No IPv6 NAT
 =INPUT=
 network:u = {
  unnumbered;

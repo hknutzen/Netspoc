@@ -4,7 +4,6 @@
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [service:name ...]
-  -6, --ipv6    Expect IPv6 definitions
   -o, --owner   Keep referenced owners
   -q, --quiet   Don't print progress messages
 =END=
@@ -14,7 +13,6 @@ Usage: PROGRAM [options] FILE|DIR [service:name ...]
 =INPUT=NONE
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [service:name ...]
-  -6, --ipv6    Expect IPv6 definitions
   -o, --owner   Keep referenced owners
   -q, --quiet   Don't print progress messages
 =END=
@@ -732,17 +730,12 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n3;}
+ interface:n4 = {ip6 = 1000::abcd:0002:0001; hardware = n4;}
+ interface:lo = {ip6 = 1000::abcd:0009:0001; hardware = lo; loopback; }
 }
--- ipv6/topo
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-network:n4 = { ip = 1000::abcd:0002:0/112;}
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n3;}
- interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n4;}
- interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
-}
+network:n3 = { ip6 = 1000::abcd:0001:0/112;}
+network:n4 = { ip6 = 1000::abcd:0002:0/112;}
 =INPUT=
 [[input]]
 -- rule
@@ -771,7 +764,7 @@ router:r1 = {
 =TITLE=Ignore IPv4 part of topology
 =INPUT=
 [[input]]
--- ipv6/rule
+-- rule
 service:test = {
  user = network:n3;
  permit src = user;
@@ -785,14 +778,14 @@ service:test = {
         dst = network:n4;
         prt = ip;
 }
-network:n3 = { ip = 1000::abcd:0001:0/112; }
-network:n4 = { ip = 1000::abcd:0002:0/112; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
- interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+ interface:n3 = { ip6 = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip6 = 1000::abcd:0002:0001; hardware = n4; }
 }
+network:n3 = { ip6 = 1000::abcd:0001:0/112; }
+network:n4 = { ip6 = 1000::abcd:0002:0/112; }
 =END=
 
 ############################################################
@@ -818,14 +811,6 @@ service:test6 = {
         dst = network:n4;
         prt = ip;
 }
-network:n3 = { ip = 1000::abcd:0001:0/112; }
-network:n4 = { ip = 1000::abcd:0002:0/112; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
- interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
-}
 service:test = {
  user = network:n1;
  permit src = user;
@@ -839,23 +824,49 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip6 = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip6 = 1000::abcd:0002:0001; hardware = n4; }
 }
+network:n3 = { ip6 = 1000::abcd:0001:0/112; }
+network:n4 = { ip6 = 1000::abcd:0002:0/112; }
 =END=
 
 ############################################################
-=TITLE=Completely discard v4 router
-=TEMPL=v6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+=TITLE=Completely discard v4 part
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:u = {
- interface:n2 = { ip = ::a01:202; }
- interface:lo = { ip = ::ff1:1; loopback; }
+ interface:n2 = { ip6 = ::a01:202; }
+ interface:lo = { ip6 = ::ff1:1; loopback; }
+ interface:n5 = { ip = 10.1.5.1; }
+ interface:l1 = { ip = 10.9.9.1; loopback; }
+}
+network:n5 = { ip = 10.1.5.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:u.lo;
+        prt = tcp 22;
+}
+=OUTPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:u = {
+ interface:n2 = { ip6 = ::a01:202; }
+ interface:lo = { ip6 = ::ff1:1; loopback; }
 }
 service:s1 = {
  user = network:n1;
@@ -863,17 +874,6 @@ service:s1 = {
         dst = interface:u.lo;
         prt = tcp 22;
 }
-=INPUT=
---v4
-network:n5 = { ip = 10.1.5.0/24; }
-router:u = {
- interface:n5 = { ip = 10.1.5.1; }
- interface:l1 = { ip = 10.9.9.1; loopback; }
-}
---ipv6/input
-[[v6]]
-=OUTPUT=
-[[v6]]
 =END=
 
 ############################################################

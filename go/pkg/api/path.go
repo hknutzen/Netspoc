@@ -22,7 +22,6 @@ func (s *state) patch(j *job) error {
 		Path       string
 		Value      interface{}
 		OkIfExists bool `json:"ok_if_exists"`
-		IPV6       *bool
 	}
 	getParams(j, &p)
 	c := change{val: p.Value, okIfExists: p.OkIfExists}
@@ -31,19 +30,13 @@ func (s *state) patch(j *job) error {
 	if len(p.Path) == 0 {
 		return fmt.Errorf("Invalid empty path")
 	}
-	var ipv6 bool
-	if p.IPV6 != nil {
-		ipv6 = *p.IPV6
-	} else {
-		ipv6 = s.IPV6
-	}
 	path := strings.Split(p.Path, ",")
-	top, names, err := s.findToplevel(path, ipv6, c)
+	top, names, err := s.findToplevel(path, c)
 	if err != nil {
 		return err
 	}
 	if top == nil {
-		return s.addToplevel(path[0], ipv6, c)
+		return s.addToplevel(path[0], c)
 	}
 	process := func() error {
 		if len(names) == 0 {
@@ -99,9 +92,8 @@ func (s *state) patch(j *job) error {
 	return err
 }
 
-func (s *state) findToplevel(names []string, ipv6 bool, c change,
+func (s *state) findToplevel(names []string, c change,
 ) (ast.Toplevel, []string, error) {
-
 	topName := names[0]
 	var top ast.Toplevel
 	if strings.HasPrefix(topName, "host:") {
@@ -139,21 +131,15 @@ func (s *state) findToplevel(names []string, ipv6 bool, c change,
 		}
 		return top, names, nil
 	} else {
-		isRouter := strings.HasPrefix(topName, "router:")
 		names = names[1:]
 		s.Modify(func(t ast.Toplevel) bool {
-			if t.GetName() == topName && (!isRouter || t.GetIPV6() == ipv6) {
+			if t.GetName() == topName {
 				top = t
 				return true // Mark as modified.
 			}
 			return false
 		})
 		if top == nil && len(names) > 0 {
-			if isRouter {
-				ipvx := getIPvX(ipv6)
-				return nil, nil, fmt.Errorf(
-					"Can't modify unknown %s '%s'", ipvx, topName)
-			}
 			return nil, nil, fmt.Errorf(
 				"Can't modify unknown toplevel object '%s'", topName)
 		}
@@ -389,7 +375,7 @@ func newAttribute(l *[]*ast.Attribute, name string, c change) error {
 	return nil
 }
 
-func (s *state) addToplevel(name string, ipv6 bool, c change) error {
+func (s *state) addToplevel(name string, c change) error {
 	if c.method == "delete" {
 		return fmt.Errorf("Can't %s unknown toplevel node '%s'", c.method, name)
 	}
@@ -398,7 +384,7 @@ func (s *state) addToplevel(name string, ipv6 bool, c change) error {
 	if err != nil {
 		return err
 	}
-	s.AddTopLevel(a, ipv6)
+	s.AddTopLevel(a)
 	return nil
 }
 
@@ -485,11 +471,7 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	if c.okIfExists {
 		return nil
 	}
-	ipvx := ""
-	if r, ok := n.(*ast.Router); ok {
-		ipvx = getIPvX(r.IPV6) + " "
-	}
-	return fmt.Errorf("%s'%s' already exists", ipvx, n.GetName())
+	return fmt.Errorf("'%s' already exists", n.GetName())
 }
 
 func getTopList(name string, m map[string]interface{}) (ast.Toplevel, error) {
@@ -729,11 +711,4 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 		return nil, fmt.Errorf("Unexpected type in element list: %T", val)
 	}
 	return elements, nil
-}
-
-func getIPvX(v6 bool) string {
-	if v6 {
-		return "IPv6"
-	}
-	return "IPv4"
 }

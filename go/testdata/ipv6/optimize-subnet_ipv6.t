@@ -2,32 +2,32 @@
 ############################################################
 =TITLE=Optimize subnet at secondary packet filter
 =TEMPL=input
-network:sub = { ip = ::a01:720/123; subnet_of = network:customer; }
-router:r = { interface:sub; interface:customer = { ip = ::a01:71e; } }
-network:customer = { ip = ::a01:700/120; }
+network:sub = { ip6 = ::a01:720/123; subnet_of = network:customer; }
+router:r = { interface:sub; interface:customer = { ip6 = ::a01:71e; } }
+network:customer = { ip6 = ::a01:700/120; }
 router:gw = {
  managed{{.s}};
  model = IOS, FW;
- interface:customer = { ip = ::a01:701;    hardware = outside;}
- interface:trans    = { ip = ::a01:301;   hardware = inside;}
+ interface:customer = { ip6 = ::a01:701;    hardware = outside;}
+ interface:trans    = { ip6 = ::a01:301;   hardware = inside;}
 }
-network:trans = { ip = ::a01:300/120; }
+network:trans = { ip6 = ::a01:300/120; }
 router:b1 = {
  managed;
  model = Linux;
  interface:trans = {
-  ip = ::a01:303;
+  ip6 = ::a01:303;
   hardware = eth0;
  }
  interface:server = {
-  ip = ::a01:201;
+  ip6 = ::a01:201;
   hardware = eth1;
  }
 }
 network:server = {
- ip = ::a01:200/120;
- host:s10 = { ip = ::a01:20a; }
- host:s11 = { ip = ::a01:20b; }
+ ip6 = ::a01:200/120;
+ host:s10 = { ip6 = ::a01:20a; }
+ host:s11 = { ip6 = ::a01:20b; }
 }
 protocol:Echo = icmpv6 8{{.d}};
 service:p1 = {
@@ -38,7 +38,6 @@ service:p2 = {
  user = network:customer;
  permit src = user; dst = host:s11; prt = protocol:Echo;
 }
-=PARAMS=--ipv6
 =INPUT=[[input {s: " = secondary", d: ""}]]
 =OUTPUT=
 --ipv6/b1
@@ -57,7 +56,6 @@ ipv6 access-list outside_in
 
 ############################################################
 =TITLE=Optimize subnet for protocol with flag dst_net
-=PARAMS=--ipv6
 =INPUT=[[input {s: "", d: ", dst_net"}]]
 =OUTPUT=
 --ipv6/gw
@@ -69,25 +67,24 @@ ipv6 access-list outside_in
 
 ############################################################
 =TITLE=Combined hosts prevent optimal object group
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h11 = { ip = ::a01:10b; }
- host:h13 = { ip = ::a01:10d; }
+ ip6 = ::a01:100/120;
+ host:h11 = { ip6 = ::a01:10b; }
+ host:h13 = { ip6 = ::a01:10d; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h20 = { ip = ::a01:214; }
- host:h21 = { ip = ::a01:215; }
- host:h23 = { ip = ::a01:217; }
- host:h24 = { ip = ::a01:218; }
+ ip6 = ::a01:200/120;
+ host:h20 = { ip6 = ::a01:214; }
+ host:h21 = { ip6 = ::a01:215; }
+ host:h23 = { ip6 = ::a01:217; }
+ host:h24 = { ip6 = ::a01:218; }
 }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s2, service:s3;
@@ -117,32 +114,31 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Optimize subnet of NAT network in zone
-=PARAMS=--ipv6
 =INPUT=
 network:customer = {
- ip = ::a09:900/120;
- nat:N = { ip = ::a01:700/120; }
+ ip6 = ::a09:900/120;
+ nat:N = { ip6 = ::a01:700/120; }
  has_subnets;
 }
 router:r = {
  interface:customer = { bind_nat = SUB; }
- interface:sub = { ip = ::a01:722; bind_nat = N; }
+ interface:sub = { ip6 = ::a01:722; bind_nat = N; }
 }
-network:sub = { ip = ::a01:720/123; nat:SUB = { ip = ::a09:920/123; }}
+network:sub = { ip6 = ::a01:720/123; nat:SUB = { ip6 = ::a09:920/123; }}
 router:gw = {
  managed = secondary;
  model = IOS, FW;
- interface:sub   = { ip = ::a01:721; hardware = outside;}
- interface:trans = { ip = ::a01:301;  hardware = inside; }
+ interface:sub   = { ip6 = ::a01:721; hardware = outside;}
+ interface:trans = { ip6 = ::a01:301;  hardware = inside; }
 }
-network:trans = { ip = ::a01:300/120; }
+network:trans = { ip6 = ::a01:300/120; }
 router:b1 = {
  managed;
  model = Linux;
- interface:trans  = { ip = ::a01:303; hardware = eth0; }
- interface:server = { ip = ::a01:201; hardware = eth1; }
+ interface:trans  = { ip6 = ::a01:303; hardware = eth0; }
+ interface:server = { ip6 = ::a01:201; hardware = eth1; }
 }
-network:server = { ip = ::a01:200/120; }
+network:server = { ip6 = ::a01:200/120; }
 protocol:Echo = icmpv6 8;
 service:p1 = {
  user = network:sub;

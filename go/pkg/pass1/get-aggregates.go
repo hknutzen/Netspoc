@@ -239,8 +239,9 @@ func (c *spoc) getAny(
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
 			if ipp.Bits() != 0 {
+				attr := v6Attr("ip", z.ipV6)
 				name =
-					name[:len("any:[")] + "ip=" + ipp.String() + " & " +
+					name[:len("any:[")] + attr + "=" + ipp.String() + " & " +
 						name[len("any:["):]
 			}
 			agg := new(network)
@@ -300,7 +301,7 @@ func (c *spoc) getAny(
 				}
 				c.err("Must not use any:[%s = %s & ..] in %s\n"+
 					" because it %s of %s which is translated by nat:%s",
-					cond(supernet.ipV6, "ip6", "ip"),
+					v6Attr("ip", supernet.ipV6),
 					ipp, ctx, relation, supernet, tag)
 			}
 		}

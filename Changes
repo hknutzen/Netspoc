@@ -1,8 +1,18 @@
 {{$NEXT}}
 
- - Fixed duplicate hosts from wrong IPv4 network in IPv6 aggregate.
+ - Removed support for separate IPv6 topology in subdirectory 'ipv6/'.
+ - Removed options '--ipv6', '-6'.
+ - Removed support for NAT of IPv6 objects.
+   After changing attributes of IPv6 addresses from 'ip' to 'ip6',
+   supporting NAT for IPv6 would need to change NAT attributes
+   to 'ip6', 'hidden6', 'identity6' as well.
+   This seems to be superflous, since nobody uses NAT for IPv6.
+ - Fixed duplicate hosts in print-group from wrong IPv4 network
+   in IPv6 aggregate.
  - Fixed panic in export-netspoc with rule from IPv4 network to
    combined IPv4/v6 auto interface.
+ - Changed 'format-netspoc' to print attributes "ip" and "ip6" in
+   one line, if object has no more than 3 attributes.
 
 6.076     2025-01-10 09:39:54+01:00 Europe/Berlin
 

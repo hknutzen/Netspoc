@@ -1,23 +1,22 @@
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 =END=
 
 ############################################################
 =TITLE=Unfinished protocol definition
-=PARAMS=--ipv6
 =INPUT=
 protocol:p = tcp
 =ERROR=
@@ -27,27 +26,24 @@ Aborted
 
 ############################################################
 =TITLE=Unknown protocol
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = xyz;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Unknown protocol in protocol:test
 =END=
 
 ############################################################
 =TITLE=Invalid ip protocol
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = ip v6;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Unexpected details after protocol:test
 =END=
 
 ############################################################
 =TITLE=Missing port range
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = tcp 80 -
 =ERROR=
@@ -57,7 +53,6 @@ Aborted
 
 ############################################################
 =TITLE=Invalid ports and port ranges (1)
-=PARAMS=--ipv6
 =INPUT=
 protocol:p1 = tcp 0 - 10;
 protocol:p2 = udp 60000 - 99999;
@@ -70,7 +65,7 @@ protocol:p8 = tcp 1 - 2 - 3;
 protocol:p9 = tcp 1 - 2 : 3 : 4;
 protocol:p10 = tcp 1 . 2 . 3 - 4;
 protocol:p11 = tcp -;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Expected port number > 0 in protocol:p1
 Error: Expected port number < 65536 in protocol:p2
@@ -89,10 +84,9 @@ Error: Expected number in protocol:p11: -
 
 ############################################################
 =TITLE=Invalid ports and port ranges (2)
-=PARAMS=--ipv6
 =INPUT=
 protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmpv6 -3;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = user; prt = protocolgroup:g1;
@@ -106,7 +100,6 @@ Error: Expected [TYPE [ / CODE]] in 'icmpv6 - 3' of protocolgroup:g1
 
 ############################################################
 =TITLE=Valid port ranges
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -125,7 +118,6 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Invalid source port in unnamed protocol
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -143,17 +135,15 @@ Error: Must not use source port in 'udp 2000 - 2050 : 2020' of service:test.
 
 ############################################################
 =TITLE=Invalid protocol modifier
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = tcp 80, src_xyz;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Unknown modifier 'src_xyz' in protocol:test
 =END=
 
 ############################################################
 =TITLE=Different protocol modifiers
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocolgroup:tftp = protocol:tftp-request,
@@ -202,7 +192,6 @@ ipv6 access-list n3_in
 =TITLE=Overlapping TCP ranges and modifier "reversed"
 # Split port 21 from range 21-22 must not accidently use
 # protocol:TCP_21_Reply
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -227,7 +216,6 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Split part of TCP range is larger than other at same position
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -254,17 +242,15 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Too large ICMP type
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = icmpv6 3000;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Expected number < 256 in protocol:test
 =END=
 
 ############################################################
 =TITLE=Missing ICMP code
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = icmpv6 3 /
 =ERROR=
@@ -274,7 +260,6 @@ Aborted
 
 ############################################################
 =TITLE=Invalid separator in ICMP
-=PARAMS=--ipv6
 =INPUT=
 protocol:p1 = icmpv6 3 - 4;
 protocol:p2 = icmpv6 3@4;
@@ -287,17 +272,15 @@ Error: Expected number in protocol:p3: 3.4
 
 ############################################################
 =TITLE=Too large ICMP code
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = icmpv6 3 / 999;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Expected number < 256 in protocol:test
 =END=
 
 ############################################################
 =TITLE=ICMP type with different codes
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -321,7 +304,6 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Missing number of protocol 'proto'
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = proto
 =ERROR=
@@ -331,7 +313,6 @@ Aborted
 
 ############################################################
 =TITLE=Single number for protocol 'proto'
-=PARAMS=--ipv6
 =INPUT=
 protocol:test = proto -1;
 =ERROR=
@@ -340,12 +321,11 @@ Error: Expected single protocol number in protocol:test
 
 ############################################################
 =TITLE=Invalid protocol number
-=PARAMS=--ipv6
 =INPUT=
 protocol:test1 = proto 0;
 protocol:test2 = proto 300;
 protocol:test3 = proto foo;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Invalid protocol number '0' in protocol:test1
 Error: Expected number < 256 in protocol:test2
@@ -354,7 +334,6 @@ Error: Expected number in protocol:test3: foo
 
 ############################################################
 =TITLE=Valid protocol number
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:test = proto 123;
@@ -374,8 +353,7 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
-=TITLE=Numbered protocol is part of 'ip'
-=PARAMS=--ipv6
+=TITLE=Numbered protocol is part of 'ip6'
 =INPUT=
 [[topo]]
 protocol:test = proto 123;
@@ -393,9 +371,8 @@ Warning: Redundant rules in service:s1 compared to service:s1:
 
 ############################################################
 =TITLE=Must not use standard protocol as number
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 protocol:TCP  = proto 4;
 protocol:UDP  = proto 17;
 =ERROR=
@@ -405,7 +382,6 @@ Error: Must not use 'proto 17', use 'udp' instead in protocol:UDP
 
 ############################################################
 =TITLE=Overlapping udp oneway
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:tftp-request= udp 69, oneway;
@@ -439,29 +415,28 @@ ipv6 access-list n2_in
 ############################################################
 =TITLE=Modifier src_net to interface with pathrestriction
 # Implicit pathrestriction from virtual interface.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:t1 = {ip = ::afe:10c; hardware = t1; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:t1 = {ip6 = ::afe:10c; hardware = t1; }
 }
-network:t1 = {ip = ::afe:108/125;}
+network:t1 = {ip6 = ::afe:108/125;}
 router:u1 = {
- interface:t1 = {ip = ::afe:109;}
- interface:n2 = {ip = ::a01:2fe; virtual = {ip = ::a01:201; }}
+ interface:t1 = {ip6 = ::afe:109;}
+ interface:n2 = {ip6 = ::a01:2fe; virtual = {ip6 = ::a01:201; }}
 }
 router:r2 = {
  managed;
  routing = manual;
  model = IOS;
- interface:t1 = {ip = ::afe:10a; hardware = t1;}
- interface:n2 = {ip = ::a01:2fd; virtual = {ip = ::a01:201; } hardware = n2; }
+ interface:t1 = {ip6 = ::afe:10a; hardware = t1;}
+ interface:n2 = {ip6 = ::a01:2fd; virtual = {ip6 = ::a01:201; } hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 protocol:Ping_Netz = icmpv6 8/0, src_net, dst_net;
 service:s1 = {
  user =  interface:u1.n2;
@@ -476,20 +451,19 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Must not apply dst_net to managed or loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:n2 = {ip = ::a01:201; hardware = n2; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = {ip6 = ::a01:201; hardware = n2; }
 }
 router:u = {
  interface:n2;
- interface:lo = {ip = ::a09:909; loopback; }
+ interface:lo = {ip6 = ::a09:909; loopback; }
 }
 protocol:Ping_Netz = icmpv6 8, src_net, dst_net;
 service:s1 = {
@@ -506,20 +480,19 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=src_net with complex protocol
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h1 = { ip = ::a01:10a; }
+ ip6 = ::a01:100/120;
+ host:h1 = { ip6 = ::a01:10a; }
 }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:n2 = {ip = ::a01:201; hardware = n2; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = {ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120;
- host:h2 = { range = ::a01:204 - ::a01:206; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h2 = { range6 = ::a01:204 - ::a01:206; }
 }
 protocol:tftp_net = udp 69:69, src_net, dst_net, oneway;
 service:s1 = {
@@ -543,9 +516,8 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Unused protocol
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 protocol:http = tcp 80;
 protocol:ping = icmpv6 8;
 =WARNING=
@@ -555,9 +527,8 @@ Warning: unused protocol:ping
 
 ############################################################
 =TITLE=Unused protocolgroup
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 protocolgroup:g1 = tcp 80, icmpv6 8, protocolgroup:g2;
 protocolgroup:g2 = udp 123, udp 69;
 =WARNING=
@@ -567,19 +538,18 @@ Warning: unused protocolgroup:g2
 
 ############################################################
 =TITLE=Duplicate elements in protocolgroup
-=PARAMS=--ipv6
 =INPUT=
 protocol:NTP = udp 123;
 protocol:NTPx = udp 123;
 protocolgroup:g1 = tcp 80, protocol:NTP, tcp 80, protocol:NTPx;
 protocolgroup:g2 = udp 123, protocol:NTP;
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -594,16 +564,15 @@ Warning: Ignoring duplicate 'udp 123' in service:s1
 
 ############################################################
 =TITLE=Unknown protocol and protocolgroup
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:n2 = {ip = ::a01:201; hardware = n2; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = {ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 protocolgroup:g1 = protocol:p1, protocolgroup:g2, foo:bar;
 service:s1 = {
     user = network:n1;
@@ -618,16 +587,15 @@ Error: Can't resolve reference to protocol:p1 in service:s1
 
 ############################################################
 =TITLE=Recursive protocolgroup
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:n2 = {ip = ::a01:201; hardware = n2; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = {ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 protocolgroup:g1 = tcp 80, protocolgroup:g2;
 protocolgroup:g2 = tcp 90, protocolgroup:g1;
 service:s1 = {
@@ -640,14 +608,13 @@ Error: Found recursion in definition of protocolgroup:g2
 
 ############################################################
 =TITLE=Missing rule with tcp 22 from policy_distribution_point
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:pdp = { ip = ::a01:16f; } }
+network:n1 = { ip6 = ::a01:100/120; host:pdp = { ip6 = ::a01:16f; } }
 router:r1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:pdp;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
 }
 service:s1 = {
     user = interface:r1.[auto];

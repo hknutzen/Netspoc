@@ -719,6 +719,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Automatic owner at implicit aggregate in zone cluster
+# No IPv6 NAT
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
@@ -741,6 +742,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=No automatic owner at implicit aggregate in zone cluster
+# No IPv6 NAT
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }

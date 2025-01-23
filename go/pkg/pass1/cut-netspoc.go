@@ -92,19 +92,11 @@ func removeSubAttr(ref *[]*ast.Attribute, name, sub string) {
 }
 
 func setRouterUsed(r *router, isUsed map[string]bool) {
-	name := r.name
-	if r.ipV6 {
-		name = "6" + name
-	}
-	isUsed[name] = true
+	isUsed[r.name] = true
 }
 
 func isRouterUsed(r *router, isUsed map[string]bool) bool {
-	lookup := r.name
-	if r.ipV6 {
-		lookup = "6" + lookup
-	}
-	return isUsed[lookup]
+	return isUsed[r.name]
 }
 
 func setIntfUsed(intf *routerIntf, isUsed map[string]bool) {
@@ -304,7 +296,7 @@ func (c *spoc) markUsedNatTags(isUsed map[string]bool) {
 
 // Mark used elements and substitute intersection by its expanded elements.
 func (c *spoc) markAndSubstElements(
-	elemList *[]ast.Element, ctx string, v6 bool, m map[string]*ast.TopList,
+	elemList *[]ast.Element, ctx string, m map[string]*ast.TopList,
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
@@ -413,7 +405,7 @@ func (c *spoc) markAndSubstElements(
 					}
 				case "group":
 					if def, found := m[typedName]; found {
-						c.markAndSubstElements(&def.Elements, typedName, v6, m, isUsed)
+						c.markAndSubstElements(&def.Elements, typedName, m, isUsed)
 					}
 				}
 				isUsed[typedName] = true
@@ -465,17 +457,16 @@ func (c *spoc) markElements(
 			if !isUsed[typedName] {
 				continue
 			}
-			v6 := x.IPV6
 			c.markAndSubstElements(
-				&x.User.Elements, "user of "+typedName, v6, m, isUsed)
+				&x.User.Elements, "user of "+typedName, m, isUsed)
 			for _, r := range x.Rules {
 				if !hasUserInList(r.Src.Elements) {
 					c.markAndSubstElements(
-						&r.Src.Elements, "src of "+typedName, v6, m, isUsed)
+						&r.Src.Elements, "src of "+typedName, m, isUsed)
 				}
 				if !hasUserInList(r.Dst.Elements) {
 					c.markAndSubstElements(
-						&r.Dst.Elements, "dst of "+typedName, v6, m, isUsed)
+						&r.Dst.Elements, "dst of "+typedName, m, isUsed)
 				}
 			}
 		}
@@ -1069,11 +1060,7 @@ func (c *spoc) cutNetspoc(
 
 	for _, top := range toplevel {
 		typedName := top.GetName()
-		ipv6 := top.GetIPV6()
 		lookup := typedName
-		if strings.HasPrefix(typedName, "router:") && ipv6 {
-			lookup = "6" + lookup
-		}
 		if !isUsed[lookup] {
 			continue
 		}
@@ -1127,7 +1114,6 @@ func CutNetspocMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 	keepOwner := fs.BoolP("owner", "o", false, "Keep referenced owners")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
@@ -1149,7 +1135,6 @@ func CutNetspocMain(d oslink.Data) int {
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)

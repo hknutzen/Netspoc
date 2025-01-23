@@ -1,24 +1,23 @@
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed = {{.a}};
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed = {{.b}};
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 =END=
 
 ############################################################
 =TITLE=Crosslink primary and full
-=PARAMS=--ipv6
 =INPUT=[[topo {a: primary, b: full}]]
 =OUTPUT=
 -ipv6/r1
@@ -34,7 +33,6 @@ interface n2
 
 ############################################################
 =TITLE=Crosslink standard and secondary
-=PARAMS=--ipv6
 =INPUT=[[topo {a: standard, b: secondary}]]
 =OUTPUT=
 -ipv6/r1
@@ -50,7 +48,6 @@ interface n2
 
 ############################################################
 =TITLE=Crosslink secondary and local
-=PARAMS=--ipv6
 =INPUT=[[topo {a: secondary, b: "local; filter_only =  ::a02:0/111"}]]
 =ERROR=
 Error: Must not use 'managed=local' and 'managed=secondary' together
@@ -59,23 +56,22 @@ Error: Must not use 'managed=local' and 'managed=secondary' together
 
 ############################################################
 =TITLE=Crosslink and virtual IP
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; virtual = {ip = ::a03:303;} hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; virtual = {ip6 = ::a03:303;} hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended permit ip any6 any6
@@ -90,32 +86,31 @@ interface n2
 
 ############################################################
 =TITLE=Crosslink standard, local, local
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed = standard;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed = local;
  filter_only =  ::a02:0/111;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 router:r3 = {
  model = IOS;
  managed = local;
  filter_only =  ::a02:0/111;
- interface:cr = { ip = ::a03:303; hardware = cr; }
- interface:n3 = { ip = ::a02:221; hardware = n3; }
+ interface:cr = { ip6 = ::a03:303; hardware = cr; }
+ interface:n3 = { ip6 = ::a02:221; hardware = n3; }
 }
-network:n3 = { ip = ::a02:220/123; }
+network:n3 = { ip6 = ::a02:220/123; }
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended deny ip any6 any6
@@ -136,12 +131,11 @@ interface n3
 
 ############################################################
 =TITLE=Crosslink network must not have hosts
-=PARAMS=--ipv6
 =INPUT=
 network:cr = {
- ip = ::a03:300/125;
+ ip6 = ::a03:300/125;
  crosslink;
- host:h = { ip = ::a03:303; }
+ host:h = { ip6 = ::a03:303; }
 }
 =ERROR=
 Error: Crosslink network:cr must not have host definitions
@@ -149,25 +143,23 @@ Error: Crosslink network:cr must not have host definitions
 
 ############################################################
 =TITLE=Interface of crosslink network must use hardware only once
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed = standard;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = n1; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 =ERROR=
 Error: Crosslink network:cr must be the only network connected to hardware 'n1' of router:r1
 =END=
 
 ############################################################
 =TITLE=Crosslink network must not have unmanaged interface
-=PARAMS=--ipv6
 =INPUT=
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r = { interface:cr; }
 =ERROR=
 Error: Crosslink network:cr must not be connected to unmanged router:r
@@ -175,46 +167,44 @@ Error: Crosslink network:cr must not be connected to unmanged router:r
 
 ############################################################
 =TITLE=Different no_in_acl at crosslink routers
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; no_in_acl; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; no_in_acl; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 =ERROR=
 Error: All interfaces must equally use or not use outgoing ACLs at crosslink network:cr
 =END=
 
 ############################################################
 =TITLE=no_in_acl outside of crosslink routers
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; no_in_acl; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; no_in_acl; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; no_in_acl; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; no_in_acl; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 =ERROR=
 Error: All interfaces with attribute 'no_in_acl' at routers connected by
  crosslink network:cr must be border of the same security zone
@@ -222,21 +212,20 @@ Error: All interfaces with attribute 'no_in_acl' at routers connected by
 
 ############################################################
 =TITLE=no_in_acl at crosslink routers at same zone
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; no_in_acl; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; no_in_acl; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n1 = { ip = ::a01:102; hardware = n1; no_in_acl; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; no_in_acl; }
 }
 =OUTPUT=
 -- ipv6/r1
@@ -255,23 +244,22 @@ interface n1
 
 ############################################################
 =TITLE=no_in_acl at crosslink interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; no_in_acl; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; no_in_acl; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; no_in_acl; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; no_in_acl; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -306,23 +294,22 @@ interface n2
 
 ############################################################
 =TITLE=crosslink between Linux routers
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = Linux;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = Linux;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -358,16 +345,15 @@ service:s1 = {
 
 ############################################################
 =TITLE=Must not use crosslink network in rule
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; crosslink; }
+network:n1 = { ip6 = ::a01:100/120; crosslink; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; crosslink; }
+network:n2 = { ip6 = ::a01:200/120; crosslink; }
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -379,23 +365,22 @@ Warning: Ignoring crosslink network:n2 in dst of rule in service:test
 
 ############################################################
 =TITLE=Ignore from automatic group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = ASA;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; no_in_acl; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; no_in_acl; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 area:n1-cr = {
  border = interface:r2.cr;
 }
@@ -413,24 +398,23 @@ access-group n2_out out interface n2
 
 ############################################################
 =TITLE=Use intermediately in automatic group
-=PARAMS=--ipv6
 =INPUT=
 area:n1-cr = { border = interface:r2.cr; }
-network:n1 = { ip = ::a01:100/123; }
+network:n1 = { ip6 = ::a01:100/123; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:cr = { ip = ::a03:301; hardware = cr; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:cr = { ip6 = ::a03:301; hardware = cr; }
 }
-network:cr = { ip = ::a03:300/125; crosslink; }
+network:cr = { ip6 = ::a03:300/125; crosslink; }
 router:r2 = {
  model = IOS;
  managed;
- interface:cr = { ip = ::a03:302; hardware = cr; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
+ interface:cr = { ip6 = ::a03:302; hardware = cr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
 }
-network:n2 = { ip = ::a02:200/123; }
+network:n2 = { ip6 = ::a02:200/123; }
 service:s1 = {
  user = network:n1;
  permit src = user;

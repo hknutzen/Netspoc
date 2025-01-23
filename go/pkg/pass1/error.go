@@ -19,11 +19,7 @@ func (l intfList) nameList() string {
 func (l netList) nameList() string {
 	var names stringList
 	for _, n := range l {
-		name := n.name
-		if n.isCombined46() {
-			name = ipvx(n.ipV6) + " " + name
-		}
-		names.push(name)
+		names.push(n.vxName())
 	}
 	return names.nameList()
 }

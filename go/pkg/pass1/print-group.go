@@ -47,10 +47,6 @@ Show owner of elements.
 
 Show admins of elements as comma separated list.
 
-=item B<-ipv6>
-
-Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
-
 =item B<-quiet>
 
 Don't print progress messages.
@@ -297,7 +293,6 @@ func PrintGroupMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
 	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
@@ -327,7 +322,6 @@ func PrintGroupMain(d oslink.Data) int {
 	group := args[1]
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 	return toplevelSpoc(d, cnf, func(c *spoc) {

@@ -216,6 +216,7 @@ Warning: network:n1 is subnet of network:n2
 
 ############################################################
 =TITLE=Find subnet relation with duplicate networks and intermediate aggregate
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
@@ -310,6 +311,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Ignore hidden network in supernet check (1)
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -343,6 +345,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Ignore hidden network in supernet check (2)
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2433,6 +2436,7 @@ Warning: Missing transient supernet rules
 
 ############################################################
 =TITLE=Missing transient rule with any + NAT
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }

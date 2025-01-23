@@ -46,10 +46,10 @@ func Main(d oslink.Data) int {
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Process each file.
-	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
+	err := filetree.Walk(path, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, input.IPV6, parser.ParseComments)
+		aF, err := parser.ParseFile(source, path, parser.ParseComments)
 		if err != nil {
 			return err
 		}

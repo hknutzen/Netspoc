@@ -3,21 +3,20 @@
 =TITLE=General permit
 =TEMPL=input
 protocol:unreachable = icmpv6 3;
-network:m = { ip = ::a02:200/120; }
+network:m = { ip6 = ::a02:200/120; }
 router:r = {
  managed;
  model = {{.}};
  general_permit = tcp, icmpv6 0, protocol:unreachable, udp;
- interface:m = { ip = ::a02:202; hardware = e0; }
- interface:n = { ip = ::a01:102, ::a01:103; hardware = e1; }
- interface:lo = { ip = ::a09:902; hardware = lo; loopback; }
+ interface:m = { ip6 = ::a02:202; hardware = e0; }
+ interface:n = { ip6 = ::a01:102, ::a01:103; hardware = e1; }
+ interface:lo = { ip6 = ::a09:902; hardware = lo; loopback; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = icmpv6;
 }
-=PARAMS=--ipv6
 =INPUT=[[input IOS]]
 =OUTPUT=
 --ipv6/r
@@ -41,7 +40,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=General permit (Linux)
-=PARAMS=--ipv6
 =INPUT=[[input Linux]]
 =OUTPUT=
 --ipv6/r
@@ -87,18 +85,17 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=General permit with no_in_acl
-=PARAMS=--ipv6
 =INPUT=
-network:m = { ip = ::a02:200/120; }
+network:m = { ip6 = ::a02:200/120; }
 router:r = {
  managed;
  model = IOS;
  general_permit = tcp, icmpv6 0, icmpv6 3;
- interface:m = { ip = ::a02:202; hardware = e0; no_in_acl; }
- interface:n = { ip = ::a01:102, ::a01:103; hardware = e1; }
- interface:lo = { ip = ::a09:902; hardware = lo; loopback; }
+ interface:m = { ip6 = ::a02:202; hardware = e0; no_in_acl; }
+ interface:n = { ip6 = ::a01:102, ::a01:103; hardware = e1; }
+ interface:lo = { ip6 = ::a09:902; hardware = lo; loopback; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e0_in
@@ -126,17 +123,16 @@ ipv6 access-list e1_out
 
 ############################################################
 =TITLE=General permit with udp and named tcp protocol
-=PARAMS=--ipv6
 =INPUT=
 protocol:TCP = tcp;
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r = {
  managed;
  model = IOS;
  general_permit = udp, protocol:TCP;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 =OUTPUT=
 --ipv6/r
@@ -153,13 +149,12 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=No ports permitted
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n;
  router_attributes = { general_permit = protocol:ftp-data, tcp 80, udp 1; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 protocol:ftp-data = tcp 20:1024-65535;
 =ERROR=
 Error: Must not use 'protocol:ftp-data' with ports in general_permit of router_attributes of area:all
@@ -169,10 +164,9 @@ Error: Must not use 'udp 1' with ports in general_permit of router_attributes of
 
 ############################################################
 =TITLE=No modifiers permitted
-=PARAMS=--ipv6
 =INPUT=
 area:all = { anchor = network:n; router_attributes = { general_permit = protocol:ping-net; } }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 protocol:ping-net = icmpv6 8, src_net, dst_net;
 =ERROR=
 Error: Must not use 'protocol:ping-net' with modifiers in general_permit of router_attributes of area:all
@@ -180,14 +174,13 @@ Error: Must not use 'protocol:ping-net' with modifiers in general_permit of rout
 
 ############################################################
 =TITLE=Ignore duplicates
-=PARAMS=--ipv6
 =INPUT=
 protocol:UDP = udp;
 area:all = {
  anchor = network:n;
  router_attributes = { general_permit = icmpv6 3, udp, protocol:UDP, icmpv6 3; }
  }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 =WARNING=
 Warning: Ignoring duplicate 'udp' in general_permit of router_attributes of area:all
 Warning: Ignoring duplicate 'icmpv6 3' in general_permit of router_attributes of area:all
@@ -195,18 +188,17 @@ Warning: Ignoring duplicate 'icmpv6 3' in general_permit of router_attributes of
 
 ############################################################
 =TITLE=Check for useless inheritance
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n;
  router_attributes = { general_permit = icmpv6, tcp; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = IOS;
  general_permit = tcp, icmpv6;
- interface:n = { ip = ::a01:102; hardware = e1; }
+ interface:n = { ip6 = ::a01:102; hardware = e1; }
 }
 =WARNING=
 Warning: Useless 'general_permit' at router:r,
@@ -215,18 +207,17 @@ Warning: Useless 'general_permit' at router:r,
 
 ############################################################
 =TITLE=Redundant at nested areas
-=PARAMS=--ipv6
 =INPUT=
 # a1 < all
 area:all = { router_attributes = { general_permit = icmpv6; } anchor = network:n1; }
 area:a1 =  { router_attributes = { general_permit = icmpv6; } inclusive_border = interface:asa1.n2; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 =WARNING=
 Warning: Useless 'general_permit' at area:a1,
@@ -235,18 +226,17 @@ Warning: Useless 'general_permit' at area:a1,
 
 ############################################################
 =TITLE=Check for ignored inheritance (1)
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n;
  router_attributes = { general_permit = icmpv6 3, icmpv6 13; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = IOS;
  general_permit = icmpv6;
- interface:n = { ip = ::a01:102; hardware = e1; }
+ interface:n = { ip6 = ::a01:102; hardware = e1; }
 }
 =OUTPUT=
 --ipv6/r
@@ -257,18 +247,17 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Check for ignored inheritance (2)
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n;
  router_attributes = { general_permit = icmpv6 3, icmpv6 13; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = IOS;
  general_permit = icmpv6 3, icmpv6 4;
- interface:n = { ip = ::a01:102; hardware = e1; }
+ interface:n = { ip6 = ::a01:102; hardware = e1; }
 }
 =OUTPUT=
 --ipv6/r

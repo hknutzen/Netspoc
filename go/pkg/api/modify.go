@@ -78,7 +78,7 @@ func Main(d oslink.Data) int {
 
 	s := new(state)
 	var err error
-	s.State, err = astset.Read(netspocPath, cnf.IPV6)
+	s.State, err = astset.Read(netspocPath)
 	if err != nil {
 		// Text of this error message is checked in git-worker1 of Netspoc-API.
 		showErr("While reading netspoc files: %s", err)

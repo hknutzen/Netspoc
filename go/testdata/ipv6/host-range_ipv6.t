@@ -1,24 +1,23 @@
 
 ############################################################
 =TITLE=Leave order unchanged when combining addresses
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h2 = { ip = ::a01:102; }
- host:h3 = { ip = ::a01:103; }
- host:h4 = { ip = ::a01:104; }
- host:h6 = { ip = ::a01:106; }
- host:h7 = { ip = ::a01:107; }
- host:h8 = { ip = ::a01:108; }
+ ip6 = ::a01:100/120;
+ host:h2 = { ip6 = ::a01:102; }
+ host:h3 = { ip6 = ::a01:103; }
+ host:h4 = { ip6 = ::a01:104; }
+ host:h6 = { ip6 = ::a01:106; }
+ host:h7 = { ip6 = ::a01:107; }
+ host:h8 = { ip6 = ::a01:108; }
 }
 router:r = {
  model = IOS, FW;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:test = {
  user = host:h2, host:h4, host:h3, host:h7, host:h8, host:h6;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -36,21 +35,20 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Split and combine host ranges
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { range = ::a01:10f-::a01:113; }
- host:b = { range = ::a01:114-::a01:118; }
- host:c = { range = ::a01:119-::a01:123; }
+ ip6 = ::a01:100/120;
+ host:a = { range6 = ::a01:10f-::a01:113; }
+ host:b = { range6 = ::a01:114-::a01:118; }
+ host:c = { range6 = ::a01:119-::a01:123; }
 }
 router:r = {
  model = IOS, FW;
  managed;
- interface:n = { ip = ::a01:101; hardware = ethernet0; }
- interface:x = { ip = f000::c0a8:101; hardware = ethernet1; }
+ interface:n = { ip6 = ::a01:101; hardware = ethernet0; }
+ interface:x = { ip6 = f000::c0a8:101; hardware = ethernet1; }
 }
-network:x = { ip = f000::c0a8:100/120; }
+network:x = { ip6 = f000::c0a8:100/120; }
 service:test = {
  user = host:a, host:b, host:c;
  permit src = user; dst = network:x; prt = tcp 80;
@@ -67,31 +65,30 @@ ipv6 access-list ethernet0_in
 
 ############################################################
 =TITLE=Combine host ranges  into network and ignore it in 2. step
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h4 = { ip = ::a01:104; }
- host:h5 = { ip = ::a01:105; }
- host:r6-7 = { range = ::a01:106-::a01:107; }
+ ip6 = ::a01:100/120;
+ host:h4 = { ip6 = ::a01:104; }
+ host:h5 = { ip6 = ::a01:105; }
+ host:r6-7 = { range6 = ::a01:106-::a01:107; }
 }
 router:u = {
  interface:n1;
  interface:n2;
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:r0-127 = { range = ::a01:200-::a01:27f; }
- host:r128-255 = { range = ::a01:280-::a01:2ff; }
+ ip6 = ::a01:200/120;
+ host:r0-127 = { range6 = ::a01:200-::a01:27f; }
+ host:r128-255 = { range6 = ::a01:280-::a01:2ff; }
 }
 router:r = {
  model = IOS, FW;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 service:test = {
  user = host:h4, host:h5, host:r6-7, host:r0-127, host:r128-255;
  permit src = user; dst = network:n3; prt = tcp 80;
@@ -108,25 +105,24 @@ ipv6 access-list n1_in
 ############################################################
 =TITLE=Large host ranges for non private addresses
 =TODO=No IPv6
-=PARAMS=--ipv6
 =INPUT=
 network:inet = {
- ip = ::/0;
- host:r1 = { range = :: - ::9ff:ffff; }
- host:r2 = { range = ::b00:0 - f000::ac0f:ffff; }
- host:r3 = { range = f000::ac20:0 - f000::c0a7:ffff; }
- host:r4 = { range = f000::c0a9:0 - ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff; }
+ ip6 = ::/0;
+ host:r1 = { range6 = :: - ::9ff:ffff; }
+ host:r2 = { range6 = ::b00:0 - f000::ac0f:ffff; }
+ host:r3 = { range6 = f000::ac20:0 - f000::c0a7:ffff; }
+ host:r4 = { range6 = f000::c0a9:0 - ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff; }
 }
 
 router:r = {
  managed;
  model = IOS;
- interface:inet = { ip = ::a09:901;  hardware = inet; }
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:inet = { ip6 = ::a09:901;  hardware = inet; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 
 network:n1 = {
- ip = ::a01:100/120;
+ ip6 = ::a01:100/120;
  subnet_of = network:inet;
 }
 
@@ -175,23 +171,22 @@ ipv6 access-list inet_in
 
 ############################################################
 =TITLE=Redundant rule from host range and combined ip hosts
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h4 = { ip = ::a01:104; }
- host:h5 = { ip = ::a01:105; }
- host:h6 = { ip = ::a01:106; }
- host:h7 = { ip = ::a01:107; }
- host:r4-5 = { range = ::a01:104-::a01:105; }
+ ip6 = ::a01:100/120;
+ host:h4 = { ip6 = ::a01:104; }
+ host:h5 = { ip6 = ::a01:105; }
+ host:h6 = { ip6 = ::a01:106; }
+ host:h7 = { ip6 = ::a01:107; }
+ host:r4-5 = { range6 = ::a01:104-::a01:105; }
 }
 router:r = {
  model = IOS, FW;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:test = {
  user = host:h4, host:h5, host:r4-5;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -212,12 +207,11 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Duplicate host ranges
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { range = ::a01:10f-::a01:113; }
- host:b = { range = ::a01:10f-::a01:113; }
+ ip6 = ::a01:100/120;
+ host:a = { range6 = ::a01:10f-::a01:113; }
+ host:b = { range6 = ::a01:10f-::a01:113; }
 }
 =ERROR=
 Error: Duplicate IP address for host:a and host:b
@@ -225,14 +219,13 @@ Error: Duplicate IP address for host:a and host:b
 
 ############################################################
 =TITLE=Host range and interface IP overlap
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { range = ::a01:101-::a01:113; }
+ ip6 = ::a01:100/120;
+ host:a = { range6 = ::a01:101-::a01:113; }
 }
 router:r = {
- interface:n = { ip = ::a01:101; }
+ interface:n = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: Duplicate IP address for interface:r.n and host:a
@@ -240,27 +233,25 @@ Error: Duplicate IP address for interface:r.n and host:a
 
 ############################################################
 =TITLE=Ignore overlap of subnet range and interface IP
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { range = ::a01:100-::a01:10f; }
+ ip6 = ::a01:100/120;
+ host:a = { range6 = ::a01:100-::a01:10f; }
 }
 router:r = {
- interface:n = { ip = ::a01:101; }
+ interface:n = { ip6 = ::a01:101; }
 }
 =WARNING=NONE
 
 ############################################################
 =TITLE=Duplicate host and interface IP
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { ip = ::a01:101; }
+ ip6 = ::a01:100/120;
+ host:a = { ip6 = ::a01:101; }
 }
 router:r = {
- interface:n = { ip = ::a01:101; }
+ interface:n = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: Duplicate IP address for interface:r.n and host:a
@@ -268,12 +259,11 @@ Error: Duplicate IP address for interface:r.n and host:a
 
 ############################################################
 =TITLE=Duplicate host IPs
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
- host:a = { ip = ::a01:101; }
- host:b = { ip = ::a01:101; }
+ ip6 = ::a01:100/120;
+ host:a = { ip6 = ::a01:101; }
+ host:b = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: Duplicate IP address for host:a and host:b
@@ -281,23 +271,22 @@ Error: Duplicate IP address for host:a and host:b
 
 ############################################################
 =TITLE=Redundant rule from host range and combined ip hosts
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h4 = { ip = ::a01:104; }
- host:h5 = { ip = ::a01:105; }
- host:h6 = { ip = ::a01:106; }
- host:h7 = { ip = ::a01:107; }
- host:r6-7 = { range = ::a01:106-::a01:107; }
+ ip6 = ::a01:100/120;
+ host:h4 = { ip6 = ::a01:104; }
+ host:h5 = { ip6 = ::a01:105; }
+ host:h6 = { ip6 = ::a01:106; }
+ host:h7 = { ip6 = ::a01:107; }
+ host:r6-7 = { range6 = ::a01:106-::a01:107; }
 }
 router:r = {
  model = IOS, FW;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:test = {
  user = host:h4, host:h5, host:h6, host:h7, host:r6-7;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -315,30 +304,29 @@ Warning: Redundant rules in service:test compared to service:test:
 # List of src objects is referenced from two different path rules.
 # If combineSubnets is applied twice on the same list,
 # we would get garbage.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h20 = { ip = ::a01:114; }
- host:h21 = { ip = ::a01:115; }
- host:h22 = { ip = ::a01:116; }
- host:h23 = { ip = ::a01:117; }
- host:h24 = { ip = ::a01:118; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h20 = { ip6 = ::a01:114; }
+ host:h21 = { ip6 = ::a01:115; }
+ host:h22 = { ip6 = ::a01:116; }
+ host:h23 = { ip6 = ::a01:117; }
+ host:h24 = { ip6 = ::a01:118; }
 }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 service:s1 = {
  user = network:n2, network:n3;

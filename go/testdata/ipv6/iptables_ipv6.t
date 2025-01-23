@@ -1,17 +1,16 @@
 
 ############################################################
 =TITLE=Protocol IP and deny rules with prefix and suffix
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h12 = { ip = ::a01:10c; }
+ ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h12 = { ip6 = ::a01:10c; }
 }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 service:s1 = {
  user = interface:r1.n1;
@@ -61,15 +60,14 @@ EOF
 
 ############################################################
 =TITLE=Different port ranges
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -106,15 +104,14 @@ service:s1 = {
 
 ############################################################
 =TITLE=Different src and dst port ranges
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 protocol:p1 = tcp 4080-4090:1-1023;
 protocol:p2 = tcp 1-1023:4080-4090;
@@ -154,19 +151,18 @@ service:s1 = {
 
 ############################################################
 =TITLE=Udp port ranges
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120;
- host:h10 = { ip = ::a01:20a; }
- host:h12 = { ip = ::a01:20c; }
- host:h14 = { ip = ::a01:20e; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h10 = { ip6 = ::a01:20a; }
+ host:h12 = { ip6 = ::a01:20c; }
+ host:h14 = { ip6 = ::a01:20e; }
 }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 protocol:p1 = udp 1-1023:53;
 protocol:p2 = udp 1-511:69;
@@ -204,25 +200,25 @@ service:s1 = {
 ############################################################
 =TITLE=Merge port range with sub-range
 =TEMPL=input
-network:RAS      = { ip = ::a02:200/120; }
-network:Hoernum  = { ip = ::a03:380/125; }
-network:StPeter  = { ip = ::a03:378/125; }
-network:Firewall = { ip = f000::c101:100/120; }
+network:RAS      = { ip6 = ::a02:200/120; }
+network:Hoernum  = { ip6 = ::a03:380/125; }
+network:StPeter  = { ip6 = ::a03:378/125; }
+network:Firewall = { ip6 = f000::c101:100/120; }
 router:ras = {
- interface:Trans    = { ip = ::a01:102;}
- interface:Firewall = { ip = f000::c101:101; }
- interface:RAS      = { ip = ::a02:201;}
- interface:StPeter  = { ip = ::a03:379;}
- interface:Hoernum  = { ip = ::a03:381;}
+ interface:Trans    = { ip6 = ::a01:102;}
+ interface:Firewall = { ip6 = f000::c101:101; }
+ interface:RAS      = { ip6 = ::a02:201;}
+ interface:StPeter  = { ip6 = ::a03:379;}
+ interface:Hoernum  = { ip6 = ::a03:381;}
 }
-network:Trans = { ip = ::a01:100/120;}
+network:Trans = { ip6 = ::a01:100/120;}
 router:nak = {
  managed;
  model = Linux;
- interface:Trans    = { ip = ::a01:101; hardware = eth0; }
- interface:Hosting  = { ip = ::a04:401; hardware = br0; }
+ interface:Trans    = { ip6 = ::a01:101; hardware = eth0; }
+ interface:Hosting  = { ip6 = ::a04:401; hardware = br0; }
 }
-network:Hosting = { ip = ::a04:400/120; }
+network:Hosting = { ip6 = ::a04:400/120; }
 service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user;
@@ -235,7 +231,6 @@ service:p10-60 = {
         dst = network:Hosting;
         prt = tcp 10-49, tcp 50-60;
 }
-=PARAMS=--ipv6
 =INPUT=[[input "tcp 30-37, tcp 51-53"]]
 =OUTPUT=
 --ipv6/nak
@@ -259,7 +254,6 @@ service:p10-60 = {
 # Ranges 10-49 and 50-60 can't be merged,
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
-=PARAMS=--ipv6
 =INPUT=[[input "tcp 30-37, tcp 40-47, tcp 51-53"]]
 =OUTPUT=
 --ipv6/nak
@@ -283,26 +277,27 @@ service:p10-60 = {
 
 ############################################################
 =TITLE=Optimize redundant port
+=TODO= No IPv6
+#
 # Different objects get the same IP from NAT.
-=PARAMS=--ipv6
 =INPUT=
-network:A = { ip = ::a03:378/125; nat:C = { ip = ::a02:200/120; dynamic; }}
-network:B = { ip = ::a03:380/125; nat:C = { ip = ::a02:200/120; dynamic; }}
+network:A = { ip6 = ::a03:378/125; nat:C = { ip6 = ::a02:200/120; dynamic; }}
+network:B = { ip6 = ::a03:380/125; nat:C = { ip6 = ::a02:200/120; dynamic; }}
 router:ras = {
  managed;
  model = ASA;
- interface:A = { ip = ::a03:379; hardware = Fe0; }
- interface:B = { ip = ::a03:381; hardware = Fe1; }
- interface:Trans = { ip = ::a01:102; bind_nat = C; hardware = Fe2; }
+ interface:A = { ip6 = ::a03:379; hardware = Fe0; }
+ interface:B = { ip6 = ::a03:381; hardware = Fe1; }
+ interface:Trans = { ip6 = ::a01:102; bind_nat = C; hardware = Fe2; }
 }
-network:Trans = { ip = ::a01:100/120;}
+network:Trans = { ip6 = ::a01:100/120;}
 router:nak = {
  managed;
  model = Linux;
- interface:Trans    = { ip = ::a01:101; hardware = eth0; }
- interface:Hosting  = { ip = ::a04:401; hardware = br0; }
+ interface:Trans    = { ip6 = ::a01:101; hardware = eth0; }
+ interface:Hosting  = { ip6 = ::a04:401; hardware = br0; }
 }
-network:Hosting = { ip = ::a04:400/120; }
+network:Hosting = { ip6 = ::a04:400/120; }
 service:A = {
  user = network:A;
  permit src = user;
@@ -324,18 +319,17 @@ service:B = {
 
 ############################################################
 =TITLE=Numeric protocols
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120;
- host:h10 = { ip = ::a01:20a; }
- host:h12 = { ip = ::a01:20c; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h10 = { ip6 = ::a01:20a; }
+ host:h12 = { ip6 = ::a01:20c; }
 }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -374,27 +368,26 @@ service:s1 = {
 # This test case would fail, if the loopback interface is
 # changed to loopback network at r1, but left unchanged at r2
 # or vice versa.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n1 = {ip = ::a01:101; hardware = n1;}
- interface:n2 = {ip = ::a01:201; hardware = n2;}
+ interface:n1 = {ip6 = ::a01:101; hardware = n1;}
+ interface:n2 = {ip6 = ::a01:201; hardware = n2;}
 }
-network:n2 = { ip = ::a01:200/120;}
+network:n2 = { ip6 = ::a01:200/120;}
 router:r2 = {
  managed;
  model = Linux;
  routing = manual;
  interface:n2 = {
-  ip = ::a01:202;
+  ip6 = ::a01:202;
   hardware = eth0;
  }
  interface:Mail = {
-  ip = ::a01:301;
+  ip6 = ::a01:301;
   loopback;
   hardware = eth1;
  }
@@ -418,36 +411,36 @@ service:test = {
 
 ############################################################
 =TITLE=loopback interface, loopback network and NAT with same IP
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 network:n2 = {
- ip = ::a01:200/120;
- host:h = {ip = ::a01:20b;}
+ ip6 = ::a01:200/120;
+ host:h = {ip6 = ::a01:20b;}
 }
 router:u = {
  interface:n2;
  interface:n1;
- interface:n3 = { ip = ::a01:301;}
+ interface:n3 = { ip6 = ::a01:301;}
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = Linux;
- interface:n3 = { ip = ::a01:302; hardware = eth1; }
- interface:n4 = { ip = ::a01:401; hardware = eth0; }
+ interface:n3 = { ip6 = ::a01:302; hardware = eth1; }
+ interface:n4 = { ip6 = ::a01:401; hardware = eth0; }
 }
-network:n4 = { ip = ::a01:400/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r2 = {
  managed;
  model = Linux;
- interface:n4 = { ip = ::a01:402; hardware = eth0; bind_nat = nat1; }
- interface:lo = { ip = ::101:101; hardware = eth1; loopback; }
- interface:n5 = { ip = ::a01:511; hardware = eth1; }
+ interface:n4 = { ip6 = ::a01:402; hardware = eth0; bind_nat = nat1; }
+ interface:lo = { ip6 = ::101:101; hardware = eth1; loopback; }
+ interface:n5 = { ip6 = ::a01:511; hardware = eth1; }
 }
 network:n5 = {
- ip = ::a01:510/124;
- nat:nat1 = { ip = ::101:101/128; dynamic; }
+ ip6 = ::a01:510/124;
+ nat:nat1 = { ip6 = ::101:101/128; dynamic; }
 }
 protocol:Ping_Net = icmpv6 8, src_net, dst_net;
 service:t1 = {
@@ -487,18 +480,17 @@ service:s3 = {
 
 ############################################################
 =TITLE=Different chains for pairs of input/ouptut interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 =  {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:k1 = { ip = ::a02:101; hardware = k1; }
- interface:k2 = { ip = ::a02:201; hardware = k2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:k1 = { ip6 = ::a02:101; hardware = k1; }
+ interface:k2 = { ip6 = ::a02:201; hardware = k2; }
 }
-network:k1 = { ip = ::a02:100/120; }
-network:k2 = { ip = ::a02:200/120; }
+network:k1 = { ip6 = ::a02:100/120; }
+network:k2 = { ip6 = ::a02:200/120; }
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:k1, network:k2; prt = tcp 80, tcp 82;
@@ -524,32 +516,31 @@ service:t1 = {
 
 ############################################################
 =TITLE=Combine adjacent networks (1)
-=PARAMS=--ipv6
 =INPUT=
-network:n0 = { ip = ::a01:0/120; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120;
- host:h44 = { ip = ::a01:404; }
- host:h45 = { ip = ::a01:405; }
- host:h46 = { ip = ::a01:406; }
- host:h47 = { ip = ::a01:407; }
+network:n0 = { ip6 = ::a01:0/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120;
+ host:h44 = { ip6 = ::a01:404; }
+ host:h45 = { ip6 = ::a01:405; }
+ host:h46 = { ip6 = ::a01:406; }
+ host:h47 = { ip6 = ::a01:407; }
 }
 router:u = {
  interface:n0;
  interface:n1;
  interface:n2;
- interface:n3 = { ip = ::a01:302; }
+ interface:n3 = { ip6 = ::a01:302; }
 }
 router:r1 = {
  managed;
  model = Linux;
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 service:s1 = {
- user = network:n0, any:[ip = ::a01:100/121 & network:n1];
+ user = network:n0, any:[ip6 = ::a01:100/121 & network:n1];
  permit src = user; dst = host:h44; prt = tcp 20-25;
 }
 service:s2 = {
@@ -557,7 +548,7 @@ service:s2 = {
  permit src = user; dst = host:h44, host:h46; prt = tcp 22;
 }
 service:s3 = {
- user = any:[ip = ::a01:200/122 & network:n2], network:n3;
+ user = any:[ip6 = ::a01:200/122 & network:n2], network:n3;
  permit src = user; dst = host:h44, host:h45, host:h47; prt = tcp 21-22;
 }
 service:s4 = {
@@ -594,29 +585,28 @@ service:s4 = {
 
 ############################################################
 =TITLE=Combine adjacent networks (2)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:20a; } }
-network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
-network:n4 = { ip = ::a01:400/120;
- host:h44 = { ip = ::a01:404; }
- host:h45 = { ip = ::a01:405; }
- host:h46 = { ip = ::a01:406; }
- host:h47 = { ip = ::a01:407; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:20a; } }
+network:n3 = { ip6 = ::a01:300/120; host:h3 = { ip6 = ::a01:30a; } }
+network:n4 = { ip6 = ::a01:400/120;
+ host:h44 = { ip6 = ::a01:404; }
+ host:h45 = { ip6 = ::a01:405; }
+ host:h46 = { ip6 = ::a01:406; }
+ host:h47 = { ip6 = ::a01:407; }
 }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = Linux;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 service:s1 = {
  user = network:n1;
@@ -627,11 +617,11 @@ service:s2 = {
  permit src = user; dst = host:h44; prt = udp 20-21;
 }
 service:s3 = {
- user =  any:[ip = ::a01:100/121 & network:n2];
+ user =  any:[ip6 = ::a01:100/121 & network:n2];
  permit src = user; dst = network:n4; prt = udp 22;
 }
 service:s4 = {
- user =  any:[ip = ::a01:108/126 & network:n2];
+ user =  any:[ip6 = ::a01:108/126 & network:n2];
  permit src = user; dst = network:n4; prt = udp 22-23;
 }
 =OUTPUT=
@@ -654,27 +644,26 @@ service:s4 = {
 
 ############################################################
 =TITLE=Combine adjacent networks (3)
-=PARAMS=--ipv6
 =INPUT=
-network:n0 = { ip = ::a01:0/120; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n0 = { ip6 = ::a01:0/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:u = {
  interface:n0;
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 
 service:s1 = {
- user = any:[ip = ::a01:0/121 & network:n0],
-        any:[ip = ::a01:80/121 & network:n0],
-        any:[ip = ::a01:100/121 & network:n1],
-        any:[ip = ::a01:180/121 & network:n1],
+ user = any:[ip6 = ::a01:0/121 & network:n0],
+        any:[ip6 = ::a01:80/121 & network:n0],
+        any:[ip6 = ::a01:100/121 & network:n1],
+        any:[ip6 = ::a01:180/121 & network:n1],
         ;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
@@ -687,17 +676,16 @@ service:s1 = {
 
 ############################################################
 =TITLE=Check udp/tcp early and combine adjacent networks
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = eth1; }
- interface:n2 = { ip = ::a01:201; hardware = eth1; }
- interface:n3 = { ip = ::a01:301; hardware = eth1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = eth1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = eth1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = eth1; }
 }
 service:test1 = {
  user = network:n1;
@@ -735,21 +723,20 @@ service:test3 = {
 
 ############################################################
 =TITLE=Check icmpv6 early
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:u = {
- interface:n1 = { ip = ::a01:101; }
- interface:n2 = { ip = ::a01:201; }
+ interface:n1 = { ip6 = ::a01:101; }
+ interface:n2 = { ip6 = ::a01:201; }
 }
-network:n2 = { ip = ::a01:200/120;}
+network:n2 = { ip6 = ::a01:200/120;}
 router:r1 = {
  managed;
  model = Linux;
- interface:n2 = { ip = ::a01:202; hardware = eth0;}
- interface:n3 = { ip = ::a01:301; hardware = eth1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = eth0;}
+ interface:n3 = { ip6 = ::a01:301; hardware = eth1; }
 }
-network:n3 = { ip = ::a01:300/120;}
+network:n3 = { ip6 = ::a01:300/120;}
 service:t1 = {
  user = network:n1, network:n2;
  permit src = network:n3; dst = user; prt = tcp 80, icmpv6 8;
@@ -774,15 +761,14 @@ service:t1 = {
 
 ############################################################
 =TITLE=Deterministic output of icmpv6 codes
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:test = {
  user = network:n1;
@@ -824,15 +810,14 @@ service:test = {
 
 ############################################################
 =TITLE=Check ICMP type and code
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:test = {
  user = network:n1;
@@ -858,19 +843,18 @@ service:test = {
 ############################################################
 =TITLE=Ignore ICMP reply messages
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 network:n2 = {
- ip = ::a01:200/120;
- host:h2 = { ip = ::a01:202; }
- host:h3 = { ip = ::a01:203; }
+ ip6 = ::a01:200/120;
+ host:h2 = { ip6 = ::a01:202; }
+ host:h3 = { ip6 = ::a01:203; }
 }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:test = {
  user = network:n1;

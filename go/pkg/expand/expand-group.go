@@ -128,7 +128,7 @@ func Main(d oslink.Data) int {
 	// Change files.
 	s := new(state)
 	var err error
-	s.State, err = astset.Read(path, cnf.IPV6)
+	s.State, err = astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1

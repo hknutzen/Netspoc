@@ -185,11 +185,11 @@ func (c *spoc) normalizeSrcDstList(
 		}
 	} else {
 		if s.ipV4Only {
-			c.err("Must not use 'ip4_only' in %s,"+
+			c.err("Must not use 'ipv4_only' in %s,"+
 				" because no combined IPv4/IPv6 objects are in use", s)
 		}
 		if s.ipV6Only {
-			c.err("Must not use 'ip6_only' in %s,"+
+			c.err("Must not use 'ipv6_only' in %s,"+
 				" because no combined IPv4/IPv6 objects are in use", s)
 		}
 		if srcList4 != nil && dstList6 != nil {

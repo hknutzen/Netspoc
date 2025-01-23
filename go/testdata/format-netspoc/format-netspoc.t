@@ -1035,6 +1035,73 @@ any:a = {
 =END=
 
 ############################################################
+=TITLE=Print IPv6 networks and interfaces in one line
+=INPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = {
+  ip6 = 2001:db8:1:2::1;
+  hardware = n2;
+ }
+}
+=OUTPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+=END=
+
+############################################################
+=TITLE=Combined IPv4/v6 networks and interfaces
+=INPUT=
+owner:o = { admins = a@example.com; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
+               owner = o; crosslink; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1;
+                  hardware = n2; owner = o; }
+}
+=OUTPUT=
+owner:o = {
+ admins = a@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ ip6 = 2001:db8:1:2::/64;
+ owner = o;
+ crosslink;
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  ip6 = 2001:db8:1:2::1;
+  hardware = n2;
+  owner = o;
+ }
+}
+=END=
+
+############################################################
 =TITLE=Sort hosts by IP or range
 =INPUT=
 network:n1 = {
