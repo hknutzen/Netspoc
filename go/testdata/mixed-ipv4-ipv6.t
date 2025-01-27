@@ -102,51 +102,6 @@ Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's addres
 =END=
 
 ############################################################
-=TITLE=Check model of IPv4/IPv6 router
-=INPUT=
--- file1
-network:n1 = { ip = 10.1.1.0/24; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
--- ipv6
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-router:r1 = {
- managed;
- model = IOS;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
-}
-=ERROR=
-Error: All instances of router:r1 must have identical model
-=END=
-
-############################################################
-=TITLE=Empty IPv6 topology
-=INPUT=
--- file
--- ipv6/file
-=ERROR=
-Warning: Ignoring file 'file' without any content
-Warning: Ignoring file 'ipv6/file' without any content
-Error: topology seems to be empty
-Aborted
-=END=
-
-############################################################
-=TITLE=Empty IPv4 topology
-=INPUT=
--- file
--- ipv4
-=ERROR=
-Warning: Ignoring file 'file' without any content
-Warning: Ignoring file 'ipv4' without any content
-Error: topology seems to be empty
-Aborted
-=OPTIONS=--ipv6
-
-############################################################
 =TITLE=Verbose output with progress messages
 =TEMPL=input
 group:v4 = ;

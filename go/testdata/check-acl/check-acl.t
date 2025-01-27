@@ -207,13 +207,13 @@ deny   10.1.1.11 10.0.0.0 tcp 85
 ############################################################
 =TITLE=IPv6
 =INPUT=
-network:n1 = { ip = 1000::abcd:0001:0/112;}
-network:n2 = { ip = 1000::abcd:0002:0/112;}
+network:n1 = { ip6 = 1000::abcd:0001:0/112;}
+network:n2 = { ip6 = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
- interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+ interface:n1 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip6 = 1000::abcd:0002:0001; hardware = n2;}
 }
 service:s1 = {
  user = network:n1;
@@ -221,7 +221,6 @@ service:s1 = {
  dst = network:n2;
  prt = tcp 80-90;
 }
-=OPTIONS=-6
 =PARAMS=ipv6/r1 n1_in
 =PARAM=
 1000::abcd:0001:11 1000::abcd:0002:12 tcp 85

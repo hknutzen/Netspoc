@@ -331,7 +331,7 @@ router:R = {
 }
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Missing IP in secondary:second of interface:R.N
+Error: Missing 'ip' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -343,7 +343,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unexpected attribute in secondary:second of interface:R.N: foo
-Error: Missing IP in secondary:second of interface:R.N
+Error: Missing 'ip' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -388,7 +388,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unexpected attribute in 'virtual' of interface:R.N: foo
-Error: Missing IP in 'virtual' of interface:R.N
+Error: Missing 'ip' in 'virtual' of interface:R.N
 =END=
 
 ############################################################
@@ -439,6 +439,7 @@ Aborted
 
 ############################################################
 =TITLE=Unexpected definition after missing ';' in list
+# No IPv6
 =INPUT=
 group:g1 =
  host:h1,
@@ -543,6 +544,7 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 
 ############################################################
 =TITLE=Structured value expected
+# No IPv6
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = 10.1.1.10; host:h2; }
 =ERROR=
@@ -748,6 +750,7 @@ Error: Invalid identifier in definition of 'group:a@b'
 
 ############################################################
 =TITLE=Bad NAT name
+# No IPv6
 =INPUT=
 network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
 =ERROR=
@@ -996,6 +999,7 @@ Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n
 
 ############################################################
 =TITLE=Unexpected NAT attribute at network
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -1007,6 +1011,7 @@ Error: Unexpected attribute in nat:n of network:n: xyz
 
 ############################################################
 =TITLE=Unexpected NAT attribute at host
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -1019,6 +1024,7 @@ Error: Expecting exactly one attribute 'ip' in nat:n of host:h
 
 ############################################################
 =TITLE=Unexpected NAT attribute at interface
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;

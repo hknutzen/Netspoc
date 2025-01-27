@@ -98,6 +98,7 @@ Warning: Useless 'filter_only = 10.62.3.0/24' at router:r1
 
 ############################################################
 =TITLE=NAT not allowed
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.4.0/27; } }
 network:n2 = { ip = 10.62.2.0/27;  nat:n2 = { ip = 10.62.5.0/27; } }
@@ -201,6 +202,7 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Filter src in deny rule with zone cluster
+# No IPv6 NAT
 =INPUT=
 network:n0 = { ip = 10.0.0.0/24; nat:n0 = { ip = 10.62.0.0/24; } }
 router:r0 = {
@@ -515,6 +517,7 @@ access-group intern_in in interface intern
 
 ############################################################
 =TITLE=Multiple internal subnets, unnumbered, hidden
+# No IPv6 NAT
 =INPUT=
 network:n1   = { ip = 10.1.1.0/24; }
 network:n1-a = { ip = 10.1.1.32/27; subnet_of = network:n1; }

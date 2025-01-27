@@ -45,6 +45,8 @@ ip access-list extended n1_in
 
 ############################################################
 =TITLE=All interfaces of aggregate in zone cluster
+# No IPv6 NAT
+#
 # Must not add
 # - interface of unmanaged router with bind_nat,
 # - managed interface of unnumbered network.
@@ -1217,6 +1219,8 @@ service:test = {
 
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (2)
+# No IPv6 NAT
+#
 # Find interfaces in given order n3, n4,
 # even if reversed path was already found previously while
 # "Checking and marking rules with hidden or dynamic NAT"

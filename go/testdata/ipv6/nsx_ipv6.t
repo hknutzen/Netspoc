@@ -1,14 +1,13 @@
 ############################################################
 =TITLE=Need VRF
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Must use VRF ('@...' in name) at router:r1 of model NSX
@@ -16,15 +15,14 @@ Error: Must use VRF ('@...' in name) at router:r1 of model NSX
 
 ############################################################
 =TITLE=Need tier specified by extension
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1@vrf = {
  model = NSX;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Must add extension 'T0' or 'T1' at router:r1@vrf of model NSX
@@ -32,15 +30,14 @@ Error: Must add extension 'T0' or 'T1' at router:r1@vrf of model NSX
 
 ############################################################
 =TITLE=Invalid extension
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1@vrf = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Unknown extension in 'model' of router:r1@vrf: Tier-1
@@ -49,21 +46,20 @@ Error: Must add extension 'T0' or 'T1' at router:r1@vrf of model NSX
 
 ############################################################
 =TITLE=Need management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 router:r1@v2 = {
  model = NSX, T1;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = IN; }
- interface:n2 = { ip = ::a01:203; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:103; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:203; hardware = OUT; }
 }
 =ERROR=
 Error: Must define unmanaged router:r1
@@ -74,31 +70,26 @@ Error: Must define unmanaged router:r1
 ############################################################
 =TITLE=Only one IPv4 management_instance
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
 -- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 -- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
 =OUTPUT=
 --ipv6/ipv6/r1.info
 {"generated_by":"devel","model":"NSX","ip_list":["::a01:101"],"name_list":["r1"]}
@@ -109,30 +100,25 @@ router:r1@v1 = {
 ############################################################
 =TITLE=Only one IPv6 management_instance
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
 -- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 -- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:101; }
 }
 =OUTPUT=
 --ipv6/ipv6/r1.info
@@ -144,59 +130,54 @@ router:r1@v1 = {
 ############################################################
 =TITLE=IPv4 and IPv6 management_instance
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
 -- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
-}
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 -- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1 = {
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
+router:r1-6 = {
  model = NSX;
  management_instance;
- interface:n1v6 = { ip = ::a01:101; }
+ backup_of = router:r1;
+ interface:n1v6 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
 --ipv6/ipv6/r1.info
-{"generated_by":"devel","model":"NSX","ip_list":["::a01:101"],"name_list":["r1"]}
+{"generated_by":"devel","model":"NSX","ip_list":["::a01:101","::a01:101"],"name_list":["r1","r1-6"]}
 --ipv6/r1.info
-{"generated_by":"devel","model":"NSX","ip_list":["::a01:101"],"name_list":["r1"]}
+{"generated_by":"devel","model":"NSX","ip_list":["::a01:101","::a01:101"],"name_list":["r1","r1-6"]}
 =END=
 
 ############################################################
 =TITLE=management_instance has wrong model
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T1;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: router:r1@v1 and router:r1 must have identical model
@@ -204,26 +185,25 @@ Error: router:r1@v1 and router:r1 must have identical model
 
 ############################################################
 =TITLE=backup_of has wrong model
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = ::a01:163; }
+ interface:n1 = { ip6 = ::a01:163; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 =ERROR=
 Error: router:r1 and router:r2 must have identical model
@@ -231,22 +211,21 @@ Error: router:r1 and router:r2 must have identical model
 
 ############################################################
 =TITLE=Multiple interfaces with same hardware
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
- interface:n3 = { ip = ::a01:301; hardware = IN; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
+ interface:n3 = { ip6 = ::a01:301; hardware = IN; }
 }
 =ERROR=
 Error: Different interfaces must not share same hardware 'IN' at router:r1@v1 of model NSX
@@ -254,27 +233,26 @@ Error: Different interfaces must not share same hardware 'IN' at router:r1@v1 of
 
 ############################################################
 =TITLE=Wrong number of interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
 }
 router:r1@v2 = {
  model = NSX, T1;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = IN; }
- interface:n2 = { ip = ::a01:203; hardware = OUT; }
- interface:n3 = { ip = ::a01:303; hardware = DMZ; }
+ interface:n1 = { ip6 = ::a01:103; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:203; hardware = OUT; }
+ interface:n3 = { ip6 = ::a01:303; hardware = DMZ; }
 }
 =ERROR=
 Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN and OUT
@@ -283,20 +261,19 @@ Error: router:r1@v2 of model NSX must have exactly 2 interfaces with hardware IN
 
 ############################################################
 =TITLE=Wrong hardware of interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = I; }
- interface:n2 = { ip = ::a01:203; hardware = O; }
+ interface:n1 = { ip6 = ::a01:102; hardware = I; }
+ interface:n2 = { ip6 = ::a01:203; hardware = O; }
 }
 =ERROR=
 Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN and OUT
@@ -304,39 +281,38 @@ Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN
 
 ############################################################
 =TITLE=Simple rules, use backup_of
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
 }
-network:n2 = { ip = ::a01:200/120;
- host:h30 = { ip = ::a01:21e; }
- host:h40 = { ip = ::a01:228; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h30 = { ip6 = ::a01:21e; }
+ host:h40 = { ip6 = ::a01:228; }
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = NSX;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = ::a01:109; }
+ interface:n1 = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 router:r1@v2 = {
  model = NSX, T1;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = IN; }
- interface:n3 = { ip = ::a01:301; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:103; hardware = IN; }
+ interface:n3 = { ip6 = ::a01:301; hardware = OUT; }
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -786,26 +762,25 @@ service:s4 = {
 
 ############################################################
 =TITLE=Define group even if used only once
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
 }
-network:n2 = { ip = ::a01:200/120;
- host:h30 = { ip = ::a01:21e; }
- host:h40 = { ip = ::a01:228; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h30 = { ip6 = ::a01:21e; }
+ host:h40 = { ip6 = ::a01:228; }
 }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -940,21 +915,20 @@ service:s1 = {
 
 ############################################################
 =TITLE=Without rules but log_deny with tag
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T1;
  managed;
  log_deny = tag:r1@v1;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
 --ipv6/r1
@@ -1024,28 +998,27 @@ router:r1@v1 = {
 
 ############################################################
 =TITLE=Log Deny for multiple vrfs
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T1;
  managed;
  log_deny = tag:r1@v1;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 router:r1@v2 = {
  model = NSX, T1;
  managed;
  log_deny = tag:r1@v2;
- interface:n1 = { ip = ::a01:103; hardware = IN; }
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:103; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
 }
 =OUTPUT=
 --ipv6/r1
@@ -1171,14 +1144,13 @@ router:r1@v2 = {
 
 ############################################################
 =TITLE=ICMP and numeric protocol with mixed logging
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, T0;
@@ -1186,8 +1158,8 @@ router:r1@v1 = {
  log_default;
  log_deny = tag:T0;
  log:x = tag:x;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 service:s1 = {
  user = network:n1;
@@ -1395,25 +1367,24 @@ service:s1 = {
 
 ############################################################
 =TITLE=Optimize duplicate IP address
-=PARAMS=--ipv6
 =INPUT=
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:r1@T0 = {
  model = NSX, T0;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = OUT; }
- interface:n2 = { ip = ::a01:201; hardware = IN; }
+ interface:n1 = { ip6 = ::a01:102; hardware = OUT; }
+ interface:n2 = { ip6 = ::a01:201; hardware = IN; }
 }
 
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 
 router:T0-T1 = {
  interface:n2;
@@ -1425,13 +1396,13 @@ router:r1@T1 = {
  model = NSX, T1;
  managed;
  routing = manual;
- interface:n4 = { ip = ::a01:401; hardware = OUT; }
- interface:n5 = { ip = ::a01:501; hardware = IN; }
+ interface:n4 = { ip6 = ::a01:401; hardware = OUT; }
+ interface:n5 = { ip6 = ::a01:501; hardware = IN; }
 }
 
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 
 service:s1 = {
  user = any:[network:n3],
@@ -1618,30 +1589,29 @@ service:s1 = {
 
 ############################################################
 =TITLE=Add policy distribution point to info file
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120;
- host:netspoc = { ip = ::a01:309; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120;
+ host:netspoc = { ip6 = ::a01:309; }
 }
 router:r1@vrf = {
  managed;
  model = NSX,T0;
- interface:n1 = { ip = ::a01:10b; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:10b; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
 }
 router:r1 = {
  management_instance;
  policy_distribution_point = host:netspoc;
  model = NSX;
- interface:n1 = { ip = ::a01:101; hardware = device; }
+ interface:n1 = { ip6 = ::a01:101; hardware = device; }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:admin = {
  user = interface:r1.n1;
@@ -1654,31 +1624,30 @@ service:admin = {
 
 ############################################################
 =TITLE=managed = local
-=PARAMS=--ipv6
 =INPUT=
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a3e:122; }
+ interface:n1 = { ip6 = ::a3e:122; }
 }
 
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:r1@T0 = {
  model = NSX, T0;
  managed = local;
  routing = manual;
  filter_only = ::a3e:0/117, ::a3e:f100/120;
- interface:n1 = { ip = ::a3e:121; hardware = IN; }
- interface:n2 = { ip = ::a3e:f101; hardware = OUT; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = IN; }
+ interface:n2 = { ip6 = ::a3e:f101; hardware = OUT; }
 }
-network:n2 = { ip = ::a3e:f100/125; }
+network:n2 = { ip6 = ::a3e:f100/125; }
 router:d31 = {
  model = ASA;
  managed;
- interface:n2 = { ip = ::a3e:f102; hardware = inside; }
- interface:extern = { ip = ::a7d:301; hardware = outside; }
+ interface:n2 = { ip6 = ::a3e:f102; hardware = inside; }
+ interface:extern = { ip6 = ::a7d:301; hardware = outside; }
 }
-network:extern = { ip = ::a7d:300/120; }
+network:extern = { ip6 = ::a7d:300/120; }
 service:Test = {
  user = network:extern, network:n2;
  permit src = user;
@@ -1847,29 +1816,28 @@ service:Test = {
 
 ############################################################
 =TITLE=VRF members with mixed managed and managed=local
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:122; }
+ interface:n1 = { ip6 = ::a01:122; }
 }
 
 router:r1@T0 = {
  model = NSX, T0;
  managed = local;
  filter_only = ::a01:0/112;
- interface:n1 = { ip = ::a01:102; hardware = OUT; }
- interface:n2 = { ip = ::a01:201; hardware = IN; }
+ interface:n1 = { ip6 = ::a01:102; hardware = OUT; }
+ interface:n2 = { ip6 = ::a01:201; hardware = IN; }
 }
 router:r1@T1 = {
  model = NSX, T1;
  managed;
- interface:n2 = { ip = ::a01:202; hardware = OUT; }
- interface:n3 = { ip = ::a01:302; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = OUT; }
+ interface:n3 = { ip6 = ::a01:302; hardware = IN; }
 }
 service:test = {
  user = network:n1;
@@ -2098,36 +2066,35 @@ service:test = {
 
 ############################################################
 =TITLE=VRF members with different value of filter_only
-=PARAMS=--ipv6
 =INPUT=
-network:n11 = { ip = ::a01:100/120; }
-network:n12 = { ip = ::a01:200/120; }
-network:n21 = { ip = ::a02:100/120; }
-network:n22 = { ip = ::a02:200/120; }
+network:n11 = { ip6 = ::a01:100/120; }
+network:n12 = { ip6 = ::a01:200/120; }
+network:n21 = { ip6 = ::a02:100/120; }
+network:n22 = { ip6 = ::a02:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n11 = { ip = ::a01:122; }
+ interface:n11 = { ip6 = ::a01:122; }
 }
 router:r1@v1 = {
  model = NSX, T0;
  managed = local;
  filter_only = ::a01:100/120, ::a01:200/120;
- interface:n11 = { ip = ::a01:102; hardware = OUT; }
- interface:n12 = { ip = ::a01:201; hardware = IN; }
+ interface:n11 = { ip6 = ::a01:102; hardware = OUT; }
+ interface:n12 = { ip6 = ::a01:201; hardware = IN; }
 }
 router:d32 = {
  model = ASA;
  managed;
- interface:n12 = { ip = ::a01:202; hardware = n12; }
- interface:n21 = { ip = ::a02:102; hardware = n21; }
+ interface:n12 = { ip6 = ::a01:202; hardware = n12; }
+ interface:n21 = { ip6 = ::a02:102; hardware = n21; }
 }
 router:r1@v2 = {
  model = NSX, T0;
  managed = local;
  filter_only = ::a02:100/120, ::a02:200/120;
- interface:n21 = { ip = ::a02:101; hardware = OUT; }
- interface:n22 = { ip = ::a02:201; hardware = IN; }
+ interface:n21 = { ip6 = ::a02:101; hardware = OUT; }
+ interface:n22 = { ip6 = ::a02:201; hardware = IN; }
 }
 service:test = {
  user = network:n11, network:n21;

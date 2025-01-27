@@ -208,7 +208,6 @@ go/testdata/ipv6/local-opt_ipv6.t
 go/testdata/ipv6/log_ipv6.t
 go/testdata/ipv6/loopback_ipv6.t
 go/testdata/ipv6/makefile
-go/testdata/ipv6/nat_ipv6.t
 go/testdata/ipv6/nsx_ipv6.t
 go/testdata/ipv6/optimize-subnet_ipv6.t
 go/testdata/ipv6/overlaps_ipv6.t

@@ -1,20 +1,19 @@
 =TEMPL=topo
-network:x = { ip = ::a01:100/120;
+network:x = { ip6 = ::a01:100/120;
 }
 router:r = {
  model = IOS;
  managed;
- interface:x = { ip = ::a01:101; hardware = e0; }
- interface:y = { ip = ::a02:202; hardware = e1; }
+ interface:x = { ip6 = ::a01:101; hardware = e0; }
+ interface:y = { ip6 = ::a02:202; hardware = e1; }
 }
-network:y = { ip = ::a02:200/120;
- host:y = { ip = ::a02:209; }
+network:y = { ip6 = ::a02:200/120;
+ host:y = { ip6 = ::a02:209; }
 }
 =END=
 
 ############################################################
 =TITLE=Optimize reverse rules
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1 = {
@@ -48,7 +47,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Reverse UDP ports
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -72,7 +70,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Reverse UDP any
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -94,7 +91,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Recognize UDP non any
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -116,7 +112,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=UDP source port with unspecified destination port
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ike = udp 69:1-65535;
@@ -139,7 +134,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=UDP source ports
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ike = udp 500:500;
@@ -162,7 +156,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Optimized UDP source ports
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ike = udp 500:500;
@@ -185,7 +178,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=No warning on overlapping stateless range
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ftp-passive-data = tcp 1024-65535, stateless;
@@ -208,14 +200,13 @@ ipv6 access-list e0_in
 
 ############################################################
 =TITLE=Reverse rule for model with statelessSelf
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:r1 = {
  model = IOS, FW;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 
 service:s1 = {
@@ -232,14 +223,13 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Generate no reverse rule for model without statelessSelf
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:r1 = {
  model = Linux;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 
 service:s1 = {

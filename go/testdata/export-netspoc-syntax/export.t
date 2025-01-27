@@ -229,49 +229,6 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=IPv4 and IPv6 router
-=INPUT=
---topo
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = {ip = 10.1.1.1; virtual = {ip = 10.1.1.9;} hardware = n1;}
-}
---ipv6/topo
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = {ip = dead:beef::1; hardware = n1;}
-}
-=OUTPUT=
-{
- "router":[
- {"name":"router:r1",
-  "ipv6": true,
-  "managed": null,
-  "model":["ASA"],
-  "interfaces":{
-   "interface:n1":{
-    "ip": [ "dead:beef::1" ],
-    "hardware": [ "n1" ]
-   }
-  }
- },
- {"name":"router:r1",
-  "managed": null,
-  "model":["ASA"],
-  "interfaces":{
-   "interface:n1":{
-    "ip": [ "10.1.1.1" ],
-    "hardware": [ "n1" ],
-    "virtual": { "ip": [ "10.1.1.9" ] }
-   }
-  }
- }]
-}
-=END=
-
-############################################################
 =TITLE=Filter objects by name
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -343,3 +300,67 @@ area:a1 = {
   }]
 }
 =PARAMS= group: area:
+
+############################################################
+=TITLE=Objects with IPv6 address
+=INPUT=
+any:n1 = { ip6 = 2001:db8::/32; link = network:n1; }
+network:n1 = {
+ ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip6 = 2001:db8:1:1::10; }
+}
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+}
+service:s1 = {
+ user = any:[ ip6 = 2001:db8::/30 & network:n1 ];
+ permit src = user; dst = interface:r1.n1; prt = icmpv6;
+}
+=OUTPUT=
+{
+ "any": [
+  {
+   "ip6": [ "2001:db8::/32" ],
+   "link": [ "network:n1" ],
+   "name": "any:n1"
+  }
+ ],
+ "network": [
+  {
+   "hosts": {
+    "host:h1": {
+     "ip6": [ "2001:db8:1:1::10" ]
+    }
+   },
+   "ip6": [ "2001:db8:1:1::/64" ],
+   "name": "network:n1"
+  }
+ ],
+ "router": [
+  {
+   "interfaces": {
+    "interface:n1": {
+     "ip6": [ "2001:db8:1:1::1" ]
+    }
+   },
+   "name": "router:r1"
+  }
+ ],
+ "service": [
+  {
+   "name": "service:s1",
+   "rules": [
+    {
+     "action": "permit",
+     "dst": [ "interface:r1.n1" ],
+     "prt": [ "icmpv6" ],
+     "src": [ "user" ]
+    }
+   ],
+   "user": [
+    "any:[ip6=2001:db8::/30&network:n1]"
+   ]
+  }
+ ]
+}
+=END=

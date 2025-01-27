@@ -88,6 +88,7 @@ Error: Attribute 'routing' not supported for bridge router:bridge
 
 ############################################################
 =TITLE=Bridged network must not have NAT
+# No IPv6 NAT
 =INPUT=
 network:n1/left = {
  ip = 10.1.1.0/24;
@@ -107,6 +108,7 @@ Error: Only identity NAT allowed for bridged network:n1/left
 
 ############################################################
 =TITLE=Bridged network must not inherit NAT
+# No IPv6 NAT
 =INPUT=
 any:a = { link = network:n1/left; nat:x = { ip = 10.1.2.0/26; dynamic; } }
 network:n1/left = { ip = 10.1.1.0/24; }
@@ -619,6 +621,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 
 ############################################################
 =TITLE=Missing hop behind chained bridges
+# No IPv6
 =INPUT=
 [[input negotiated]]
 =ERROR=

@@ -625,6 +625,7 @@ route n2 10.1.5.128 255.255.255.128 10.1.2.3
 
 ############################################################
 =TITLE=Check NAT when finding largest supernet for route.
+# No IPv6 NAT
 =INPUT=
 network:src = { ip = 10.1.1.0/24; }
 router:r = {

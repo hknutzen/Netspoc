@@ -28,10 +28,6 @@ Uses network:name as reference when resolving IP address in a NAT environment.
 
 Show name, not IP of elements.
 
-=item B<-ipv6>
-
-Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
-
 =item B<-quiet>
 
 Don't print progress messages.
@@ -250,7 +246,6 @@ func PrintServiceMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
 	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
@@ -276,7 +271,6 @@ func PrintServiceMain(d oslink.Data) int {
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 	return toplevelSpoc(d, cnf, func(c *spoc) {

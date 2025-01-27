@@ -163,7 +163,7 @@ func splitCombined46(l groupObjList) (v4, v6 groupObjList, v46 bool) {
 }
 
 func (c *spoc) normalizeSrcDstList(
-	r *unexpRule, l groupObjList, s *service) [][2]srvObjList {
+	r *unexpRule, l groupObjList, s *service) ([][2]srvObjList, bool) {
 
 	ctx := s.name
 	c.userObj.elements = l
@@ -185,11 +185,11 @@ func (c *spoc) normalizeSrcDstList(
 		}
 	} else {
 		if s.ipV4Only {
-			c.err("Must not use 'ip4_only' in %s,"+
+			c.err("Must not use 'ipv4_only' in %s,"+
 				" because no combined IPv4/IPv6 objects are in use", s)
 		}
 		if s.ipV6Only {
-			c.err("Must not use 'ip6_only' in %s,"+
+			c.err("Must not use 'ipv6_only' in %s,"+
 				" because no combined IPv4/IPv6 objects are in use", s)
 		}
 		if srcList4 != nil && dstList6 != nil {
@@ -246,12 +246,15 @@ func (c *spoc) normalizeSrcDstList(
 			c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
 		addExtra(extraDstSrc)
 
+		if expSrcList == nil && expDstList == nil {
+			return
+		}
 		resultPairs = append(resultPairs, [2]srvObjList{expSrcList, expDstList})
 		resultPairs = append(resultPairs, extraResult...)
 	}
 	process(srcList4, dstList4)
 	process(srcList6, dstList6)
-	return resultPairs
+	return resultPairs, has46
 }
 
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
@@ -272,7 +275,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 		}
 		simplePrtList, complexPrtList := classifyProtocols(prtList)
 		process := func(elt groupObjList) {
-			srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
+			srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, s)
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
@@ -282,23 +285,25 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 					continue
 				}
 				v6Active := srcList[0].isIPv6()
-				c.checkProtoListV4V6(
-					simplePrtList, v6Active, false, s.name)
+				l := c.checkProtoListV4V6(simplePrtList, v6Active, has46, s.name)
 				rule := serviceRule{
 					deny: deny,
 					src:  srcList,
 					dst:  dstList,
-					prt:  simplePrtList,
+					prt:  l,
 					log:  log,
 					rule: uRule,
 				}
-				if simplePrtList != nil {
+				if l != nil {
 					store.push(&rule)
 				}
 				for _, compl := range complexPrtList {
 					prt, srcRange := compl.prt, compl.src
-					c.checkProtoListV4V6(
-						protoList{prt}, v6Active, false, s.name)
+					l := protoList{prt}
+					l = c.checkProtoListV4V6(l, v6Active, has46, s.name)
+					if l == nil {
+						continue
+					}
 					r2 := rule
 					if compl.modifiers != nil {
 						r2.modifiers = *compl.modifiers
@@ -306,7 +311,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 							r2.src, r2.dst = rule.dst, rule.src
 						}
 					}
-					r2.prt = protoList{prt}
+					r2.prt = l
 					r2.srcRange = srcRange
 					r2.statelessICMP = prt.statelessICMP
 					store.push(&r2)

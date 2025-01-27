@@ -1,12 +1,12 @@
 
 ############################################################
 =TITLE=Unnumbered network must not have attributes
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 network:u = {
- unnumbered;
- nat:x = { ip = ::a01:200/120; }
- host:h = { ip = ::a01:10a; }
+ unnumbered6;
+ nat:x = { ip6 = ::a01:200/120; }
+ host:h = { ip6 = ::a01:10a; }
  has_subnets;
 }
 =ERROR=
@@ -17,11 +17,10 @@ Error: Unnumbered network:u must not have host definition
 
 ############################################################
 =TITLE=Unnumbered interface must not have virtual IP
-=PARAMS=--ipv6
 =INPUT=
-network:u = { unnumbered; }
+network:u = { unnumbered6; }
 router:r1 = {
-  interface:u = { unnumbered; virtual = { ip = ::a01:16f; } }
+  interface:u = { unnumbered6; virtual = { ip6 = ::a01:16f; } }
 }
 =ERROR=
 Error: No virtual IP supported for unnumbered interface:r1.u
@@ -29,13 +28,12 @@ Error: No virtual IP supported for unnumbered interface:r1.u
 
 ############################################################
 =TITLE=Unnumbered interface must not have routing protocol
-=PARAMS=--ipv6
 =INPUT=
-network:u = { unnumbered; }
+network:u = { unnumbered6; }
 router:r1 = {
  managed;
  model = IOS;
-  interface:u = { unnumbered; hardware = u; routing = OSPF; }
+  interface:u = { unnumbered6; hardware = u; routing = OSPF; }
 }
 =ERROR=
 Error: Routing 'OSPF' not supported for unnumbered interface:r1.u
@@ -43,13 +41,12 @@ Error: Routing 'OSPF' not supported for unnumbered interface:r1.u
 
 ############################################################
 =TITLE=Unnumbered network to interface with IP
-=PARAMS=--ipv6
 =INPUT=
 network:u = {
- unnumbered;
+ unnumbered6;
 }
 router:r1 = {
-  interface:u = { ip = ::a01:101; }
+  interface:u = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: interface:r1.u must not be linked to unnumbered network:u
@@ -57,11 +54,10 @@ Error: interface:r1.u must not be linked to unnumbered network:u
 
 ############################################################
 =TITLE=Unnumbered interface to network with IP
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
-  interface:n1 = { unnumbered; }
+  interface:n1 = { unnumbered6; }
 }
 =ERROR=
 Error: Unnumbered interface:r1.n1 must not be linked to network:n1
@@ -69,12 +65,11 @@ Error: Unnumbered interface:r1.n1 must not be linked to network:n1
 
 ############################################################
 =TITLE=Unnumbered network to more than two interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:u = { unnumbered; }
-router:r1 = { interface:u = { unnumbered; } }
-router:r2 = { interface:u = { unnumbered; } }
-router:r3 = { interface:u = { unnumbered; } }
+network:u = { unnumbered6; }
+router:r1 = { interface:u = { unnumbered6; } }
+router:r2 = { interface:u = { unnumbered6; } }
+router:r3 = { interface:u = { unnumbered6; } }
 =ERROR=
 Error: Unnumbered network:u is connected to more than two interfaces:
  - interface:r1.u
@@ -84,16 +79,15 @@ Error: Unnumbered network:u is connected to more than two interfaces:
 
 ############################################################
 =TITLE=Must not use unnumbered network / interface in rule
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:un = { unnumbered; hardware = un; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered6; hardware = un; }
 }
-network:un = { unnumbered; }
+network:un = { unnumbered6; }
 service:test = {
  user = network:n1, interface:r.un;
  permit src = user; dst = network:un; prt = tcp 80;
@@ -106,20 +100,20 @@ Warning: Ignoring unnumbered network:un in dst of rule in service:test
 ############################################################
 =TITLE=Zone cluster with unnumbered network (1)
 =TEMPL=input
-network:servers = { ip = ::a01:720/123; }
+network:servers = { ip6 = ::a01:720/123; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:servers = { ip = ::a01:721; hardware = e0; }
- interface:clients = { ip = ::a01:201; hardware = eth1; }
- interface:unn = { unnumbered; hardware = eth2; }
+ interface:servers = { ip6 = ::a01:721; hardware = e0; }
+ interface:clients = { ip6 = ::a01:201; hardware = eth1; }
+ interface:unn = { unnumbered6; hardware = eth2; }
 }
-network:unn = { unnumbered; }
+network:unn = { unnumbered6; }
 router:s = {
  interface:unn;
- interface:clients = { ip = ::a01:202; }
+ interface:clients = { ip6 = ::a01:202; }
 }
-network:clients = { ip = ::a01:200/120; }
+network:clients = { ip6 = ::a01:200/120; }
 pathrestriction:clients = interface:s.clients, interface:r.clients;
 service:test = {
  user = any:[network:{{.}}];
@@ -132,7 +126,6 @@ ipv6 access-list eth2_in
  deny ipv6 any host ::a01:721
  permit tcp any ::a01:720/123 eq 80
  deny ipv6 any any
-=PARAMS=--ipv6
 =INPUT=[[input clients]]
 =OUTPUT=
 [[output]]
@@ -140,7 +133,6 @@ ipv6 access-list eth2_in
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
-=PARAMS=--ipv6
 =INPUT=[[input unn]]
 =OUTPUT=
 [[output]]
@@ -150,17 +142,17 @@ ipv6 access-list eth2_in
 =TITLE=Auto aggregate in zone cluster with unnumbered (1)
 =TEMPL=input
 router:Z = {
- interface:c = { unnumbered; }
- interface:L = { ip = ::a01:104; }
+ interface:c = { unnumbered6; }
+ interface:L = { ip6 = ::a01:104; }
 }
 router:L = {
  managed;
  model = IOS;
- interface:c = { unnumbered; hardware = G2; }
- interface:L = { ip = ::a01:103; hardware = G0; }
+ interface:c = { unnumbered6; hardware = G2; }
+ interface:L = { ip6 = ::a01:103; hardware = G0; }
 }
-network:c = {unnumbered;}
-network:L = {ip = ::a01:100/120;}
+network:c = {unnumbered6;}
+network:L = {ip6 = ::a01:100/120;}
 pathrestriction:x = interface:Z.L, interface:L.L;
 service:Test = {
  user = interface:L.[all];
@@ -168,7 +160,6 @@ service:Test = {
         dst = user;
         prt = icmpv6 8;
 }
-=PARAMS=--ipv6
 =INPUT=[[input user]]
 =OUTPUT=
 --ipv6/L
@@ -183,8 +174,7 @@ ipv6 access-list G0_in
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (2)
-=PARAMS=--ipv6
-=INPUT=[[input "ip=::a00:0/104 & user"]]
+=INPUT=[[input "ip6=::a00:0/104 & user"]]
 =OUTPUT=
 --ipv6/L
 ipv6 access-list G2_in
@@ -203,26 +193,25 @@ router:u1 = {
  model = IOS;
  interface:dummy{{.}}
 }
-network:dummy = { unnumbered; }
+network:dummy = { unnumbered6; }
 router:u2 = {
- interface:dummy = { unnumbered; }
- interface:n1 = { ip = ::a01:102; }
+ interface:dummy = { unnumbered6; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = {ip = ::a01:101; hardware = n1; }
- interface:n2 = {ip = ::a01:201; hardware = n2; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = {ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:s1 = {
  user = interface:u1.[auto];
  permit src = network:n2;
         dst = user;
 	prt = tcp 22;
 }
-=PARAMS=--ipv6
 =INPUT=[[input ";"]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
@@ -232,8 +221,7 @@ Error: interface:u1.dummy without IP address (from .[auto])
 ############################################################
 =TITLE=Auto interface expands to unnumbered interface
 # and this unnumbered interface is silently ignored.
-=PARAMS=--ipv6
-=INPUT=[[input " = { unnumbered; }"]]
+=INPUT=[[input " = { unnumbered6; }"]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -244,25 +232,24 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Auto interface to unnumbered with different destination
 # Must not internally create rule with empty src-list from auto interface.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a01:200/120;}
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a01:200/120;}
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = {ip = ::a01:101; hardware = n1;}
- interface:n2 = {ip = ::a01:201; hardware = n2;}
- interface:n3 = {ip = ::a01:301; hardware = n3;}
+ interface:n1 = {ip6 = ::a01:101; hardware = n1;}
+ interface:n2 = {ip6 = ::a01:201; hardware = n2;}
+ interface:n3 = {ip6 = ::a01:301; hardware = n3;}
 }
-network:n3 = {ip = ::a01:300/120;}
+network:n3 = {ip6 = ::a01:300/120;}
 router:r2 = {
- interface:n3 = {ip = ::a01:302;}
- interface:u  = {unnumbered;}
+ interface:n3 = {ip6 = ::a01:302;}
+ interface:u  = {unnumbered6;}
 }
-network:u = {unnumbered;}
+network:u = {unnumbered6;}
 router:r3 = {
- interface:u = {unnumbered;}
+ interface:u = {unnumbered6;}
 }
 service:s1  = {
  user = interface:r3.[auto], interface:r2.n3;

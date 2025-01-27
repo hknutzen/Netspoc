@@ -1,26 +1,25 @@
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; host:h3 = { ip6 = ::a01:30a; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 =END=
 
 ############################################################
 =TITLE=Must not define anchor together with border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -44,7 +43,6 @@ Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusi
 
 ############################################################
 =TITLE=Must define either anchor or border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a = {}
@@ -54,7 +52,6 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 
 ############################################################
 =TITLE=Must not use interface as border and inclusive_border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a = {
@@ -67,7 +64,6 @@ Error: interface:asa2.n3 is used as 'border' and 'inclusive_border' in area:a
 
 ############################################################
 =TITLE=Only interface as border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a = { inclusive_border = network:n1; border = interface:asa1.n2; }
@@ -77,7 +73,6 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 
 ############################################################
 =TITLE=No automatic interface as border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a = { inclusive_border = interface:asa1.[all] &! interface:asa1.n2; }
@@ -89,9 +84,8 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 
 ############################################################
 =TITLE=Unmanaged interface can't be border
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = { interface:n1; }
 area:a = { border = interface:r1.n1; }
 =ERROR=
@@ -101,7 +95,6 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 
 ############################################################
 =TITLE=Policy distribution point from nested areas
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 # a3 < a2 < all, a1 < all
@@ -132,7 +125,6 @@ service:pdp3 = {
 
 ############################################################
 =TITLE=Missing policy distribution point
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:all = {
@@ -157,15 +149,14 @@ Warning: Missing attribute 'policy_distribution_point' for 1 devices:
 
 ############################################################
 =TITLE=Overlapping areas
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
-network:n4 = { ip = ::a01:400/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:203; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa2.n2; }
@@ -178,7 +169,6 @@ Error: Overlapping area:a2 and area:a2x
 
 ############################################################
 =TITLE=Duplicate areas
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = { border = interface:asa1.n1; }
@@ -190,7 +180,6 @@ Error: Duplicate area:a2 and area:a2x
 
 ############################################################
 =TITLE=Distinct areas, only router is different
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a2 = { border = interface:asa1.n2; }
@@ -202,33 +191,32 @@ area:a2r = { inclusive_border = interface:asa1.n1; }
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; host:h3 = { ip6 = ::a01:30a; } }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:asa2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n5 = { ip = ::a01:502; hardware = n5; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:502; hardware = n5; }
 }
 =END=
 
 ############################################################
 =TITLE=Overlapping areas at router
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -246,7 +234,6 @@ Error: Overlapping area:a2 and area:a1
 
 ############################################################
 =TITLE=Missing router in overlapping areas
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -264,7 +251,6 @@ Error: Overlapping area:a1 and area:a2
 
 ############################################################
 =TITLE=Overlap at area that has been processed before
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = { border = interface:asa1.n1; }
@@ -280,7 +266,6 @@ Error: Overlapping area:a123 and area:a245
 
 ############################################################
 =TITLE=Empty area
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -292,7 +277,6 @@ Warning: area:a1 is empty
 
 ############################################################
 =TITLE=Inconsistent definition of area in loop
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -319,7 +303,6 @@ Error: Inconsistent definition of area:a2 in loop.
 ############################################################
 =TITLE=ACL from inclusive area
 # border and inclusive_border can contact at an interface.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -351,7 +334,6 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Router attributes from inclusive area
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {
@@ -372,7 +354,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Unreachable border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = { border = interface:asa1.n1, interface:asa2.n2; }
@@ -383,7 +364,6 @@ Error: Unreachable border of area:a1:
 
 ############################################################
 =TITLE=Unreachable inclusive_border
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 
@@ -397,7 +377,6 @@ Error: Unreachable inclusive_border of area:a1:
 
 ############################################################
 =TITLE=Must not use area directly in rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:a1 = {border = interface:asa1.n1;}
@@ -408,18 +387,17 @@ Warning: Ignoring area:a1 in src of rule in service:s1
 
 ############################################################
 =TITLE=Check for useless inheritance of policy_distribution_point
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n;
  router_attributes = { policy_distribution_point = host:h; }
 }
-network:n = { ip = ::a01:100/120; host:h = { ip = ::a01:16f; } }
+network:n = { ip6 = ::a01:100/120; host:h = { ip6 = ::a01:16f; } }
 router:r = {
  managed;
  model = IOS;
   policy_distribution_point = host:h;
- interface:n = { ip = ::a01:102; hardware = e1; }
+ interface:n = { ip6 = ::a01:102; hardware = e1; }
 }
 =WARNING=
 Warning: Useless 'policy_distribution_point' at router:r,
@@ -430,11 +408,10 @@ Warning: Missing rules to reach 1 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=Must not use unconnected network as anchor
-=PARAMS=--ipv6
 =INPUT=
-router:r = {managed; model = IOS; interface:n1 = { ip = ::a0a:a02; hardware = port1; }}
-network:n1 = { ip = ::a0a:a00/120; }
-network:n2 = { ip = ::a0b:b00/120; }
+router:r = {managed; model = IOS; interface:n1 = { ip6 = ::a0a:a02; hardware = port1; }}
+network:n1 = { ip6 = ::a0a:a00/120; }
+network:n2 = { ip6 = ::a0b:b00/120; }
 
 area:a1 = {
  anchor = network:n2;

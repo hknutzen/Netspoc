@@ -45,6 +45,7 @@ Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
 
 ############################################################
 =TITLE=Virtual interface with NAT
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/25; dynamic; }}
 network:n2 = { ip = 10.1.2.0/24; }

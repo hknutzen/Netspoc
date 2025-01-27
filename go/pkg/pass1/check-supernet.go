@@ -194,7 +194,9 @@ func (c *spoc) checkSupernetInZone1(
 	if agg == nil {
 		if len(networks) > 2 {
 			// Show also aggregate, if multiple networks are found.
-			orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, networks[0])
+			n0 := networks[0]
+			attr := v6Attr("ip", n0.ipV6)
+			orAgg = fmt.Sprintf("any:[ %s=%s & %s ]", attr, ipp, n0)
 		}
 	} else {
 		if networks == nil {

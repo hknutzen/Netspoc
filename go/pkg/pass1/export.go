@@ -434,8 +434,10 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, sv)
-				srcDstListPairs = joinV46Pairs(srcDstListPairs)
+				srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, sv)
+				if has46 {
+					srcDstListPairs = joinV46Pairs(srcDstListPairs)
+				}
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 
@@ -1456,7 +1458,6 @@ func ExportMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -1476,7 +1477,6 @@ func ExportMain(d oslink.Data) int {
 	out := args[1]
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)

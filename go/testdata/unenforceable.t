@@ -2,7 +2,7 @@
 network:x = { ip = 10.1.1.0/24;
  host:x7 = { ip = 10.1.1.7; }
  host:x9 = { ip = 10.1.1.9; }
- host:range = { range = 10.1.1.6-10.1.1.11; }
+ host:rg = { range = 10.1.1.6-10.1.1.11; }
 }
 router:r = {
  model = IOS,FW;
@@ -130,7 +130,7 @@ service:test = {
 =INPUT=
 [[topo]]
 service:test = {
- user = host:range, host:y;
+ user = host:rg, host:y;
  permit src = user; dst = user; prt = tcp 80;
 }
 =WARNING=NONE

@@ -1,25 +1,24 @@
 
 ############################################################
 =TITLE=Combine adjacent ranges to whole network
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:range1 = { range = ::a01:100 - ::a01:17f; }
- host:range2 = { range = ::a01:180 - ::a01:1ff; }
+ ip6 = ::a01:100/120;
+ host:range1 = { range6 = ::a01:100 - ::a01:17f; }
+ host:range2 = { range6 = ::a01:180 - ::a01:1ff; }
 }
 router:u = {
  interface:n1;
- interface:t1 = { ip = ::a09:101; }
+ interface:t1 = { ip6 = ::a09:101; }
 }
-network:t1 = { ip = ::a09:100/120; }
+network:t1 = { ip6 = ::a09:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:test1 = {
  user = host:range1, host:range2;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -35,19 +34,18 @@ access-group t1_in in interface t1
 ############################################################
 =TITLE=Redundant combined hosts
 # Must recognize combined subnet as redundant.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1;}
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1;}
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = {ip = ::a01:232;}
- host:h2 = {ip = ::a01:233;}
+ ip6 = ::a01:200/120;
+ host:h1 = {ip6 = ::a01:232;}
+ host:h2 = {ip6 = ::a01:233;}
 }
 service:s1 = {
  overlaps = service:s3;
@@ -73,34 +71,33 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Combine adjacent networks
-=PARAMS=--ipv6
 =INPUT=
-network:n0 = { ip = ::a01:0/120; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3a = { ip = ::a01:300/121; }
-network:n3b = { ip = ::a01:380/121; }
-network:n4 = { ip = ::a04:0/112; }
-network:n5 = { ip = ::a05:0/112; }
+network:n0 = { ip6 = ::a01:0/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3a = { ip6 = ::a01:300/121; }
+network:n3b = { ip6 = ::a01:380/121; }
+network:n4 = { ip6 = ::a04:0/112; }
+network:n5 = { ip6 = ::a05:0/112; }
 router:u1 = {
  interface:n0;
  interface:n1;
  interface:n2;
  interface:n3a;
  interface:n3b;
- interface:l0 = { ip = ::a02:100; loopback; }
- interface:l1 = { ip = ::a02:101; loopback; }
+ interface:l0 = { ip6 = ::a02:100; loopback; }
+ interface:l1 = { ip6 = ::a02:101; loopback; }
  interface:t1;
 }
-network:t1 = { ip = ::a09:100/120; }
+network:t1 = { ip6 = ::a09:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:t1 = { ip = ::a09:101; hardware = t1; }
- interface:t2 = { ip = ::a09:201; hardware = t2; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:201; hardware = t2; }
 }
-network:t2 = { ip = ::a09:200/120; }
+network:t2 = { ip6 = ::a09:200/120; }
 router:u2 = {
  interface:t2;
 # Don't create group with one element.
@@ -133,26 +130,25 @@ access-group t1_in in interface t1
 
 ############################################################
 =TITLE=Must not reuse combined group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:u = {
  interface:n1;
  interface:n2;
- interface:n3 = { ip = ::a01:301; }
+ interface:n3 = { ip6 = ::a01:301; }
 }
 router:r1 = {
  managed;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 network:n4 = {
- ip = ::a01:400/120;
- host:h1 = { ip = ::a01:40a; }
- host:h2 = { ip = ::a01:40c; }
+ ip6 = ::a01:400/120;
+ host:h1 = { ip6 = ::a01:40a; }
+ host:h2 = { ip6 = ::a01:40c; }
 }
 group:g1 = network:n1, network:n2;
 service:s1 = {
@@ -180,27 +176,26 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Reuse group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:u = {
  interface:n1;
  interface:n2;
- interface:n3 = { ip = ::a01:301; }
+ interface:n3 = { ip6 = ::a01:301; }
 }
 router:r1 = {
  managed;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 network:n4 = {
- ip = ::a01:400/120;
- host:h1 = { ip = ::a01:40a; }
- host:h2 = { ip = ::a01:40c; }
- host:h3 = { ip = ::a01:40e; }
+ ip6 = ::a01:400/120;
+ host:h1 = { ip6 = ::a01:40a; }
+ host:h2 = { ip6 = ::a01:40c; }
+ host:h3 = { ip6 = ::a01:40e; }
 }
 service:s1 = {
  user = network:n3, network:n2, network:n1;
@@ -229,21 +224,20 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Don't use object-groups
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
- host:h30 = { ip = ::a01:11e; }
+ ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
+ host:h30 = { ip6 = ::a01:11e; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  no_group_code;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 group:g1 = host:h10, host:h20, host:h30;
 service:s1 = {

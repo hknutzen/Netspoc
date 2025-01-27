@@ -1,12 +1,12 @@
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 =TEMPL=disabled_service
 service:s = {
  disable_at = {{DATE .}};
@@ -22,7 +22,6 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Service timed out for 365 days
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service -365]]
@@ -31,7 +30,6 @@ access-group n1_in in interface n1
 =END=
 
 =TITLE=Service timed out for 30 days
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service -30]]
@@ -40,7 +38,6 @@ access-group n1_in in interface n1
 =END=
 
 =TITLE=Service timed out for 1 day
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service -1]]
@@ -49,7 +46,6 @@ access-group n1_in in interface n1
 =END=
 
 =TITLE=Service timed out today
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service -0]]
@@ -65,7 +61,6 @@ access-group n1_in in interface n1
 access-list n1_in extended permit tcp ::a01:100/120 ::a01:200/120 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service 1]]
@@ -74,7 +69,6 @@ access-group n1_in in interface n1
 =END=
 
 =TITLE=Service times out in 10 days
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service 10]]
@@ -83,7 +77,6 @@ access-group n1_in in interface n1
 =END=
 
 =TITLE=Service times out in 1000 days
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 [[disabled_service 1000]]
@@ -93,7 +86,6 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Invalid date format at service
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -107,7 +99,6 @@ Error: Date expected as yyyy-mm-dd in 'disable_at' of service:s
 
 ############################################################
 =TITLE=Invalid date at service
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {

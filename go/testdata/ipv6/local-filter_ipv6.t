@@ -1,14 +1,13 @@
 
 ############################################################
 =TITLE=Non matching mask of filter_only attribute
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:0/104;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
 }
 =ERROR=
 Error: IP and mask of ::a3e:0/104 don't match in 'filter_only' of router:d32
@@ -16,13 +15,12 @@ Error: IP and mask of ::a3e:0/104 don't match in 'filter_only' of router:d32
 
 ############################################################
 =TITLE=Missing attribute 'filter_only'
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed = local;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
 }
 =ERROR=
 Error: Missing attribute 'filter_only' for router:d32
@@ -30,14 +28,13 @@ Error: Missing attribute 'filter_only' for router:d32
 
 ############################################################
 =TITLE=Ignoring attribute 'filter_only'
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed;
  filter_only =  ::a3e:0/112;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
 }
 =WARNING=
 Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'managed = local'
@@ -45,14 +42,13 @@ Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'manage
 
 ############################################################
 =TITLE=Unsupported 'managed = local'
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = Linux;
  managed = local;
  filter_only =  ::a3e:0/112;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
 }
 =ERROR=
 Error: Must not use 'managed = local' at router:d32 of model Linux
@@ -60,25 +56,24 @@ Error: Must not use 'managed = local' at router:d32 of model Linux
 
 ############################################################
 =TITLE=Local network doesn't match filter_only attribute
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:100/120;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
- interface:n2 = { ip = ::a3e:221; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
+ interface:n2 = { ip6 = ::a3e:221; hardware = n2; }
 }
-network:n2 = { ip = ::a3e:220/123; }
+network:n2 = { ip6 = ::a3e:220/123; }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:100/120;
- interface:n2 = { ip = ::a3e:222; hardware = n2; }
- interface:n3 = { ip = ::a3e:101; hardware = n3; }
+ interface:n2 = { ip6 = ::a3e:222; hardware = n2; }
+ interface:n3 = { ip6 = ::a3e:101; hardware = n3; }
 }
-network:n3 = { ip = ::a3e:100/123; }
+network:n3 = { ip6 = ::a3e:100/123; }
 =END=
 # Show message only once.
 =ERROR=
@@ -87,35 +82,34 @@ Error: network:n2 doesn't match attribute 'filter_only' of router:r1
 
 ############################################################
 =TITLE=Useless value in filter_only attribute
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:100/120, ::a3e:200/120, ::a3e:300/120;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
- interface:n2 = { ip = ::a3e:221; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
+ interface:n2 = { ip6 = ::a3e:221; hardware = n2; }
 }
-network:n2 = { ip = ::a3e:220/123; }
+network:n2 = { ip6 = ::a3e:220/123; }
 =WARNING=
 Warning: Useless 'filter_only = ::a3e:300/120' at router:r1
 =END=
 
 ############################################################
 =TITLE=NAT not allowed
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; nat:n1 = { ip = ::a3e:400/123; } }
-network:n2 = { ip = ::a3e:200/123;  nat:n2 = { ip = ::a3e:500/123; } }
-network:n3 = { ip = ::a3e:300/123; }
+network:n1 = { ip6 = ::a3e:120/123; nat:n1 = { ip6 = ::a3e:400/123; } }
+network:n2 = { ip6 = ::a3e:200/123;  nat:n2 = { ip6 = ::a3e:500/123; } }
+network:n3 = { ip6 = ::a3e:300/123; }
 router:d32 = {
  model = ASA;
  managed = local;
  routing = manual;
  filter_only =  ::a3e:0/115;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
- interface:n2 = { ip = ::a3e:201; hardware = n2; bind_nat = n1;}
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
+ interface:n2 = { ip6 = ::a3e:201; hardware = n2; bind_nat = n1;}
 }
 router:u = {
  interface:n2;
@@ -128,32 +122,31 @@ Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside rout
 
 ############################################################
 =TITLE=Cluster must have identical values in attribute 'filter_only'
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
-network:n2 = { ip = ::a3e:200/123; }
-network:n3 = { ip = ::a3e:340/123; }
-network:n4 = { ip = ::a3e:f200/125; }
+network:n1 = { ip6 = ::a3e:120/123; }
+network:n2 = { ip6 = ::a3e:200/123; }
+network:n3 = { ip6 = ::a3e:340/123; }
+network:n4 = { ip6 = ::a3e:f200/125; }
 router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:f000/118, ::a3e:0/115;
- interface:n4 = { ip = ::a3e:f201; hardware = n4; }
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
+ interface:n4 = { ip6 = ::a3e:f201; hardware = n4; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
 }
 router:r2 = {
  model = IOS;
  managed = local;
  filter_only =  ::a3e:f000/117, ::a3e:0/115,;
- interface:n4 = { ip = ::a3e:f202; hardware = n4; }
- interface:n2 = { ip = ::a3e:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a3e:f202; hardware = n4; }
+ interface:n2 = { ip6 = ::a3e:201; hardware = n2; }
 }
 router:r3 = {
  model = IOS;
  managed = local;
  filter_only =  ::a3e:f000/118, ::a3e:0/115, ::a3e:2000/115;
- interface:n4 = { ip = ::a3e:f203; hardware = n4; }
- interface:n3 = { ip = ::a3e:341; hardware = n3; }
+ interface:n4 = { ip6 = ::a3e:f203; hardware = n4; }
+ interface:n3 = { ip6 = ::a3e:341; hardware = n3; }
 }
 =ERROR=
 Error: router:r1 and router:r2 must have identical values in attribute 'filter_only'
@@ -165,32 +158,31 @@ Error: router:r1 and router:r3 must have identical values in attribute 'filter_o
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only = ::a3e:0/117, ::a3e:f100/120;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
- interface:n2 = { ip = ::a3e:f101; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
+ interface:n2 = { ip6 = ::a3e:f101; hardware = n2; }
 }
-network:n2 = { ip = ::a3e:f100/125; }
+network:n2 = { ip6 = ::a3e:f100/125; }
 router:d31 = {
  model = ASA;
  managed;
- interface:n2 = { ip = ::a3e:f102; hardware = inside; }
- interface:extern = { ip = ::a7d:301; hardware = outside; }
+ interface:n2 = { ip6 = ::a3e:f102; hardware = inside; }
+ interface:extern = { ip6 = ::a7d:301; hardware = outside; }
 }
-network:extern = { ip = ::a7d:300/120; }
+network:extern = { ip6 = ::a7d:300/120; }
 router:r1 = {
- interface:extern = { ip = ::a7d:302; }
+ interface:extern = { ip6 = ::a7d:302; }
  interface:ex_match;
 }
-network:ex_match = { ip = ::a3e:700/120; }
+network:ex_match = { ip6 = ::a3e:700/120; }
 =END=
 
 ############################################################
 =TITLE=Reuse object groups for deny rules
-=PARAMS=--ipv6
 =INPUT=[[topo]]
 =OUTPUT=
 --ipv6/d32
@@ -210,12 +202,12 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Filter src in deny rule with zone cluster
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n0 = { ip = ::a00:0/120; nat:n0 = { ip = ::a3e:0/120; } }
+network:n0 = { ip6 = ::a00:0/120; nat:n0 = { ip6 = ::a3e:0/120; } }
 router:r0 = {
  interface:n0;
- interface:n1 = { ip = ::a3e:122; bind_nat = n0; }
+ interface:n1 = { ip6 = ::a3e:122; bind_nat = n0; }
 }
 [[topo]]
 =OUTPUT=
@@ -236,7 +228,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=External rules are not filtered
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
@@ -261,7 +252,6 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Mixed matching and non matching external rules
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
@@ -302,11 +292,10 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Aggregate to extern
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = ::a3c:0/110 & network:n1, network:n2];
+ user = any:[ip6 = ::a3c:0/110 & network:n1, network:n2];
  permit src = user;
         dst = network:extern;
         prt = tcp 80;
@@ -324,11 +313,10 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Aggregate to local
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = ::a3c:0/110 & network:n1];
+ user = any:[ip6 = ::a3c:0/110 & network:n1];
  permit src = user;
         dst = network:n2;
         prt = tcp 80;
@@ -347,13 +335,12 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Non matching aggregate to non matching aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = ::/0 & network:n1];
+ user = any:[ip6 = ::/0 & network:n1];
  permit src = user;
-        dst = any:[ip = ::/0 & network:n2];
+        dst = any:[ip6 = ::/0 & network:n2];
         prt = tcp 80;
 }
 =OUTPUT=
@@ -372,13 +359,12 @@ access-group n1_in in interface n1
 =TITLE=Non matching aggregate to non matching aggregate with IP any
 # This generates two identical lines 'permit ip any6 any6',
 # Access-list with duplicate lines is not valid for ASA.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = ::/0 & network:n1];
+ user = any:[ip6 = ::/0 & network:n1];
  permit src = user;
-        dst = any:[ip = ::/0 & network:n2];
+        dst = any:[ip6 = ::/0 & network:n2];
         prt = ip;
 }
 =OUTPUT=
@@ -395,11 +381,10 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Ignore non matching local aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = ::a63:0/112 & network:n1];
+ user = any:[ip6 = ::a63:0/112 & network:n1];
  permit src = user;
         dst = network:n2;
         prt = tcp 80;
@@ -417,24 +402,23 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=External supernet of local network
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:100/120; subnet_of = network:extern; }
+network:n1 = { ip6 = ::a3e:100/120; subnet_of = network:extern; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:0/112, ::a09:0/112;
- interface:n1 = { ip = ::a3e:101; hardware = n1; }
- interface:n2 = { ip = ::a09:101; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a09:101; hardware = n2; }
 }
-network:n2 = { ip = ::a09:100/125; }
+network:n2 = { ip6 = ::a09:100/125; }
 router:d31 = {
  model = ASA;
  managed = secondary;
- interface:n2 = { ip = ::a09:102; hardware = inside; }
- interface:extern = { ip = ::a3e:1; hardware = outside; }
+ interface:n2 = { ip6 = ::a09:102; hardware = inside; }
+ interface:extern = { ip6 = ::a3e:1; hardware = outside; }
 }
-network:extern = { ip = ::a3e:0/113; }
+network:extern = { ip6 = ::a3e:0/113; }
 service:Test = {
  user = network:n1;
  permit src = network:extern;
@@ -452,29 +436,28 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Subnet of external supernet
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:100/120; subnet_of = network:extern; }
+network:n1 = { ip6 = ::a3e:100/120; subnet_of = network:extern; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:0/112, ::a09:0/112;
- interface:n1 = { ip = ::a3e:101; hardware = n1; }
- interface:n2 = { ip = ::a09:101; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a09:101; hardware = n2; }
 }
-network:n2 = { ip = ::a09:100/125; }
+network:n2 = { ip6 = ::a09:100/125; }
 router:d31 = {
  model = ASA;
  managed = secondary;
- interface:n2 = { ip = ::a09:102; hardware = inside; }
- interface:extern = { ip = ::a3e:1; hardware = outside; }
+ interface:n2 = { ip6 = ::a09:102; hardware = inside; }
+ interface:extern = { ip6 = ::a3e:1; hardware = outside; }
 }
-network:extern = { ip = ::a3e:0/111; }
+network:extern = { ip6 = ::a3e:0/111; }
 router:u = {
- interface:extern = { ip = ::a3e:2; }
+ interface:extern = { ip6 = ::a3e:2; }
  interface:sub;
 }
-network:sub = { ip = ::a3e:200/120; subnet_of = network:extern; }
+network:sub = { ip6 = ::a3e:200/120; subnet_of = network:extern; }
 service:Test = {
  user = network:n1;
  permit src = network:sub;
@@ -492,26 +475,25 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Internal / external network exactly match filter_only
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a04:200/120; subnet_of = network:extern; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a04:200/120; subnet_of = network:extern; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112, ::a04:0/112;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a04:201; hardware = n2; }
- interface:intern = { ip = ::a02:1; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a04:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:1; hardware = intern; }
 }
-network:intern = { ip = ::a02:0/112; }
+network:intern = { ip6 = ::a02:0/112; }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:2; hardware = inside; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
+ interface:intern = { ip6 = ::a02:2; hardware = inside; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
 }
-network:extern = { ip = ::a04:0/112; }
+network:extern = { ip6 = ::a04:0/112; }
 service:Test = {
  user = network:extern, network:intern;
  permit src = user;
@@ -535,12 +517,12 @@ access-group intern_in in interface intern
 
 ############################################################
 =TITLE=Multiple internal subnets, unnumbered, hidden
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n1   = { ip = ::a01:100/120; }
-network:n1-a = { ip = ::a01:120/123; subnet_of = network:n1; }
-network:n1-b = { ip = ::a01:140/123; subnet_of = network:n1; }
-network:un = { unnumbered; }
+network:n1   = { ip6 = ::a01:100/120; }
+network:n1-a = { ip6 = ::a01:120/123; subnet_of = network:n1; }
+network:n1-b = { ip6 = ::a01:140/123; subnet_of = network:n1; }
+network:un = { unnumbered6; }
 router:u = {
  interface:n1;
  interface:n1-a;
@@ -551,19 +533,19 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:un = { unnumbered; hardware = un; }
- interface:intern = { ip = ::a02:101; hardware = intern; }
+ interface:un = { unnumbered6; hardware = un; }
+ interface:intern = { ip6 = ::a02:101; hardware = intern; }
 }
-network:intern = { ip = ::a02:100/120; }
+network:intern = { ip6 = ::a02:100/120; }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:102; hardware = inside; bind_nat = h; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
- interface:ex-hid = { ip = ::a02:281; hardware = ex-hid; }
+ interface:intern = { ip6 = ::a02:102; hardware = inside; bind_nat = h; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
+ interface:ex-hid = { ip6 = ::a02:281; hardware = ex-hid; }
 }
-network:extern = { ip = ::a04:0/112; }
-network:ex-hid = { ip = ::a02:280/123; nat:h = { hidden; } }
+network:extern = { ip6 = ::a04:0/112; }
+network:ex-hid = { ip6 = ::a02:280/123; nat:h = { hidden; } }
 service:Test = {
  user = network:extern, network:intern;
  permit src = user;
@@ -589,29 +571,28 @@ access-group intern_in in interface intern
 ############################################################
 =TITLE=Secondary filter near local filter filters fully
 =TEMPL=input
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:0/112;
- interface:n1 = { ip = ::a3e:121; hardware = n1; }
- interface:trans = { ip = ::a3e:f101; hardware = trans; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; }
+ interface:trans = { ip6 = ::a3e:f101; hardware = trans; }
 }
-network:trans = { ip = ::a3e:f100/125; }
+network:trans = { ip6 = ::a3e:f100/125; }
 router:d31 = {
  model = ASA;
  managed = secondary;
- interface:trans = { ip = ::a3e:f102; hardware = inside; }
- interface:extern = { ip = ::a7d:301; hardware = outside; }
+ interface:trans = { ip6 = ::a3e:f102; hardware = inside; }
+ interface:extern = { ip6 = ::a7d:301; hardware = outside; }
 }
-network:extern = { ip = ::a7d:300/120; }
+network:extern = { ip6 = ::a7d:300/120; }
 service:Mail = {
  user = network:n1;
  permit src = user;
         dst = network:extern;
         prt = tcp 25;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/d31
@@ -623,7 +604,6 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Different deny rules
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/d32
@@ -640,17 +620,16 @@ access-group trans_in in interface trans
 
 ############################################################
 =TITLE=Outgoing ACL
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a3e:0/115;
- interface:n1 = { ip = ::a3e:121; hardware = n1; no_in_acl;}
- interface:n2 = { ip = ::a3e:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a3e:121; hardware = n1; no_in_acl;}
+ interface:n2 = { ip6 = ::a3e:201; hardware = n2; }
 }
-network:n2 = { ip = ::a3e:200/123; }
+network:n2 = { ip6 = ::a3e:200/123; }
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -680,39 +659,38 @@ access-group n2_out out interface n2
 # Zone with virtual interfaces is recognized as leaf zone.
 # Zone with other loop is handled as intermediate zone with
 # possible connection to extern.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a3e:120/123; }
+network:n1 = { ip6 = ::a3e:120/123; }
 router:d1 = {
  model = IOS;
  managed = local;
  filter_only =  ::a3e:0/115;
  interface:n1 = {
-  ip = ::a3e:122;
-  virtual = { ip = ::a3e:121; }
+  ip6 = ::a3e:122;
+  virtual = { ip6 = ::a3e:121; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a3e:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a3e:201; hardware = n2; }
 }
 router:d2 = {
  model = IOS;
  managed = local;
  filter_only =  ::a3e:0/115;
  interface:n1 = {
-  ip = ::a3e:123;
-  virtual = { ip = ::a3e:121; }
+  ip6 = ::a3e:123;
+  virtual = { ip6 = ::a3e:121; }
   hardware = n21;
  }
- interface:trans = { ip = ::a3e:301; hardware = n22; }
+ interface:trans = { ip6 = ::a3e:301; hardware = n22; }
 }
-network:trans = { ip = ::a3e:300/123; }
+network:trans = { ip6 = ::a3e:300/123; }
 router:loop = {
  model = ASA;
  managed;
- interface:trans = { ip = ::a3e:302; hardware = inside; }
- interface:n2 = { ip = ::a3e:202; hardware = outside; }
+ interface:trans = { ip6 = ::a3e:302; hardware = inside; }
+ interface:n2 = { ip6 = ::a3e:202; hardware = outside; }
 }
-network:n2 = { ip = ::a3e:200/123; }
+network:n2 = { ip6 = ::a3e:200/123; }
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -738,34 +716,33 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Loop, secondary at border
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a02:100/123; }
+network:n1 = { ip6 = ::a02:100/123; }
 router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  ::a02:0/112;
  routing = manual;
- interface:n1 = { ip = ::a02:101; hardware = n1; }
- interface:tr = { ip = ::a02:901; hardware = tr; }
+ interface:n1 = { ip6 = ::a02:101; hardware = n1; }
+ interface:tr = { ip6 = ::a02:901; hardware = tr; }
 }
-network:n2 = { ip = ::a02:200/123;}
+network:n2 = { ip6 = ::a02:200/123;}
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a02:0/112;
  routing = manual;
- interface:n2 = { ip = ::a02:201; hardware = n2; }
- interface:tr = { ip = ::a02:902; hardware = tr; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+ interface:tr = { ip6 = ::a02:902; hardware = tr; }
 }
-network:tr = { ip = ::a02:900/125; }
+network:tr = { ip6 = ::a02:900/125; }
 router:ex = {
  model = ASA;
  managed = secondary;
- interface:tr = { ip = ::a02:906; hardware = inside; }
- interface:extern = { ip = ::a05:301; hardware = outside; }
+ interface:tr = { ip6 = ::a02:906; hardware = inside; }
+ interface:extern = { ip6 = ::a05:301; hardware = outside; }
 }
-network:extern = { ip = ::a05:300/120; }
+network:extern = { ip6 = ::a05:300/120; }
 service:Mail = {
  user = network:n2;
  permit src = user;
@@ -794,25 +771,24 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Don't check external aggregate rules
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 any:any1 = { link = network:n1; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = outside; }
- interface:n2 = { ip = ::a02:906; hardware = inside; }
+ interface:n1 = { ip6 = ::a01:101; hardware = outside; }
+ interface:n2 = { ip6 = ::a02:906; hardware = inside; }
 }
-network:n2 = { ip = ::a02:900/125; }
+network:n2 = { ip6 = ::a02:900/125; }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a02:0/112;
- interface:n2 = { ip = ::a02:901; hardware = outside; }
- interface:dst = { ip = ::a02:101; hardware = inside; }
+ interface:n2 = { ip6 = ::a02:901; hardware = outside; }
+ interface:dst = { ip6 = ::a02:101; hardware = inside; }
 }
-network:dst = { ip = ::a02:100/123; }
+network:dst = { ip6 = ::a02:100/123; }
 service:t1 = {
  user = any:any1;
  permit src = user;
@@ -840,30 +816,29 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Check external aggregate covering filter_only network
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 any:any1 = { link = network:n1; }
 router:u = {
   interface:n1;
- interface:t1 =  { ip = ::a02:909; }
+ interface:t1 =  { ip6 = ::a02:909; }
 }
-network:t1 = { ip = ::a02:908/125; }
+network:t1 = { ip6 = ::a02:908/125; }
 router:r1 = {
  model = ASA;
  managed;
- interface:t1 = { ip = ::a02:90a; hardware = outside; }
- interface:t2 = { ip = ::a02:906; hardware = inside; }
+ interface:t1 = { ip6 = ::a02:90a; hardware = outside; }
+ interface:t2 = { ip6 = ::a02:906; hardware = inside; }
 }
-network:t2 = { ip = ::a02:900/125; }
+network:t2 = { ip6 = ::a02:900/125; }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a02:0/112;
- interface:t2 = { ip = ::a02:901; hardware = outside; }
- interface:dst = { ip = ::a02:101; hardware = inside; }
+ interface:t2 = { ip6 = ::a02:901; hardware = outside; }
+ interface:dst = { ip6 = ::a02:101; hardware = inside; }
 }
-network:dst = { ip = ::a02:100/123; }
+network:dst = { ip6 = ::a02:100/123; }
 service:t1 = {
  user = any:any1, any:[network:t2];
  permit src = user;
@@ -908,38 +883,37 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Two disjunct local-filter parts
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r1 = {
  managed = local;
  filter_only = ::a01:100/120, ::a01:200/120;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3 = {
  managed;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r4 = {
  managed = local;
  filter_only = ::a01:400/119;
  model = ASA;
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 service:s1 = {
  user = network:n1, network:n4;
@@ -965,18 +939,18 @@ access-group n4_in in interface n4
 ############################################################
 =TITLE=local-filter cluster separated by semi-managed routers
 =TEMPL=semi
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a02:500/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a02:500/120; }
 router:r1 = {
  managed = local;
  filter_only = ::a01:0/112;#r1
  routing = dynamic;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  interface:n2;
@@ -987,8 +961,8 @@ router:r3 = {
  filter_only = ::a01:0/112;
  routing = dynamic;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r4 = {
  interface:n4;
@@ -998,11 +972,10 @@ router:r5 = {
  managed;
  model = ASA;
  routing = dynamic;
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n5 = { ip = ::a02:501; hardware = n5; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a02:501; hardware = n5; }
 }
 pathrestriction:p1 = interface:r2.n2, interface:r4.n4;
-=PARAMS=--ipv6
 =INPUT=
 [[semi]]
 service:s1 = {
@@ -1039,7 +1012,6 @@ access-group n4_in in interface n4
 
 ############################################################
 =TITLE=Different filter_only separated by semi-managed
-=PARAMS=--ipv6
 =INPUT=
 [[semi]]
 =SUBST=/16;#r1/18;/
@@ -1052,18 +1024,17 @@ Error: router:r1 and router:r3 must have identical values in attribute 'filter_o
 ############################################################
 =TITLE=general_permit
 # Must not ignore general_permit rules at local filter.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112;
  general_permit = icmpv6;
- interface:n1 = { ip = ::a01:101; hardware = outside; }
- interface:n2 = { ip = ::a01:201; hardware = inside; }
+ interface:n1 = { ip6 = ::a01:101; hardware = outside; }
+ interface:n2 = { ip6 = ::a01:201; hardware = inside; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 =OUTPUT=
 --ipv6/r1
 ! outside_in
@@ -1076,23 +1047,22 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=filter_only with /32
 # Must not ignore general_permit rules at local filter.
-=PARAMS=--ipv6
 =INPUT=
 router:u = {
- interface:vip = { ip = ::a09:909; vip; }
+ interface:vip = { ip6 = ::a09:909; vip; }
  interface:n1;
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed = local;
  routing = manual;
  filter_only =  ::a01:0/112, ::a09:909/128;
  general_permit = icmpv6;
- interface:n1 = { ip = ::a01:101; hardware = outside; }
- interface:n2 = { ip = ::a01:201; hardware = inside; }
+ interface:n1 = { ip6 = ::a01:101; hardware = outside; }
+ interface:n2 = { ip6 = ::a01:201; hardware = inside; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 =OUTPUT=
 --ipv6/r1
 ! outside_in
@@ -1107,30 +1077,29 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=VRF members with mixed managed and managed=local
-=PARAMS=--ipv6
 =INPUT=
-network:n0 = { ip = ::a00:100/120; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n0 = { ip6 = ::a00:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:d32 = {
  model = ASA;
  managed;
- interface:n0 = { ip = ::a00:101; hardware = n0; }
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n0 = { ip6 = ::a00:101; hardware = n0; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 router:r1@v1 = {
  model = IOS;
  managed = local;
  filter_only = ::a01:0/112;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r1@v2 = {
  model = IOS;
  managed;
- interface:n2 = { ip = ::a01:202; hardware = n2v2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2v2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:test = {
  user = network:n0, network:n1;
@@ -1178,31 +1147,30 @@ interface n3
 
 ############################################################
 =TITLE=VRF members with different value of filter_only
-=PARAMS=--ipv6
 =INPUT=
-network:n11 = { ip = ::a01:100/120; }
-network:n12 = { ip = ::a01:200/120; }
-network:n21 = { ip = ::a02:100/120; }
-network:n22 = { ip = ::a02:200/120; }
+network:n11 = { ip6 = ::a01:100/120; }
+network:n12 = { ip6 = ::a01:200/120; }
+network:n21 = { ip6 = ::a02:100/120; }
+network:n22 = { ip6 = ::a02:200/120; }
 router:r1@v1 = {
  model = IOS;
  managed = local;
  filter_only = ::a01:0/112;
- interface:n11 = { ip = ::a01:102; hardware = n11; }
- interface:n12 = { ip = ::a01:201; hardware = n12; }
+ interface:n11 = { ip6 = ::a01:102; hardware = n11; }
+ interface:n12 = { ip6 = ::a01:201; hardware = n12; }
 }
 router:d32 = {
  model = ASA;
  managed;
- interface:n12 = { ip = ::a01:202; hardware = n12; }
- interface:n21 = { ip = ::a02:102; hardware = n21; }
+ interface:n12 = { ip6 = ::a01:202; hardware = n12; }
+ interface:n21 = { ip6 = ::a02:102; hardware = n21; }
 }
 router:r1@v2 = {
  model = IOS;
  managed = local;
  filter_only = ::a02:0/112;
- interface:n21 = { ip = ::a02:101; hardware = n21; }
- interface:n22 = { ip = ::a02:201; hardware = n22; }
+ interface:n21 = { ip6 = ::a02:101; hardware = n21; }
+ interface:n22 = { ip6 = ::a02:201; hardware = n22; }
 }
 service:test = {
  user = network:n11, network:n21;
@@ -1252,43 +1220,42 @@ interface n22
 
 ############################################################
 =TITLE=Local aggregate permits local network
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:intern = { ip = ::a02:0/112; }
-network:extern = { ip = ::a04:0/112; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:intern = { ip6 = ::a02:0/112; }
+network:extern = { ip6 = ::a04:0/112; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:intern = { ip = ::a02:1; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:1; hardware = intern; }
 }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:2; hardware = inside; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
+ interface:intern = { ip6 = ::a02:2; hardware = inside; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
 }
 service:s1 = {
  user = network:extern;
  permit src = user;
-        dst = any:[ip = ::a01:0/112 & network:n1];
+        dst = any:[ip6 = ::a01:0/112 & network:n1];
         prt = tcp 80;
- permit src = any:[ip = ::a01:0/112 & network:n1];
+ permit src = any:[ip6 = ::a01:0/112 & network:n1];
         dst = user;
         prt = tcp 80;
 }
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
-  permit src=any:[ip=::a01:0/112 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
+  permit src=any:[ip6=::a01:0/112 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
  router:d32 with 'managed = local' would allow unfiltered access
  from additional networks:
  - network:n2
 Warning: This supernet rule would permit unexpected access:
-  permit src=network:extern; dst=any:[ip=::a01:0/112 & network:n1]; prt=tcp 80; of service:s1
+  permit src=network:extern; dst=any:[ip6=::a01:0/112 & network:n1]; prt=tcp 80; of service:s1
  router:d32 with 'managed = local' would allow unfiltered access
  to additional networks:
  - network:n2
@@ -1296,25 +1263,24 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Local supernet as destination permits local network behind supernet
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a02:200/120; subnet_of = network:intern; }
-network:intern = { ip = ::a02:0/112; }
-network:extern = { ip = ::a04:0/112; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a02:200/120; subnet_of = network:intern; }
+network:intern = { ip6 = ::a02:0/112; }
+network:extern = { ip6 = ::a04:0/112; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
- interface:intern = { ip = ::a02:1; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:1; hardware = intern; }
 }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:2; hardware = inside; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
+ interface:intern = { ip6 = ::a02:2; hardware = inside; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
 }
 service:s1 = {
  user = network:extern;
@@ -1339,44 +1305,43 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Access from external network matching filter_only is filtered at both
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a02:200/120; }
-network:intern = { ip = ::a02:300/120; }
-network:extern = { ip = ::a02:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a02:200/120; }
+network:intern = { ip6 = ::a02:300/120; }
+network:extern = { ip6 = ::a02:400/120; }
 router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
- interface:intern = { ip = ::a02:301; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:301; hardware = intern; }
 }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:302; hardware = inside; }
- interface:extern = { ip = ::a02:401; hardware = outside; }
+ interface:intern = { ip6 = ::a02:302; hardware = inside; }
+ interface:extern = { ip6 = ::a02:401; hardware = outside; }
 }
 service:s1 = {
  user = network:extern;
  permit src = user;
-        dst = any:[ip=::a02:0/112&network:n1];
+        dst = any:[ip6=::a02:0/112&network:n1];
         prt = tcp 80;
 }
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
-  permit src=network:extern; dst=any:[ip=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
+  permit src=network:extern; dst=any:[ip6=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
  Generated ACL at interface:d31.extern would permit access to additional networks:
  - network:intern
- Either replace any:[ip=::a02:0/112 & network:n1] by smaller networks that are not supernet
+ Either replace any:[ip6=::a02:0/112 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 Warning: This supernet rule would permit unexpected access:
-  permit src=network:extern; dst=any:[ip=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
+  permit src=network:extern; dst=any:[ip6=::a02:0/112 & network:n1]; prt=tcp 80; of service:s1
  Generated ACL at interface:d32.intern would permit access to additional networks:
  - network:n2
- Either replace any:[ip=::a02:0/112 & network:n1] by smaller networks that are not supernet
+ Either replace any:[ip6=::a02:0/112 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 =OUTPUT=
 --ipv6/d32
@@ -1402,40 +1367,39 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Supernet permits subnets in separate local cluster
-=PARAMS=--ipv6
 =INPUT=
-network:super = { ip = ::a01:0/112; }
-network:n1 = { ip = ::a01:100/120; subnet_of = network:super; }
-network:n2 = { ip = ::a01:200/120; subnet_of = network:super; }
-network:n3 = { ip = ::a01:300/120; subnet_of = network:super; }
-network:intern = { ip = ::a02:0/112; }
-network:extern = { ip = ::a04:0/112; }
+network:super = { ip6 = ::a01:0/112; }
+network:n1 = { ip6 = ::a01:100/120; subnet_of = network:super; }
+network:n2 = { ip6 = ::a01:200/120; subnet_of = network:super; }
+network:n3 = { ip6 = ::a01:300/120; subnet_of = network:super; }
+network:intern = { ip6 = ::a02:0/112; }
+network:extern = { ip6 = ::a04:0/112; }
 router:r1 = {
  model = ASA;
  managed;
- interface:super = { ip = ::a01:1; hardware = super; }
- interface:n1    = { ip = ::a01:101; hardware = n1; }
+ interface:super = { ip6 = ::a01:1; hardware = super; }
+ interface:n1    = { ip6 = ::a01:101; hardware = n1; }
 }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:intern = { ip = ::a02:1; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:1; hardware = intern; }
 }
 router:r3 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:intern = { ip = ::a02:2; hardware = intern; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:intern = { ip6 = ::a02:2; hardware = intern; }
 }
 router:r4 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:3; hardware = inside; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
+ interface:intern = { ip6 = ::a02:3; hardware = inside; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
 }
 service:s1 = {
  user = network:super;
@@ -1468,38 +1432,37 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=All supernets permitted in separate local cluster
-=PARAMS=--ipv6
 =INPUT=
-network:super = { ip = ::a01:0/112; }
-network:n1 = { ip = ::a01:100/120; subnet_of = network:super; }
-network:n2 = { ip = ::a01:200/120; subnet_of = network:super; }
-network:intern = { ip = ::a02:0/112; }
-network:extern = { ip = ::a04:0/112; }
+network:super = { ip6 = ::a01:0/112; }
+network:n1 = { ip6 = ::a01:100/120; subnet_of = network:super; }
+network:n2 = { ip6 = ::a01:200/120; subnet_of = network:super; }
+network:intern = { ip6 = ::a02:0/112; }
+network:extern = { ip6 = ::a04:0/112; }
 router:r1 = {
  model = ASA;
  managed;
- interface:super = { ip = ::a01:1; hardware = super; }
- interface:n1    = { ip = ::a01:101; hardware = n1; }
+ interface:super = { ip6 = ::a01:1; hardware = super; }
+ interface:n1    = { ip6 = ::a01:101; hardware = n1; }
 }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  ::a01:0/112, ::a02:0/112;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:intern = { ip = ::a02:1; hardware = intern; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:intern = { ip6 = ::a02:1; hardware = intern; }
 }
 router:r3 = {
  model = ASA;
  managed;
- interface:intern = { ip = ::a02:2; hardware = inside; }
- interface:extern = { ip = ::a04:1; hardware = outside; }
+ interface:intern = { ip6 = ::a02:2; hardware = inside; }
+ interface:extern = { ip6 = ::a04:1; hardware = outside; }
 }
 
 service:s1 = {
  user = network:super,
-        any:[ip = ::a01:0/112 & network:n1],
-        any:[ip = ::a01:0/112 & network:n2],
+        any:[ip6 = ::a01:0/112 & network:n1],
+        any:[ip6 = ::a01:0/112 & network:n2],
         ;
  permit src = user;
         dst = network:extern;

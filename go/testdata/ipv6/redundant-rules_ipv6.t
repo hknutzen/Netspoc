@@ -1,35 +1,34 @@
 
 ############################################################
 =TITLE=Find redundant rules
-=PARAMS=--ipv6
 =INPUT=
 network:n1-sub = {
- ip = ::a01:180/121;
+ ip6 = ::a01:180/121;
  subnet_of = network:n1;
- host:h1 = { ip = ::a01:182; }
+ host:h1 = { ip6 = ::a01:182; }
 }
 router:u = {
  interface:n1-sub;
  interface:n1;
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 any:a1 = { link = network:n1; }
 router:filter = {
  managed;
  model = Linux;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a02:201; hardware = n2; }
- interface:n3 = { ip = ::a03:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a03:301; hardware = n3; }
 }
 network:n2 = {
- ip = ::a02:200/120;
- host:h2 = { ip = ::a02:20a; }
+ ip6 = ::a02:200/120;
+ host:h2 = { ip6 = ::a02:20a; }
 }
 any:a2 = { link = network:n2; }
 network:n3 = {
- ip = ::a03:300/120;
- host:h3 = { ip = ::a03:30a; }
+ ip6 = ::a03:300/120;
+ host:h3 = { ip6 = ::a03:30a; }
 }
 any:a3 = { link = network:n3; }
 # permit < deny
@@ -126,16 +125,15 @@ Warning: service:2b is fully redundant
 
 ############################################################
 =TITLE=Duplicate protocol in rule
-=PARAMS=--ipv6
 =INPUT=
 protocol:NTP = udp 123;
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -147,15 +145,14 @@ Warning: Ignoring duplicate 'udp 123' in service:s1
 
 ############################################################
 =TITLE=Redundant protocol in rule
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -169,15 +166,14 @@ Warning: Redundant rules in service:s1 compared to service:s1:
 
 ############################################################
 =TITLE=Redundant rules having protocols with and without modifiers
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 protocol:Ping_Net = icmpv6 8, src_net, dst_net, overlaps;
 protocol:NTP = udp 123;
@@ -213,15 +209,14 @@ Warning: service:s2 is fully redundant
 
 ############################################################
 =TITLE=Find fully redundant rules even if protocol suppresses warning
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:102; }}
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:102; }}
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 protocol:Ping_Net = icmpv6 8, src_net, dst_net, overlaps;
 service:s1 = {
@@ -238,15 +233,14 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Show all redundant rules, not only the smallest one
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:202; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -287,17 +281,16 @@ Warning: service:s3 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule: multi redundant and duplicate (1)
-=PARAMS=--ipv6
 =INPUT=
 any:n1 = { link = network:n1; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R1 = {
  managed;
  model = ASA;
  log:a = errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s2, service:s3;
@@ -326,17 +319,16 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule: multi redundant and duplicate (2)
-=PARAMS=--ipv6
 =INPUT=
 any:n1 = { link = network:n1; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R1 = {
  managed;
  model = ASA;
  log:a = errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s3;
@@ -366,15 +358,14 @@ Warning: service:s2 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule: mixed redundant and duplicate
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:20a; } }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; host:h2 = { ip6 = ::a01:20a; } }
 router:R1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s2;
@@ -392,16 +383,15 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule: simple duplicates
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R1 = {
  managed;
  model = ASA;
  log:a = errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -419,16 +409,15 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule with reversed overlaps
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R1 = {
  managed;
  model = ASA;
  log:a = errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -448,14 +437,14 @@ Warning: service:s1 is fully redundant
 ############################################################
 =TITLE=Fully redundant rule without overlaps
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R1 = {
  managed;
  model = ASA;
  log:a = errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -465,7 +454,6 @@ service:s2 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=
 Warning: Duplicate rules in service:s2 and service:s1:
@@ -476,7 +464,6 @@ Warning: service:s1 is fully redundant
 ############################################################
 =TITLE=Don't check for duplicate rules
 =OPTIONS=--check_duplicate_rules=0
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=NONE
 
@@ -484,15 +471,14 @@ Warning: service:s1 is fully redundant
 =TITLE=Redundant rule with multiple duplicates
 # Must not count duplicate rule multiple times at s1,
 # otherwise s1 would accidently be marked as fully redundant.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s2, service:s3;
@@ -518,15 +504,14 @@ service:s3 = {
 
 ############################################################
 =TITLE=Useless overlaps with duplicate rules
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s3;
@@ -563,15 +548,14 @@ Warning: Useless 'overlaps = service:s4' at service:s3
 
 ############################################################
 =TITLE=Service with duplicate rules and/or attribute overlaps.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
  overlaps = service:s1;
@@ -610,9 +594,8 @@ Warning: Useless 'overlaps = service:s3' at service:s3
 ############################################################
 =TITLE=Empty service is not shown as fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 group:g1 = ;
 service:s1 = {
  user = group:g1;
@@ -623,20 +606,19 @@ service:s1 = {
 ############################################################
 =TITLE=Relation between UDP src and dst ranges
 # p1 < p2 and p1 < p3
-=PARAMS=--ipv6
 =INPUT=
 protocol:p1 = udp 123:123;
 protocol:p2 = udp 100-65535:123;
 protocol:p3 = udp 123:1-1000;
 protocol:p4 = udp 90-126:1-65535;
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
   model = IOS, FW;
   managed;
-  interface:n1 = { ip = ::a01:101; hardware = n1; }
-  interface:n2 = { ip = ::a01:201; hardware = n2; }
+  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:t1 = {
   user = network:n1;
   permit src = user;
@@ -682,18 +664,17 @@ ipv6 access-list n2_in
 ############################################################
 =TITLE=Relation between overlapping TCP ranges
 # p1 < p2 and p1 < p3
-=PARAMS=--ipv6
 =INPUT=
 protocol:p1 = tcp 85-89;
 protocol:p2 = tcp 80-90;
 protocol:p3 = tcp 84-94; # split into 84-90,91-94
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
   model = IOS, FW;
   managed;
-  interface:n1 = { ip = ::a01:101; hardware = n1; }
-  interface:n2 = { ip = ::a01:201; hardware = n2; }
+  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:s1 = {
   user = network:n1;
@@ -721,34 +702,33 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Range spans whole network
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:range  = { range = ::a01:100 - ::a01:1ff; }
+ ip6 = ::a01:100/120;
+ host:rg  = { range6 = ::a01:100 - ::a01:1ff; }
 }
 router:u = {
  interface:n1;
- interface:t1 = { ip = ::a09:101; }
+ interface:t1 = { ip6 = ::a09:101; }
 }
-network:t1 = { ip = ::a09:100/120; }
+network:t1 = { ip6 = ::a09:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 service:test1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 service:test2 = {
- user = host:range;
+ user = host:rg;
  permit src = user; dst = network:n2; prt = tcp 80-90;
 }
 =WARNING=
-Warning: Use network:n1 instead of host:range
+Warning: Use network:n1 instead of host:rg
  because both have identical address
 Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test1
@@ -759,17 +739,16 @@ Warning: service:test1 is fully redundant
 ############################################################
 =TITLE=Redundancy in enclosed port range
 # Redundancy should be recognized, even if service:s3 isn not defined.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 service:s1 = {
  user = host:h1;

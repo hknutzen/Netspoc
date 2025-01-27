@@ -399,7 +399,7 @@ service:test = {
 :n1_n2 -
 -A n1_n2 -j ACCEPT -s 1000::abcd:1:0/112 -d 1000::abcd:2:3 -p ipv6-icmp
 -A FORWARD -j n1_n2 -i n1 -o n2
-=OPTIONS=--ipv6
+=END=
 
 ############################################################
 =TITLE=Reuse code file
@@ -422,7 +422,6 @@ service:test1 = {
 =WARNING=
 DIAG: Reused .prev/ipv6/r1
 =WITH_OUTDIR=
-=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Can't create ipv6/ directory
@@ -441,4 +440,24 @@ router:r1 = {
 =ERROR=
 Error: Can't mkdir out/ipv6: file exists
 Aborted
+=END=
+
+############################################################
+=TITLE=NAT not supported
+=INPUT=
+area:n1 = { anchor = network:n1; nat:ar = { hidden; } }
+any:n1 = { link = network:n1; nat:ag = { hidden; } }
+network:n1 = {
+ ip6 = 2001:db8:1:1::/64; nat:n = { hidden; }
+ host:h1 = { ip6 = 2001:db8:1:1::10; nat:h = { ip = 2001:db8:1:ffff::10; } }
+}
+
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; nat:i = { ip = 2001:db8:1:ffff::1; } }
+}
+=ERROR=
+Error: NAT not supported for IPv6 host:h1
+Error: NAT not supported for IPv6 network:n1
+Error: NAT not supported for IPv6 any:n1
+Error: NAT not supported for IPv6 area:n1
 =END=

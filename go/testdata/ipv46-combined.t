@@ -139,8 +139,8 @@ service:s2 = {
  permit src = user; dst = network:n2, network:n3; prt = tcp 80;
 }
 =ERROR=
-Error: Must not use IPv6 network:n0 with 'ip4_only' of service:s1
-Error: Must not use IPv4 network:n3 with 'ip6_only' of service:s2
+Error: Must not use IPv6 network:n0 with 'ipv4_only' of service:s1
+Error: Must not use IPv4 network:n3 with 'ipv6_only' of service:s2
 =END=
 
 ############################################################
@@ -170,8 +170,8 @@ service:s2 = {
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =ERROR=
-Error: Must not use 'ip6_only' in service:s1, because no combined IPv4/IPv6 objects are in use
-Error: Must not use 'ip4_only' in service:s2, because no combined IPv4/IPv6 objects are in use
+Error: Must not use 'ipv6_only' in service:s1, because no combined IPv4/IPv6 objects are in use
+Error: Must not use 'ipv4_only' in service:s2, because no combined IPv4/IPv6 objects are in use
 =END=
 
 ############################################################
@@ -402,23 +402,70 @@ Error: IPv4 and IPv6 ranges of host:h4 must have equal size
 =END=
 
 ############################################################
+=TITLE=Dual stack service with icmp and icmpv6 together
+=INPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user;
+        dst = network:n3, network:n4;
+        prt = icmp 8, icmpv6 128;
+}
+=OUTPUT=
+--r1
+! n2_in
+object-group network g0
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+access-list n2_in extended permit icmp 10.1.2.0 255.255.255.0 object-group g0 8
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--ipv6/r1
+! n1_in
+access-list n1_in extended permit icmp6 2001:db8:1:1::/64 2001:db8:1:3::/64 128
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit icmp6 2001:db8:1:2::/64 2001:db8:1:3::/64 128
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=general_permit with icmp and icmpv6 together
 =INPUT=
 network:n1 = { ip6 = 2001:db8:1:1::/64; }
-network:n2 = { ip6 = 2001:db8:1:2::/64; }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  general_permit = icmp, icmpv6;
  interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 =OUTPUT=
 --r1
+! n2_in
+access-list n2_in extended permit icmp any4 any4
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
 ! n3_in
 access-list n3_in extended permit icmp any4 any4
 access-list n3_in extended deny ip any4 any4
@@ -438,6 +485,11 @@ access-group n1_in in interface n1
 access-list n2_in extended permit icmp6 any6 any6
 access-list n2_in extended deny ip any6 any6
 access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit icmp6 any6 any6
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
 =END=
 
 ############################################################
@@ -535,7 +587,7 @@ router:r1 = {
  interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
 }
 =ERROR=
-Error: Must not use IPv6 interface:r1.n1 with 'ip4_only' of 'border' of area:a1
+Error: Must not use IPv6 interface:r1.n1 with 'ipv4_only' of 'border' of area:a1
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a1
 =END=
 
@@ -707,7 +759,7 @@ network:n1 = {
  host:h1 = { ip6 = 2001:db8:1:1::10; }
 }
 =ERROR=
-Error: Missing IPv6 address for network:n1
+Error: Missing IP address for IPv6 network:n1
 =END=
 
 ############################################################
@@ -718,7 +770,7 @@ network:n1 = {
  host:h1 = { ip = 10.1.1.10; }
 }
 =ERROR=
-Error: Missing IPv4 address for network:n1
+Error: Missing IP address for IPv4 network:n1
 =END=
 
 ############################################################
@@ -755,7 +807,9 @@ network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
-=WARNING=NONE
+=ERROR=
+Error: Duplicate definition of router:r1 in ipv6/topo and topo
+=END=
 
 ############################################################
 =TITLE=Different number of IPv4/IPv6 secondary IP adresses at interface
@@ -784,9 +838,8 @@ router:r1 = {
 }
 =ERROR=
 Error: interface:r1.n1 must have identical number of IPv4 and IPv6 addresses
-Error: IPv4 address of interface:r1.n2.snd doesn't match network:n2
-Error: Missing IP in 'virtual' of interface:r1.n2
-Error: Missing IP in secondary:snd of interface:r1.n2
+Error: Missing 'ip' in secondary:snd of interface:r1.n2
+Error: Missing 'ip6' in 'virtual' of interface:r1.n2
 Error: Must not reference IPv4 network:n3 from IPv6 interface:r1.n3
 Error: interface:r1.n4 must have identical number of IPv4 and IPv6 addresses
 Error: Must not reference IPv6 network:n4 from IPv4 interface:r1.n4

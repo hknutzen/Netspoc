@@ -1,34 +1,33 @@
 
 ############################################################
 =TITLE=VRF sanity checks
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 # Unmanaged device is ignored.
 router:r@v1 = {
  interface:n1;
- interface:n2 = { ip = ::a01:201; hardware = n2; } # Hardware is ignored.
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; } # Hardware is ignored.
 }
 router:r@v2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = IN; }
 }
 router:r@v3 = {
  managed = routing_only;
  model = NSX, T1;
- interface:n3 = { ip = ::a01:302; hardware = IN; }
- interface:n4 = { ip = ::a01:401; hardware = OUT; }
+ interface:n3 = { ip6 = ::a01:302; hardware = IN; }
+ interface:n4 = { ip6 = ::a01:401; hardware = OUT; }
 }
 router:r = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: All instances of router:r must have identical model
@@ -37,21 +36,20 @@ Error: Duplicate hardware 'IN' at router:r@v2 and router:r@v3
 
 ############################################################
 =TITLE=Ignore unmanaged VRF member
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1@v1 = {
  interface:n1;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 service:test = {
  user = network:n1;
@@ -77,23 +75,22 @@ interface n3
 
 ############################################################
 =TITLE=Protect interface with different VRFs
-=PARAMS=--ipv6
 =INPUT=
-network:m = { ip = ::a02:200/120; }
+network:m = { ip6 = ::a02:200/120; }
 router:r1@v1 = {
  managed;
  model = IOS, FW;
- interface:m = { ip = ::a02:201; hardware = e0; }
- interface:t = { ip = ::a09:901; hardware = e1; }
+ interface:m = { ip6 = ::a02:201; hardware = e0; }
+ interface:t = { ip6 = ::a09:901; hardware = e1; }
 }
-network:t = { ip = ::a09:900/120; }
+network:t = { ip6 = ::a09:900/120; }
 router:r1@v2 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = ::a09:902; hardware = e2; }
- interface:n = { ip = ::a01:101; hardware = e3; }
+ interface:t = { ip6 = ::a09:902; hardware = e2; }
+ interface:n = { ip6 = ::a01:101; hardware = e3; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = tcp 80;
@@ -122,23 +119,22 @@ ipv6 access-list e3_in
 
 ############################################################
 =TITLE=Mixed routing_only and VRFs
-=PARAMS=--ipv6
 =INPUT=
-network:m = { ip = ::a02:200/120; }
+network:m = { ip6 = ::a02:200/120; }
 router:r1@v1 = {
  managed = routing_only;
  model = IOS, FW;
- interface:m = { ip = ::a02:201; hardware = e0; }
- interface:t = { ip = ::a09:901; hardware = e1; }
+ interface:m = { ip6 = ::a02:201; hardware = e0; }
+ interface:t = { ip6 = ::a09:901; hardware = e1; }
 }
-network:t = { ip = ::a09:900/120; }
+network:t = { ip6 = ::a09:900/120; }
 router:r1@v2 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = ::a09:902; hardware = e2; }
- interface:n = { ip = ::a01:101; hardware = e3; }
+ interface:t = { ip6 = ::a09:902; hardware = e2; }
+ interface:n = { ip6 = ::a01:101; hardware = e3; }
 }
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = tcp 80;
@@ -161,22 +157,21 @@ ipv6 access-list e2_in
 
 ############################################################
 =TITLE=No admin IP found in any VRF
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:109; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 =WARNING=
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
@@ -186,21 +181,20 @@ Warning: Missing rules to reach 2 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=One admin IP for multiple VRFs
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:109; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 service:admin = {
  user = interface:r1@v2.[auto];
@@ -213,22 +207,21 @@ service:admin = {
 
 ############################################################
 =TITLE=Multiple admin IPs found in VRFs
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:109; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 service:admin = {
  user = interface:r1@v1.[auto], interface:r1@v2.[auto];
@@ -241,20 +234,19 @@ service:admin = {
 
 ############################################################
 =TITLE=Missing policy distribution point at all VRF members
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:109; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 =ERROR=
 Error: Missing attribute 'policy_distribution_point' for 1 devices:
@@ -263,23 +255,22 @@ Error: Missing attribute 'policy_distribution_point' for 1 devices:
 
 ############################################################
 =TITLE=Different policy distribution point at VRF members
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h8 = { ip = ::a01:108; }
- host:h9 = { ip = ::a01:109; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h8 = { ip6 = ::a01:108; }
+ host:h9 = { ip6 = ::a01:109; }
 }
 router:r1@v1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h8;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h9;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 =ERROR=
 Error: Instances of router:r1 must not use different 'policy_distribution_point':
@@ -291,24 +282,23 @@ Warning: Missing rules to reach 1 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=Missing interface rule for policy distribution point at VRF members
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1@v1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h1;
- interface:n2 = { ip = ::a01:202; hardware = n2v2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2v2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:admin = {
  user = network:n2, network:n3;
@@ -322,24 +312,23 @@ Warning: Missing rules to reach 2 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=Reach policy distribution point from wrong side at VRF members
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1@v1 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r1@v2 = {
  managed;
  model = IOS;
  policy_distribution_point = host:h1;
- interface:n2 = { ip = ::a01:202; hardware = n2v2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2v2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:admin = {
  user = interface:r1@v1.n2, interface:r1@v2.n3;
@@ -352,18 +341,17 @@ service:admin = {
 
 ############################################################
 =TITLE=VRF not supported by model
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1@v1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = v1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = v1; }
 }
 router:r1@v2 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:102; hardware = v2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = v2; }
 }
 =ERROR=
 Error: Must not use VRF at router:r1@v1 of model ASA

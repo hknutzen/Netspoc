@@ -84,16 +84,12 @@ router:r1@v1 = {
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 -- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
 =OUTPUT=
 --ipv6/r1.info
 {"generated_by":"devel","model":"NSX","ip_list":["10.1.1.1"],"name_list":["r1"]}
@@ -113,20 +109,16 @@ router:r1@v1 = {
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 -- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:101; }
 }
 =OUTPUT=
 --ipv6/r1.info
@@ -147,31 +139,28 @@ router:r1 = {
  management_instance;
  interface:n1 = { ip = 10.1.1.1; }
 }
+-- ipv6
+network:n1v6 = { ip6 = ::a01:100/120; }
+network:n2v6 = { ip6 = ::a01:200/120; }
+router:r1-6 = {
+ model = NSX;
+ management_instance;
+ backup_of = router:r1;
+ interface:n1v6 = { ip6 = ::a01:101; }
+}
 router:r1@v1 = {
  model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
-}
--- ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1 = {
- model = NSX;
- management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@v1 = {
- model = NSX, T0;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1v6 = { ip6 = ::a01:102; hardware = IN; }
+ interface:n2v6 = { ip6 = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
 --ipv6/r1.info
-{"generated_by":"devel","model":"NSX","ip_list":["10.1.1.1"],"name_list":["r1"]}
+{"generated_by":"devel","model":"NSX","ip_list":["10.1.1.1","::a01:101"],"name_list":["r1","r1-6"]}
 --r1.info
-{"generated_by":"devel","model":"NSX","ip_list":["10.1.1.1"],"name_list":["r1"]}
+{"generated_by":"devel","model":"NSX","ip_list":["10.1.1.1","::a01:101"],"name_list":["r1","r1-6"]}
 =END=
 
 ############################################################

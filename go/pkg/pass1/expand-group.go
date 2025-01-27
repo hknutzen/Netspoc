@@ -573,7 +573,7 @@ func (c *spoc) expandGroup1(
 				x := x.(*ast.AggAuto)
 				show := func() string {
 					return fmt.Sprintf(
-						"any:[%s = %s & ..]", cond(x.IPV6, "ip6", "ip"), x.Net)
+						"any:[%s = %s & ..]", v6Attr("ip", x.IPV6), x.Net)
 				}
 				var ipp netip.Prefix
 				if x.Net != "" {

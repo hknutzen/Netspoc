@@ -62,13 +62,13 @@ sub adjust_testfile {
     $file =~ /(.+)\.t/;
     my $name = $1;
 
-    open (my $outfilehandle, '>', $dir . "/" . $name . "_ipv6.t") or
+    open (my $outfilehandle, '>', "$dir/${name}_ipv6.t") or
         die "Can not open file $filename";
 
     # Convert IPv4 input file line by line.
     while (my $line = <$infilehandle>) {
 
-        # Disable marked line
+        # Disable marked test
         if ($line =~ /#( *No IPv6)/i) {
             $line = "=TODO=$1\n";
         }
@@ -89,6 +89,10 @@ sub adjust_testfile {
             $line =~ s/icmp/icmp6/;
         }
 
+        # Convert ip|range|unnumbered|negotiated|hidden to ip6|... in input.
+        $line =~ s/\b(ip|range)(\s*=)/${1}6$2/g;
+        $line =~ s/(['"])(ip|range|unnumbered|negotiated)(['"])/${1}${2}6$3/g;
+        $line =~ s/\b(unnumbered|negotiated)(\s*;)/${1}6$2/g;
         # Convert ICMPv4 to ICMPv6 in JSON output for NSX.
         $line =~ s/"ICMPv4"/"ICMPv6"/;
         # Convert value of attribute 'ip_protocol' for NSX.
@@ -269,9 +273,6 @@ sub adjust_testfile {
         $line =~ s/(=")(r\d+")/$1v6$2/g;
         # Convert rule names in JSON: "id": "r7",
         $line =~ s/(: ?")(r\d+")/$1v6$2/g;
-
-        # Add =PARAMS= with --ipv6 option before =INPUT=
-        $line =~ s/^(=INPUT=.*)/=PARAMS=--ipv6\n$1/;
 
         print $outfilehandle $line;
     }

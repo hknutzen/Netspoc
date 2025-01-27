@@ -3645,7 +3645,6 @@ Aborted
 =OPTIONS=-h
 =ERROR=
 Usage: PROGRAM [options] netspoc-data out-directory
-  -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =END=
 
@@ -3662,7 +3661,6 @@ Error: unknown flag: --foo
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
 =TEMPL=usage
 Usage: PROGRAM [options] netspoc-data out-directory
-  -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =ERROR=
 [[usage]]
@@ -3869,14 +3867,9 @@ router:r1  = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n1_v6 = { ip6 = 1::1; hardware = n1; }
 }
--- ipv6
-network:n1_v6 = { ip = 1::/64; owner = o; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1_v6 = { ip = 1::1; hardware = n1; }
-}
+network:n1_v6 = { ip6 = 1::/64; owner = o; }
 =OUTPUT=
 --owner/o/nat_set
 [ "n1" ]

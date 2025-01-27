@@ -1,27 +1,26 @@
 
 ############################################################
 =TITLE=Pathrestriction must only reference real interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = IOS;
  managed;
  routing = manual;
  interface:n1 = {
-  ip = ::a01:101;
-  secondary:s = { ip = ::a01:163; }
+  ip6 = ::a01:101;
+  secondary:s = { ip6 = ::a01:163; }
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 group:g1 =
  interface:r1.n1,
@@ -39,14 +38,13 @@ Error: pathrestriction:p must not reference secondary interface:r1.n1.s
 
 ############################################################
 =TITLE=Pathrestriction with only 0 or 1 interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 group:g1 =;
 pathrestriction:p1 = group:g1;
@@ -61,31 +59,30 @@ Warning: Ignoring pathrestriction:p2 with only interface:r1.n1
 
 ############################################################
 =TEMPL=topo
-network:top = { ip = ::a01:100/120;}
+network:top = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:top = { ip = ::a01:101; hardware = top; }
- interface:lft = { ip = ::a03:1f5; hardware = lft; }
- interface:dst = { ip = ::a01:201; hardware = dst; }
+ interface:top = { ip6 = ::a01:101; hardware = top; }
+ interface:lft = { ip6 = ::a03:1f5; hardware = lft; }
+ interface:dst = { ip6 = ::a01:201; hardware = dst; }
 }
-network:lft = { ip = ::a03:1f4/126;}
+network:lft = { ip6 = ::a03:1f4/126;}
 router:r2 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:top = { ip = ::a01:102; hardware = top; }
- interface:rgt = { ip = ::a03:181; hardware = rgt; }
- interface:dst = { ip = ::a01:202; hardware = dst; }
+ interface:top = { ip6 = ::a01:102; hardware = top; }
+ interface:rgt = { ip6 = ::a03:181; hardware = rgt; }
+ interface:dst = { ip6 = ::a01:202; hardware = dst; }
 }
-network:rgt = { ip = ::a03:180/126;}
-network:dst = { ip = ::a01:200/120;}
+network:rgt = { ip6 = ::a03:180/126;}
+network:dst = { ip6 = ::a01:200/120;}
 =END=
 
 ############################################################
 =TITLE=Simple pathrestrictions leaving no valid path
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:top =
@@ -112,7 +109,6 @@ Error: No valid path
 
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p =
@@ -152,7 +148,6 @@ ipv6 access-list dst_in
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop (2)
 # Must not use path r1.top-r1-r2-top
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p =
@@ -193,7 +188,6 @@ ipv6 access-list dst_in
 
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop (3)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p1 =
@@ -226,7 +220,6 @@ ipv6 access-list dst_in
 =TITLE=Path ends at pathrestriction inside loop
 # Must detect identical path restriction,
 # when temporary moving pathrestriction of r1.dst to r1.top.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p =
@@ -251,7 +244,6 @@ ipv6 access-list dst_in
 
 ############################################################
 =TITLE=Path ends at pathrestriction inside loop (2)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p1 =
@@ -281,7 +273,6 @@ ipv6 access-list dst_in
 ############################################################
 =TITLE=Path ends at interface inside network, where path starts
 # Must not enter r1 from network dst, even for optimized pathrestriction.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 pathrestriction:p =
@@ -306,12 +297,11 @@ ipv6 access-list dst_in
 
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop (4)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  interface:n1;
  interface:n2;
@@ -319,14 +309,14 @@ router:r1 = {
 router:r2 = {
  managed = secondary;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; no_in_acl; routing = dynamic; }
- interface:n3 = { ip = ::a01:301; hardware = n3; routing = OSPF;}
- interface:n4 = { ip = ::a01:402; hardware = n4; virtual = { ip = ::a01:401; type = HSRP; } }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; no_in_acl; routing = dynamic; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; routing = OSPF;}
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; virtual = { ip6 = ::a01:401; type = HSRP; } }
 }
 router:r3 = {
  interface:n2;
  interface:n3;
- interface:n4 = { ip = ::a01:403; virtual = { ip = ::a01:401; type = HSRP; } }
+ interface:n4 = { ip6 = ::a01:403; virtual = { ip6 = ::a01:401; type = HSRP; } }
 }
 service:s1 = {
  user = foreach interface:r2.[all];
@@ -372,25 +362,24 @@ ipv6 access-list n4_out
 
 ############################################################
 =TITLE=Ignore redundant pathrestriction
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; virtual = { ip6 = ::a01:101; } hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:103; virtual = { ip6 = ::a01:101; } hardware = n1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3 = {
  interface:n2;
@@ -414,42 +403,41 @@ DIAG: Removed auto-virtual:::a01:101; is subset of pathrestriction:p1
 
 ############################################################
 =TITLE=Pathrestriction located in different loops
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2a = {
  model = IOS;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:t1 = { ip = ::a09:101; hardware = t1; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
 }
-network:t1 = { ip = ::a09:100/120; }
+network:t1 = { ip6 = ::a09:100/120; }
 router:r2b = {
  model = IOS;
  managed;
  routing = manual;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 router:r3 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 pathrestriction:p1 =
  interface:r2a.n2,
@@ -469,43 +457,42 @@ Warning: Ignoring pathrestriction:p1 having elements from different loops:
 =TITLE=Pathrestriction located in different loops (2)
 # Ignored pathrestriction must be fully disabled internally.
 # Otherwise we got a non terminating program.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r3 = {
  interface:n2;
  interface:n3;
  interface:n5;
 }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r4 = {
  model = Linux;
  managed;
  routing = manual;
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n6 = { ip = ::a01:601; hardware = n6; }
- interface:n7 = { ip = ::a01:701; hardware = n7; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n6 = { ip6 = ::a01:601; hardware = n6; }
+ interface:n7 = { ip6 = ::a01:701; hardware = n7; }
 }
-network:n6 = { ip = ::a01:600/120; }
-network:n7 = { ip = ::a01:700/120; }
+network:n6 = { ip6 = ::a01:600/120; }
+network:n7 = { ip6 = ::a01:700/120; }
 router:r5 = {
  interface:n6;
  interface:n7;
@@ -528,40 +515,39 @@ Warning: Ignoring pathrestriction:p having elements from different loops:
 =TITLE=Pathrestriction located in different loops (3)
 # Ignored pathrestriction at unmanaged router at zone in loop
 # was not handled correctly, leading to panic.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 
 router:r0 = {
- interface:n1 = { ip = ::a01:103; }
- interface:n3 = { ip = ::a01:303; }
+ interface:n1 = { ip6 = ::a01:103; }
+ interface:n3 = { ip6 = ::a01:303; }
 }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 router:r3 = {
  managed;
  model = IOS;
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r4 = {
  managed;
  model = IOS;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 
 pathrestriction:p = interface:r1.n1, interface:r0.n3;
@@ -578,30 +564,29 @@ Warning: Ignoring pathrestriction:p having elements from different loops:
 
 ############################################################
 =TITLE=Pathrestriction at non-loop node
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3 = {
  model = IOS;
  managed;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 pathrestriction:p1 =
  interface:r1.n2,
@@ -614,24 +599,23 @@ Warning: Ignoring pathrestriction:p1 at interface:r3.n3
 
 ############################################################
 =TITLE=Pathrestriction at internally split router outside of loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 # r2 is split internally into two parts
 # r2 with n3, n4
 # r2' with n2
 # both connected internally by unnumbered network.
 router:r2 = {
- interface:n2 = { ip = ::a01:202; }
+ interface:n2 = { ip6 = ::a01:202; }
  interface:n3;
  interface:n4;
 }
@@ -652,26 +636,25 @@ Warning: Ignoring pathrestriction:p1 at interface:r2.n2
 
 ############################################################
 =TITLE=Pathrestricted destination in complex loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 pathrestriction:p = interface:r1.n1, interface:r1.n3;
 service:s = {
@@ -706,26 +689,25 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Pathrestricted source in complex loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 pathrestriction:p = interface:r1.n1, interface:r1.n3;
 pathrestriction:p2 = interface:r2.n1, interface:r2.n3;
@@ -760,40 +742,39 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Pathrestricted src and dst in complex loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 router:r3 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n2 = { ip = ::a01:203; hardware = n2; }
- interface:n3 = { ip = ::a01:303; hardware = n3; virtual = { ip = ::a01:301; } }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:303; hardware = n3; virtual = { ip6 = ::a01:301; } }
 }
 router:r4 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n2 = { ip = ::a01:204; hardware = n2; }
- interface:n3 = { ip = ::a01:304; hardware = n3; virtual = { ip = ::a01:301; } }
+ interface:n2 = { ip6 = ::a01:204; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:304; hardware = n3; virtual = { ip6 = ::a01:301; } }
 }
 pathrestriction:p = interface:r1.n4, interface:r1.n1;
 service:s = {
@@ -839,36 +820,35 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Pathrestricted path must not enter dst router twice
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r1 = {
   model = IOS;
   managed;
   routing = manual;
-  interface:n1 = { ip = ::a01:101; hardware = n1; }
-  interface:n2 = { ip = ::a01:201; hardware = n2; }
-  interface:n3 = { ip = ::a01:301; hardware = n3; }
-  interface:n4 = { ip = ::a01:401; hardware = n4; }
+  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+  interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
   model = IOS;
   managed;
   routing = manual;
-  interface:n4 = { ip = ::a01:402; hardware = n4; }
-  interface:n5 = { ip = ::a01:502; hardware = n5; }
+  interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+  interface:n5 = { ip6 = ::a01:502; hardware = n5; }
 }
 router:r3 = {
   model = IOS;
   managed;
   routing = manual;
-  interface:n2 = { ip = ::a01:202; hardware = n2; }
-  interface:n3 = { ip = ::a01:302; hardware = n3; }
-  interface:n5 = { ip = ::a01:501; hardware = n5; }
+  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+  interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 pathrestriction:p = interface:r1.n1, interface:r1.n2;
 service:s1 = {
@@ -909,26 +889,25 @@ ipv6 access-list n5_in
 ############################################################
 =TITLE=Pathrestricted src and dst in same zone
 # Should we find additional paths through network:n2?
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 pathrestriction:p1 = interface:r1.n1, interface:r1.n3;
 pathrestriction:p2 = interface:r2.n1, interface:r2.n3;
@@ -951,12 +930,11 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Find all networks in zone split by pathrestriction
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:u = {
  interface:n1;
  interface:n2;
@@ -966,15 +944,15 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 pathrestriction:p = interface:u.n1, interface:r1.n2;
 service:s1 = {
@@ -1002,13 +980,12 @@ ipv6 access-list n3_in
 ############################################################
 =TITLE=Use all parts of aggregate in zone split by pathrestriction
 # Aggregate must be permitted at both r1 and r2, although n1 only passes r2.
-=PARAMS=--ipv6
 =INPUT=
-any:n1-10-1-1 = { link = network:n1; ip = ::a01:0/119; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+any:n1-10-1-1 = { link = network:n1; ip6 = ::a01:0/119; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:u = {
  interface:n1;
  interface:n2;
@@ -1018,15 +995,15 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 pathrestriction:p = interface:u.n1, interface:r1.n2;
 service:s1 = {
@@ -1048,18 +1025,17 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Add aggregates and networks from all zones of cluster
-=PARAMS=--ipv6
 =INPUT=
-any:10_1_0-24 = { link = network:n1; ip = ::a01:0/120; }
-network:big = { ip = ::a01:0/119; has_subnets; }
-network:n0a = { ip = ::a01:0/121; }
-network:n0b = { ip = ::a01:80/121; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
-network:n6 = { ip = ::a01:600/120; }
+any:10_1_0-24 = { link = network:n1; ip6 = ::a01:0/120; }
+network:big = { ip6 = ::a01:0/119; has_subnets; }
+network:n0a = { ip6 = ::a01:0/121; }
+network:n0b = { ip6 = ::a01:80/121; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
+network:n6 = { ip6 = ::a01:600/120; }
 router:u1 = {
  interface:n0a;
  interface:n0b;
@@ -1075,15 +1051,15 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n5 = { ip = ::a01:501; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n4; }
 }
 router:u4 = {
  interface:n4;
@@ -1121,13 +1097,12 @@ ipv6 access-list n3_in
 
 ############################################################
 =TITLE=Pathrestriction at both borders of loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:u = {
  interface:n1;
  interface:n2;
@@ -1138,19 +1113,19 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 router:r3 = {
- interface:n4 = { ip = ::a01:403; hardware = n4; }
- interface:n5= { ip = ::a01:501; hardware = n1; }
+ interface:n4 = { ip6 = ::a01:403; hardware = n4; }
+ interface:n5= { ip6 = ::a01:501; hardware = n1; }
 }
 service:s1 = {
  user = network:n1;
@@ -1166,32 +1141,31 @@ Error: No valid path
 
 ############################################################
 =TITLE=Show 'no valid path' for both services
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 router:r2 = {
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r3 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n5 = { ip = ::a01:502; hardware = n5; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:502; hardware = n5; }
 }
 pathrestriction:p1 =
  interface:r3.n3,
@@ -1230,49 +1204,48 @@ Error: No valid path
 
 ############################################################
 =TITLE=Show 'no valid path' for both sources
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:t1 = { ip = ::a09:100/120; }
-network:t2 = { ip = ::a09:200/120; }
-network:t3 = { ip = ::a05:600/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:t1 = { ip6 = ::a09:100/120; }
+network:t2 = { ip6 = ::a09:200/120; }
+network:t3 = { ip6 = ::a05:600/120; }
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:t1 = { ip = ::a09:101; hardware = t1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
 }
 router:r2 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:t2 = { ip = ::a09:203; hardware = t2; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:203; hardware = t2; }
 }
 router:filter1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:t2 = { ip = ::a09:201; hardware = t2; }
- interface:t3 = { ip = ::a05:601; hardware = t3; }
+ interface:t2 = { ip6 = ::a09:201; hardware = t2; }
+ interface:t3 = { ip6 = ::a05:601; hardware = t3; }
 }
 router:filter2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:t2 = { ip = ::a09:202; hardware = t2; }
- interface:t3 = { ip = ::a05:602; hardware = t3; }
+ interface:t2 = { ip6 = ::a09:202; hardware = t2; }
+ interface:t3 = { ip6 = ::a05:602; hardware = t3; }
 }
 router:r3 = {
  managed;
  model = IOS;
  routing = manual;
- interface:t3 = { ip = ::a05:607; hardware = t3; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:t3 = { ip6 = ::a05:607; hardware = t3; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 pathrestriction:restrict1 =
  interface:filter1.t2,
@@ -1311,47 +1284,46 @@ Error: No valid path
 
 ############################################################
 =TITLE=Show 'no valid path' for sources in different loops
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:t1 = { ip = ::a09:100/120; }
-network:t2 = { ip = ::a09:200/120; }
-network:t3 = { ip = ::a09:300/120; }
-network:t4 = { ip = ::a09:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:t1 = { ip6 = ::a09:100/120; }
+network:t2 = { ip6 = ::a09:200/120; }
+network:t3 = { ip6 = ::a09:300/120; }
+network:t4 = { ip6 = ::a09:400/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:t1 = { ip = ::a09:101; hardware = t1; }
- interface:t2 = { ip = ::a09:201; hardware = t2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:201; hardware = t2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:t2 = { ip = ::a09:202; hardware = t2; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:202; hardware = t2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r3 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:t3 = { ip = ::a09:302; hardware = t1; }
- interface:t4 = { ip = ::a09:402; hardware = t2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:t3 = { ip6 = ::a09:302; hardware = t1; }
+ interface:t4 = { ip6 = ::a09:402; hardware = t2; }
 }
 # Zone1 for path-walk is selected from this router.
 router:r0 = {
  managed;
  model = ASA;
  routing = manual;
- interface:t3 = { ip = ::a09:301; hardware = t1; }
- interface:t4 = { ip = ::a09:401; hardware = t2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:t3 = { ip6 = ::a09:301; hardware = t1; }
+ interface:t4 = { ip6 = ::a09:401; hardware = t2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 pathrestriction:p1 =
  interface:r0.t3,

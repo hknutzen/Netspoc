@@ -1,12 +1,12 @@
 package pass1
 
 import (
-	"fmt"
-	"os"
 	"strings"
 )
 
+/*
 func debug(f string, l ...interface{}) { fmt.Fprintf(os.Stderr, f+"\n", l...) }
+*/
 
 func (l intfList) nameList() string {
 	var names stringList
@@ -19,11 +19,7 @@ func (l intfList) nameList() string {
 func (l netList) nameList() string {
 	var names stringList
 	for _, n := range l {
-		name := n.name
-		if n.isCombined46() {
-			name = ipvx(n.ipV6) + " " + name
-		}
-		names.push(name)
+		names.push(n.vxName())
 	}
 	return names.nameList()
 }

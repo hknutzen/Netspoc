@@ -1,26 +1,25 @@
 =TEMPL=topo
 network:n1 = {
- ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a;}
- host:h11 = { ip = ::a01:10b;}
- host:h12 = { ip = ::a01:10c;}
- host:h13 = { ip = ::a01:10d;}
- host:h14 = { ip = ::a01:10e;}
+ ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a;}
+ host:h11 = { ip6 = ::a01:10b;}
+ host:h12 = { ip6 = ::a01:10c;}
+ host:h13 = { ip6 = ::a01:10d;}
+ host:h14 = { ip6 = ::a01:10e;}
 }
 router:r1 = {
  model = ASA;
  managed;
  log:l1 = disable;
  log:l2 = debugging;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 =END=
 
 ############################################################
 =TITLE=Simple duplicate service
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -40,7 +39,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules, but different order in protocols.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -60,7 +58,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules, but different order in objects.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -80,7 +77,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules, but different order in log attribute
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -100,16 +96,15 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules with automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
  user = host:h10;
- permit src = user; dst = any:[ip=::a00:0/104 & network:n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a00:0/104 & network:n2]; prt = tcp 80;
 }
 service:s2 = {
  user = host:h11;
- permit src = user; dst = any:[ip=::a00:0/104 & network:n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a00:0/104 & network:n2]; prt = tcp 80;
 }
 =WARNING=
 Warning: These services have identical rule definitions.
@@ -120,7 +115,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules with changed order in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -140,7 +134,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal rules with changed order in intersection.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 group:g1 = host:h11;
@@ -162,7 +155,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Compare reversed rules, src = user
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:reversed = udp 514, reversed;
@@ -183,7 +175,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Compare reversed rules, dst = user
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ntp = udp 123;
@@ -206,7 +197,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Different action
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -226,7 +216,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Many elements are equal, but not all.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -246,7 +235,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Many protocols are equal, but not all (1)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -266,7 +254,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Many protocols are equal, but not all (2)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -286,7 +273,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Changed complement.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 group:g1 = host:h10, host:h11, host:h12;
@@ -304,7 +290,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Changed order of equal rules (1)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -330,7 +315,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Changed order of equal rules (2)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -355,7 +339,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Changed order of equal rules (3)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -377,7 +360,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Similar service, but changed src/dst
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -399,7 +381,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Equal expanded rules, but from different groups
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 group:g1 = network:n2;
@@ -416,7 +397,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules, but different log attribute
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -432,7 +412,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules, but different attribute disable_at
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -450,39 +429,36 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules with different IP in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
  user = host:h10;
- permit src = user; dst = any:[ip=::a00:0/104 & network:n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a00:0/104 & network:n2]; prt = tcp 80;
 }
 service:s2 = {
  user = host:h11;
- permit src = user; dst = any:[ip=::a01:0/112 & network:n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a01:0/112 & network:n2]; prt = tcp 80;
 }
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
 =TITLE=Equal rules with equal IP but different objects in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
  user = host:h10;
- permit src = user; dst = any:[ip=::a00:0/104 & interface:r1.n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a00:0/104 & interface:r1.n2]; prt = tcp 80;
 }
 service:s2 = {
  user = host:h11;
- permit src = user; dst = any:[ip=::a00:0/104 & network:n2]; prt = tcp 80;
+ permit src = user; dst = any:[ip6=::a00:0/104 & network:n2]; prt = tcp 80;
 }
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
 =TITLE=Equal rules with different 'managed' attribute in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -498,7 +474,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules with different selector in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -514,7 +489,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules with textual different elements in automatic group.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -530,7 +504,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Suppressed warning (1)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -552,7 +525,6 @@ service:s3 = {
 
 ############################################################
 =TITLE=Suppressed warning (2)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -573,7 +545,6 @@ service:s3 = {
 
 ############################################################
 =TITLE=Suppressed warning (3)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -596,7 +567,6 @@ service:s3 = {
 
 ############################################################
 =TITLE=Incorrect suppressed warning
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -624,7 +594,6 @@ Warning: Useless 'identical_body = service:s3' at service:s2
 
 ############################################################
 =TITLE=Partially suppressed warning
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -650,7 +619,6 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Useless attribute 'identical_body' (1)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -674,7 +642,6 @@ Warning: Useless 'identical_body' at service:s3
 
 ############################################################
 =TITLE=Useless attribute 'identical_body' (2)
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -697,16 +664,15 @@ Warning: Useless 'identical_body' at service:s3
 
 ############################################################
 =TITLE=Useless attribute 'identical_body' (3)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; identical_body = restrict; }
+network:n2 = { ip6 = ::a01:200/120; identical_body = restrict; }
 
 service:s1 = {
  identical_body = service:s2;
@@ -723,22 +689,21 @@ Warning: Ignoring 'identical_body' at service:s1
 
 ############################################################
 =TITLE=Suppressed warning from objects in rules.
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
+ ip6 = ::a01:100/120;
  identical_body = ok;
- host:h10 = { ip = ::a01:10a;}
- host:h11 = { ip = ::a01:10b;}
- host:h12 = { ip = ::a01:10c;}
+ host:h10 = { ip6 = ::a01:10a;}
+ host:h11 = { ip6 = ::a01:10b;}
+ host:h12 = { ip6 = ::a01:10c;}
 }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 
 service:s1 = {
  user = network:n2;
@@ -753,20 +718,19 @@ service:s2 = {
 
 ############################################################
 =TITLE=Non suppressed warning from objects in rules.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
-network:n2 = { ip = ::a01:200/120; identical_body = ok; }
-network:n3 = { ip = ::a01:300/120; identical_body = ok; }
-network:n4 = { ip = ::a01:400/120; }
+network:n2 = { ip6 = ::a01:200/120; identical_body = ok; }
+network:n3 = { ip6 = ::a01:300/120; identical_body = ok; }
+network:n4 = { ip6 = ::a01:400/120; }
 
 service:s1 = {
  user = network:n1;
@@ -785,18 +749,17 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Restricted use of identical_body (1)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; identical_body = restrict; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; identical_body = restrict; }
 
 service:s1 = {
  identical_body = service:s2;
@@ -813,18 +776,17 @@ Warning: Attribute 'identical_body' is blocked at service:s1
 
 ############################################################
 =TITLE=Restricted use of identical_body (2)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; identical_body = restrict; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; identical_body = restrict; }
 
 service:s1 = {
  identical_body = service:s2;
@@ -842,23 +804,22 @@ Warning: Useless 'identical_body' at service:s1
 
 ############################################################
 =TITLE=Auto interface expands to multiple rules
-=PARAMS=--ipv6
 =INPUT=
 network:n1 = {
- ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a;}
- host:h11 = { ip = ::a01:10b;}
+ ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a;}
+ host:h11 = { ip6 = ::a01:10b;}
 }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = {ip = ::a01:101;hardware = n1;}
- interface:n2 = {ip = ::a01:201;hardware = n2;}
+ interface:n1 = {ip6 = ::a01:101;hardware = n1;}
+ interface:n2 = {ip6 = ::a01:201;hardware = n2;}
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h20 = { ip = ::a01:214;}
- host:h21 = { ip = ::a01:215;}
+ ip6 = ::a01:200/120;
+ host:h20 = { ip6 = ::a01:214;}
+ host:h21 = { ip6 = ::a01:215;}
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -879,19 +840,18 @@ Warning: These services have identical rule definitions.
 
 ############################################################
 =TITLE=Ignore services with user - user rule
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 service:s1 = {
  user = network:n1, network:n2, network:n3;
@@ -906,26 +866,25 @@ service:s2 = {
 
 ############################################################
 =TITLE=Equal rules, but slightly different interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a;}
- host:h11 = { ip = ::a01:10b;}
- host:h12 = { ip = ::a01:10c;}
- host:h13 = { ip = ::a01:10d;} }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120;
- host:h30 = { ip = ::a01:31e;}
- host:h33 = { ip = ::a01:321;} }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a;}
+ host:h11 = { ip6 = ::a01:10b;}
+ host:h12 = { ip6 = ::a01:10c;}
+ host:h13 = { ip6 = ::a01:10d;} }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120;
+ host:h30 = { ip6 = ::a01:31e;}
+ host:h33 = { ip6 = ::a01:321;} }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201, ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201, ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:u = {
- interface:n2 = { ip = ::a01:209; }
+ interface:n2 = { ip6 = ::a01:209; }
 }
 # Add two unchanged elements in front of dst list and two protocols,
 # because hashing is done on first two elements and last two protocols.

@@ -7,7 +7,6 @@
 Usage: PROGRAM [options] FILE|DIR 'group:name,...'
   -a, --admins       Show admins of elements as comma separated list
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -o, --owner        Show owner of elements
@@ -22,7 +21,6 @@ Usage: PROGRAM [options] FILE|DIR 'group:name,...'
 Usage: PROGRAM [options] FILE|DIR 'group:name,...'
   -a, --admins       Show admins of elements as comma separated list
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -o, --owner        Show owner of elements

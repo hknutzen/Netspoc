@@ -301,6 +301,7 @@ Warning: No spokes have been defined for crypto:vpn
 
 ############################################################
 =TITLE=No bind_nat allowed at hub
+# No IPv6 NAT
 =INPUT=
 [[crypto_vpn]]
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
@@ -2157,6 +2158,7 @@ Error: Ambiguous static routes for network:customers1 at interface:r.trans via
 
 ############################################################
 =TITLE=NAT with VPN ASA
+# No IPv6 NAT
 =INPUT=
 [[crypto_vpn]]
 network:intern = { ip = 10.1.2.0/24; nat:E = { ip = 192.168.2.0/24; } }
@@ -2232,6 +2234,8 @@ access-group extern_in in interface extern
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (1)
+# No IPv6 NAT
+#
 # Must use NAT ip of internal network, not NAT ip of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internet.
@@ -2325,6 +2329,8 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (2)
+# No IPv6 NAT
+#
 # No error, because NAT isn't applicable for encrypted packets.
 =INPUT=[[input]]
 =SUBST=|hidden|ip = 10.2.2.0/24; dynamic|
@@ -2337,6 +2343,8 @@ route inside 10.1.2.0 255.255.255.0 10.1.1.2
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (3)
+# No IPv6 NAT
+#
 # Must use NAT IP of internal network, not NAT IP of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internal network.
@@ -2483,6 +2491,7 @@ Error: Two static routes for network:internet
 
 ############################################################
 =TITLE=Use real ip in ACL but NAT IP in crypto ACL
+# No IPv6 NAT
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -2834,6 +2843,7 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT
+# No IPv6 NAT
 =TEMPL=input
 ipsec:aes192SHA = {
  key_exchange = isakmp:aes192SHA;
@@ -2978,6 +2988,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT (IKEv2)
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
@@ -3030,6 +3041,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=IOS with two crypto spokes and NAT (IKEv2)
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =SUBST=/ASA/IOS/
@@ -3077,6 +3089,7 @@ crypto map crypto-outside 2 ipsec-isakmp
 
 ############################################################
 =TITLE=ASA with two dynamic crypto spokes, same ipsec at different tunnels
+# No IPv6 NAT
 =TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -3210,7 +3223,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Generate individual routes even if no 0.0.0.0/0
-# No IPv6
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=,0.0.0.0/0,1.0.0.0/8,
 # Use individual routes to VPN peers, even if all have same next hop
@@ -3226,6 +3239,7 @@ route outside 1.0.0.0 255.0.0.0 192.168.0.1
 
 ############################################################
 =TITLE=Must not reuse crypto id
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
 =ERROR=
@@ -3620,6 +3634,7 @@ network:lan1 = {
 
 ############################################################
 =TITLE=Create crypto ACL even if no rule is defined
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =OUTPUT=
@@ -3644,6 +3659,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Access VPN interface
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 service:test = {
@@ -3668,6 +3684,7 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
 
 ############################################################
 =TITLE=NAT of IPSec traffic at ASA and NAT of VPN network at IOS
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 service:test = {
@@ -3738,6 +3755,7 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=detailed_crypto_acl at managed spoke
+# No IPv6 NAT
 =INPUT=[[topo]]
 =SUBST=/type = ipsec:/detailed_crypto_acl; type = ipsec:/
 =ERROR=
@@ -3746,6 +3764,7 @@ Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:v
 
 ############################################################
 =TITLE=Don't add hidden network to crypto ACL
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 network:lan2 = {
@@ -3776,6 +3795,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Multiple zones behind managed crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 router:r1 = {
@@ -3791,6 +3811,7 @@ Error: Exactly one security zone must be located behind managed interface:vpn1.l
 
 ############################################################
 =TITLE=ID hosts behind managed crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3801,6 +3822,7 @@ Error: network:lan1 having ID hosts must not be located behind managed router:vp
 
 ############################################################
 =TITLE=ID hosts behind unmanaged crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3811,6 +3833,7 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 
 ############################################################
 =TITLE=Attribute 'id' with wrong authentication
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/rsasig/preshare/

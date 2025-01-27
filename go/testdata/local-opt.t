@@ -54,6 +54,7 @@ ip access-list extended N1_in
 
 ############################################################
 =TITLE=Redundant port
+# No IPv6 NAT
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -170,6 +171,7 @@ ip access-list extended n2_in
 
 ############################################################
 =TITLE=Redundant host
+# No IPv6 NAT
 =TEMPL=input
 network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
@@ -209,6 +211,7 @@ ip access-list extended VLAN1_out
 
 ############################################################
 =TITLE=Redundant host, changed order of rules
+# No IPv6 NAT
 =INPUT=[[input test0]]
 # Unchanged output
 =OUTPUT=

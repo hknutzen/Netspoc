@@ -261,6 +261,7 @@ ip access-list extended e3_in
 
 ############################################################
 =TITLE=Protect NAT interface
+# No IPv6 NAT
 =INPUT=
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
@@ -284,6 +285,7 @@ ip access-list extended e0_in
 
 ############################################################
 =TITLE=Interface has dynamic NAT address
+# No IPv6 NAT
 # Address for protect self rules is unknown.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -308,6 +310,7 @@ Error: Must not apply dynamic nat:d to interface:r1.n2 at interface:r1.n1 of sam
 
 ############################################################
 =TITLE=Interface has negotiated address
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.9.0/24; } }

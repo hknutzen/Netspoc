@@ -1,17 +1,17 @@
 =TEMPL=topo
-network:x = { ip = ::a01:100/120;
- host:x7 = { ip = ::a01:107; }
- host:x9 = { ip = ::a01:109; }
- host:range = { range = ::a01:106-::a01:10b; }
+network:x = { ip6 = ::a01:100/120;
+ host:x7 = { ip6 = ::a01:107; }
+ host:x9 = { ip6 = ::a01:109; }
+ host:rg = { range6 = ::a01:106-::a01:10b; }
 }
 router:r = {
  model = IOS,FW;
  managed;
- interface:x = { ip = ::a01:101; hardware = e0; }
- interface:y = { ip = ::a02:202; hardware = e1; }
+ interface:x = { ip6 = ::a01:101; hardware = e0; }
+ interface:y = { ip6 = ::a02:202; hardware = e1; }
 }
-network:y = { ip = ::a02:200/120;
- host:y = { ip = ::a02:209; }
+network:y = { ip6 = ::a02:200/120;
+ host:y = { ip6 = ::a02:209; }
 }
 =END=
 
@@ -23,7 +23,6 @@ service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=
 Warning: Some source/destination pairs of service:test don't affect any firewall:
@@ -33,7 +32,6 @@ Warning: Some source/destination pairs of service:test don't affect any firewall
 
 ############################################################
 =TITLE=Zone ignoring unenforceable rule
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 any:x = { link = network:x; has_unenforceable = ok; }
@@ -41,7 +39,6 @@ any:x = { link = network:x; has_unenforceable = ok; }
 
 ############################################################
 =TITLE=Disable check for unenforceable rule
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 =OPTIONS=--check_unenforceable=0
@@ -49,7 +46,6 @@ any:x = { link = network:x; has_unenforceable = ok; }
 
 ############################################################
 =TITLE=Service ignoring unenforceable rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -61,7 +57,6 @@ service:test = {
 
 ############################################################
 =TITLE=Restrict attribute 'has_unenforceable'
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 any:x = { link = network:x; has_unenforceable = restrict; }
@@ -79,7 +74,6 @@ Warning: Some source/destination pairs of service:test don't affect any firewall
 
 ############################################################
 =TITLE=Restrict + enable attribute 'has_unenforceable'
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 area:all = { anchor = network:x; has_unenforceable = restrict; }
@@ -103,7 +97,6 @@ Warning: Some source/destination pairs of service:s2 don't affect any firewall:
 ############################################################
 =TITLE=Mixed ignored and reported unenforceable service
 # Must not ignore others, if first is ignored.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1 = {
@@ -123,7 +116,6 @@ Warning: Some source/destination pairs of service:test2 don't affect any firewal
 
 ############################################################
 =TITLE=Silent unenforceable rules
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -135,18 +127,16 @@ service:test = {
 
 ############################################################
 =TITLE=Silent unenforceable rules with split range
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
- user = host:range, host:y;
+ user = host:rg, host:y;
  permit src = user; dst = user; prt = tcp 80;
 }
 =WARNING=NONE
 
 ############################################################
 =TITLE=Silent unenforceable user-user rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -157,16 +147,15 @@ service:test = {
 
 ############################################################
 =TITLE=Unenforceable foreach rule
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 router:r2 = {
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 service:ping-local = {
  user = foreach interface:r1.n1, interface:r2.n1;
@@ -179,7 +168,6 @@ Warning: Some source/destination pairs of service:ping-local don't affect any fi
 
 ############################################################
 =TITLE=Useless has_unenforceable at silent unenforceable user-user rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -193,7 +181,6 @@ Warning: Useless 'has_unenforceable' at service:test
 
 ############################################################
 =TITLE=Fully unenforceable user-user rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -206,28 +193,27 @@ Warning: No firewalls found between all source/destination pairs of service:test
 
 ############################################################
 =TITLE=Consider aggregates in zone cluster as equal
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed = routing_only;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:t1 = { ip = ::a09:101; hardware = t1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
 }
-network:t1 = { ip = ::a09:100/120; }
+network:t1 = { ip6 = ::a09:100/120; }
 router:r2 = {
  managed;
  model = ASA;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:s1 = {
- user = any:[ip = ::a00:0/104 & network:n1],
-        any:[ip = ::a00:0/104 & network:n3],
+ user = any:[ip6 = ::a00:0/104 & network:n1],
+        any:[ip6 = ::a00:0/104 & network:n3],
         ;
  permit src = user; dst = user; prt = tcp 80;
 }
@@ -253,18 +239,17 @@ access-group n3_in in interface n3
 any:x = {
  link = network:x;
 }
-network:x = { ip = ::a01:100/120; }
+network:x = { ip6 = ::a01:100/120; }
 router:r = {
  interface:x;
  interface:y;
 }
-network:y = { ip = ::a02:200/120; }
+network:y = { ip6 = ::a02:200/120; }
 service:test = {
  {{.}}
  user = network:y;
  permit src = user; dst = network:x; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input ""]]
 =WARNING=
 Warning: No firewalls found between all source/destination pairs of service:test
@@ -272,7 +257,6 @@ Warning: No firewalls found between all source/destination pairs of service:test
 
 ############################################################
 =TITLE=Useless attribute "has_unenforceable" at service
-=PARAMS=--ipv6
 =INPUT=[[input has_unenforceable;]]
 =WARNING=
 Warning: Useless 'has_unenforceable' at service:test
@@ -281,25 +265,24 @@ Warning: No firewalls found between all source/destination pairs of service:test
 
 ############################################################
 =TITLE=Restrict has_unenforceable and ignore unenforceable at owner
-=PARAMS=--ipv6
 =INPUT=
 owner:o7 = { admins = a7@example.com; has_unenforceable = restrict; }
 owner:o8 = { admins = a8@example.com; has_unenforceable = ok; }
 owner:o11-14 = { admins = range@example.com; has_unenforceable = ok; }
-network:x = { ip = ::a01:100/120;
- host:x7 = { ip = ::a01:107; owner = o7; }
- host:x8 = { ip = ::a01:108; owner = o8; }
- host:x9 = { ip = ::a01:109; }
- host:r11-14 = { range = ::a01:10b-::a01:10e; owner = o11-14; }
+network:x = { ip6 = ::a01:100/120;
+ host:x7 = { ip6 = ::a01:107; owner = o7; }
+ host:x8 = { ip6 = ::a01:108; owner = o8; }
+ host:x9 = { ip6 = ::a01:109; }
+ host:r11-14 = { range6 = ::a01:10b-::a01:10e; owner = o11-14; }
 }
 router:r = {
  model = IOS,FW;
  managed;
- interface:x = { ip = ::a01:101; hardware = e0; }
- interface:y = { ip = ::a02:202; hardware = e1; }
+ interface:x = { ip6 = ::a01:101; hardware = e0; }
+ interface:y = { ip6 = ::a02:202; hardware = e1; }
 }
-network:y = { ip = ::a02:200/120;
- host:y = { ip = ::a02:209; }
+network:y = { ip6 = ::a02:200/120;
+ host:y = { ip6 = ::a02:209; }
 }
 service:s1 = {
  has_unenforceable;
@@ -322,21 +305,20 @@ Warning: Some source/destination pairs of service:s1 don't affect any firewall:
 
 ############################################################
 =TITLE=Inherit attribute 'has_unenforceable' from nested areas
-=PARAMS=--ipv6
 =INPUT=
 area:all = { anchor = network:n1; has_unenforceable = restrict; }
 area:a23 = { inclusive_border = interface:r1.n1; }
 area:a2 = { border = interface:r1.n2; }
 area:a3 = { border = interface:r1.n3; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:s1 = {
  has_unenforceable;

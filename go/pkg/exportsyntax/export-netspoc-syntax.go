@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
@@ -41,13 +40,12 @@ func Main(d oslink.Data) int {
 		filter[name] = true
 	}
 	path := args[0]
-	cnf := conf.ConfigFromArgsAndFile(nil, path)
 	// Group definitions by type.
 	definitions := make(map[string][]jsonMap)
-	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
+	err := filetree.Walk(path, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, input.IPV6, 0)
+		aF, err := parser.ParseFile(source, path, 0)
 		if err != nil {
 			return err
 		}
@@ -78,9 +76,6 @@ func convertToMap(n ast.Toplevel) jsonMap {
 	m["name"] = n.GetName()
 	if d := n.GetDescription(); d != nil {
 		m["description"] = d.Text
-	}
-	if v := n.GetIPV6(); v {
-		m["ipv6"] = v
 	}
 	if x, ok := n.(ast.ToplevelWithAttr); ok {
 		mapAttributes(m, x.GetAttributes())

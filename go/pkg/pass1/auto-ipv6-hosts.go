@@ -69,6 +69,7 @@ func (c *spoc) addAutoIPv6Hosts() {
 					cp.ipRange = netipx.IPRangeFrom(from, to)
 				}
 				cp.nat = nil
+				cp.network = n
 				n.hosts = append(n.hosts, &cp)
 			}
 		}
