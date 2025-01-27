@@ -444,6 +444,38 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Dual stack service with complex icmp and icmpv6 together
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+protocol:ping-net4 = icmp 8, src_net, dst_net;
+protocol:ping-net6 = icmpv6 128, src_net, dst_net;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = protocol:ping-net4, protocol:ping-net6;
+}
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit icmp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 8
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--ipv6/r1
+! n1_in
+access-list n1_in extended permit icmp6 2001:db8:1:1::/64 2001:db8:1:2::/64 128
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=general_permit with icmp and icmpv6 together
 =INPUT=
 network:n1 = { ip6 = 2001:db8:1:1::/64; }

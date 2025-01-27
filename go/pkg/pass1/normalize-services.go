@@ -178,10 +178,12 @@ func (c *spoc) normalizeSrcDstList(
 		if s.ipV4Only {
 			srcList6 = c.filterV46Only(srcList6, s.ipV4Only, s.ipV6Only, s.name)
 			dstList6 = c.filterV46Only(dstList6, s.ipV4Only, s.ipV6Only, s.name)
+			has46 = false
 		}
 		if s.ipV6Only {
 			srcList4 = c.filterV46Only(srcList4, s.ipV4Only, s.ipV6Only, s.name)
 			dstList4 = c.filterV46Only(dstList4, s.ipV4Only, s.ipV6Only, s.name)
+			has46 = false
 		}
 	} else {
 		if s.ipV4Only {

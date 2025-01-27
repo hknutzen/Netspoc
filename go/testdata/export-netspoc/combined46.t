@@ -116,7 +116,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Service from auto interface, identical vor IPv4, IPv6
+=TITLE=Service from auto interface, identical for IPv4, IPv6
 =INPUT=
 area:all = { anchor = network:n1; owner = o; }
 owner:o = { admins = a1@example.com; }
@@ -159,7 +159,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Split service from auto interface, identical vor IPv4, IPv6
+=TITLE=Split service from auto interface, identical for IPv4, IPv6
 =INPUT=
 area:all = { anchor = network:n1; owner = o; }
 owner:o = { admins = a1@example.com; }
@@ -227,6 +227,174 @@ service:s1 = {
  "s1(wE9zkFMz)": [
   "network:n1"
  ]
+}
+=END=
+
+############################################################
+=TITLE=Split service from auto interface, different for IPv4, IPv6
+=INPUT=
+area:all = { anchor = network:n1; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip6 = 2001:db8:1:3::/64; }
+router:u0 = {
+ interface:n0;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:u3 = {
+ interface:n2;
+ interface:n3;
+}
+service:s1 = {
+ user = network:n0, network:n3;
+ permit src = user; dst = interface:r1.[auto]; prt = tcp 22;
+}
+=OUTPUT=
+--services
+{
+ "s1(jQ4ZMju4)": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r1.n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s1(wE9zkFMz)": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r1.n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
+   }
+  ]
+ }
+}
+--owner/o/users
+{
+ "s1(jQ4ZMju4)": [
+  "network:n3"
+ ],
+ "s1(wE9zkFMz)": [
+  "network:n0"
+ ]
+}
+=END=
+
+############################################################
+=TITLE=V4 only network to dual stack network
+=INPUT=
+area:all = { anchor = network:n2; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
+   }
+  ]
+ }
+}
+=END=
+
+############################################################
+=TITLE=V6 only network to dual stack network
+=INPUT=
+area:all = { anchor = network:n2; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 =END=
 

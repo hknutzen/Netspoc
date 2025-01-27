@@ -492,6 +492,26 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			}
 		}
 
+		// Ignore split part with empty users or only empty rules.
+		// This is an relict from expanding auto interfaces.
+		if len(key2rules) > 1 {
+		RULE:
+			for userKey, rules := range key2rules {
+				if len(key2user[userKey]) == 0 {
+					delete(key2rules, userKey)
+					continue
+				}
+				for _, tRule := range rules {
+					r := tRule.jsonRule
+					v := r["has_user"].(string)
+					if v == "both" || len(tRule.objList) != 0 {
+						continue RULE
+					}
+				}
+				delete(key2rules, userKey)
+			}
+		}
+
 		// 'user' has different value for some rules
 		// and implicitly we get multiple services with identical name.
 		isSplit := len(key2rules) > 1
@@ -517,24 +537,6 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			// Add extension to make name of split service unique.
 			var rulesKey string
 			if isSplit {
-
-				// Ignore split part with empty users or only empty rules.
-				// This is an relict from expanding auto interfaces.
-				if len(userList) == 0 {
-					continue
-				}
-				empty := true
-				for i, r := range jsonRules {
-					v := r["has_user"].(string)
-					if v == "both" || len(rules[i].objList) != 0 {
-						empty = false
-						break
-					}
-				}
-				if empty {
-					continue
-				}
-
 				rulesKey = calcRulesKey(jsonRules)
 				newName += "(" + rulesKey + ")"
 
@@ -562,52 +564,62 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	return result
 }
 
+// Analyze and combine split rules from combined v4/v6 objects and from auto
+// interfaces.
 func joinV46Pairs(pairs [][2]srvObjList) [][2]srvObjList {
-	isV6 := func(pair [2]srvObjList) bool {
+	i := slices.IndexFunc(pairs, func(pair [2]srvObjList) bool {
 		if pair[0] != nil {
 			return pair[0][0].isIPv6()
 		}
 		return pair[1][0].isIPv6()
-	}
-	// Singe IPv4 or IPv6 rule.
-	if len(pairs) <= 1 {
-		return pairs
-	}
-	// Merge single rule that was split into v4 and v6 part.
-	if len(pairs) == 2 && !isV6(pairs[0]) && isV6(pairs[1]) {
-		add := func(l1, l2 srvObjList) srvObjList {
-			result := l1
-			for _, obj2 := range l2 {
-				if !slices.ContainsFunc(l1, func(e srvObj) bool {
-					return e.String() == obj2.String()
-				}) {
-					result.push(obj2)
-				}
-			}
-			return result
-		}
-		return [][2]srvObjList{{
-			add(pairs[0][0], pairs[1][0]),
-			add(pairs[0][1], pairs[1][1]),
-		}}
-	}
-	// Analyze split rules from combined v4/v6 objects and from auto
-	// interfaces.
-	i := slices.IndexFunc(pairs, isV6)
+	})
 	if i < 0 {
 		return pairs
 	}
 	v4Pairs := pairs[:i]
 	v6Pairs := pairs[i:]
-	eqName := func(ob1, ob2 srvObj) bool { return ob1.String() == ob2.String() }
-	// Ignore IPv6 pairs with identical object names of some IPv4 pair.
-	v6Pairs = slices.DeleteFunc(v6Pairs, func(p6 [2]srvObjList) bool {
-		return slices.ContainsFunc(v4Pairs, func(p4 [2]srvObjList) bool {
-			return slices.EqualFunc(p4[0], p6[0], eqName) &&
-				slices.EqualFunc(p4[1], p6[1], eqName)
-		})
-	})
-	return append(v4Pairs, v6Pairs...)
+	eqComb46 := func(l4, l6 srvObjList) bool {
+		m := make(map[string]bool)
+		for _, ob := range l4 {
+			if ob.isCombined46() {
+				m[ob.String()] = true
+			}
+		}
+		count := 0
+		for _, ob := range l6 {
+			if ob.isCombined46() {
+				if !m[ob.String()] {
+					return false
+				}
+				count++
+			}
+		}
+		return count == len(m)
+	}
+	join6 := func(l4, l6 srvObjList) srvObjList {
+		for _, ob := range l6 {
+			if !ob.isCombined46() {
+				l4 = append(l4, ob)
+			}
+		}
+		return l4
+	}
+	// Merge IPv6 pair into IPv4 pair if it has identical combined src
+	// and dst objects.
+	var v6Extra [][2]srvObjList
+V6:
+	for _, p6 := range v6Pairs {
+		for i, p4 := range v4Pairs {
+			if eqComb46(p4[0], p6[0]) && eqComb46(p4[1], p6[1]) {
+				v4Pairs[i] = [2]srvObjList{
+					join6(p4[0], p6[0]), join6(p4[1], p6[1]),
+				}
+				continue V6
+			}
+		}
+		v6Extra = append(v6Extra, p6)
+	}
+	return append(v4Pairs, v6Extra...)
 }
 
 func (c *spoc) setupServiceInfo(
