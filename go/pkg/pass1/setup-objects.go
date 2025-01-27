@@ -2922,6 +2922,12 @@ var routerInfo = map[string]*model{
 		noACLself:              true,
 		noSharedHardware:       true,
 	},
+	"Checkpoint": {
+		routing:                "Checkpoint",
+		canVRF:                 true,
+		needVRF:                true,
+		needManagementInstance: true,
+	},
 	"Linux": {
 		routing:     "iproute",
 		filter:      "iptables",

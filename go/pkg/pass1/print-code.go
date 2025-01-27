@@ -2325,10 +2325,14 @@ func (c *spoc) printRouter(r *router, dir string) string {
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	var reused int32 = 0
 	pass2Code := func(r *router) {
-		path := c.printRouter(r, dir)
-		if pass2.File(path, dir, prev) {
-			atomic.AddInt32(&reused, 1)
-			c.diag("Reused .prev/" + path)
+		if r.model.class == "Checkpoint" {
+			c.printCheckpoint(r, dir)
+		} else {
+			path := c.printRouter(r, dir)
+			if pass2.File(path, dir, prev) {
+				atomic.AddInt32(&reused, 1)
+				c.diag("Reused .prev/" + path)
+			}
 		}
 	}
 	if c.conf.ConcurrencyPass2 <= 1 {
