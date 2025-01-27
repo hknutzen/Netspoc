@@ -434,8 +434,10 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, sv)
-				srcDstListPairs = joinV46Pairs(srcDstListPairs)
+				srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, sv)
+				if has46 {
+					srcDstListPairs = joinV46Pairs(srcDstListPairs)
+				}
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 

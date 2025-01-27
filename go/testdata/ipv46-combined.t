@@ -402,23 +402,70 @@ Error: IPv4 and IPv6 ranges of host:h4 must have equal size
 =END=
 
 ############################################################
+=TITLE=Dual stack service with icmp and icmpv6 together
+=INPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user;
+        dst = network:n3, network:n4;
+        prt = icmp 8, icmpv6 128;
+}
+=OUTPUT=
+--r1
+! n2_in
+object-group network g0
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+access-list n2_in extended permit icmp 10.1.2.0 255.255.255.0 object-group g0 8
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--ipv6/r1
+! n1_in
+access-list n1_in extended permit icmp6 2001:db8:1:1::/64 2001:db8:1:3::/64 128
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit icmp6 2001:db8:1:2::/64 2001:db8:1:3::/64 128
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=general_permit with icmp and icmpv6 together
 =INPUT=
 network:n1 = { ip6 = 2001:db8:1:1::/64; }
-network:n2 = { ip6 = 2001:db8:1:2::/64; }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  general_permit = icmp, icmpv6;
  interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 =OUTPUT=
 --r1
+! n2_in
+access-list n2_in extended permit icmp any4 any4
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
 ! n3_in
 access-list n3_in extended permit icmp any4 any4
 access-list n3_in extended deny ip any4 any4
@@ -438,6 +485,11 @@ access-group n1_in in interface n1
 access-list n2_in extended permit icmp6 any6 any6
 access-list n2_in extended deny ip any6 any6
 access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit icmp6 any6 any6
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
 =END=
 
 ############################################################
