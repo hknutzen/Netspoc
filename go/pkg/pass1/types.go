@@ -341,6 +341,9 @@ type router struct {
 
 func (x router) String() string     { return x.name }
 func (x router) isCombined46() bool { return x.combined46 != nil }
+func (x router) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
 
 type loop struct {
 	exit        pathObj

@@ -759,7 +759,7 @@ network:n1 = {
  host:h1 = { ip6 = 2001:db8:1:1::10; }
 }
 =ERROR=
-Error: Missing IPv6 address for network:n1
+Error: Missing IP address for IPv6 network:n1
 =END=
 
 ############################################################
@@ -770,7 +770,7 @@ network:n1 = {
  host:h1 = { ip = 10.1.1.10; }
 }
 =ERROR=
-Error: Missing IPv4 address for network:n1
+Error: Missing IP address for IPv4 network:n1
 =END=
 
 ############################################################

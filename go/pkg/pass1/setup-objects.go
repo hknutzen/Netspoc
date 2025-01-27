@@ -1028,8 +1028,7 @@ func (c *spoc) setupNetwork2(n *network, a *ast.Attribute) {
 			}
 		}
 	} else if n.ipType != unnumberedIP && !ipGiven {
-		c.err("Missing IP%s address for %s",
-			cond(n.isCombined46(), cond(n.ipV6, "v6", "v4"), ""), name)
+		c.err("Missing IP address for %s", n.vxName())
 	} else if ipp := n.ipp; ipp.IsValid() {
 		for _, h := range n.hosts {
 
@@ -1739,7 +1738,7 @@ func (c *spoc) setupRouter2(r *router) {
 			l := hw.interfaces
 			if r.model.noSharedHardware && len(l) > 1 {
 				c.err("Different interfaces must not share same hardware '%s'"+
-					" at %s of model %s", hw.name, r.name, r.model.class)
+					" at %s of model %s", hw.name, r.vxName(), r.model.class)
 			}
 
 			// All logical interfaces of one hardware interface need to
@@ -1756,7 +1755,7 @@ func (c *spoc) setupRouter2(r *router) {
 		if r.model.filter == "NSX" {
 			if len(hwMap) != 2 || hwMap["IN"] == nil || hwMap["OUT"] == nil {
 				c.err("%s of model %s must have exactly 2 interfaces"+
-					" with hardware IN and OUT", r, r.model.class)
+					" with hardware IN and OUT", r.vxName(), r.model.class)
 			}
 			if r.model.tier == "" {
 				c.err("Must add extension 'T0' or 'T1' at %s of model %s",
@@ -2269,7 +2268,7 @@ func (c *spoc) setupInterface(
 		iName := name[len("interface:"):]
 		if other, found := c.symTable.routerIntf[iName]; found {
 			if intf.ipV6 == other.ipV6 {
-				c.err("Duplicate definition of %s in %s", name, r)
+				c.err("Duplicate definition of %s in %s", name, r.vxName())
 			}
 			other.combined46 = intf
 			intf.combined46 = other
@@ -2288,7 +2287,7 @@ func (c *spoc) setupInterface(
 	// Automatically create a network for loopback interface.
 	if intf.loopback {
 		if !isSimpleName(nName) {
-			c.err("Invalid identifier in '%s' of '%s'", v.Name, r.name)
+			c.err("Invalid identifier in '%s' of '%s'", v.Name, r)
 		}
 		var shortName string
 		var fullName string
@@ -3661,13 +3660,13 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 	knownMod := r.model.logModifiers
 	if knownMod == nil {
 		c.err("Must not use attribute '%s' at %s of model %s",
-			name, r.name, r.model.name)
+			name, r, r.model.name)
 		return ""
 	}
 	l := strings.Split(modList, " ")
 	if len(l) > 1 && !r.model.canMultiLog {
 		c.err("Must not use multiple values for %s in %s of model %s",
-			name, r.name, r.model.name)
+			name, r, r.model.name)
 		return ""
 	}
 	for i, mod := range l {
@@ -3678,7 +3677,7 @@ func (c *spoc) transformLog(name, modList string, r *router) string {
 			if len(k) == len(mod) {
 				c.err(
 					"Must give some value after ':' in '%s' of %s in %s",
-					mod, name, r.name)
+					mod, name, r)
 			}
 		}
 		if v, found := knownMod[k]; found {
@@ -3861,10 +3860,10 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 		// but not for /31 IPv4 (see RFC 3021).
 		if n.ipp.Bits() != 31 {
 			if ip == n.ipp.Addr() {
-				c.err("%s has address of its network", intf)
+				c.err("%s has address of its network", intf.vxName())
 			}
 			if ip == netipx.RangeOfPrefix(n.ipp).To() {
-				c.err("%s has broadcast address", intf)
+				c.err("%s has broadcast address", intf.vxName())
 			}
 		}
 	}
