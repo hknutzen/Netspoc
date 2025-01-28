@@ -82,6 +82,7 @@ type Config struct {
 	Quiet                        bool `flag:"quiet q"`
 	TimeStamps                   bool `flag:"time_stamps t"`
 	DebugPass2                   string
+	CPUProfile                   string
 }
 
 func defaultOptions(fs *flag.FlagSet) *Config {
@@ -163,6 +164,9 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 
 		// Debug pass2, argument is filename of device, e.g. NAME or ipv6/NAME.
 		DebugPass2: "",
+
+		// Create CPU profile, argument is filename for profile.
+		CPUProfile: "",
 	}
 	gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	return cfg

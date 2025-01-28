@@ -2,8 +2,11 @@ package pass1
 
 import (
 	"fmt"
+	"log"
 	"net/netip"
+	"os"
 	"path"
+	"runtime/pprof"
 	"slices"
 	"time"
 
@@ -210,6 +213,17 @@ func SpocMain(d oslink.Data) int {
 	if abort {
 		fmt.Fprintln(d.Stderr, "Aborted")
 		return 1
+	}
+	if cnf.CPUProfile != "" {
+		f, err := os.Create(cnf.CPUProfile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
 	}
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		if device := c.conf.DebugPass2; device != "" {
