@@ -1067,12 +1067,21 @@ owner:o = { admins = a@example.com; }
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
                owner = o; crosslink; }
+network:n3 = { ip = 10.1.3.0/24; # c1
+ ip6 = 2001:db8:1:3::/64; # c2
+}
+
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; } # c1
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1;
                   hardware = n2; owner = o; }
+ interface:n3 = {
+  ip = 10.1.3.1;
+  ip6 = 2001:db8:1:3::1; # c1
+  hardware = n1; # c2
+ } # c3
 }
 =OUTPUT=
 owner:o = {
@@ -1088,16 +1097,19 @@ network:n2 = {
  crosslink;
 }
 
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; } # c2
+
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; } # c1
  interface:n2 = {
   ip = 10.1.2.1;
   ip6 = 2001:db8:1:2::1;
   hardware = n2;
   owner = o;
  }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n1; } # c2
 }
 =END=
 
