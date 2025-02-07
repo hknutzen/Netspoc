@@ -1,5 +1,22 @@
 {{$NEXT}}
 
+ - New commandline programs export-netvis and print-path
+
+    These tools output information as JSON to be used in
+    a graph visualization.
+
+    export-netvis creates a list of all networks and routers
+    of the given topology with information useful for visualizing
+    the topology.
+
+    print-path analyzes the given topology and creates a list of
+    names of network nodes (routers and networks) between source and
+    destination passed via command line.
+    To create the list, print-path uses the same path-walk algorithm
+    as used in netspoc main program to create ruleset for devices.
+
+ - Fixed split service from auto intf with IPv4, IPv6
+
 6.077     2025-01-27 11:24:26+01:00 Europe/Berlin
 
  - Allow dual stack service to have protocols icmp and icmpv6 together.
