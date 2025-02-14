@@ -358,11 +358,10 @@ func (p *parser) description() *ast.Description {
 	preCmt := p.readPreCmt("")
 	if p.check("description") {
 		p.expectLeave("=")
-		p.pos, p.tok = p.scanner.ToEOLorComment()
+		p.pos, p.tok = p.scanner.ToEOL()
 		a := new(ast.Description)
-		a.Text = p.tok
+		a.Text = strings.TrimSpace(p.tok)
 		a.SetPreComment(preCmt)
-		a.SetPostComment(p.readPostCmtAfter(""))
 		p.next()
 		return a
 	}

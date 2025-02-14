@@ -2389,7 +2389,7 @@ func (c *spoc) setupService(v *ast.Service) {
 	sv := c.symTable.service[sName]
 	sv.name = name
 	if d := v.Description; d != nil {
-		sv.description = strings.TrimSuffix(strings.TrimSpace(d.Text), ";")
+		sv.description = d.Text
 	}
 	for _, a := range v.Attributes {
 		switch a.Name {

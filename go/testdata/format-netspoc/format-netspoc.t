@@ -231,7 +231,7 @@ host:h2, # after second
 group:g1 =
  # g1 trailing2
  # g1 post def
- description = This is a fine group # desc
+ description = This is a fine group;      # desc
 
  # desc post
  # desc post 2
@@ -253,7 +253,7 @@ group:g1 =
 ;
 =OUTPUT=
 group:g1 =
- description = the text # comment
+ description = the text; ;; # comment
 
 ;
 =END=

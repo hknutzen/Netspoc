@@ -2124,7 +2124,7 @@ service:s1 = {
 {
  "s1": {
   "details": {
-   "description": "test; test, test",
+   "description": "test; test, test;# With comment",
    "owner": [
     ":unknown"
    ]
