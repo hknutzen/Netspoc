@@ -1,6 +1,6 @@
 {{$NEXT}}
 
- - New commandline programs export-netvis and print-path
+ - New commandline programs export-netvis and print-path have been added.
 
     These tools output information as JSON to be used in
     a graph visualization.
@@ -15,6 +15,8 @@
     To create the list, print-path uses the same path-walk algorithm
     as used in netspoc main program to create ruleset for devices.
 
+ - Aggregate with IPv4 IP 0.0.0.0/0 no longer matches IPv6 addresses.
+   Aggregate with IPv6 IP ::/0 no longer matches IPv4 addresses.
  - Fixed split service from auto intf with IPv4, IPv6
 
 6.077     2025-01-27 11:24:26+01:00 Europe/Berlin
