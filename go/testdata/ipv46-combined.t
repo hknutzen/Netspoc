@@ -988,6 +988,35 @@ Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1-v4]
 =END=
 
 ############################################################
+=TITLE=Aggregate with NAT linked to v6 network in combined zone
+=INPUT=
+any:n1-v6 = { link = network:n1-v6; nat:n1 = { ip = 10.9.9.0/24; } }
+network:n1-v6 = { ip6 = 2001:db8:1:6::/64; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2-v4 = { ip = 10.1.2.0/24; }
+router:u = {
+ interface:n1-v6;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n2-v4 = { ip = 10.1.2.1; bind_nat = n1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n2-v4;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.9.9.2
+ permit tcp 10.1.2.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Bridged network
 =INPUT=
 network:n1/left = {
