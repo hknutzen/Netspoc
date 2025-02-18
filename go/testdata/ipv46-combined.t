@@ -776,7 +776,7 @@ Error: IPv4 address expected in attribute 'ip' of network:n1
 =END=
 
 ############################################################
-=TITLE=Atribute 'ip6' with v4 address
+=TITLE=Attribute 'ip6' with v4 address
 =INPUT=
 network:n1 = { ip6 = 10.1.1.0/24; }
 =ERROR=
