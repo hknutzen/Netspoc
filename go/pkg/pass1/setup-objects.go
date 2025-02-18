@@ -1297,9 +1297,9 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 			c.err("Must not link %s address to %s network in %s",
 				ipvx(ag.ipV6), ipvx(ag.link.ipV6), name)
 		}
-	}
-	if ag.nat != nil && ag.link.ipV6 {
-		c.err("NAT not supported for IPv6 %s", ag)
+		if ag.nat != nil && ag.link.ipV6 {
+			c.err("NAT not supported for IPv6 %s", ag)
+		}
 	}
 	if ag.ipp.Bits() != 0 {
 		for _, a := range v.Attributes {
