@@ -121,7 +121,6 @@ func Main(d oslink.Data) int {
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
