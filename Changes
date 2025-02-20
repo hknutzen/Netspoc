@@ -18,6 +18,8 @@
  - Aggregate with IPv4 IP 0.0.0.0/0 no longer matches IPv6 addresses.
    Aggregate with IPv6 IP ::/0 no longer matches IPv4 addresses.
  - Fixed split service from auto intf with IPv4, IPv6
+ - Command 'export-netspoc' no longer strips comments and ";"
+   from description in details of exported service.
 
 6.077     2025-01-27 11:24:26+01:00 Europe/Berlin
 
