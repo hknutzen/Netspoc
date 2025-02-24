@@ -4,7 +4,6 @@
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [service:name ...]
-  -6, --ipv6    Expect IPv6 definitions
   -o, --owner   Keep referenced owners
   -q, --quiet   Don't print progress messages
 =END=
@@ -14,7 +13,6 @@ Usage: PROGRAM [options] FILE|DIR [service:name ...]
 =INPUT=NONE
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [service:name ...]
-  -6, --ipv6    Expect IPv6 definitions
   -o, --owner   Keep referenced owners
   -q, --quiet   Don't print progress messages
 =END=
@@ -203,6 +201,31 @@ service:test = {
  permit src = user;
         dst = interface:asa1.n1;
         prt = ip;
+}
+=END=
+
+############################################################
+=TITLE=User in src and dst
+=INPUT=
+[[topo]]
+service:test = {
+ user = interface:asa1.[all];
+ permit src = network:[user]; dst = user; prt = icmp 8;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = interface:asa1.[all];
+ permit src = network:[user];
+        dst = user;
+        prt = icmp 8;
 }
 =END=
 
@@ -545,6 +568,51 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Ignore area with only inherited NAT
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = a2; }
+}
+area:n1 = { border = interface:asa1.n1; }
+area:n1-n2 = { border = interface:asa2.n2; nat:a2 = { ip = 10.9.0.0/16; } }
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:n1-n2 = {
+ nat:a2 = { ip = 10.9.0.0/16; }
+ anchor = network:n2;
+}
+service:test = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp;
+}
+=END=
+
+############################################################
 =TITLE=Supernet with identity NAT masks NAT of larger area
 =TEMPL=input
 area:all = {
@@ -662,17 +730,12 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = {ip6 = 1000::abcd:0001:0001; hardware = n3;}
+ interface:n4 = {ip6 = 1000::abcd:0002:0001; hardware = n4;}
+ interface:lo = {ip6 = 1000::abcd:0009:0001; hardware = lo; loopback; }
 }
--- ipv6/topo
-network:n3 = { ip = 1000::abcd:0001:0/112;}
-network:n4 = { ip = 1000::abcd:0002:0/112;}
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n3;}
- interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n4;}
- interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
-}
+network:n3 = { ip6 = 1000::abcd:0001:0/112;}
+network:n4 = { ip6 = 1000::abcd:0002:0/112;}
 =INPUT=
 [[input]]
 -- rule
@@ -701,7 +764,7 @@ router:r1 = {
 =TITLE=Ignore IPv4 part of topology
 =INPUT=
 [[input]]
--- ipv6/rule
+-- rule
 service:test = {
  user = network:n3;
  permit src = user;
@@ -715,14 +778,14 @@ service:test = {
         dst = network:n4;
         prt = ip;
 }
-network:n3 = { ip = 1000::abcd:0001:0/112; }
-network:n4 = { ip = 1000::abcd:0002:0/112; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
- interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+ interface:n3 = { ip6 = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip6 = 1000::abcd:0002:0001; hardware = n4; }
 }
+network:n3 = { ip6 = 1000::abcd:0001:0/112; }
+network:n4 = { ip6 = 1000::abcd:0002:0/112; }
 =END=
 
 ############################################################
@@ -748,14 +811,6 @@ service:test6 = {
         dst = network:n4;
         prt = ip;
 }
-network:n3 = { ip = 1000::abcd:0001:0/112; }
-network:n4 = { ip = 1000::abcd:0002:0/112; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
- interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
-}
 service:test = {
  user = network:n1;
  permit src = user;
@@ -769,23 +824,49 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip6 = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip6 = 1000::abcd:0002:0001; hardware = n4; }
 }
+network:n3 = { ip6 = 1000::abcd:0001:0/112; }
+network:n4 = { ip6 = 1000::abcd:0002:0/112; }
 =END=
 
 ############################################################
-=TITLE=Completely discard v4 router
-=TEMPL=v6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+=TITLE=Completely discard v4 part
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:u = {
- interface:n2 = { ip = ::a01:202; }
- interface:lo = { ip = ::ff1:1; loopback; }
+ interface:n2 = { ip6 = ::a01:202; }
+ interface:lo = { ip6 = ::ff1:1; loopback; }
+ interface:n5 = { ip = 10.1.5.1; }
+ interface:l1 = { ip = 10.9.9.1; loopback; }
+}
+network:n5 = { ip = 10.1.5.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:u.lo;
+        prt = tcp 22;
+}
+=OUTPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:u = {
+ interface:n2 = { ip6 = ::a01:202; }
+ interface:lo = { ip6 = ::ff1:1; loopback; }
 }
 service:s1 = {
  user = network:n1;
@@ -793,17 +874,6 @@ service:s1 = {
         dst = interface:u.lo;
         prt = tcp 22;
 }
-=INPUT=
---v4
-network:n5 = { ip = 10.1.5.0/24; }
-router:u = {
- interface:n5 = { ip = 10.1.5.1; }
- interface:l1 = { ip = 10.9.9.1; loopback; }
-}
---ipv6/input
-[[v6]]
-=OUTPUT=
-[[v6]]
 =END=
 
 ############################################################
@@ -920,12 +990,14 @@ service:test = {
 }
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r2 = {
@@ -937,6 +1009,7 @@ router:r2 = {
 service:test = {
  user = network:[
          any:[ip = 10.1.0.0/23 & network:n1],
+         any:[ip = 10.1.0.0/23 & network:n2],
         ],
         network:n3,
         ;
@@ -1062,6 +1135,60 @@ service:test = {
         prt = tcp;
 }
 =END=
+
+############################################################
+=TITLE=Area with border outside of path, new anchor is subnet
+=INPUT=
+network:n1 = { ip = 10.1.1.16/28; }
+network:n2 = { ip = 10.1.1.32/28; }
+network:n3 = { ip = 10.1.1.0/24; has_subnets; }
+network:n4 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.18; }
+ interface:n3;
+ interface:n2 = { ip = 10.1.1.33; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.1.33; hardware = n2; }
+ interface:n4 = { ip = 10.1.2.1;  hardware = n4; }
+}
+owner:o1 = { admins = o1@example.com; }
+area:a1 = {
+ owner = o1;
+ inclusive_border = interface:r3.n4;
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n1; prt = tcp 22;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.16/28; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+}
+owner:o1 = {
+ admins = o1@example.com;
+}
+area:a1 = {
+ owner = o1;
+ anchor = network:n1;
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:r1.n1;
+        prt = tcp 22;
+}
+=OPTIONS=--owner
 
 ############################################################
 =TITLE=Network in name of zone is located outside of path
@@ -1279,10 +1406,7 @@ network:n1 = {
  ip = 10.1.1.0/24;
  nat:N = { identity; }
 }
-network:n1_subsub = {
- ip = 10.1.1.96/27;
- subnet_of = network:n1_sub;
-}
+network:n1_subsub = { ip = 10.1.1.96/27; }
 router:u = {
  interface:n1;
  interface:n1_subsub;
@@ -2160,6 +2284,7 @@ network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
 network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
 network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -2171,6 +2296,7 @@ router:asa2 = {
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3, n4; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = n1, n4; }
 }
 router:asa3 = {
  managed;
@@ -2180,7 +2306,7 @@ router:asa3 = {
 }
 service:test = {
  user = network:n2;
- permit src = user; dst = network:n3; prt = tcp 80;
+ permit src = user; dst = network:n3, network:n5; prt = tcp 80;
 }
 =OUTPUT=
 network:n2 = {
@@ -2191,6 +2317,7 @@ network:n3 = {
  ip = 10.1.3.0/24;
  nat:n3 = { ip = 10.9.3.0/24; }
 }
+network:n5 = { ip = 10.1.5.0/24; }
 router:asa2 = {
  managed;
  model = ASA;
@@ -2204,11 +2331,14 @@ router:asa2 = {
   hardware = n3;
   bind_nat = n2;
  }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 }
 service:test = {
  user = network:n2;
  permit src = user;
-        dst = network:n3;
+        dst = network:n3,
+              network:n5,
+              ;
         prt = tcp 80;
 }
 =END=
@@ -2339,7 +2469,7 @@ service:s1 = {
 ############################################################
 # Shared topology for crypto tests
 ############################################################
-=TEMPL=topo
+=TEMPL=crypto
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -2360,6 +2490,7 @@ crypto:vpn1 = {
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
+=TEMPL=topo
 network:intern = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
@@ -2464,6 +2595,7 @@ network:customers3 = {
 ############################################################
 =TITLE=Crypto definitions with router fragments
 =TEMPL=input
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
@@ -2498,12 +2630,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn1;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2535,12 +2708,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn2;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients2 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2575,12 +2789,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn1;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2600,6 +2855,7 @@ network:customers1 = {
 ############################################################
 =TITLE=ID host in intersection
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients2]]
@@ -2616,6 +2872,7 @@ service:s1 = {
         prt = tcp 80;
 }
 =OUTPUT=
+[[crypto]]
 [[topo]]
 router:softclients1 = {
  interface:internet = {
@@ -2652,12 +2909,53 @@ service:test1 = {
         prt = tcp 80;
 }
 =INPUT=
+[[crypto]]
 [[topo]]
 [[clients1]]
 [[clients3]]
 [[service]]
 =OUTPUT=
-[[topo]]
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = { ip = 10.1.1.101; hardware = inside; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn2;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
 router:softclients3 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2785,7 +3083,7 @@ service:s = {
 }
 =OUTPUT=
 network:n1 = {
- description = network:n1
+ description = network:n1; # looks like code
  ip = 10.1.1.0/24;
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3058,9 +3356,10 @@ service:s1 = {
         prt = udp 123;
 }
 =END=
+
 ############################################################
-=TITLE=Intersection with user
-=INPUT=
+=TITLE=Leave intersection with user unchanged
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -3071,18 +3370,88 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
+group:g1 =
+ network:n1,
+ network:n2,
+ network:n3,
+;
 service:s1 = {
- user = network:n1, network:n2
-        ;
- permit src = user &! network:n2;
-        dst = network:n3;
+ user = group:g1;
+ permit src = user
+              &! network:n2
+              &! network:n3
+              ;
+        dst = group:g1 &! network:n1 &! network:n2;
         prt = tcp 80;
 }
-=END=
-# Valid for netspoc, but not supported by cut-netspoc.
-=ERROR=
-Error: Unexpected reference to 'user' in intersection of src of service:s1
-Warning: Useless delete of network:n2 in src of service:s1
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=SUBST=/group:g1 &! network:n1 &! network:n2/network:n3/
+
+############################################################
+=TITLE=Intersection of nested elements of different type
+=TEMPL=input
+service:s1 = {
+ user = group:g1;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.4; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  hardware = n2;
+  hub = crypto:s2s;
+ }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r3 = {
+ interface:n2 = {
+  ip = 10.1.2.2;
+  spoke = crypto:s2s;
+ }
+ interface:lo = { ip = 10.9.9.13; loopback; }{{.}}
+}
+crypto:s2s = {
+ type = ipsec:s2s;
+}
+ipsec:s2s = {
+ key_exchange = isakmp:s2s;
+ esp_encryption = aes256;
+ esp_authentication = sha256;
+ lifetime = 3600 sec 102400 kilobytes;
+}
+isakmp:s2s = {
+ ike_version = 2;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha256;
+ group = 19;
+ lifetime = 28800 sec;
+}
+=INPUT=
+group:g1 =
+ any:[ip = 10.9.9.0/24 &
+  any:[interface:r3.[all]] &! any:[network:n2]
+ ],
+;
+[[input "\n interface:n3 = { ip = 10.1.3.1; }"]]
+network:n3 = { ip = 10.1.3.0/24; }
+=OUTPUT=
+group:g1 =
+ any:[ip = 10.9.9.0/24 &
+  any:[
+   interface:r3.lo,
+  ],
+ ],
+;
+[[input ""]]
 =END=
 
 ############################################################
@@ -3474,6 +3843,254 @@ service:s1 = {
  user = any:n3;
  permit src = user;
         dst = network:n4;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Retain management_instance of used router
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1@v1 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+}
+router:u = {
+ interface:n2;
+ interface:n3;
+}
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n3 = { ip = 10.1.3.1; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Ignore management_instance of unused router
+=INPUT=
+[[input]]
+router:r2 = {
+ model = NSX;
+ management_instance;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r2@v1 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = IN; }
+ interface:n4 = { ip = 10.1.4.1; hardware = OUT; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=management_instance in separate zone
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1@v1 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = IN; }
+ interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+}
+router:u = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n5 = { ip = 10.1.5.2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Cleanup unused subnet_of
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.1.0/26;
+ subnet_of = network:n1;
+}
+network:n3 = {
+ ip = 10.1.1.0/28;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.1.1; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.1.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n2,
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n2 = { ip = 10.1.1.0/26; }
+network:n3 = {
+ ip = 10.1.1.0/28;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ interface:n2;
+ interface:n3 = { ip = 10.1.1.1; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.1.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n2,
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Cleanup subnet_of in NAT
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.3.16/28; dynamic; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Cleanup subnet_of in Area
+=INPUT=
+area:n1 = {
+ nat:m2 = { ip = 10.1.2.16/28; dynamic; subnet_of = network:n2; }
+ nat:m3 = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+ border = interface:r1.n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=OUTPUT=
+area:n1 = {
+ nat:m2 = { ip = 10.1.2.16/28; dynamic; subnet_of = network:n2; }
+ nat:m3 = { ip = 10.1.3.16/28; dynamic; }
+ border = interface:r1.n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  hardware = n2;
+  bind_nat = m2;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
         prt = tcp 80;
 }
 =END=

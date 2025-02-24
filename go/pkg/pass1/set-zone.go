@@ -1,11 +1,11 @@
 package pass1
 
 import (
+	"cmp"
+	"maps"
 	"net/netip"
-	"sort"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 // setZone create zones and areas.
@@ -75,6 +75,14 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	n.zone = z
 	if n.ipType != unnumberedIP && n.ipType != tunnelIP { // no valid src/dst
 		z.networks.push(n)
+	}
+
+	// Link IPv4 and IPv6 zone if it has at least one combined network.
+	if n2 := n.combined46; n2 != nil && z.combined46 == nil {
+		if z2 := n2.zone; z2 != nil {
+			z.combined46 = z2
+			z2.combined46 = z
+		}
 	}
 
 	//debug("%s in %s", n, z)
@@ -232,18 +240,18 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 		// Assure outAcl at all/none of the interfaces.
 		outAclCount := 0
 		// Assure all noInAcl interfaces to border the same zone.
-		var noInAclIntf intfList
+		var noInAclZone *zone
 
 		// Process network interfaces to fill above variables.
 		for _, intf := range n.interfaces {
 			r := intf.router
-			hw := intf.hardware
 
 			// Assure correct usage of crosslink network.
 			if r.managed == "" {
 				c.err("Crosslink %s must not be connected to unmanged %s", n, r)
 				continue
 			}
+			hw := intf.hardware
 			if len(hw.interfaces) != 1 {
 				c.err("Crosslink %s must be the only network"+
 					" connected to hardware '%s' of %s", n, hw.name, r)
@@ -260,9 +268,13 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 				outAclCount++
 			}
 
-			for _, intf := range r.interfaces {
-				if intf.hardware.noInAcl {
-					noInAclIntf.push(intf)
+			if noAclIntf := r.noInAcl; noAclIntf != nil {
+				if noInAclZone == nil {
+					noInAclZone = noAclIntf.zone
+				} else if noInAclZone != noAclIntf.zone {
+					c.err("All interfaces with attribute 'no_in_acl'"+
+						" at routers connected by\n"+
+						" crosslink %s must be border of the same security zone", n)
 				}
 			}
 		}
@@ -289,16 +301,6 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 		if outAclCount != 0 && outAclCount != len(n.interfaces) {
 			c.err("All interfaces must equally use or not use outgoing ACLs"+
 				" at crosslink %s", n)
-		} else if len(noInAclIntf) >= 1 {
-			z0 := noInAclIntf[0].zone
-			for _, intf := range noInAclIntf[1:] {
-				if intf.zone != z0 {
-					c.err("All interfaces with attribute 'no_in_acl'"+
-						" at routers connected by\n"+
-						" crosslink %s must be border of the same security zone", n)
-					break
-				}
-			}
 		}
 	}
 	return crosslinkRouters
@@ -346,14 +348,14 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		cluster = nil
 		walk(r)
 
-		sort.Slice(cluster, func(i, j int) bool {
-			return cluster[i].name < cluster[j].name
+		slices.SortFunc(cluster, func(a, b *router) int {
+			return strings.Compare(a.name, b.name)
 		})
 
 		// Collect all interfaces belonging to needProtect routers of cluster...
 		var crosslinkIntfs intfList
 		for _, r2 := range cluster {
-			if crosslinkRouters[r2] {
+			if r2.needProtect {
 				crosslinkIntfs =
 					append(crosslinkIntfs, withSecondary(r2.interfaces)...)
 			}
@@ -380,14 +382,10 @@ type bLookup map[*routerIntf]borderType
 // setAreas sets up areas, assure proper border definitions.
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
-	var sortedAreas []*area
-	for _, a := range c.symTable.area {
-		sortedAreas = append(sortedAreas, a)
-	}
-	sort.Slice(sortedAreas, func(i, j int) bool {
-		return sortedAreas[i].name < sortedAreas[j].name
+	slices.SortFunc(c.ascendingAreas, func(a, b *area) int {
+		return cmp.Compare(a.name, b.name)
 	})
-	for _, a := range sortedAreas {
+	for _, a := range c.ascendingAreas {
 		if n := a.anchor; n != nil {
 			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
@@ -573,19 +571,12 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 	// Sort areas by size or by name on equal size.
 	sortBySize := func(l []*area) {
-		sort.SliceStable(l, func(i, j int) bool {
-			si := size(l[i])
-			sj := size(l[j])
-			if si == sj {
-				return l[i].name < l[j].name
+		slices.SortStableFunc(l, func(a, b *area) int {
+			if cmp := cmp.Compare(size(a), size(b)); cmp != 0 {
+				return cmp
 			}
-			return si < sj
+			return strings.Compare(a.name, b.name)
 		})
-	}
-
-	// Fill global list of areas.
-	for _, a := range c.symTable.area {
-		c.ascendingAreas = append(c.ascendingAreas, a)
 	}
 	sortBySize(c.ascendingAreas)
 
@@ -609,7 +600,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		}
 
 		// Find ascending list of areas containing current object.
-		containing := maps.Keys(m)
+		containing := slices.Collect(maps.Keys(m))
 		sortBySize(containing)
 
 		// Take the smallest area.
@@ -651,7 +642,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 			// Check for duplicates.
 			if len(smallList) == len(nextList) {
-				c.err("Duplicate %s and %s", small, next)
+				c.err("Duplicate %s and %s", small.vxName(), next.vxName())
 			}
 		}
 	}
@@ -675,71 +666,93 @@ Comments : Has to be called after zones have been set up. But before
 findSubnetsInZone calculates .up and .networks relation.
 */
 func (c *spoc) processAggregates() {
-
-	// Collect all aggregates inside zone clusters.
-	var aggInCluster netList
-	aggList := make(netList, 0, len(c.symTable.aggregate))
-	for _, agg := range c.symTable.aggregate {
-		aggList.push(agg)
-	}
-	sort.Slice(aggList, func(i, j int) bool {
-		return aggList[i].name < aggList[j].name
-	})
+	aggList := slices.SortedFunc(maps.Values(c.symTable.aggregate),
+		func(a, b *network) int {
+			return strings.Compare(a.name, b.name)
+		})
+	var unset netip.Prefix
 	for _, agg := range aggList {
-		z := agg.link.zone
-
-		// Assure that no other aggregate with same IP and mask exists in cluster
-		ipp := agg.ipp
-		cluster := z.cluster
-		if len(cluster) > 1 {
-			// Collect aggregates inside clusters
-			aggInCluster.push(agg)
-		}
-		for _, z2 := range cluster {
-			if other := z2.ipPrefix2aggregate[ipp]; other != nil {
-				c.err("Duplicate %s and %s in %s", other, agg, z)
+		process := func(agg *network, z *zone) {
+			// Assure that no other aggregate with same IP and mask
+			// exists in cluster
+			ipp := agg.ipp
+			cluster := z.cluster
+			for _, z2 := range cluster {
+				if other := z2.ipPrefix2aggregate[ipp]; other != nil {
+					c.err("Duplicate %s and %s in %s", other, agg, z)
+				}
 			}
-		}
-
-		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
-		prefixlen := agg.ipp.Bits()
-		if prefixlen == 0 {
-			if agg.noCheckSupernetRules {
+			// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
+			if agg.ipp.Bits() == 0 && agg.noCheckSupernetRules {
 				for _, z2 := range cluster {
 					z2.noCheckSupernetRules = true
 					c.checkAttrNoCheckSupernetRules(z2)
 				}
 			}
+			// Link aggragate and zone (also setting z.ipPrefix2aggregate)
+			c.linkAggregateToZone(agg, z)
 		}
-
-		// Link aggragate and zone (also setting z.ipPrefix2aggregate)
-		c.linkAggregateToZone(agg, z, ipp)
+		z := agg.link.zone
+		if agg.ipp == unset {
+			agg.ipp = c.getNetwork00(z.ipV6).ipp
+			agg.ipV6 = z.ipV6
+			process(agg, z)
+			// Add non matching aggregate to combined zone.
+			if z2 := z.combined46; z2 != nil {
+				agg2 := new(network)
+				agg2.name = agg.name
+				agg2.isAggregate = true
+				agg2.ipV6 = z2.ipV6
+				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
+				if !agg2.ipV6 {
+					agg2.nat = agg.nat
+					agg.nat = nil
+				}
+				agg.combined46 = agg2
+				agg2.combined46 = agg
+				process(agg2, z2)
+			} else if agg.ipV6 && agg.nat != nil {
+				c.err("NAT not supported for IPv6 %s", agg)
+			}
+		} else {
+			process(agg, z)
+		}
 	}
-
 	// Add aggregate to all zones in zone cluster.
-	for _, agg := range aggInCluster {
+	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
+		if a2 := agg.combined46; a2 != nil {
+			c.duplicateAggregateToCluster(a2, false)
+		}
 	}
 }
 
 func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
-	var errList netList
+	var withHosts, loopbacks netList
 	// z.networks currently contains all networks of zone,
 	// subnets are discared later in findSubnetsInZone.
 	for _, n := range z.networks {
 		if len(n.hosts) > 0 {
-			errList.push(n)
+			withHosts.push(n)
+		} else if n.loopback {
+			loopbacks.push(n)
 		}
 	}
-	if errList != nil {
+	if withHosts != nil {
 		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
 			" with networks having host definitions:\n%s",
-			z, errList.nameList())
+			z, withHosts.nameList())
+	}
+	if loopbacks != nil {
+		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+			" having loopback/vip interfaces:\n%s",
+			z, loopbacks.nameList())
 	}
 }
 
 func (c *spoc) inheritAttributes() {
 	c.inheritAttributesFromArea()
+	c.inheritAutoIPv6Hosts()
 	c.inheritNAT()
 	c.cleanupAfterInheritance()
 }
@@ -848,6 +861,44 @@ func (c *spoc) inheritRouterAttributes(
 	}
 }
 
+// inheritAutoIPv6Hosts distributes attribute 'autoIPv6Hosts' from
+// areas to networks and then builds IPv6 hosts from IPv4 hosts.
+func (c *spoc) inheritAutoIPv6Hosts() {
+	// Areas can be nested. Proceed from small to larger ones.
+AREA:
+	for _, a := range c.ascendingAreas {
+		if !a.ipV6 {
+			continue
+		}
+		v1 := a.autoIPv6Hosts
+		if v1 == "" {
+			continue
+		}
+		// Check for redundant attribute with enclosing areas.
+		for up := a.inArea; up != nil; up = up.inArea {
+			if up.autoIPv6Hosts == v1 {
+				c.warn("Useless 'auto_ipv6_hosts = %s' at %s,\n"+
+					" it was already inherited from %s", v1, a, up)
+				continue AREA
+			}
+		}
+		for _, z := range a.zones {
+			for _, n := range z.networks {
+				if n.combined46 == nil {
+					continue
+				}
+				if n.autoIPv6Hosts == "" {
+					n.autoIPv6Hosts = v1
+				} else if n.autoIPv6Hosts == v1 {
+					c.warn("Useless 'auto_ipv6_hosts = %s' at %s,\n"+
+						" it was already inherited from %s", v1, n, a)
+				}
+			}
+		}
+	}
+	c.addAutoIPv6Hosts()
+}
+
 func (c *spoc) inheritNAT0() {
 	getUp := func(obj natter) natter {
 		var a *area
@@ -900,8 +951,9 @@ func (c *spoc) inheritNAT0() {
 				continue
 			} else if n, ok := obj.(*network); ok && !n.isAggregate {
 				if n.ipType == bridgedIP && !nat2.identity {
-					c.err("Must not inherit nat:%s at bridged %s from %s",
-						tag, n, from2[tag])
+					c.err("Must not inherit nat:%s at bridged %s from %s\n"+
+						" Use 'nat:%s = { identity; }' to stop inheritance",
+						tag, n, from2[tag], tag)
 					continue
 				}
 				nat2 = c.adaptNAT(n, tag, nat2)

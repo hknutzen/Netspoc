@@ -88,6 +88,7 @@ Error: Attribute 'routing' not supported for bridge router:bridge
 
 ############################################################
 =TITLE=Bridged network must not have NAT
+# No IPv6 NAT
 =INPUT=
 network:n1/left = {
  ip = 10.1.1.0/24;
@@ -107,6 +108,7 @@ Error: Only identity NAT allowed for bridged network:n1/left
 
 ############################################################
 =TITLE=Bridged network must not inherit NAT
+# No IPv6 NAT
 =INPUT=
 any:a = { link = network:n1/left; nat:x = { ip = 10.1.2.0/26; dynamic; } }
 network:n1/left = { ip = 10.1.1.0/24; }
@@ -120,6 +122,7 @@ router:bridge = {
 network:n1/right = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Must not inherit nat:x at bridged network:n1/left from any:a
+ Use 'nat:x = { identity; }' to stop inheritance
 =END=
 
 ############################################################
@@ -175,7 +178,7 @@ router:bridge = {
 }
 network:n1/right = { ip = 10.2.2.0/24; }
 =ERROR=
-Error: network:n1/left and network:n1/right must have identical ip/mask
+Error: network:n1/left and network:n1/right must have identical address
 =END=
 
 ############################################################
@@ -190,7 +193,7 @@ router:bridge = {
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Must define interface:n1 at router:bridge for corresponding bridge interfaces
+Error: Must define interface:bridge.n1 for corresponding bridge interfaces
 =END=
 
 ############################################################
@@ -210,7 +213,7 @@ Error: Layer3 interface:bridge.n1 must not have secondary or virtual IP
 =END=
 
 ############################################################
-=TITLE=Layer 3 IP must match bridged network IP/mask
+=TITLE=Layer 3 IP must match bridged network address
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {
@@ -222,7 +225,7 @@ router:bridge = {
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: interface:bridge.n1's IP doesn't match IP/mask of bridged networks
+Error: interface:bridge.n1's IP doesn't match address of bridged networks
 =END=
 
 ############################################################
@@ -404,8 +407,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -417,8 +420,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -430,8 +433,8 @@ service:admin = {
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---bridge
-! [ IP = 10.1.2.9 ]
+--bridge.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.9"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -618,6 +621,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 
 ############################################################
 =TITLE=Missing hop behind chained bridges
+# No IPv6
 =INPUT=
 [[input negotiated]]
 =ERROR=

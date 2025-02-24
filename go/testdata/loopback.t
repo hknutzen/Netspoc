@@ -208,6 +208,8 @@ Warning: interface:r.m is subnet of network:n
 
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces (secondary)
+# No IPv6 NAT
+#
 # Soll bei local_optimization loopback interfaces und NAT network als
 # identisch erkennen.
 =TEMPL=input
@@ -283,6 +285,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces
+# No IPv6 NAT
 =INPUT=[[input ""]]
 =OUTPUT=
 --gw
@@ -294,6 +297,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Dynamic NAT to loopback interface
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -325,6 +329,7 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (1)
+# No IPv6 NAT
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -348,15 +353,16 @@ service:s1 = {
 }
 =INPUT=[[input r1]]
 =ERROR=
-Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
+Error: interface:r2.lo and nat:extern of network:n1 have identical address
  in nat_domain:[network:n2]
 =END=
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (2)
+# No IPv6 NAT
 =INPUT=[[input r3]]
 =ERROR=
-Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
+Error: nat:extern of network:n1 and interface:r2.lo have identical address
  in nat_domain:[interface:r2.lo]
 =END=
 

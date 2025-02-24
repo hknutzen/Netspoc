@@ -20,7 +20,6 @@ const (
 type parser struct {
 	scanner       scanner.Scanner
 	fileName      string
-	ipv6          bool
 	parseComments bool
 
 	// Next token
@@ -29,12 +28,11 @@ type parser struct {
 	tok   string // token literal, one token look-ahead
 }
 
-func (p *parser) init(src []byte, fname string, ipv6 bool, mode Mode) {
+func (p *parser) init(src []byte, fname string, mode Mode) {
 	ah := func(e error) { p.abort(e) }
 
 	p.scanner.Init(src, fname, ah)
 	p.fileName = fname
-	p.ipv6 = ipv6
 	p.parseComments = mode&ParseComments != 0
 
 	p.next()
@@ -219,8 +217,13 @@ func (p *parser) aggAuto(typ string) ast.Element {
 	a := new(ast.AggAuto)
 	a.Type = typ
 	p.next()
-	if p.check("ip") {
-		p.check("=")
+	switch p.tok {
+	case "ip6":
+		a.IPV6 = true
+		fallthrough
+	case "ip":
+		p.next()
+		p.expect("=")
 		a.Net = p.name()
 		p.expect("&")
 	}
@@ -355,11 +358,10 @@ func (p *parser) description() *ast.Description {
 	preCmt := p.readPreCmt("")
 	if p.check("description") {
 		p.expectLeave("=")
-		p.pos, p.tok = p.scanner.ToEOLorComment()
+		p.pos, p.tok = p.scanner.ToEOL()
 		a := new(ast.Description)
-		a.Text = p.tok
+		a.Text = strings.TrimSpace(p.tok)
 		a.SetPreComment(preCmt)
-		a.SetPostComment(p.readPostCmtAfter(""))
 		p.next()
 		return a
 	}
@@ -429,6 +431,7 @@ var specialTokenAttr = map[string]func(*parser){
 	"admins":      (*parser).nextMulti,
 	"watchers":    (*parser).nextMulti,
 	"range":       (*parser).nextIPRange,
+	"range6":      (*parser).nextIPRange,
 }
 
 var specialSubTokenAttr = map[string]func(*parser){
@@ -440,6 +443,7 @@ var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
 	"general_permit": (*parser).protocolRef,
 	"lifetime":       (*parser).multiValue,
 	"range":          (*parser).multiValue,
+	"range6":         (*parser).multiValue,
 }
 
 func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
@@ -673,9 +677,6 @@ func (p *parser) toplevel() ast.Toplevel {
 	}
 	n := m(p)
 	n.SetFileName(p.fileName)
-	if p.ipv6 {
-		n.SetIPV6()
-	}
 	return n
 }
 
@@ -709,11 +710,11 @@ func handlePanic(f func()) (err error) {
 }
 
 func ParseFile(
-	src []byte, fName string, ipv6 bool, mode Mode) (f *ast.File, err error) {
+	src []byte, fName string, mode Mode) (f *ast.File, err error) {
 
 	err = handlePanic(func() {
 		p := new(parser)
-		p.init(src, fName, ipv6, mode)
+		p.init(src, fName, mode)
 		f = new(ast.File)
 		f.Nodes = p.file()
 		if p.parseComments {
@@ -727,7 +728,7 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 	err = handlePanic(func() {
 		p := new(parser)
 		src = append(src, ';')
-		p.init(src, "command line", false, 0)
+		p.init(src, "command line", 0)
 		list, end := p.union(";")
 		if end != len(src) {
 			p.syntaxErr(`Unexpected content after ";"`)

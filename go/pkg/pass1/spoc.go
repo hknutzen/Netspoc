@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"path"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
@@ -190,7 +190,7 @@ func (c *spoc) sortedSpoc(f func(*spoc)) {
 			if c2.aborted {
 				l--
 			}
-			sort.Strings(c2.messages[:l])
+			slices.Sort(c2.messages[:l])
 			c.sendBuf(c2)
 		})
 }
@@ -216,14 +216,14 @@ func SpocMain(d oslink.Data) int {
 			pass2.File(device, outDir, path.Join(outDir, ".prev"))
 			return
 		}
-		c.info(program + ", version " + version)
+		c.info("%s, version %s", program, version)
 		c.readNetspoc(inDir)
 		c.showReadStatistics()
 		c.orderProtocols()
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
-		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
+		NATDomains, _ := c.distributeNatInfo()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		pRules, dRules := c.convertHostsInRules(sRules)
@@ -234,7 +234,7 @@ func SpocMain(d oslink.Data) int {
 				c.findSubnetsInNatDomain(NATDomains)
 				c.checkUnstableNatRules()
 				c.markManagedLocal()
-				c.checkDynamicNatRules(NATDomains, NATTag2natType)
+				c.checkDynamicNatRules()
 				c.checkSupernetRules(pRules)
 			},
 			func(c *spoc) {

@@ -705,7 +705,7 @@ ip access-list extended n1_in
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
- host:range  = { range = 10.1.1.0 - 10.1.1.255; }
+ host:rg  = { range = 10.1.1.0 - 10.1.1.255; }
 }
 router:u = {
  interface:n1;
@@ -724,11 +724,11 @@ service:test1 = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 service:test2 = {
- user = host:range;
+ user = host:rg;
  permit src = user; dst = network:n2; prt = tcp 80-90;
 }
 =WARNING=
-Warning: Use network:n1 instead of host:range
+Warning: Use network:n1 instead of host:rg
  because both have identical address
 Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test1

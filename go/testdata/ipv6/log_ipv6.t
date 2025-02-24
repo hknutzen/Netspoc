@@ -1,15 +1,15 @@
 
 ############################################################
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; host:h3 = { ip6 = ::a01:30a; } }
 router:r1 = {
  managed;
  model = IOS;
  log:a = log-input;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:asa2 = {
  managed;
@@ -17,14 +17,13 @@ router:asa2 = {
  log:a = errors;
  log:b = debugging;
  log:c = disable;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 =END=
 
 ############################################################
 =TITLE=Different log levels and devices; do / don't join ranges
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t = {
@@ -57,14 +56,13 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Unknown log severity at ASA
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  managed;
  model = ASA;
  log:a = foo;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model ASA
@@ -73,14 +71,13 @@ Error: Invalid 'log:a = foo' at router:r1 of model ASA
 
 ############################################################
 =TITLE=Only use one log value at ASA
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  managed;
  model = ASA;
  log:a = alerts, errors;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Must not use multiple values for log:a in router:r1 of model ASA
@@ -88,14 +85,13 @@ Error: Must not use multiple values for log:a in router:r1 of model ASA
 
 ############################################################
 =TITLE=Unknown log severity at IOS
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  managed;
  model = IOS;
  log:a = foo;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model IOS
@@ -103,31 +99,14 @@ Error: Invalid 'log:a = foo' at router:r1 of model IOS
 =END=
 
 ############################################################
-=TITLE=Unknown log severity at NX-OS
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-router:r1 = {
- managed;
- model = NX-OS;
- log:a = foo;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
-}
-=ERROR=
-Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
- Use 'log:a;' only.
-=END=
-
-############################################################
 =TITLE=Unknown log values at PAN-OS
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1@v1 = {
  managed;
  model = PAN-OS;
  log:a = foo, bar;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1@v1 of model PAN-OS
@@ -138,14 +117,13 @@ Error: Invalid 'log:a = bar' at router:r1@v1 of model PAN-OS
 
 ############################################################
 =TITLE=Empty log value for PAN-OS
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1@v1 = {
  managed;
  model = PAN-OS;
  log:a;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Invalid 'log:a = <empty>' at router:r1@v1 of model PAN-OS
@@ -154,14 +132,13 @@ Error: Invalid 'log:a = <empty>' at router:r1@v1 of model PAN-OS
 
 ############################################################
 =TITLE=Missing value in "setting:" for PAN-OS
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1@v1 = {
  managed;
  model = PAN-OS;
  log:a = setting:;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Must give some value after ':' in 'setting:' of log:a in router:r1@v1
@@ -169,14 +146,13 @@ Error: Must give some value after ':' in 'setting:' of log:a in router:r1@v1
 
 ############################################################
 =TITLE=No logging for Linux
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  managed;
  model = Linux;
  log:a;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Must not use attribute 'log:a' at router:r1 of model Linux
@@ -184,7 +160,6 @@ Error: Must not use attribute 'log:a' at router:r1 of model Linux
 
 ############################################################
 =TITLE=Unknown log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t = {
@@ -198,7 +173,6 @@ Warning: Ignoring unknown 'e/f' in log of service:t
 
 ############################################################
 =TITLE=Duplicate log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t = {
@@ -214,7 +188,6 @@ Warning: Duplicate 'c' in log of service:t
 
 ############################################################
 =TITLE=Global optimization with log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t1 = {
@@ -233,7 +206,6 @@ Warning: Redundant rules in service:t1 compared to service:t2:
 
 ############################################################
 =TITLE=No global optimization with different log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t1 = {
@@ -261,7 +233,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Duplicate rules with different log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -281,7 +252,6 @@ Error: Duplicate rules must have identical log attribute:
 
 ############################################################
 =TITLE=Place line with logging first
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -303,7 +273,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Local optimization with log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t = {
@@ -325,7 +294,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=No local optimization with different log tag
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:t1 = {
@@ -347,14 +315,13 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Must not join rules with and without logging into object-group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20b; }
- host:h2 = { ip = ::a01:20c; }
- host:h3 = { ip = ::a01:20d; }
- host:h4 = { ip = ::a01:20e; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20b; }
+ host:h2 = { ip6 = ::a01:20c; }
+ host:h3 = { ip6 = ::a01:20d; }
+ host:h4 = { ip6 = ::a01:20e; }
 }
 router:asa = {
  managed;
@@ -363,8 +330,8 @@ router:asa = {
  log:a = warnings;
  log:b = errors;
  log:c = warnings;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t = {
  user = network:n1;
@@ -387,26 +354,25 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Logging at NX-OS
-=PARAMS=--ipv6
+=TITLE=Simple logging at two IOS devices
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; host:h3 = { ip6 = ::a01:30a; } }
 router:r1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
  log:b;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:t = {
  user = network:n1;
@@ -417,29 +383,28 @@ service:t = {
 -- ipv6/r1
 ! [ ACL ]
 ipv6 access-list n1_in
- 10 permit tcp ::a01:100/120 ::a01:300/120 eq 80 log
- 20 permit tcp ::a01:100/120 ::a01:300/120 eq 81
- 30 deny ip any any
+ permit tcp ::a01:100/120 ::a01:300/120 eq 80 log
+ permit tcp ::a01:100/120 ::a01:300/120 eq 81
+ deny ipv6 any any
 -- ipv6/r2
 ! [ ACL ]
 ipv6 access-list n2_in
- 10 deny ip any ::a01:302/128
- 20 permit tcp ::a01:100/120 ::a01:300/120 range 80 81 log
- 30 deny ip any any
+ deny ipv6 any host ::a01:302
+ permit tcp ::a01:100/120 ::a01:300/120 range 80 81 log
+ deny ipv6 any any
 =END=
 
 ############################################################
 =TITLE=Log deny
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = IOS;
  log_deny;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t = {
  user = network:n1;
@@ -458,16 +423,15 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=log_default at ASA
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  log_default = alerts;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t = {
  user = network:n1;
@@ -485,17 +449,16 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=log_deny overwrites log_default
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  log_default = warnings;
  log_deny = critical;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 service:t = {
  user = network:n1;
@@ -514,16 +477,15 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Unsupported log deny
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = Linux;
  log_deny;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 =ERROR=
 Error: Must not use attribute 'log_deny' at router:r1 of model Linux

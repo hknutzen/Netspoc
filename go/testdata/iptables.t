@@ -18,11 +18,9 @@ service:s1 = {
  permit src = network:n1; dst = user; prt = ip;
 }
 =OUTPUT=
+--r1.info
+{"generated_by":"devel","model":"Linux"}
 --r1
-# [ BEGIN r1 ]
---
-# [ Model = Linux ]
---
 # [ PREFIX ]
 --
 #!/sbin/iptables-restore <<EOF
@@ -279,6 +277,8 @@ service:p10-60 = {
 
 ############################################################
 =TITLE=Optimize redundant port
+# No IPv6 NAT
+#
 # Different objects get the same IP from NAT.
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -411,6 +411,7 @@ service:test = {
 
 ############################################################
 =TITLE=loopback interface, loopback network and NAT with same IP
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = {

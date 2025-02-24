@@ -3,8 +3,9 @@
 package printer
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 )
 
 type printer struct {
@@ -72,24 +73,18 @@ func (p *printer) subElements(p1, p2 string, l []ast.Element, stop string) {
 
 func (p *printer) element(pre string, el ast.Element, post string) {
 	switch x := el.(type) {
-	case *ast.NamedRef:
-		p.print(pre + x.Type + ":" + x.Name + post)
-	case *ast.IntfRef:
-		ext := x.Extension
-		net := x.Network
-		if net == "[" {
-			net = "[" + ext + "]"
-			ext = ""
-		} else if ext != "" {
-			ext = "." + ext
-		}
-		p.print(pre + x.Type + ":" + x.Router + "." + net + ext + post)
+	case *ast.User, *ast.NamedRef, *ast.IntfRef:
+		p.print(pre + el.String() + post)
 	case *ast.SimpleAuto:
 		p.subElements(pre, x.Type+":[", x.Elements, "]"+post)
 	case *ast.AggAuto:
 		p2 := x.Type + ":["
 		if x.Net != "" {
-			p2 += "ip = " + x.Net + " &"
+			p2 += "ip"
+			if x.IPV6 {
+				p2 += "6"
+			}
+			p2 += " = " + x.Net + " &"
 		}
 		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:
@@ -103,8 +98,6 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		p.intersection(pre, x.Elements, post)
 	case *ast.Complement:
 		p.element("! ", x.Element, post)
-	case *ast.User:
-		p.print(pre + "user" + post)
 	}
 }
 
@@ -422,7 +415,15 @@ func getMaxAndNoIndent(
 ATTR:
 	for _, a := range l {
 		if l2 := a.ComplexValue; l2 != nil {
+			dual := false
 			for _, a2 := range l2 {
+				if len(l2) > 3 && strings.HasPrefix(a2.Name, "ip") {
+					if dual {
+						noIndent[a] = true
+						continue ATTR
+					}
+					dual = true
+				}
 				if !simple[a2.Name] {
 					noIndent[a] = true
 					continue ATTR
@@ -456,6 +457,7 @@ func (p *printer) indentedAttributeList(
 
 var simpleHostAttr = map[string]bool{
 	"ip":    true,
+	"ip6":   true,
 	"range": true,
 	"owner": true,
 }
@@ -469,6 +471,7 @@ func (p *printer) network(n *ast.Network) {
 
 var simpleIntfAttr = map[string]bool{
 	"ip":         true,
+	"ip6":        true,
 	"unnumbered": true,
 	"negotiated": true,
 	"hardware":   true,
@@ -531,12 +534,18 @@ func (p *printer) toplevel(n ast.Toplevel) {
 func isSimpleNet(t ast.Toplevel) bool {
 	if n, ok := t.(*ast.Network); ok {
 		if len(n.Hosts) == 0 && n.Description == nil {
+			dual := false
 			for _, a := range n.Attributes {
+				if a.PreComment() != "" {
+					return false
+				}
 				switch a.Name {
-				case "ip", "owner", "crosslink", "unnumbered":
-					if a.PreComment() != "" {
+				case "ip", "ip6":
+					if len(n.Attributes) > 3 && dual {
 						return false
 					}
+					dual = true
+				case "owner", "crosslink", "unnumbered", "unnumbered6":
 				default:
 					return false
 				}

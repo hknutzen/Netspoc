@@ -1,13 +1,12 @@
 
 ############################################################
 =TITLE=Unexpected attribute at loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = {
-  ip = ::a01:102; loopback; no_in_acl; dhcp_server; routing = OSPF;
+  ip6 = ::a01:102; loopback; no_in_acl; dhcp_server; routing = OSPF;
  }
 }
 =ERROR=
@@ -18,11 +17,10 @@ Error: Attribute 'routing' not supported for loopback interface:r.l
 
 ############################################################
 =TITLE=Loopback interface without IP
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = { loopback; }
 }
 =ERROR=
@@ -31,43 +29,40 @@ Error: loopback interface:r.l must have IP address
 
 ############################################################
 =TITLE=Unnumbered loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = {
-  unnumbered; loopback;
+  unnumbered6; loopback;
  }
 }
 =ERROR=
-Error: Attribute 'unnumbered' not supported for loopback interface:r.l
+Error: Attribute 'unnumbered6' not supported for loopback interface:r.l
 =END=
 
 ############################################################
 =TITLE=Negotiated loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = {
-  negotiated; loopback;
+  negotiated6; loopback;
  }
 }
 =ERROR=
-Error: Attribute 'negotiated' not supported for loopback interface:r.l
+Error: Attribute 'negotiated6' not supported for loopback interface:r.l
 =END=
 
 ############################################################
 =TITLE=Secondary IP at loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = {
-  ip = ::a01:102, ::a01:103; loopback;
+  ip6 = ::a01:102, ::a01:103; loopback;
  }
 }
 =ERROR=
@@ -76,13 +71,12 @@ Error: Secondary or virtual IP not supported for loopback interface:r.l
 
 ############################################################
 =TITLE=Virtual IP at loopback interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:l = {
-  ip = ::a01:102; loopback; virtual = { ip = ::a01:109; }
+  ip6 = ::a01:102; loopback; virtual = { ip6 = ::a01:109; }
  }
 }
 =ERROR=
@@ -91,12 +85,11 @@ Error: Secondary or virtual IP not supported for loopback interface:r.l
 
 ############################################################
 =TITLE=Network connected to loopback interface
-=PARAMS=--ipv6
 =INPUT=
 router:r = {
- interface:l = { ip = ::a01:102; loopback; }
+ interface:l = { ip6 = ::a01:102; loopback; }
 }
-network:l = { ip = ::a01:102/128; }
+network:l = { ip6 = ::a01:102/128; }
 =ERROR=
 Error: IPv6 topology has unconnected parts:
  - any:[interface:r.l]
@@ -106,12 +99,11 @@ Error: IPv6 topology has unconnected parts:
 
 ############################################################
 =TITLE=Network with /32 mask should be loopback
-=PARAMS=--ipv6
 =INPUT=
 router:r = {
- interface:l = { ip = ::a01:102; }
+ interface:l = { ip6 = ::a01:102; }
 }
-network:l = { ip = ::a01:102/128; }
+network:l = { ip6 = ::a01:102/128; }
 =WARNING=
 Warning: interface:r.l has address of its network.
  Remove definition of network:l and
@@ -120,14 +112,13 @@ Warning: interface:r.l has address of its network.
 
 ############################################################
 =TITLE=Ignore loopback of managed router in automatic group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:lb = { ip = ::a09:909; hardware = lb; loopback; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:lb = { ip6 = ::a09:909; hardware = lb; loopback; }
 }
 service:s1 = {
  user = network:[interface:r1.lb];
@@ -141,16 +132,15 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Ignore zone of loopback interface at mixed hardware
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:lo = { ip = ::a00:1; hardware = n1; loopback; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:lo = { ip6 = ::a00:1; hardware = n1; loopback; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 service:s1 = {
  user = any:[interface:r1.lo], network:n1;
@@ -166,34 +156,32 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Suppress warning for loopback subnet at border of zone
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; has_subnets; }
+network:n1 = { ip6 = ::a01:100/120; has_subnets; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:lo = { ip = ::a01:102; hardware = lo; loopback; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:lo = { ip6 = ::a01:102; hardware = lo; loopback; }
 }
 =WARNING=NONE
 
 ############################################################
 =TITLE=Show warning for loopback subnet not at border of zone
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; has_subnets; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; has_subnets; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  model = IOS;
  managed;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:lo = { ip = ::a01:102; hardware = lo; loopback; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:lo = { ip6 = ::a01:102; hardware = lo; loopback; }
 }
 =WARNING=
 Warning: interface:r2.lo is subnet of network:n1
@@ -203,15 +191,14 @@ Warning: interface:r2.lo is subnet of network:n1
 
 ############################################################
 =TITLE=Loopback is subnet
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a01:100/120;
+ ip6 = ::a01:100/120;
 }
 router:r = {
- interface:n = { ip = ::a01:101; }
- interface:l = { ip = ::a01:102; loopback; subnet_of = network:n; }
- interface:m = { ip = ::a01:103; loopback; }
+ interface:n = { ip6 = ::a01:101; }
+ interface:l = { ip6 = ::a01:102; loopback; subnet_of = network:n; }
+ interface:m = { ip6 = ::a01:103; loopback; }
 }
 =WARNING=
 Warning: interface:r.m is subnet of network:n
@@ -221,33 +208,35 @@ Warning: interface:r.m is subnet of network:n
 
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces (secondary)
+=TODO= No IPv6
+#
 # Soll bei local_optimization loopback interfaces und NAT network als
 # identisch erkennen.
 =TEMPL=input
-network:customer = { ip = ::a01:700/120; }
+network:customer = { ip6 = ::a01:700/120; }
 router:gw = {
  managed {{.}};
  model = ASA;
- interface:customer = { ip = ::a01:701;    hardware = outside;}
- interface:trans    = { ip = ::a01:301;   hardware = inside;}
+ interface:customer = { ip6 = ::a01:701;    hardware = outside;}
+ interface:trans    = { ip6 = ::a01:301;   hardware = inside;}
 }
-network:trans = { ip = ::a01:300/120; }
+network:trans = { ip6 = ::a01:300/120; }
 router:b1 = {
  managed;
  model = Linux;
  interface:trans = {
-  ip = ::a01:303;
-  virtual = { ip = ::a01:302; type = VRRP; }
+  ip6 = ::a01:303;
+  virtual = { ip6 = ::a01:302; type = VRRP; }
   bind_nat = extern;
   hardware = eth0;
  }
  interface:extern = {
-  virtual = { ip = f000::c101:102; type = VRRP; }
+  virtual = { ip6 = f000::c101:102; type = VRRP; }
   loopback;
   hardware = eth1;
  }
  interface:server = {
-  virtual = { ip = ::a01:211; type = VRRP; }
+  virtual = { ip6 = ::a01:211; type = VRRP; }
   hardware = eth1;
  }
 }
@@ -255,24 +244,24 @@ router:b2 = {
  managed;
  model = Linux;
  interface:trans = {
-  ip = ::a01:304;
-  virtual = { ip = ::a01:302; type = VRRP; }
+  ip6 = ::a01:304;
+  virtual = { ip6 = ::a01:302; type = VRRP; }
   bind_nat = extern;
   hardware = eth0;
  }
  interface:extern = {
-  virtual = { ip = f000::c101:102; type = VRRP; }
+  virtual = { ip6 = f000::c101:102; type = VRRP; }
   loopback;
   hardware = eth1;
  }
  interface:server = {
-  virtual = { ip = ::a01:211; type = VRRP; }
+  virtual = { ip6 = ::a01:211; type = VRRP; }
   hardware = eth1;
  }
 }
 network:server = {
- ip = ::a01:210/124;
- nat:extern = { ip = f000::c101:102/128; dynamic; }
+ ip6 = ::a01:210/124;
+ nat:extern = { ip6 = f000::c101:102/128; dynamic; }
 }
 protocol:Echo = icmpv6 8;
 service:p1 = {
@@ -285,7 +274,6 @@ service:p2 = {
  user = network:customer;
  permit src = user; dst = network:server; prt = protocol:Echo;
 }
-=PARAMS=--ipv6
 =INPUT=[[input =secondary]]
 =OUTPUT=
 --ipv6/gw
@@ -297,7 +285,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input ""]]
 =OUTPUT=
 --ipv6/gw
@@ -309,23 +297,23 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Dynamic NAT to loopback interface
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; nat:extern = { ip = f000::c101:102/128; dynamic; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; nat:extern = { ip6 = f000::c101:102/128; dynamic; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = Linux;
- interface:lo = { ip = f000::c101:102; hardware = lo; loopback; }
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = extern; }
+ interface:lo = { ip6 = f000::c101:102; hardware = lo; loopback; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = extern; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2;}
- interface:n3 = { ip = ::a01:301; hardware = n3;}
+ interface:n2 = { ip6 = ::a01:202; hardware = n2;}
+ interface:n3 = { ip6 = ::a01:301; hardware = n3;}
 }
 service:s1 = {
  user = network:n1;
@@ -341,40 +329,40 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (1)
+=TODO= No IPv6
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120; nat:extern = { ip = f000::c101:102/128; dynamic; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; nat:extern = { ip6 = f000::c101:102/128; dynamic; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:{{.}} = {
  managed;
  model = Linux;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = extern; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = extern; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:lo = { ip = f000::c101:102; hardware = lo; loopback; }
- interface:n2 = { ip = ::a01:202; hardware = n2;}
- interface:n3 = { ip = ::a01:301; hardware = n3;}
+ interface:lo = { ip6 = f000::c101:102; hardware = lo; loopback; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2;}
+ interface:n3 = { ip6 = ::a01:301; hardware = n3;}
 }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input r1]]
 =ERROR=
-Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
+Error: interface:r2.lo and nat:extern of network:n1 have identical address
  in nat_domain:[network:n2]
 =END=
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (2)
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input r3]]
 =ERROR=
-Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
+Error: nat:extern of network:n1 and interface:r2.lo have identical address
  in nat_domain:[interface:r2.lo]
 =END=
 
@@ -383,32 +371,32 @@ Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
 # Loopback interface is reached only via physical interface.
 # Don't use virtual IP but physical IP as next hop.
 =TEMPL=input
-network:intern = { ip = ::a01:100/120; }
+network:intern = { ip6 = ::a01:100/120; }
 router:asa = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern1 = {
  model = IOS,FW;
  {{.}}
  interface:dmz = {
-  ip = f000::c0a8:b;
-  virtual = { ip = f000::c0a8:1; }
+  ip6 = f000::c0a8:b;
+  virtual = { ip6 = f000::c0a8:1; }
   hardware = Eth0;
  }
- interface:sync = { ip = f000::ac11:10b; hardware = Loopback0; loopback; }
+ interface:sync = { ip6 = f000::ac11:10b; hardware = Loopback0; loopback; }
  interface:internet = {
-  ip = ::102:30b;
-  virtual = { ip = ::102:301; }
+  ip6 = ::102:30b;
+  virtual = { ip6 = ::102:301; }
   hardware = Eth1;
  }
 }
@@ -416,23 +404,22 @@ router:extern2 = {
  model = IOS,FW;
  {{.}}
  interface:dmz = {
-  ip = f000::c0a8:c;
-  virtual = { ip = f000::c0a8:1; }
+  ip6 = f000::c0a8:c;
+  virtual = { ip6 = f000::c0a8:1; }
   hardware = Eth2;
  }
- interface:sync = { ip = f000::ac11:10c; hardware = Loopback0; loopback; }
+ interface:sync = { ip6 = f000::ac11:10c; hardware = Loopback0; loopback; }
  interface:internet = {
-  ip = ::102:30c;
-  virtual = { ip = ::102:301; }
+  ip6 = ::102:30c;
+  virtual = { ip6 = ::102:301; }
   hardware = Eth3;
  }
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 service:test = {
  user = network:intern;
  permit src = user; dst = interface:extern1.sync; prt = tcp 22;
 }
-=PARAMS=--ipv6
 =INPUT=[[input managed;]]
 =OUTPUT=
 --ipv6/asa
@@ -455,7 +442,6 @@ ipv6 access-list Eth0_in
 # Redundancy interfaces at unmanaged device have no implicit
 # pathrestriction.  A zone which contains network ::/0 uses this
 # address for optimized routing.
-=PARAMS=--ipv6
 =INPUT=[[input ""]]
 =OUTPUT=
 --ipv6/asa

@@ -4,21 +4,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 )
 
 // Copy raw configuration files of devices into outDir for devices
 // known from topology.
-func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
-	ipV6 := strings.HasSuffix(outDir, "/ipv6")
+func (c *spoc) copyRaw(inPath, outDir string) {
+	rawDir := filepath.Join(inPath, "raw")
+	if !fileop.IsDir(rawDir) {
+		return
+	}
 	deviceNames := make(map[string]bool)
 	for _, r := range c.managedRouters {
-		if r.ipV6 == ipV6 {
-			deviceNames[r.deviceName] = true
-		}
+		deviceNames[r.deviceName] = true
 	}
 
 	// outDir has already been checked / created in printCode.
@@ -28,7 +27,7 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	}
 	for _, file := range files {
 		base := file.Name()
-		if base[0] == '.' || base == filetree.Ignore || base == ignoreDir {
+		if base[0] == '.' {
 			continue
 		}
 		rawPath := filepath.Join(rawDir, base)
@@ -45,27 +44,6 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 		cmd := exec.Command("cp", "-f", rawPath, dest)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			c.abort("Can't cp %s to %s: %v\n%s", rawPath, dest, err, out)
-		}
-	}
-}
-
-func (c *spoc) copyRaw(inPath, outDir string) {
-	rawDir := filepath.Join(inPath, "raw")
-	if !fileop.IsDir(rawDir) {
-		return
-	}
-	outV6 := filepath.Join(outDir, "ipv6")
-	if c.conf.IPV6 {
-		c.copyRaw1(rawDir, outV6, "ipv4")
-		subDir := filepath.Join(rawDir, "ipv4")
-		if fileop.IsDir(subDir) {
-			c.copyRaw1(subDir, outDir, "")
-		}
-	} else {
-		c.copyRaw1(rawDir, outDir, "ipv6")
-		subDir := filepath.Join(rawDir, "ipv6")
-		if fileop.IsDir(subDir) {
-			c.copyRaw1(subDir, outV6, "")
 		}
 	}
 }

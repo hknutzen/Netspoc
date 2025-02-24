@@ -9,10 +9,8 @@ max_errors = 2;
 # when running tests.
 quiet = 0;
 time_stamps = 0;
--- CVS/foo
-SOME INVALID DATA
 -- .hidden
-MORE INVALID DATA
+SOME INVALID DATA
 -- bar
 group:g = network:n1;
 network:n1 = { ip = 10.1.1.0/24; }
@@ -127,7 +125,6 @@ Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
       --debug_pass2 string
-  -6, --ipv6
   -m, --max_errors int                              (default 10)
   -q, --quiet
   -t, --time_stamps
@@ -225,7 +222,25 @@ router:r1 = {
 }
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't open out/r1.config: permission denied
+Error: Can't open out/r1.info: permission denied
+Aborted
+=END=
+
+############################################################
+=TITLE=Can't write .config file of pass1
+=SETUP=
+mkdir -p out/.prev
+mkdir out/r1.config
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't open out/r1.config: is a directory
 Aborted
 =END=
 

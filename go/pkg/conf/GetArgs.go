@@ -78,7 +78,6 @@ type Config struct {
 	AutoDefaultRoute             bool
 	ConcurrencyPass1             int
 	ConcurrencyPass2             int
-	IPV6                         bool `flag:"ipv6 6"`
 	MaxErrors                    int  `flag:"max_errors m"`
 	Quiet                        bool `flag:"quiet q"`
 	TimeStamps                   bool `flag:"time_stamps t"`
@@ -147,9 +146,6 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// This is only applicable for internal networks
 		// which have no default route to the internet.
 		AutoDefaultRoute: true,
-
-		// Use IPv4 version as default
-		IPV6: false,
 
 		// Set value to >= 2 to start concurrent processing.
 		ConcurrencyPass1: 1,

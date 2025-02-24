@@ -13,6 +13,39 @@ Error: Invalid empty path
 =END=
 
 ############################################################
+=TITLE=Invalid path
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "invalid" }
+}
+=ERROR=
+Error: Expecting JSON object in attribute 'value' but got: <nil>
+=END=
+
+############################################################
+=TITLE=Invalid global definition
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "in:valid", "value": {} }
+}
+=ERROR=
+Error: Unknown global definition at line 3 of INPUT, near "--HERE-->in:valid"
+Aborted
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
++
++in:valid = {
++}
+=END=
+
+############################################################
 =TITLE=Invalid value
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -38,7 +71,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Expecting JSON object when reading 'network:n2' but got: []interface {}
+Error: Expecting JSON object in attribute 'value' but got: []interface {}
 =END=
 
 ############################################################
@@ -73,7 +106,7 @@ network:n1 = {
 }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 =OUTPUT=
 @@ INPUT
  network:n1 = {
@@ -99,6 +132,21 @@ Error: Can't descend into value of 'ip'
 =END=
 
 ############################################################
+=TITLE=Missing value to add
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip"
+    }
+}
+=ERROR=
+Error: Missing value to add at 'ip'
+=END=
+
+############################################################
 =TITLE=Missing replacement value
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -110,7 +158,12 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Missing value to set at 'ip'
+Error: Single value expected in 'ip' of network:n1
+Error: Invalid CIDR address:  in 'ip' of network:n1
+=OUTPUT=
+@@ INPUT
+-network:n1 = { ip = 10.1.1.0/24; }
++network:n1 = { ip; }
 =END=
 
 ############################################################
@@ -196,7 +249,7 @@ network:n1 = {
 }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 =OUTPUT=
 @@ INPUT
  network:n1 = {
@@ -317,61 +370,6 @@ Warning: nat:h is defined, but not bound to any interface
 +  nat:h = { ip = 192.168.1.3; }
 + }
   host:h12 = { ip = 10.1.1.12; }
- }
-=END=
-
-############################################################
-=TITLE=Add interface
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:l",
-        "value": { "ip": "10.9.9.9", "loopback" : null }
-    }
-}
-=OUTPUT=
-@@ INPUT
- router:r1 = {
-  interface:n1;
-+ interface:l = { ip = 10.9.9.9; loopback; }
- }
-=END=
-
-############################################################
-=TITLE=Add IP & VIP to interface
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:n1",
-        "value": {
-          "ip": "10.1.1.2",
-          "virtual" : { "ip": "10.1.1.1", "type": "VRRP" }
-        }
-    }
-}
-=OUTPUT=
-@@ INPUT
- network:n1 = { ip = 10.1.1.0/24; }
- router:r1 = {
-- interface:n1;
-+ interface:n1 = {
-+  ip = 10.1.1.2;
-+  virtual = { ip = 10.1.1.1; type = VRRP; }
-+ }
  }
 =END=
 
@@ -770,20 +768,12 @@ area:a2 = {
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
 
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-
-router:asa2 = {
- managed;
- model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 
 area:a2 = {
@@ -809,4 +799,35 @@ Warning: Ignoring undefined owner:o1 of router_attributes of area:a2
 + }
   inclusive_border = interface:asa1.n1;
  }
+=END=
+
+############################################################
+=TITLE=Add duplicate router_attributes
+=INPUT=
+owner:o1 = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+area:a2 = {
+ router_attributes = { owner = o1; }
+ inclusive_border = interface:asa1.n1;
+}
+=JOB=
+{
+
+    "method": "add",
+    "params": {
+        "path": "area:a2,router_attributes",
+        "value": { "owner": "o2" }
+    }
+}
+=ERROR=
+Error: Can't add duplicate definition of 'router_attributes'
 =END=

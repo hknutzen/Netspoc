@@ -98,18 +98,26 @@ Warning: Useless 'filter_only = 10.62.3.0/24' at router:r1
 
 ############################################################
 =TITLE=NAT not allowed
+# No IPv6 NAT
 =INPUT=
-network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.3.0/27; } }
+network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.4.0/27; } }
+network:n2 = { ip = 10.62.2.0/27;  nat:n2 = { ip = 10.62.5.0/27; } }
+network:n3 = { ip = 10.62.3.0/27; }
 router:d32 = {
  model = ASA;
  managed = local;
+ routing = manual;
  filter_only =  10.62.0.0/19;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; bind_nat = n1;}
 }
-network:n2 = { ip = 10.62.2.0/27; }
+router:u = {
+ interface:n2;
+ interface:n3 = { bind_nat = n2; }
+}
 =ERROR=
-Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
+Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
 =END=
 
 ############################################################
@@ -127,14 +135,14 @@ router:r1 = {
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.62.240.0/21, 10.62.0.0/19,;
  interface:n4 = { ip = 10.62.242.2; hardware = n4; }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 router:r3 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.62.32.0/19;
  interface:n4 = { ip = 10.62.242.3; hardware = n4; }
@@ -194,6 +202,7 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Filter src in deny rule with zone cluster
+# No IPv6 NAT
 =INPUT=
 network:n0 = { ip = 10.0.0.0/24; nat:n0 = { ip = 10.62.0.0/24; } }
 router:r0 = {
@@ -319,6 +328,52 @@ object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
 access-list n1_in extended permit tcp 10.60.0.0 255.252.0.0 10.62.241.0 255.255.255.248 eq 80
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Non matching aggregate to non matching aggregate
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = 0.0.0.0/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        prt = tcp 80;
+}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended permit tcp any4 any4 eq 80
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Non matching aggregate to non matching aggregate with IP any
+# This generates two identical lines 'permit ip any4 any4',
+# Access-list with duplicate lines is not valid for ASA.
+=INPUT=
+[[topo]]
+service:Test = {
+ user = any:[ip = 0.0.0.0/0 & network:n1];
+ permit src = user;
+        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        prt = ip;
+}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended permit ip any4 any4
 access-list n1_in extended deny ip any4 object-group g0
 access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
@@ -462,6 +517,7 @@ access-group intern_in in interface intern
 
 ############################################################
 =TITLE=Multiple internal subnets, unnumbered, hidden
+# No IPv6 NAT
 =INPUT=
 network:n1   = { ip = 10.1.1.0/24; }
 network:n1-a = { ip = 10.1.1.32/27; subnet_of = network:n1; }
@@ -795,6 +851,20 @@ service:t2 = {
         dst = user;
         prt = tcp 110;
 }
+service:t3 = {
+ user = any:any1;
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 81;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:dst; dst=any:any1; prt=tcp 81; of service:t3
+ Generated ACL at interface:r2.dst would permit access to additional networks:
+ - network:t2
+ Either replace any:any1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:[network:t2] to dst of rule.
 =OUTPUT=
 --r2
 ! outside_in
@@ -805,6 +875,7 @@ access-group outside_in in interface outside
 --
 ! inside_in
 access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any4 eq 110
+access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any4 eq 81
 access-list inside_in extended deny ip any4 10.2.0.0 255.255.0.0
 access-list inside_in extended permit ip any4 any4
 access-group inside_in in interface inside
@@ -866,6 +937,91 @@ access-group n4_in in interface n4
 =END=
 
 ############################################################
+=TITLE=local-filter cluster separated by semi-managed routers
+=TEMPL=semi
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.2.5.0/24; }
+router:r1 = {
+ managed = local;
+ filter_only = 10.1.0.0/16;#r1
+ routing = dynamic;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+}
+router:r3 = {
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ routing = dynamic;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r4 = {
+ interface:n4;
+ interface:n1;
+}
+router:r5 = {
+ managed;
+ model = ASA;
+ routing = dynamic;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.2.5.1; hardware = n5; }
+}
+pathrestriction:p1 = interface:r2.n2, interface:r4.n4;
+=INPUT=
+[[semi]]
+service:s1 = {
+ user = network:n1, network:n4, network:n5;
+ permit src = user; dst = network:n3; prt = tcp 25;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip 10.1.0.0 255.255.0.0 10.1.0.0 255.255.0.0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip 10.1.0.0 255.255.0.0 10.1.0.0 255.255.0.0
+access-list n2_in extended permit ip any4 any4
+access-group n2_in in interface n2
+-- r3
+! n3_in
+access-list n3_in extended deny ip 10.1.0.0 255.255.0.0 10.1.0.0 255.255.0.0
+access-list n3_in extended permit ip any4 any4
+access-group n3_in in interface n3
+--
+! n4_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+access-list n4_in extended permit tcp object-group g0 10.1.3.0 255.255.255.0 eq 25
+access-list n4_in extended deny ip 10.1.0.0 255.255.0.0 10.1.0.0 255.255.0.0
+access-list n4_in extended permit ip any4 any4
+access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=Different filter_only separated by semi-managed
+=INPUT=
+[[semi]]
+=SUBST=/16;#r1/18;/
+=SUBST=/112;#r1/114;/
+# Also replace in generated IPv6 test.
+=ERROR=
+Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
+=END=
+
+############################################################
 =TITLE=general_permit
 # Must not ignore general_permit rules at local filter.
 =INPUT=
@@ -918,5 +1074,400 @@ access-list outside_in extended deny ip any4 object-group g0
 access-list outside_in extended permit ip any4 any4
 access-group outside_in in interface outside
 =END=
+
+############################################################
+=TITLE=VRF members with mixed managed and managed=local
+=INPUT=
+network:n0 = { ip = 10.0.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n0 = { ip = 10.0.1.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2v2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:test = {
+ user = network:n0, network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL for router:r1@v1 ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n2_in
+ permit tcp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+interface n1
+ ip address 10.1.1.2 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n1_in in
+interface n2
+ ip address 10.1.2.1 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n2_in in
+--
+! [ ACL for router:r1@v2 ]
+ip access-list extended n2v2_in
+ deny ip any host 10.1.3.2
+ permit tcp 10.0.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit tcp 10.1.3.0 0.0.0.255 10.0.1.0 0.0.0.255 established
+ permit tcp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip any any
+--
+interface n3
+ ip address 10.1.3.2 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n3_in in
+=END=
+
+############################################################
+=TITLE=VRF members with different value of filter_only
+=INPUT=
+network:n11 = { ip = 10.1.1.0/24; }
+network:n12 = { ip = 10.1.2.0/24; }
+network:n21 = { ip = 10.2.1.0/24; }
+network:n22 = { ip = 10.2.2.0/24; }
+router:r1@v1 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ interface:n11 = { ip = 10.1.1.2; hardware = n11; }
+ interface:n12 = { ip = 10.1.2.1; hardware = n12; }
+}
+router:d32 = {
+ model = ASA;
+ managed;
+ interface:n12 = { ip = 10.1.2.2; hardware = n12; }
+ interface:n21 = { ip = 10.2.1.2; hardware = n21; }
+}
+router:r1@v2 = {
+ model = IOS;
+ managed = local;
+ filter_only = 10.2.0.0/16;
+ interface:n21 = { ip = 10.2.1.1; hardware = n21; }
+ interface:n22 = { ip = 10.2.2.1; hardware = n22; }
+}
+service:test = {
+ user = network:n11, network:n21;
+ permit src = user; dst = network:n22; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL for router:r1@v1 ]
+ip access-list extended n11_in
+ deny ip any 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n12_in
+ deny ip 10.1.0.0 0.0.255.255 10.1.0.0 0.0.255.255
+ permit ip any any
+--
+interface n11
+ ip address 10.1.1.2 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n11_in in
+interface n12
+ ip address 10.1.2.1 255.255.255.0
+ ip vrf forwarding v1
+ ip access-group n12_in in
+--
+! [ ACL for router:r1@v2 ]
+ip access-list extended n21_in
+ deny ip any host 10.2.2.1
+ permit tcp 10.2.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip 10.2.0.0 0.0.255.255 10.2.0.0 0.0.255.255
+ permit ip any any
+--
+ip access-list extended n22_in
+ permit tcp 10.2.2.0 0.0.0.255 10.2.1.0 0.0.0.255 established
+ deny ip any 10.2.0.0 0.0.255.255
+ permit ip any any
+--
+interface n21
+ ip address 10.2.1.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n21_in in
+interface n22
+ ip address 10.2.2.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n22_in in
+=END=
+
+############################################################
+=TITLE=Local aggregate permits local network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip = 10.1.0.0/16 & network:n1];
+        prt = tcp 80;
+ permit src = any:[ip = 10.1.0.0/16 & network:n1];
+        dst = user;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=10.1.0.0/16 & network:n1]; dst=network:extern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n2
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.1.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Local supernet as destination permits local network behind supernet
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.2.2.0/24; subnet_of = network:intern; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+# Test coverage: access from supernet to interface in same cluster
+service:s2 = {
+ user = any:[network:n1];
+ permit src = user;
+        dst = interface:d32.intern;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:intern; prt=tcp 80; of service:s1
+ router:d32 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n2
+=END=
+
+############################################################
+=TITLE=Access from external network matching filter_only is filtered at both
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.2.2.0/24; }
+network:intern = { ip = 10.2.3.0/24; }
+network:extern = { ip = 10.2.4.0/24; }
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.3.1; hardware = intern; }
+}
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.3.2; hardware = inside; }
+ interface:extern = { ip = 10.2.4.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:extern;
+ permit src = user;
+        dst = any:[ip=10.2.0.0/16&network:n1];
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.2.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d31.extern would permit access to additional networks:
+ - network:intern
+ Either replace any:[ip=10.2.0.0/16 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=any:[ip=10.2.0.0/16 & network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:d32.intern would permit access to additional networks:
+ - network:n2
+ Either replace any:[ip=10.2.0.0/16 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.1.0.0 255.255.0.0
+ network-object 10.2.0.0 255.255.0.0
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+--
+! intern_in
+access-list intern_in extended permit tcp 10.2.4.0 255.255.255.0 10.2.0.0 255.255.0.0 eq 80
+access-list intern_in extended deny ip object-group g0 object-group g0
+access-list intern_in extended permit ip any4 any4
+access-group intern_in in interface intern
+--d31
+! outside_in
+access-list outside_in extended permit tcp 10.2.4.0 255.255.255.0 10.2.0.0 255.255.0.0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=Supernet permits subnets in separate local cluster
+=INPUT=
+network:super = { ip = 10.1.0.0/16; }
+network:n1 = { ip = 10.1.1.0/24; subnet_of = network:super; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:super; }
+network:n3 = { ip = 10.1.3.0/24; subnet_of = network:super; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = 10.1.0.1; hardware = super; }
+ interface:n1    = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:intern = { ip = 10.2.0.2; hardware = intern; }
+}
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.3; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+service:s1 = {
+ user = network:super;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:extern;
+ permit src = user;
+        dst = network:super;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:super; dst=network:extern; prt=tcp 80; of service:s1
+ router:r2 with 'managed = local' would allow unfiltered access
+ from additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:extern; dst=network:super; prt=tcp 80; of service:s2
+ router:r2 with 'managed = local' would allow unfiltered access
+ to additional networks:
+ - network:n1
+ - network:n2
+ - network:n3
+=END=
+
+############################################################
+=TITLE=All supernets permitted in separate local cluster
+=INPUT=
+network:super = { ip = 10.1.0.0/16; }
+network:n1 = { ip = 10.1.1.0/24; subnet_of = network:super; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:super; }
+network:intern = { ip = 10.2.0.0/16; }
+network:extern = { ip = 10.4.0.0/16; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:super = { ip = 10.1.0.1; hardware = super; }
+ interface:n1    = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+
+service:s1 = {
+ user = network:super,
+        any:[ip = 10.1.0.0/16 & network:n1],
+        any:[ip = 10.1.0.0/16 & network:n2],
+        ;
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+=WARNING=NONE
 
 ############################################################

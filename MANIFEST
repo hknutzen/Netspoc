@@ -12,10 +12,13 @@ bin/check-acl
 bin/cut-netspoc
 bin/expand-group
 bin/export-netspoc
+bin/export-netspoc-syntax
+bin/export-netvis
 bin/format-netspoc
 bin/modify-netspoc-api
 bin/netspoc
 bin/print-group
+bin/print-path
 bin/print-service
 bin/remove-from-netspoc
 bin/remove-service
@@ -53,11 +56,14 @@ go/cmd/add-to-netspoc/main.go
 go/cmd/check-acl/main.go
 go/cmd/cut-netspoc/main.go
 go/cmd/expand-group/main.go
+go/cmd/export-netspoc-syntax/main.go
 go/cmd/export-netspoc/main.go
+go/cmd/export-netvis/main.go
 go/cmd/format-netspoc/main.go
 go/cmd/modify-netspoc-api/main.go
 go/cmd/netspoc/main.go
 go/cmd/print-group/main.go
+go/cmd/print-path/main.go
 go/cmd/print-service/main.go
 go/cmd/remove-from-netspoc/main.go
 go/cmd/remove-service/main.go
@@ -74,6 +80,7 @@ go/pkg/ast/order.go
 go/pkg/astset/astset.go
 go/pkg/conf/GetArgs.go
 go/pkg/expand/expand-group.go
+go/pkg/exportsyntax/export-netspoc-syntax.go
 go/pkg/fileop/file.go
 go/pkg/filetree/walk.go
 go/pkg/format/format-netspoc.go
@@ -81,6 +88,7 @@ go/pkg/jcode/types.go
 go/pkg/oslink/data.go
 go/pkg/parser/parser.go
 go/pkg/pass1/address.go
+go/pkg/pass1/auto-ipv6-hosts.go
 go/pkg/pass1/background.go
 go/pkg/pass1/check-dyn-nat-rules.go
 go/pkg/pass1/check-identical-services.go
@@ -98,6 +106,7 @@ go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go
 go/pkg/pass1/expand-crypto.go
 go/pkg/pass1/expand-group.go
+go/pkg/pass1/export-netvis.go
 go/pkg/pass1/export.go
 go/pkg/pass1/find-subnets.go
 go/pkg/pass1/get-aggregates.go
@@ -111,6 +120,7 @@ go/pkg/pass1/order-protocols.go
 go/pkg/pass1/path-walk.go
 go/pkg/pass1/print-code.go
 go/pkg/pass1/print-group.go
+go/pkg/pass1/print-path.go
 go/pkg/pass1/print-service.go
 go/pkg/pass1/protocol.go
 go/pkg/pass1/remove-dupl-rules.go
@@ -141,7 +151,6 @@ go/staticcheck.conf
 go/test/capture/capture.go
 go/test/netspoc_test.go
 go/test/oslink_test.go
-go/test/tstdata/testdata.go
 go/testdata/add-to-netspoc/add-to-netspoc.t
 go/testdata/adjacent-net.t
 go/testdata/aggregate.t
@@ -163,7 +172,10 @@ go/testdata/cut-netspoc/cut-netspoc.t
 go/testdata/deterministic.t
 go/testdata/disabled.t
 go/testdata/expand-group/expand-group.t
+go/testdata/export-netspoc-syntax/export.t
+go/testdata/export-netspoc/combined46.t
 go/testdata/export-netspoc/export.t
+go/testdata/export-netvis/export.t
 go/testdata/format-netspoc/format-netspoc.t
 go/testdata/general-permit.t
 go/testdata/group.t
@@ -175,6 +187,8 @@ go/testdata/invalid-char.t
 go/testdata/ip-check.t
 go/testdata/iptables.t
 go/testdata/ipv4.t
+go/testdata/ipv46-auto_ipv6_hosts.t
+go/testdata/ipv46-combined.t
 go/testdata/ipv6.t
 go/testdata/ipv6/adjacent-net_ipv6.t
 go/testdata/ipv6/aggregate_ipv6.t
@@ -201,7 +215,6 @@ go/testdata/ipv6/local-opt_ipv6.t
 go/testdata/ipv6/log_ipv6.t
 go/testdata/ipv6/loopback_ipv6.t
 go/testdata/ipv6/makefile
-go/testdata/ipv6/nat_ipv6.t
 go/testdata/ipv6/nsx_ipv6.t
 go/testdata/ipv6/optimize-subnet_ipv6.t
 go/testdata/ipv6/overlaps_ipv6.t
@@ -249,6 +262,7 @@ go/testdata/print-group/crypto.t
 go/testdata/print-group/group.t
 go/testdata/print-group/mixed-ipv4-ipv6.t
 go/testdata/print-group/owner.t
+go/testdata/print-path/print-path.t
 go/testdata/print-service/print-service.t
 go/testdata/protect-interfaces.t
 go/testdata/protocols.t
@@ -284,4 +298,3 @@ pod-links/print-group.pod
 pod-links/print-service.pod
 pod-links/remove-from-netspoc.pod
 pod-links/rename-netspoc.pod
-tidyall.ini

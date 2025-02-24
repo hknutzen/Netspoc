@@ -69,14 +69,17 @@ func (c *spoc) splitSemiManagedRouters() {
 			n := new(network)
 			n.name = iName + "(split Network)"
 			n.ipType = unnumberedIP
+			n.ipV6 = r.ipV6
 			intf1 := new(routerIntf)
 			intf1.name = iName + "(split1)"
 			intf1.ipType = unnumberedIP
+			intf1.ipV6 = r.ipV6
 			intf1.router = r
 			intf1.network = n
 			intf2 := new(routerIntf)
 			intf2.name = iName + "(split2)"
 			intf2.ipType = unnumberedIP
+			intf2.ipV6 = r.ipV6
 			intf2.router = nr
 			intf2.network = n
 			n.interfaces = intfList{intf1, intf2}

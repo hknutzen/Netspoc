@@ -121,12 +121,11 @@ func Main(d oslink.Data) int {
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	var err error
-	s.State, err = astset.Read(path, cnf.IPV6)
+	s.State, err = astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error while reading netspoc files: %s\n", err)
 		return 1

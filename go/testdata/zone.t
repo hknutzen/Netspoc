@@ -84,11 +84,12 @@ router:u = {
  interface:n1b = { ip = 10.1.1.1; hardware = n1b; }
 }
 =ERROR=
-Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =END=
 
 ############################################################
 =TITLE=Duplicate IP from NAT in zone
+# No IPv6 NAT
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -109,7 +110,7 @@ service:s1 = {
  permit src = user; dst = interface:filter1.Trans; prt = tcp 22;
 }
 =ERROR=
-Error: network:B and network:A have identical IP/mask in any:[network:Trans]
+Error: network:B and network:A have identical address in any:[network:Trans]
 =END=
 
 ############################################################
@@ -196,6 +197,7 @@ ip access-list extended n1_in
 
 ############################################################
 =TITLE=Skip supernet with NAT in secondary optimization
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }

@@ -18,20 +18,18 @@ type State struct {
 	astFiles []*ast.File
 	base     string
 	files    []string
-	IPV6     bool
 	changed  map[string]bool
 }
 
-func Read(netspocBase string, v6 bool) (*State, error) {
+func Read(netspocBase string) (*State, error) {
 	s := &State{
 		base:    netspocBase,
-		IPV6:    v6,
 		changed: make(map[string]bool),
 	}
-	err := filetree.Walk(netspocBase, v6, func(input *filetree.Context) error {
+	err := filetree.Walk(netspocBase, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, input.IPV6, parser.ParseComments)
+		aF, err := parser.ParseFile(source, path, parser.ParseComments)
 		if err != nil {
 			return err
 		}
@@ -128,7 +126,7 @@ func (s *State) FindToplevel(name string) ast.Toplevel {
 	return result
 }
 
-func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
+func (s *State) AddTopLevel(n ast.Toplevel) {
 	// Netspoc config is given in single file, add new node to this file.
 	if len(s.files) == 1 && s.files[0] == s.base {
 		s.CreateToplevel("", n)
@@ -144,10 +142,6 @@ func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
 			}
 		case "service":
 			file = "rule"
-			if !fileop.IsDir(file) {
-				// Ignore error, is recognized later, when file can't be written.
-				os.Mkdir(file, 0777)
-			}
 			if len(name) > 0 {
 				s0 := strings.ToUpper(name[0:1])
 				c0 := s0[0]
@@ -157,13 +151,6 @@ func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
 				}
 			}
 			file = path.Join(file, "other")
-		}
-	}
-	if ipv6 != s.IPV6 {
-		if s.IPV6 {
-			file = path.Join("ipv4", file)
-		} else {
-			file = path.Join("ipv6", file)
 		}
 	}
 	s.CreateToplevel(file, n)
@@ -226,9 +213,9 @@ func (s *State) DeleteHost(name string) error {
 	netName := ""
 	if strings.HasPrefix(name, "host:id:") {
 		// ID host is extended by network name: host:id:a.b@c.d.net_name
-		parts := strings.Split(name, ".")
-		netName = "network:" + parts[len(parts)-1]
-		name = strings.Join(parts[:len(parts)-1], ".")
+		i := strings.LastIndex(name, ".")
+		netName = "network:" + name[i+1:]
+		name = name[:i]
 	}
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
 		modified := false

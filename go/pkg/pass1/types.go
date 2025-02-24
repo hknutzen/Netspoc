@@ -24,6 +24,8 @@ type userInfo struct {
 
 type netOrRouter interface {
 	getPathNode() pathStore
+	isIPv6() bool
+	isCombined46() bool
 }
 
 type autoIntf struct {
@@ -32,10 +34,14 @@ type autoIntf struct {
 	object  netOrRouter
 }
 
-func (x autoIntf) String() string { return x.name }
+func (x autoIntf) String() string     { return x.name }
+func (x autoIntf) isIPv6() bool       { return x.object.isIPv6() }
+func (x autoIntf) isCombined46() bool { return x.object.isCombined46() }
 
 type groupObj interface {
 	String() string
+	isIPv6() bool
+	isCombined46() bool
 }
 type groupObjList []groupObj
 
@@ -43,14 +49,11 @@ func (a *groupObjList) push(e groupObj) {
 	*a = append(*a, e)
 }
 
-type ipVxGroupObj interface {
-	groupObj
-	isIPv6() bool
-}
-
 type srvObj interface {
 	withAttr
 	String() string
+	isIPv6() bool
+	isCombined46() bool
 }
 
 type srvObjList []srvObj
@@ -62,6 +65,7 @@ func (a *srvObjList) push(e srvObj) {
 type someObj interface {
 	withAttr
 	String() string
+	isIPv6() bool
 	getUp() someObj
 	address(m natMap) netip.Prefix
 	getPathNode() pathStore
@@ -133,8 +137,10 @@ type network struct {
 	ipObj
 	natObj
 	withStdAddr
+	autoIPv6Hosts        string
 	attr                 attrStore
 	certId               string
+	combined46           *network
 	crosslink            bool
 	descr                string
 	dynamic              bool
@@ -150,7 +156,7 @@ type network struct {
 	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool
-	isLayer3             bool
+	ldapAppend           string
 	link                 *network
 	loopback             bool
 	maxRoutingNet        *network
@@ -177,6 +183,20 @@ func (x *network) getUp() someObj {
 	return x.up
 }
 func (x *network) intfList() intfList { return x.interfaces }
+func (x network) isCombined46() bool  { return x.combined46 != nil }
+func (x network) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
+
+func vxName(name string, ipV6, isCombined46 bool) string {
+	if isCombined46 {
+		if ipV6 {
+			return "IPv6 " + name
+		}
+		return "IPv4 " + name
+	}
+	return name
+}
 
 type netList []*network
 
@@ -207,12 +227,19 @@ type subnet struct {
 
 type host struct {
 	netObj
+	combined46       *host
 	id               string
 	ip               netip.Addr
 	ipRange          netipx.IPRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet
+	autoIPv6Hosts    string
+}
+
+func (x host) isCombined46() bool { return x.combined46 != nil }
+func (x host) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
 }
 
 type model struct {
@@ -244,7 +271,6 @@ type model struct {
 	statelessSelf          bool
 	statelessICMP          bool
 	tier                   string
-	usePrefix              bool
 	noSharedHardware       bool
 	vrfShareHardware       bool
 }
@@ -294,8 +320,7 @@ type router struct {
 	extendedKeys         map[string]string
 	filterOnly           []netip.Prefix
 	mergeTunnelSpecified []netip.Prefix
-	natDomains           []*natDomain
-	natTags              map[*natDomain]stringList
+	domInterfaces        intfList
 	natSet               natSet // Only used if aclUseRealIp
 	natMap               natMap // Only used if aclUseRealIp
 	needProtect          bool
@@ -303,7 +328,9 @@ type router struct {
 	noInAcl              *routerIntf
 	hardware             []*hardware
 	origRouter           *router
+	combined46           *router
 	radiusAttributes     map[string]string
+	routingDefault       *mcastProto
 	routingOnly          bool
 	trustPoint           string
 	ipvMembers           []*router
@@ -312,7 +339,11 @@ type router struct {
 	vrf                  string
 }
 
-func (x router) String() string { return x.name }
+func (x router) String() string     { return x.name }
+func (x router) isCombined46() bool { return x.combined46 != nil }
+func (x router) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
 
 type loop struct {
 	exit        pathObj
@@ -327,6 +358,7 @@ type routerIntf struct {
 	withStdAddr
 	router          *router
 	bindNat         []string
+	combined46      *routerIntf
 	dhcpClient      bool
 	dhcpServer      bool
 	hub             []*crypto
@@ -368,11 +400,15 @@ type routerIntf struct {
 	zone            *zone
 }
 
-func (intf *routerIntf) getCrypto() *crypto {
+func (intf routerIntf) getCrypto() *crypto {
 	if intf.isHub {
 		return intf.peer.realIntf.spoke
 	}
 	return intf.realIntf.spoke
+}
+func (x routerIntf) isCombined46() bool { return x.combined46 != nil }
+func (x routerIntf) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
 }
 
 type intfList []*routerIntf
@@ -435,6 +471,7 @@ type pathRestriction struct {
 	activePath bool
 	elements   []*routerIntf
 	name       string
+	combined46 *pathRestriction
 }
 
 type crypto struct {
@@ -486,6 +523,8 @@ type zone struct {
 	statefulMark         int
 	watchingOwners       []*owner
 	cluster              []*zone
+	managedLocalCluster  *managedLocalCluster
+	combined46           *zone
 }
 
 func (x zone) String() string { return x.name }
@@ -506,6 +545,8 @@ type area struct {
 	name                string
 	anchor              *network
 	attr                attrStore
+	autoIPv6Hosts       string
+	combined46          *area
 	inclusiveBorder     []*routerIntf
 	border              []*routerIntf
 	inArea              *area
@@ -516,13 +557,17 @@ type area struct {
 }
 
 func (x area) String() string { return x.name }
+func (x area) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
+func (x area) isCombined46() bool { return x.combined46 != nil }
 
 type natDomain struct {
-	name    string
-	natSet  natSet
-	natMap  natMap
-	routers []*router
-	zones   []*zone
+	name       string
+	natSet     natSet
+	natMap     natMap
+	interfaces intfList
+	zones      []*zone
 }
 
 type modifiers struct {
@@ -570,36 +615,31 @@ type objGroup struct {
 	elements        []ast.Element
 	expandedClean   groupObjList
 	expandedNoClean groupObjList
-	ipVxObj
-	name      string
-	recursive bool
+	name            string
+	recursive       bool
 }
 
 func (x objGroup) String() string { return x.name }
 
 type service struct {
-	ipVxObj
-	name                       string
-	description                string
-	disableAt                  string
-	disabled                   bool
-	foreach                    bool
-	rules                      []*unexpRule
-	ruleCount                  int
-	duplicateCount             int
-	redundantCount             int
-	hasUnenforceable           bool
-	hasUnenforceableRestricted bool
-	identicalBody              []*service
-	multiOwner                 bool
-	overlaps                   []*service
-	owners                     []*owner
-	seenEnforceable            bool
-	seenUnenforceable          bool
-	unenforceableMap           map[objPair]bool
-	unknownOwner               bool
-	user                       []ast.Element
-	expandedUser               groupObjList
+	name             string
+	description      string
+	disableAt        string
+	disabled         bool
+	foreach          bool
+	rules            []*unexpRule
+	ruleCount        int
+	duplicateCount   int
+	redundantCount   int
+	hasUnenforceable bool
+	identicalBody    []*service
+	ipV4Only         bool
+	ipV6Only         bool
+	multiOwner       bool
+	overlaps         []*service
+	seenEnforceable  bool
+	unknownOwner     bool
+	user             []ast.Element
 }
 
 func (x *service) String() string { return x.name }
@@ -686,6 +726,7 @@ type pathStore interface {
 	setLoopExit(pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
 	getZone() pathObj
+	isIPv6() bool
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }

@@ -7,7 +7,6 @@
 Usage: PROGRAM [options] FILE|DIR 'group:name,...'
   -a, --admins       Show admins of elements as comma separated list
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -o, --owner        Show owner of elements
@@ -22,7 +21,6 @@ Usage: PROGRAM [options] FILE|DIR 'group:name,...'
 Usage: PROGRAM [options] FILE|DIR 'group:name,...'
   -a, --admins       Show admins of elements as comma separated list
   -i, --ip           Show only IP address of elements
-  -6, --ipv6         Expect IPv6 definitions
   -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -o, --owner        Show owner of elements
@@ -39,13 +37,13 @@ Error: unknown flag: --abc
 =END=
 
 ############################################################
-=TITLE=Invalid input
+=TITLE=Invalid Netspoc config
 =INPUT=
 invalid
 =ERROR=
 Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
 Aborted
-=PARAMS=network:n1
+=PARAM=network:n1
 
 ############################################################
 =TITLE=Reference unknown network for NAT
@@ -55,7 +53,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 Error: Unknown network:n2 of option '--nat'
 Aborted
 =OPTIONS=--nat network:n2
-=PARAMS=network:n1
+=PARAM=network:n1
 
 ############################################################
 =TITLE=Invalid group parameter
@@ -64,7 +62,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Typed name expected at line 1 of command line, near "--HERE-->INVALID"
 Aborted
-=PARAMS=INVALID
+=PARAM=INVALID
 
 ############################################################
 =TITLE=Unexpected content after ";"
@@ -76,7 +74,66 @@ Aborted
 =PARAM=network:n1; INVALID
 
 ############################################################
-=TITLE=Trailing comma at input
+=TITLE=Empty parameter
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OUTPUT=NONE
+=WARNING=
+Warning: print-group is empty
+=PARAM=
+
+=END=
+
+############################################################
+=TITLE=Comment as parameter
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OUTPUT=NONE
+=WARNING=
+Warning: print-group is empty
+=PARAM=
+###
+=END=
+
+############################################################
+=TITLE=Unknown group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Can't resolve group:g1 in print-group
+=PARAM=group:g1
+
+############################################################
+=TITLE=Unknown group in parameter list
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+group:g1 = network:n1;
+=ERROR=
+Error: Can't resolve group:g2 in print-group
+Error: Can't resolve group:g3 in print-group
+Error: Can't resolve group:g4 in network:[..] of print-group
+=OUTPUT=
+10.1.1.0/24	network:n1
+=PARAM=group:g1, group:g2, group:g3, network:[group:g4]
+
+############################################################
+=TITLE=Show warnings
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+group:g1 = network:n1;
+group:g2 = group:g1 &! network:n1;
+=WARNING=
+Warning: Empty intersection in group:g2:
+group:g1
+&! network:n1
+Warning: Duplicate elements in print-group:
+ - network:n1
+=OUTPUT=
+10.1.1.0/24	network:n1
+=PARAM=group:g1,network:n1,group:g2
+
+############################################################
+=TITLE=Ignore trailing comma at input
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 =OUTPUT=
@@ -107,7 +164,7 @@ router:r1 = {
 }
 router:r2 = {
  managed;
- model = ASA;
+ model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
@@ -128,6 +185,19 @@ service:s = {
 10.1.3.65-10.1.3.67	host:h3d
 =OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
+
+############################################################
+=TITLE=Find unused interface when [auto] is in use
+=INPUT=
+[[topo]]
+service:s = {
+ user = interface:r2.[auto];
+ permit src = network:n1; dst = user; prt = udp 161;
+}
+=OUTPUT=
+10.1.3.2	interface:r2.n3
+=OPTIONS=--unused
+=PARAM=interface:r2.[all]
 
 ############################################################
 =TITLE=Find unused hosts, ignore host of automatic group
@@ -319,7 +389,7 @@ network:n1 = {
 }
 network:n2 = {
  ip = 10.1.2.0/24;
- nat:t2 = { ip = 10.9.2.0/24; }
+ nat:t1 = { ip = 10.9.2.0/24; }
  host:h2 = { ip = 10.1.2.10; }
 }
 network:n3 = {
@@ -333,7 +403,7 @@ router:r1 =  {
  interface:n1 = { ip = 10.1.1.1; nat:t1 = { ip = 10.9.1.1; } hardware = n1; }
  interface:n2 = { negotiated; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t2, t3; }
+ interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t3; }
 }
 network:t1 = { unnumbered; }
 router:r2 = {
@@ -405,6 +475,7 @@ short	interface:r2.k1
 network:n1 = { ip = 10.1.1.0/24; }
  group:g1 = ;
 =WARNING=NONE
+=OUTPUT=NONE
 =PARAM=group:g1
 
 ############################################################

@@ -30,13 +30,7 @@ func (c *spoc) convertHosts() {
 		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
-		ipv6 := n.ipV6
-		var bitstrLen int
-		if ipv6 {
-			bitstrLen = 128
-		} else {
-			bitstrLen = 32
-		}
+		bitstrLen := n.ipp.Addr().BitLen()
 		subnetAref := make([]map[netip.Addr]*subnet, bitstrLen)
 
 		// Converts hosts and ranges to subnets.
@@ -46,8 +40,7 @@ func (c *spoc) convertHosts() {
 			name := host.name
 			id := host.id
 			if host.ip.IsValid() {
-				nets = []netip.Prefix{
-					netip.PrefixFrom(host.ip, getHostPrefix(ipv6))}
+				nets = []netip.Prefix{netip.PrefixFrom(host.ip, bitstrLen)}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
@@ -89,6 +82,7 @@ func (c *spoc) convertHosts() {
 					s.name = name
 					s.network = n
 					s.ipp = ipp
+					s.ipV6 = host.ipV6
 					s.nat = host.nat
 					s.owner = host.owner
 					s.id = id
@@ -195,6 +189,7 @@ func (c *spoc) convertHosts() {
 						u.name = name
 						u.network = n
 						u.ipp = upNet
+						u.ipV6 = s.ipV6
 						u.up = s.up
 						upIP2subnet := subnetAref[upSubnetSize]
 						if upIP2subnet == nil {

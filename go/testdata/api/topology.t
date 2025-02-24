@@ -109,7 +109,7 @@ network:a = {
     }
 }
 =ERROR=
-Error: Can't add to complex value of 'host:name_10_1_1_4'
+Error: Can't add duplicate definition of 'host:name_10_1_1_4'
 =END=
 
 ############################################################
@@ -1256,6 +1256,30 @@ pathrestriction:p =
 =END=
 
 ############################################################
+=TITLE=Add loopback interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:l",
+        "value": { "ip": "10.9.9.9", "loopback" : null }
+    }
+}
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  interface:n1;
++ interface:l = { ip = 10.9.9.9; loopback; }
+ }
+=END=
+
+############################################################
 =TITLE=Add VIP Interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1276,8 +1300,8 @@ router:r1 = {
         "path": "router:r1,interface:VIP_interface",
         "value": {
             "ip": "10.1.3.3",
-            "owner": "a",
-            "vip": null
+            "owner": ["a"],
+            "vip": []
         }
     }
 }
@@ -1307,7 +1331,7 @@ router:r1 = {
         "path": "router:r1,interface:VIP_interface",
         "value": {
             "ip": "10.1.3.3",
-            "vip": null
+            "vip": []
         }
     }
 }
@@ -1316,76 +1340,6 @@ router:r1 = {
  router:r1 = {
   interface:n1;
   interface:n2;
-+ interface:VIP_interface = { ip = 10.1.3.3; vip; }
- }
-=END=
-
-############################################################
-=TITLE=Add VIP Interface to IPv6 router
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:VIP_interface",
-        "value": {
-            "ip": "1000::abcd:0003:0003",
-            "vip": null
-        },
-        "ipv6": true
-    }
-}
-=OUTPUT=
-@@ ipv6/topo
- router:r1 = {
-  interface:n2;
-+ interface:VIP_interface = { ip = 1000::abcd:0003:0003; vip; }
- }
-=END=
-
-############################################################
-=TITLE=Add VIP Interface to IPv4 router
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1,interface:VIP_interface",
-        "value": {
-            "ip": "10.1.3.3",
-            "vip": null
-        },
-        "ipv6": false
-    }
-}
-=OUTPUT=
-@@ topo
- router:r1 = {
-  interface:n1;
 + interface:VIP_interface = { ip = 10.1.3.3; vip; }
  }
 =END=
@@ -1469,7 +1423,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Can't modify unknown IPv4 'router:r2'
+Error: Can't modify unknown toplevel object 'router:r2'
 =END=
 
 ############################################################
@@ -1539,16 +1493,198 @@ Error: 'vip' interface:r1.VIP_interface must have IP address
 =END=
 
 ############################################################
-=TITLE=Add IPv6 router
+=TITLE=Add attribute to short interface
 =INPUT=
--- topo
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
  interface:n1;
 }
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:n1,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't descend into value of 'interface:n1'
+=END=
+
+############################################################
+=TITLE=Add IP & VIP to short interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": {
+          "ip": "10.1.1.2",
+          "virtual" : { "ip": "10.1.1.1", "type": "VRRP" }
+        }
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1;
++ interface:n1 = {
++  ip = 10.1.1.2;
++  virtual = { ip = 10.1.1.1; type = VRRP; }
++ }
+ }
+=END=
+
+############################################################
+=TITLE=Delete remaining attribute from interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1,interface:n1,ip"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1 = { }
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": []
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface using null value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1",
+        "value": null
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
+=END=
+
+############################################################
+=TITLE=Change to short interface using no value at all
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n1"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ router:r1 = {
+- interface:n1 = { ip = 10.1.1.2; }
++ interface:n1;
+ }
+=END=
+
+############################################################
+=TITLE=Set attribute of unknown interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "router:r1,interface:n2,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't set attribute of unknown 'interface:n2'
+=END=
+
+############################################################
+=TITLE=Delete attribute from unknown interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1,interface:n2,ip",
+        "value": "10.1.1.1"
+    }
+}
+=ERROR=
+Error: Can't delete attribute of unknown 'interface:n2'
+=END=
+
+############################################################
+=TITLE=Add IPv6 router
+=INPUT=
+network:n2 = { ip6 = 1000::abcd:0001:0/112; }
 =JOB=
 {
     "method": "add",
@@ -1556,83 +1692,22 @@ network:n2 = { ip = 1000::abcd:0001:0/112; }
         "path": "router:r1",
         "value": {
             "interface:n2": null
-        },
-        "ipv6": true
+        }
     }
 }
 =OUTPUT=
-@@ ipv6/API
+@@ INPUT
+ network:n2 = { ip6 = 1000::abcd:0001:0/112; }
++
 +router:r1 = {
 + interface:n2;
 +}
 =END=
 
 ############################################################
-=TITLE=Add IPv4 router
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1",
-        "value": {
-            "interface:n1": null
-        }
-    }
-}
-=OUTPUT=
-@@ API
-+router:r1 = {
-+ interface:n1;
-+}
-=END=
-
-############################################################
-=TITLE=Add IPv4 router when IPv6 is default
-=INPUT=
--- config
-ipv6 = 1;
--- ipv4/topo
-network:n1 = { ip = 10.1.1.0/24; }
--- topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "router:r1",
-        "value": {
-            "interface:n1": null
-        },
-        "ipv6": false
-    }
-}
-=OUTPUT=
-@@ ipv4/API
-+router:r1 = {
-+ interface:n1;
-+}
-=END=
-
-############################################################
 =TITLE=Add IPv6 router that already exists
 =INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
+network:n2 = { ip6 = 1000::abcd:0001:0/112; }
 
 router:r1 = {
  interface:n2;
@@ -1644,73 +1719,9 @@ router:r1 = {
         "path": "router:r1",
         "value": {
             "interface:n2": null
-        },
-        "ipv6": true
+        }
     }
 }
 =ERROR=
-Error: IPv6 'router:r1' already exists
-=END=
-
-############################################################
-=TITLE=Delete IPv6 router
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "delete",
-    "params": {
-        "path": "router:r1",
-        "ipv6": true
-    }
-}
-=OUTPUT=
-@@ ipv6/topo
- network:n2 = { ip = 1000::abcd:0001:0/112; }
--
--router:r1 = {
-- interface:n2;
--}
-=END=
-
-############################################################
-=TITLE=Delete IPv4 router
-=INPUT=
--- topo
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1;
-}
--- ipv6/topo
-network:n2 = { ip = 1000::abcd:0001:0/112; }
-
-router:r1 = {
- interface:n2;
-}
-=JOB=
-{
-    "method": "delete",
-    "params": {
-        "path": "router:r1"
-    }
-}
-=OUTPUT=
-@@ topo
- network:n1 = { ip = 10.1.1.0/24; }
--
--router:r1 = {
-- interface:n1;
--}
+Error: 'router:r1' already exists
 =END=

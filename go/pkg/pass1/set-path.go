@@ -1,7 +1,8 @@
 package pass1
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -15,30 +16,22 @@ func (c *spoc) setPath() {
 	c.progress("Preparing fast path traversal")
 	c.findDistsAndLoops()
 	c.processLoops()
+	c.checkPartitions()
 	c.checkVirtualInterfaces()
 	c.checkPathrestrictions()
 	c.linkPathrestrictions()
 }
 
-/*
-	findDistsAndLoops sets direction and distances to an arbitrary
-
-/* chosen start zone. Identifies loops inside the graph topology, tags
-/* nodes of a cycle with a common loop object and distance. Checks for
-/* multiple unconnected parts of topology.
-*/
+// findDistsAndLoops sets direction and distances to an arbitrary
+// chosen start zone. Identifies loops inside the graph topology, tags
+// nodes of a cycle with a common loop object and distance.
 func (c *spoc) findDistsAndLoops() {
 	if len(c.allZones) == 0 {
 		c.abort("topology seems to be empty")
 	}
 
 	startDistance := 0
-	var partitions []*zone
-	var partition2Routers = make(map[*zone][]*router)
-
-	// Find one or more connected partitions in whole topology.
 	for _, z := range c.allZones {
-		var partitionRouters []*router
 
 		// Zone is part of previously processed partition.
 		if z.toZone1 != nil || z.loop != nil {
@@ -49,21 +42,13 @@ func (c *spoc) findDistsAndLoops() {
 		//debug("%s", zone1.name)
 
 		// Second parameter stands for not existing starting interface.
-		// Value must be "false" and unequal to any interface.
-		max, _, partitionRouters := setpathObj(zone1, nil, startDistance)
+		max, _ := setpathObj(zone1, nil, startDistance)
 
 		// Use other distance values in disconnected partition.
 		// Otherwise pathmark would erroneously find a path between
 		// disconnected objects.
 		startDistance = max + 1
-
-		partitions = append(partitions, zone1)
-		partition2Routers[zone1] = partitionRouters
 	}
-
-	unconnectedPartitions :=
-		extractPartitionsConnectedBySplitRouter(partitions, partition2Routers)
-	c.checkProperPartitionUsage(unconnectedPartitions)
 }
 
 /*
@@ -80,11 +65,8 @@ func (c *spoc) findDistsAndLoops() {
 /* the value of the cluster exit object. The intermediate value is
 /* required by cluster_navigation to work.
 */
-func setpathObj(obj pathObj, toZone1 *routerIntf,
-	distToZone1 int) (int, *loop, []*router) {
-
-	var partitionRouters []*router
-
+func setpathObj(obj pathObj, toZone1 *routerIntf, distToZone1 int,
+) (int, *loop) {
 	//debug("--%d: %s -->  %s", distToZone1, obj, toZone1)
 
 	// Return from recursion if loop was found.
@@ -97,7 +79,7 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 			distance: newDistance, // Required for cluster navigation.
 		}
 		toZone1.loop = foundLoop
-		return newDistance, foundLoop, partitionRouters
+		return newDistance, foundLoop
 	}
 
 	// Continue graph exploration otherwise.
@@ -106,11 +88,8 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 	obj.setDistance(distToZone1)
 	maxDistance := distToZone1
 
-	r, isRouter := obj.(*router)
-	if isRouter {
-		partitionRouters = append(partitionRouters, r)
-	}
 	// Process all of the objects interfaces.
+	_, isRouter := obj.(*router)
 	for _, objIntf := range obj.intfList() {
 
 		if objIntf == toZone1 {
@@ -129,14 +108,12 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 		}
 
 		// Proceed with next node (distance + 2 to enable intermediate values).
-		max, foundLoop, collectedRouters :=
+		max, foundLoop :=
 			setpathObj(nextObject, objIntf, distToZone1+2)
 
 		if max > maxDistance {
 			maxDistance = max
 		}
-
-		partitionRouters = append(partitionRouters, collectedRouters...)
 
 		if foundLoop == nil {
 			objIntf.toZone1 = obj
@@ -179,129 +156,126 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 
 	objLoop := obj.getLoop()
 	if objLoop != nil && objLoop.exit != obj {
-		return maxDistance, objLoop, partitionRouters
+		return maxDistance, objLoop
 	}
 
 	obj.setToZone1(toZone1)
-	return maxDistance, nil, partitionRouters
+	return maxDistance, nil
 }
 
-func extractPartitionsConnectedBySplitRouter(partitions []*zone,
-	partition2Routers map[*zone][]*router) []*zone {
-
-	// Generate Lookups.
-	router2partition := make(map[*router]*zone)
-	partition2splitCrypto := make(map[*zone][]*router)
-
-	for partition, routers := range partition2Routers {
-		for _, r := range routers {
-			router2partition[r] = partition
-			if r.origRouter != nil {
-				partition2splitCrypto[partition] =
-					append(partition2splitCrypto[partition], r)
-			}
+func (c *spoc) checkPartitions() {
+	var unconnected []*zone
+	zone2tags := make(map[*zone][]string)
+	seen := make(map[*zone]bool)
+	for _, z := range c.allZones {
+		if !seen[z] {
+			tags := markPartitionGetTags(z, seen)
+			unconnected = append(unconnected, z)
+			zone2tags[z] = tags
 		}
 	}
+	c.checkProperPartitionUsage(unconnected, zone2tags)
+}
 
-	// Check which partitions are connected by split crypto router.
-	var unconnectedPartitions []*zone
-Partition:
-	for _, zone1 := range partitions {
-		if partition2splitCrypto[zone1] != nil {
-			for _, routerPart := range partition2splitCrypto[zone1] {
-				origRouter := routerPart.origRouter
-				if router2partition[origRouter] != nil {
-					zone2 := router2partition[origRouter]
-					if zone1 != zone2 {
-						continue Partition
+func markPartitionGetTags(z *zone, seen map[*zone]bool) []string {
+	var tags []string
+	var mark func(z *zone, fromIntf *routerIntf)
+	mark = func(z *zone, fromIntf *routerIntf) {
+		seen[z] = true
+		if z.partition != "" {
+			tags = append(tags, z.partition)
+		}
+		for _, inIntf := range z.interfaces {
+			if inIntf != fromIntf {
+				// Also traverse split crypto routers.
+				for _, outIntf := range getIntf(inIntf.router) {
+					if outIntf != inIntf {
+						z2 := outIntf.network.zone
+						if !seen[z2] {
+							mark(z2, outIntf)
+						}
 					}
 				}
 			}
 		}
-		unconnectedPartitions = append(unconnectedPartitions, zone1)
 	}
-	return unconnectedPartitions
+	mark(z, nil)
+	return tags
 }
 
-func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
+func findPartitionTag(store pathStore) string {
+	var z *zone
+	switch x := store.(type) {
+	case *routerIntf:
+		z = x.zone
+	case *router:
+		z = x.interfaces[0].zone
+	case *zone:
+		z = x
+	}
+	seen := make(map[*zone]bool)
+	if tags := markPartitionGetTags(z, seen); len(tags) > 0 {
+		return tags[0]
+	}
+	return ""
+}
 
-	partition2tags := c.mapPartitions2PartitionTags()
-
-	// Several Partition Tags for single zone - show error.
-	for zone1 := range partition2tags {
-		if len(partition2tags[zone1]) > 1 {
+func (c *spoc) checkProperPartitionUsage(
+	unconnected []*zone, zone2tags map[*zone][]string,
+) {
+	// Several partition tags for single zone - show error.
+	for _, z := range unconnected {
+		if tags := zone2tags[z]; len(tags) > 1 {
 			c.err("Several partition names in partition %s:\n - %s",
-				zone1.name, strings.Join(partition2tags[zone1], "\n - "))
+				z.name, strings.Join(tags, "\n - "))
 		}
 	}
 
 	// Split partitions by IP version.
-	var unconnectedIPv6Partitions []*zone
-	var unconnectedIPv4Partitions []*zone
-	for _, unconnectedPartition := range unconnectedPartitions {
-		if unconnectedPartition.ipVxObj.isIPv6() {
-			unconnectedIPv6Partitions = append(unconnectedIPv6Partitions,
-				unconnectedPartition)
+	var unconnectedIPv6 []*zone
+	var unconnectedIPv4 []*zone
+	for _, z := range unconnected {
+		if z.isIPv6() {
+			unconnectedIPv6 = append(unconnectedIPv6, z)
 		} else {
-			unconnectedIPv4Partitions = append(unconnectedIPv4Partitions,
-				unconnectedPartition)
+			unconnectedIPv4 = append(unconnectedIPv4, z)
 		}
 	}
 
 	// Named single unconneted partition - show warning.
-	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
-	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv6, zone2tags)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv4, zone2tags)
 
 	// Several Unconnected Partitions without tags - show error.
-	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
-		partition2tags)
-	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
-		partition2tags)
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv6, zone2tags)
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv4, zone2tags)
 }
 
-func (c *spoc) mapPartitions2PartitionTags() map[*zone][]string {
-	partition2tags := make(map[*zone][]string)
-	for _, z := range c.allZones {
-		if z.partition == "" {
-			continue
-		}
-		z1 := findZone1(z)
-		partition2tags[z1] = append(partition2tags[z1], z.partition)
-		z1.partition = z.partition
-	}
-	return partition2tags
-}
-
-func (c *spoc) warnAtNamedSingleUnconnectedPartition(unconnected []*zone) {
+func (c *spoc) warnAtNamedSingleUnconnectedPartition(
+	unconnected []*zone, zone2tags map[*zone][]string,
+) {
 	if len(unconnected) == 1 {
 		z := unconnected[0]
-		if name := z.partition; name != "" {
-			c.warn("Spare partition name for single partition %s: %s.", z, name)
+		if tags := zone2tags[z]; tags != nil {
+			c.warn("Spare partition name for single partition %s: %s.", z, tags[0])
 		}
 	}
 }
 
 func (c *spoc) errorOnUnnamedUnconnectedPartitions(
-	unconnectedPartitions []*zone,
-	partitions2PartitionTags map[*zone][]string) {
-
-	if len(unconnectedPartitions) > 1 {
-		var unnamedUnconnectedPartitions []*zone
-		for _, unconnectedPartition := range unconnectedPartitions {
-			if _, exists := partitions2PartitionTags[unconnectedPartition]; !exists {
-				unnamedUnconnectedPartitions = append(unnamedUnconnectedPartitions,
-					unconnectedPartition)
+	unconnected []*zone, zone2tags map[*zone][]string,
+) {
+	if len(unconnected) > 1 {
+		var names stringList
+		for _, z := range unconnected {
+			if zone2tags[z] == nil {
+				names.push(z.name)
 			}
 		}
-		if len(unnamedUnconnectedPartitions) >= 1 {
-			ipVersion := "IPv" + cond(unconnectedPartitions[0].isIPv6(), "6", "4")
-			var zone1Names stringList
-			for _, zone1 := range unnamedUnconnectedPartitions {
-				zone1Names.push(zone1.name)
-			}
+		if len(names) >= 1 {
 			c.err("%s topology has unconnected parts:\n"+
 				"%s\n Use partition attribute, if intended.",
-				ipVersion, zone1Names.nameList())
+				ipvx(unconnected[0].isIPv6()), names.nameList())
 		}
 	}
 }
@@ -400,10 +374,17 @@ func setLoopClusterExit(lo *loop) pathObj {
 */
 func (c *spoc) checkPathrestrictions() {
 
+	// We get two pathrestrictions from combined46 interfaces.
+	// If the IPv4 pathrestriction has interfaces that are
+	// correctly located inside loop, we put the corresponding IPv6
+	// pathrestriction into this map.
+	// This is used to suppress warning about interface outside of loop
+	// for corresponding pathrestriction.
+	otherLoopOK := make(map[*pathRestriction]bool)
 	for _, p := range c.pathrestrictions {
 
 		// Delete invalid elements of pathrestriction.
-		c.removeRestrictedIntfsInWrongOrNoLoop(p)
+		c.removeRestrictedIntfsInWrongOrNoLoop(p, otherLoopOK)
 		if len(p.elements) == 0 {
 			continue
 		}
@@ -425,9 +406,12 @@ func (c *spoc) checkPathrestrictions() {
 	c.pathrestrictions = effective
 }
 
-func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
+func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
+	p *pathRestriction, otherLoopOK map[*pathRestriction]bool,
+) {
 	var prevIntf *routerIntf
 	var prevCluster pathObj
+	loopOK := true
 	j := 0
 	for _, intf := range p.elements {
 		// Show original interface in error message.
@@ -451,9 +435,16 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 			// pathrestriction because equivalent warning was already
 			// shown for virtual interfaces.
 			if !strings.HasPrefix(p.name, "auto-virtual:") {
-				c.warn("Ignoring %s at %s\n because it isn't located "+
-					"inside cyclic graph", p.name, intf)
+				if !(otherLoopOK[p] && hasOnlyCombinedIntf(p)) {
+					vx := ""
+					if p.combined46 != nil {
+						vx = ipvx(p.elements[0].ipV6) + " "
+					}
+					c.warn("Ignoring %s%s at %s\n because it isn't located "+
+						"inside cyclic graph", vx, p.name, intf)
+				}
 			}
+			loopOK = false
 			continue
 		}
 
@@ -476,6 +467,17 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 		j++
 	}
 	p.elements = p.elements[:j]
+	if loopOK {
+		if p2 := p.combined46; p2 != nil {
+			otherLoopOK[p2] = true
+		}
+	}
+}
+
+func hasOnlyCombinedIntf(p *pathRestriction) bool {
+	return !slices.ContainsFunc(p.elements, func(intf *routerIntf) bool {
+		return !intf.isCombined46()
+	})
 }
 
 // Pathrestrictions that do not affect any ACLs are useless
@@ -571,9 +573,8 @@ func (c *spoc) linkPathrestrictions() {
 
 	// Add large pathrestrictions first, so we can check if small
 	// pathrestriction is contained in large one.
-	sort.Slice(c.pathrestrictions, func(i, j int) bool {
-		return len(c.pathrestrictions[j].elements) <
-			len(c.pathrestrictions[i].elements)
+	slices.SortFunc(c.pathrestrictions, func(a, b *pathRestriction) int {
+		return cmp.Compare(len(b.elements), len(a.elements))
 	})
 	j := 0
 	for _, p := range c.pathrestrictions {

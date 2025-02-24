@@ -2,11 +2,9 @@ package pass1
 
 import (
 	"net/netip"
-	"sort"
 	"strings"
 
 	"go4.org/netipx"
-	"golang.org/x/exp/maps"
 )
 
 func (c *spoc) checkIPAddresses() {
@@ -29,7 +27,7 @@ func (c *spoc) checkSubnetOf() {
 				return
 			}
 			if !sn.ipp.Contains(n.ipp.Addr()) {
-				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
+				c.err("%s is subnet_of %s but its IP doesn't match that's address",
 					ctx, sn)
 			}
 		}
@@ -45,7 +43,7 @@ func (c *spoc) checkSubnetOf() {
 			checkNat(nat)
 		}
 	}
-	for _, ar := range c.symTable.area {
+	for _, ar := range c.ascendingAreas {
 		if nat := ar.nat; nat != nil {
 			checkNat(nat)
 		}
@@ -53,18 +51,23 @@ func (c *spoc) checkSubnetOf() {
 }
 
 func (c *spoc) checkIPAddressesAndBridges() {
-	prefix2net := make(map[string][]*network)
+	type nameV46 struct {
+		name string
+		v6   bool
+	}
+	prefix2net := make(map[nameV46][]*network)
 	for _, n := range c.allNetworks {
-		// Group bridged networks by prefix of name.
+		// Group bridged networks by IPv4/v6 type and prefix of name.
 		if n.ipType == bridgedIP {
 			prefix, _, _ := strings.Cut(n.name, "/")
-			prefix2net[prefix] = append(prefix2net[prefix], n)
+			prefixV46 := nameV46{prefix, n.ipV6}
+			prefix2net[prefixV46] = append(prefix2net[prefixV46], n)
 		} else if n.ipType == unnumberedIP {
 			l := n.interfaces
 			if len(l) > 2 {
 				c.err(
 					"Unnumbered %s is connected to more than two interfaces:\n%s",
-					n.name, l.nameList())
+					n.vxName(), l.nameList())
 			}
 		} else if !(n.ipType == tunnelIP || n.loopback) {
 			c.checkIPAddr(n)
@@ -72,11 +75,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 	}
 
 	// Check address conflicts for collected parts of bridged networks.
-	// Sort prefix names for deterministic error messages.
-	prefixes := maps.Keys(prefix2net)
-	sort.Strings(prefixes)
-	for _, prefix := range prefixes {
-		l := prefix2net[prefix]
+	for prefixV46, l := range prefix2net {
 		dummy := new(network)
 		seen := make(map[*routerIntf]bool)
 		for _, n := range l {
@@ -93,7 +92,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 		c.checkIPAddr(dummy)
 
 		// Check collected parts of bridged networks.
-		c.checkBridgedNetworks(prefix, l)
+		c.checkBridgedNetworks(prefixV46.name, l)
 	}
 }
 
@@ -128,7 +127,8 @@ func (c *spoc) checkIPAddr(n *network) {
 			ip := intf.ip
 			if other, found := ip2name[ip]; found {
 				if !(intf.redundant && redundant[other]) {
-					c.err("Duplicate IP address for %s and %s", other, intf)
+					c.err("Duplicate IP address for %s and %s",
+						other, intf.vxName())
 				}
 			} else {
 				ip2name[ip] = intf.name
@@ -141,7 +141,7 @@ func (c *spoc) checkIPAddr(n *network) {
 	if shortIntf != nil && routeIntf != nil {
 		c.err("Can't generate static routes for %s"+
 			" because IP address is unknown for:\n%s",
-			routeIntf, shortIntf.nameList())
+			routeIntf.vxName(), shortIntf.nameList())
 	}
 
 	// Optimization: No need to collect .routeInZone at bridge router.
@@ -158,7 +158,7 @@ func (c *spoc) checkIPAddr(n *network) {
 		}
 		rg := h.ipRange
 		if other, found := range2name[rg]; found {
-			c.err("Duplicate IP address for %s and %s", other, h)
+			c.err("Duplicate IP address for %s and %s", other, h.vxName())
 		} else {
 			range2name[rg] = h.name
 		}
@@ -172,7 +172,7 @@ func (c *spoc) checkIPAddr(n *network) {
 		}
 		for ip, other := range ip2name {
 			if rg.Contains(ip) {
-				c.err("Duplicate IP address for %s and %s", other, h)
+				c.err("Duplicate IP address for %s and %s", other, h.vxName())
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func (c *spoc) checkIPAddr(n *network) {
 	for _, h := range n.hosts {
 		if h.ip.IsValid() {
 			if other, found := ip2name[h.ip]; found {
-				c.err("Duplicate IP address for %s and %s", other, h)
+				c.err("Duplicate IP address for %s and %s", other, h.vxName())
 			} else {
 				ip2name[h.ip] = h.name
 			}
@@ -200,12 +200,12 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 	if n, found := c.symTable.network[prefix[len("network:"):]]; found {
 		c.err(
 			"Must not define %s together with bridged networks of same name",
-			n)
+			n.vxName())
 	}
 	n1 := l[0]
 	group := l[1:]
 	if len(group) == 0 {
-		c.warn("Bridged %s must not be used solitary", n1)
+		c.warn("Bridged %s must not be used solitary", n1.vxName())
 	}
 	seen := make(map[*router]bool)
 	connected := make(map[*network]bool)
@@ -216,7 +216,8 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 		n2 := next[0]
 		next = next[1:]
 		if n1.ipp != n2.ipp {
-			c.err("%s and %s must have identical ip/mask", n1, n2)
+			c.err("%s and %s must have identical address",
+				n1.vxName(), n2.vxName())
 		}
 		connected[n2] = true
 		for _, in := range n2.interfaces {
@@ -231,8 +232,8 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 			single := true
 			if l3 := in.layer3Intf; l3 != nil {
 				if !n1.ipp.Contains(l3.ip) {
-					c.err("%s's IP doesn't match IP/mask of bridged networks",
-						l3)
+					c.err("%s's IP doesn't match address of bridged networks",
+						l3.vxName())
 				}
 			}
 			for _, out := range r.interfaces {
@@ -248,7 +249,7 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 	}
 	for _, n2 := range group {
 		if !connected[n2] {
-			c.err("%s and %s must be connected by bridge", n2, n1)
+			c.err("%s and %s must be connected by bridge", n2.vxName(), n1.vxName())
 		}
 	}
 }

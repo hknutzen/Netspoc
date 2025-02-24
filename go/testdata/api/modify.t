@@ -35,6 +35,30 @@ Error: While reading netspoc files: Typed name expected at line 1 of INPUT, near
 =END=
 
 ############################################################
+=TITLE=API works regardless of invalid netspoc config
+=INPUT=
+-- topology
+network:a = { ip = 10.1.1.0/24; }
+-- config
+unknown = value;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:b",
+        "value": { "ip": "10.1.2.0/24" }
+    }
+}
+=OUTPUT=
+@@ API
++network:b = { ip = 10.1.2.0/24; }
+=ERROR=
+Error: Invalid line in config:
+ - bad keyword 'unknown'
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid JSON in job
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

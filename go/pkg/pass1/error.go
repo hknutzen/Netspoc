@@ -1,12 +1,12 @@
 package pass1
 
 import (
-	"fmt"
-	"os"
 	"strings"
 )
 
+/*
 func debug(f string, l ...interface{}) { fmt.Fprintf(os.Stderr, f+"\n", l...) }
+*/
 
 func (l intfList) nameList() string {
 	var names stringList
@@ -18,8 +18,8 @@ func (l intfList) nameList() string {
 
 func (l netList) nameList() string {
 	var names stringList
-	for _, intf := range l {
-		names.push(intf.name)
+	for _, n := range l {
+		names.push(n.vxName())
 	}
 	return names.nameList()
 }

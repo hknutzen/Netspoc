@@ -1,13 +1,12 @@
 
 ############################################################
 =TITLE=Interface with DHCP server
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
+network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; dhcp_server; }
+ interface:U = { ip6 = ::a01:101; hardware = e0; dhcp_server; }
 }
 =OUTPUT=
 --ipv6/R
@@ -18,13 +17,12 @@ ipv6 access-list e0_in
 
 ############################################################
 =TITLE=Interface as DHCP client
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; dhcp_client; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; dhcp_client; }
 }
 =OUTPUT=
 --ipv6/r1
@@ -35,13 +33,12 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Interface with OSPF
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
+network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; routing = OSPF; }
+ interface:U = { ip6 = ::a01:101; hardware = e0; routing = OSPF; }
 }
 =OUTPUT=
 --ipv6/R
@@ -54,13 +51,12 @@ ipv6 access-list e0_in
 
 ############################################################
 =TITLE=Interface with EIGRP
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
+network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; routing = EIGRP; }
+ interface:U = { ip6 = ::a01:101; hardware = e0; routing = EIGRP; }
 }
 =OUTPUT=
 --ipv6/R
@@ -72,13 +68,12 @@ ipv6 access-list e0_in
 
 ############################################################
 =TITLE=Interface with RIPv2
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
+network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; routing = RIPv2; }
+ interface:U = { ip6 = ::a01:101; hardware = e0; routing = RIPv2; }
 }
 =OUTPUT=
 --ipv6/R
@@ -90,29 +85,28 @@ ipv6 access-list e0_in
 
 ############################################################
 =TITLE=Interface with HSRP
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
-network:V = { ip = ::a02:200/120; }
+network:U = { ip6 = ::a01:100/120; }
+network:V = { ip6 = ::a02:200/120; }
 router:R1 = {
  managed;
  model = IOS;
  interface:U = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:101; type = HSRP; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:101; type = HSRP; }
   hardware = e0;
  }
- interface:V = { ip = ::a02:201; hardware = e1;}
+ interface:V = { ip6 = ::a02:201; hardware = e1;}
 }
 router:R2 = {
  managed;
  model = IOS;
  interface:U = {
-  ip = ::a01:103;
-  virtual = { ip = ::a01:101; type = HSRP; }
+  ip6 = ::a01:103;
+  virtual = { ip6 = ::a01:101; type = HSRP; }
   hardware = e0;
  }
- interface:V = { ip = ::a02:202; hardware = e1;}
+ interface:V = { ip6 = ::a02:202; hardware = e1;}
 }
 =OUTPUT=
 --ipv6/R1
@@ -141,15 +135,14 @@ interface e1
 
 ############################################################
 =TITLE=Interface with HSRPv2
-=PARAMS=--ipv6
 =INPUT=
-network:U = { ip = ::a01:100/120; }
+network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
  interface:U = {
-  ip = ::a01:102;
-  virtual = { ip = ::a01:101; type = HSRPv2; }
+  ip6 = ::a01:102;
+  virtual = { ip6 = ::a01:101; type = HSRPv2; }
   hardware = e0;
  }
 }

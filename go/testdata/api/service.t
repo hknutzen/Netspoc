@@ -240,7 +240,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Expecting JSON object when reading 'service:s1' but got: string
+Error: Expecting JSON object in attribute 'value' but got: string
 =END=
 
 ############################################################
@@ -779,7 +779,7 @@ router:r1 = {
         "value": {
             "description": "abc def # ghi",
             "disable_at": "2099-02-03",
-            "has_unenforceable": null,
+            "has_unenforceable": [],
             "user": "network:n1",
             "rules": [{
                 "action": "permit",
@@ -1635,6 +1635,11 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+--protocols
+protocol:tftp = udp 69, oneway;
+protocol:ping_net     = icmp 8, src_net, dst_net;
+protocol:ping_net_rev = icmp 8, src_net, dst_net, reversed;
+protocolgroup:ping_both = protocol:ping_net, protocol:ping_net_rev;
 --service
 service:s1 = {
  user = network:n1;
@@ -1646,6 +1651,8 @@ service:s1 = {
               udp 161-162,
               udp 427,
               icmp 3/13,
+              protocolgroup:ping_both,
+              protocol:tftp,
               ;
 }
 =JOB=
@@ -1653,14 +1660,19 @@ service:s1 = {
   "method": "delete",
   "params": {
     "value": [
+        "protocol:tftp",
+        "protocolgroup:ping_both",
         "icmp 3/13",
         "tcp 443",
         "tcp 9300-9302",
         "udp 161 - 162",
-        "udp 427" ],
+        "udp 427"
+    ],
     "path": "service:s1,rules,1,prt"
   }
 }
+=WARNING=
+Warning: unused protocolgroup:ping_both
 =OUTPUT=
 @@ service
   user = network:n1;
@@ -1672,6 +1684,8 @@ service:s1 = {
 -              udp 161-162,
 -              udp 427,
 -              icmp 3/13,
+-              protocolgroup:ping_both,
+-              protocol:tftp,
 -              ;
 +        prt = tcp 80;
  }
@@ -2474,6 +2488,38 @@ service:s1 = {
   permit src = network:n2;
          dst = user;
          prt = tcp 514;
+=END=
+
+############################################################
+=TITLE=Can't remove all rules at once
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "service:s1,rules"
+    }
+}
+
+=ERROR=
+Error: Rule number must be given for 'delete'
 =END=
 
 ############################################################

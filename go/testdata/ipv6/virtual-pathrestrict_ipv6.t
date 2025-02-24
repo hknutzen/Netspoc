@@ -1,22 +1,21 @@
 
 ############################################################
 =TITLE=Path between virtual interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:a = { ip = ::a01:100/120;}
+network:a = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:153; virtual = {ip = ::a01:102;} hardware = e0;}
- interface:b = {ip = ::a02:253; hardware = e1;}
+ interface:a = {ip6 = ::a01:153; virtual = {ip6 = ::a01:102;} hardware = e0;}
+ interface:b = {ip6 = ::a02:253; hardware = e1;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:154; virtual = {ip = ::a01:102;} hardware = e0;}
- interface:b = {ip = ::a02:254; hardware = e1;}
+ interface:a = {ip6 = ::a01:154; virtual = {ip6 = ::a01:102;} hardware = e0;}
+ interface:b = {ip6 = ::a02:254; hardware = e1;}
 }
-network:b = { ip = ::a02:200/120;}
+network:b = { ip6 = ::a02:200/120;}
 service:test = {
  user = interface:r1.a, interface:r2.a;
  permit src = user;
@@ -44,28 +43,27 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Multiple virtual interface pairs with interface as destination
-=PARAMS=--ipv6
 =INPUT=
-network:a = { ip = ::a01:100/120;}
+network:a = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:153; virtual = {ip = ::a01:102;} hardware = e0;}
- interface:c1 = {ip = ::a03:102; virtual = {ip = ::a03:101;} hardware = v1;}
- interface:c2 = {ip = ::a03:202; virtual = {ip = ::a03:201;} hardware = v2;}
- interface:b = {ip = ::a02:253; virtual = {ip = ::a02:202;} hardware = e1;}
+ interface:a = {ip6 = ::a01:153; virtual = {ip6 = ::a01:102;} hardware = e0;}
+ interface:c1 = {ip6 = ::a03:102; virtual = {ip6 = ::a03:101;} hardware = v1;}
+ interface:c2 = {ip6 = ::a03:202; virtual = {ip6 = ::a03:201;} hardware = v2;}
+ interface:b = {ip6 = ::a02:253; virtual = {ip6 = ::a02:202;} hardware = e1;}
 }
-network:c1 = {ip = ::a03:100/120;}
-network:c2 = {ip = ::a03:200/120;}
+network:c1 = {ip6 = ::a03:100/120;}
+network:c2 = {ip6 = ::a03:200/120;}
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:154; virtual = {ip = ::a01:102;} hardware = e0;}
- interface:c1 = {ip = ::a03:103; virtual = {ip = ::a03:101;} hardware = v1;}
- interface:c2 = {ip = ::a03:203; virtual = {ip = ::a03:201;} hardware = v2;}
- interface:b = {ip = ::a02:254; virtual = {ip = ::a02:202;} hardware = e1;}
+ interface:a = {ip6 = ::a01:154; virtual = {ip6 = ::a01:102;} hardware = e0;}
+ interface:c1 = {ip6 = ::a03:103; virtual = {ip6 = ::a03:101;} hardware = v1;}
+ interface:c2 = {ip6 = ::a03:203; virtual = {ip6 = ::a03:201;} hardware = v2;}
+ interface:b = {ip6 = ::a02:254; virtual = {ip6 = ::a02:202;} hardware = e1;}
 }
-network:b = { ip = ::a02:200/120;}
+network:b = { ip6 = ::a02:200/120;}
 service:test = {
  user = network:a;
  permit src = user;
@@ -102,30 +100,29 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Implicit pathrestriction with 3 virtual interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:a = { ip = ::a01:100/120;}
-network:x = { ip = ::a03:300/120;}
+network:a = { ip6 = ::a01:100/120;}
+network:x = { ip6 = ::a03:300/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101; hardware = E1;}
- interface:x = {ip = ::a03:301; hardware = E3;}
- interface:b = {ip = ::a02:201; virtual = {ip = ::a02:209;} hardware = E2;}
+ interface:a = {ip6 = ::a01:101; hardware = E1;}
+ interface:x = {ip6 = ::a03:301; hardware = E3;}
+ interface:b = {ip6 = ::a02:201; virtual = {ip6 = ::a02:209;} hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:102; hardware = E4;}
- interface:b = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E5;}
+ interface:a = {ip6 = ::a01:102; hardware = E4;}
+ interface:b = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E5;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:103; hardware = E6;}
- interface:b = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E7;}
+ interface:a = {ip6 = ::a01:103; hardware = E6;}
+ interface:b = {ip6 = ::a02:203; virtual = {ip6 = ::a02:209;} hardware = E7;}
 }
-network:b  = { ip = ::a02:200/120; }
+network:b  = { ip6 = ::a02:200/120; }
 service:test = {
  user = network:a;
  permit src = user; dst = network:x, network:b; prt = ip;
@@ -149,50 +146,49 @@ ipv6 access-list E4_in
 
 ############################################################
 =TITLE=Different paths to virtual interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
-network:n6 = { ip = ::a01:600/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
+network:n6 = { ip6 = ::a01:600/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; virtual = { ip = ::a01:101; } }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; virtual = { ip6 = ::a01:101; } }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:103; hardware = n1; virtual = { ip = ::a01:101; } }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; virtual = { ip6 = ::a01:101; } }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n3 = { ip = ::a01:303; hardware = n3; }
- interface:n4 = { ip = ::a01:403; hardware = n4; }
- interface:n5 = { ip = ::a01:503; hardware = n5; }
+ interface:n3 = { ip6 = ::a01:303; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:403; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:503; hardware = n5; }
 }
 router:r4 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n2 = { ip = ::a01:204; hardware = n2; }
- interface:n4 = { ip = ::a01:404; hardware = n4; }
- interface:n6 = { ip = ::a01:604; hardware = n6; virtual = { ip = ::a01:601; } }
+ interface:n2 = { ip6 = ::a01:204; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:404; hardware = n4; }
+ interface:n6 = { ip6 = ::a01:604; hardware = n6; virtual = { ip6 = ::a01:601; } }
 }
 router:r5 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n5 = { ip = ::a01:505; hardware = n5; }
- interface:n6 = { ip = ::a01:605; hardware = n6; virtual = { ip = ::a01:601; } }
+ interface:n5 = { ip6 = ::a01:505; hardware = n5; }
+ interface:n6 = { ip6 = ::a01:605; hardware = n6; virtual = { ip6 = ::a01:601; } }
 }
 service:s = {
  user = network:n1;
@@ -214,29 +210,28 @@ ipv6 access-list n5_in
 
 ############################################################
 =TITLE=Extra pathrestriction at 2 virtual interface
-=PARAMS=--ipv6
 =INPUT=
-network:u = { ip = ::a09:900/120; }
+network:u = { ip6 = ::a09:900/120; }
 router:g = {
  managed;
  model = IOS, FW;
- interface:u = {ip = ::a09:901; hardware = F0;}
- interface:a = {ip = ::a01:109; hardware = F1;}
+ interface:u = {ip6 = ::a09:901; hardware = F0;}
+ interface:a = {ip6 = ::a01:109; hardware = F1;}
 }
-network:a = { ip = ::a01:100/120;}
+network:a = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101; hardware = E1;}
- interface:b = {ip = ::a02:201; virtual = {ip = ::a02:209;} hardware = E2;}
+ interface:a = {ip6 = ::a01:101; hardware = E1;}
+ interface:b = {ip6 = ::a02:201; virtual = {ip6 = ::a02:209;} hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:102; hardware = E4;}
- interface:b = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E5;}
+ interface:a = {ip6 = ::a01:102; hardware = E4;}
+ interface:b = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E5;}
 }
-network:b  = { ip = ::a02:200/120; }
+network:b  = { ip6 = ::a02:200/120; }
 pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
 service:test = {
  user = network:u;
@@ -259,30 +254,29 @@ ipv6 access-list E4_in
 ############################################################
 =TITLE=
 Conceal invalid extra pathrestriction if routing is not required - no router
-=PARAMS=--ipv6
 =INPUT=
-network:a = { ip = ::a01:100/120;}
-network:b = { ip = ::a02:200/120;}
+network:a = { ip6 = ::a01:100/120;}
+network:b = { ip6 = ::a02:200/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101;
-               virtual = {ip = ::a01:109; type = HSRP;} hardware = E1;}
- interface:b = {ip = ::a02:201; hardware = E2;}
+ interface:a = {ip6 = ::a01:101;
+               virtual = {ip6 = ::a01:109; type = HSRP;} hardware = E1;}
+ interface:b = {ip6 = ::a02:201; hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:102;
-               virtual = {ip = ::a01:109; type = HSRP;} hardware = E4;}
- interface:b = {ip = ::a02:202; hardware = E5;}
+ interface:a = {ip6 = ::a01:102;
+               virtual = {ip6 = ::a01:109; type = HSRP;} hardware = E4;}
+ interface:b = {ip6 = ::a02:202; hardware = E5;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:103;
-               virtual = {ip = ::a01:109; type = HSRP;} hardware = E6;}
- interface:b = {ip = ::a02:203; hardware = E7;}
+ interface:a = {ip6 = ::a01:103;
+               virtual = {ip6 = ::a01:109; type = HSRP;} hardware = E6;}
+ interface:b = {ip6 = ::a02:203; hardware = E7;}
 }
 pathrestriction:p =
  interface:r1.a.virtual,
@@ -316,43 +310,42 @@ ipv6 access-list E6_in
 ############################################################
 =TITLE=Non matching virtual interface groups with interconnect
 =TEMPL=topo
-network:a = { ip = ::a01:100/120;}
+network:a = { ip6 = ::a01:100/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101; virtual = {ip = ::a01:109;} hardware = E1;}
- interface:b1 = {ip = ::a02:201; virtual = {ip = ::a02:209;} hardware = E2;}
+ interface:a = {ip6 = ::a01:101; virtual = {ip6 = ::a01:109;} hardware = E1;}
+ interface:b1 = {ip6 = ::a02:201; virtual = {ip6 = ::a02:209;} hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:102; virtual = {ip = ::a01:109;} hardware = E4;}
- interface:b1 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E5;}
- interface:t = { ip = ::a00:1; hardware = t1; }
+ interface:a = {ip6 = ::a01:102; virtual = {ip6 = ::a01:109;} hardware = E4;}
+ interface:b1 = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E5;}
+ interface:t = { ip6 = ::a00:1; hardware = t1; }
 }
-network:t = { ip = ::a00:0/126; }
+network:t = { ip6 = ::a00:0/126; }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = ::a00:2; hardware = t1; }
- interface:a = {ip = ::a01:103; virtual = {ip = ::a01:109;} hardware = E6;}
- interface:b2 = {ip = ::a03:303; virtual = {ip = ::a03:309;} hardware = E7;}
+ interface:t = { ip6 = ::a00:2; hardware = t1; }
+ interface:a = {ip6 = ::a01:103; virtual = {ip6 = ::a01:109;} hardware = E6;}
+ interface:b2 = {ip6 = ::a03:303; virtual = {ip6 = ::a03:309;} hardware = E7;}
 }
 router:r4 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:104; virtual = {ip = ::a01:109;} hardware = E8;}
- interface:b2 = {ip = ::a03:304; virtual = {ip = ::a03:309;} hardware = E9;}
+ interface:a = {ip6 = ::a01:104; virtual = {ip6 = ::a01:109;} hardware = E8;}
+ interface:b2 = {ip6 = ::a03:304; virtual = {ip6 = ::a03:309;} hardware = E9;}
 }
-network:b1 = { ip = ::a02:200/120; }
-network:b2 = { ip = ::a03:300/120; }
-=PARAMS=--ipv6
+network:b1 = { ip6 = ::a02:200/120; }
+network:b2 = { ip6 = ::a03:300/120; }
 =INPUT=
 [[topo]]
 router:g = {
  managed;
  model = ASA;
- interface:a = {ip = ::a01:107; hardware = inside;}
+ interface:a = {ip6 = ::a01:107; hardware = inside;}
 }
 service:test1 = {
  user = interface:g.a;
@@ -390,7 +383,6 @@ Error: Pathrestriction ambiguously affects generation of static routes
 ############################################################
 =TITLE=
 Conceal non matching virtual interface groups with interconnect if no routing required
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 
@@ -434,34 +426,33 @@ ipv6 access-list E8_in
 
 ############################################################
 =TITLE=Non matching virtual interface groups
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;}
-network:n2 = { ip = ::a02:200/120; }
-network:n3 = { ip = ::a03:300/120; }
+network:n1 = { ip6 = ::a01:100/120;}
+network:n2 = { ip6 = ::a02:200/120; }
+network:n3 = { ip6 = ::a03:300/120; }
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = ::a01:101; virtual = {ip = ::a01:109;} hardware = n1;}
- interface:n2 = {ip = ::a02:201; virtual = {ip = ::a02:209;} hardware = n2;}
+ interface:n1 = {ip6 = ::a01:101; virtual = {ip6 = ::a01:109;} hardware = n1;}
+ interface:n2 = {ip6 = ::a02:201; virtual = {ip6 = ::a02:209;} hardware = n2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = ::a01:102; virtual = {ip = ::a01:109;} hardware = n1;}
- interface:n2 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = n2;}
+ interface:n1 = {ip6 = ::a01:102; virtual = {ip6 = ::a01:109;} hardware = n1;}
+ interface:n2 = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = n2;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = ::a01:103; virtual = {ip = ::a01:109;} hardware = n1;}
- interface:n3 = {ip = ::a03:303; virtual = {ip = ::a03:309;} hardware = n3;}
+ interface:n1 = {ip6 = ::a01:103; virtual = {ip6 = ::a01:109;} hardware = n1;}
+ interface:n3 = {ip6 = ::a03:303; virtual = {ip6 = ::a03:309;} hardware = n3;}
 }
 router:r4 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = ::a01:104; virtual = {ip = ::a01:109;} hardware = n1;}
- interface:n3 = {ip = ::a03:304; virtual = {ip = ::a03:309;} hardware = n3;}
+ interface:n1 = {ip6 = ::a01:104; virtual = {ip6 = ::a01:109;} hardware = n1;}
+ interface:n3 = {ip6 = ::a03:304; virtual = {ip6 = ::a03:309;} hardware = n3;}
 }
 =ERROR=
 Error: Virtual interfaces
@@ -476,35 +467,34 @@ Error: Virtual interfaces
 =TITLE=Follow implicit pathrestriction at unmanaged virtual interface
 # Doppelte ACL-Zeile für virtuelle IP vermeiden an
 # - Crosslink-Interface zu unmanaged Gerät
-# - mit virtueller IP auch an dem unmanged Gerät
-=PARAMS=--ipv6
+# - mit virtueller IP auch an dem unmanaged Gerät
 =INPUT=
-network:M = { ip = ::a01:0/120;}
+network:M = { ip6 = ::a01:0/120;}
 router:F = {
  managed;
  model = ASA;
- interface:M = {ip = ::a01:1; hardware = inside;}
- interface:A = {ip = ::a02:181; hardware = o1; routing = dynamic;}
- interface:B = {ip = ::a02:112; hardware = o2; routing = dynamic;}
+ interface:M = {ip6 = ::a01:1; hardware = inside;}
+ interface:A = {ip6 = ::a02:181; hardware = o1; routing = dynamic;}
+ interface:B = {ip6 = ::a02:112; hardware = o2; routing = dynamic;}
 }
-network:A = {ip = ::a02:180/126;}
+network:A = {ip6 = ::a02:180/126;}
 router:Z = {
- interface:A = {ip = ::a02:182;}
- interface:c = {ip = ::a02:6a6;}
- interface:K = {ip = ::a09:2003; virtual = {ip = ::a09:2001;}}
+ interface:A = {ip6 = ::a02:182;}
+ interface:c = {ip6 = ::a02:6a6;}
+ interface:K = {ip6 = ::a09:2003; virtual = {ip6 = ::a09:2001;}}
 }
-network:B = {ip = ::a02:110/126;}
+network:B = {ip6 = ::a02:110/126;}
 router:L = {
  managed;
  model = IOS;
- interface:B = {ip = ::a02:111; hardware = Ethernet1;
+ interface:B = {ip6 = ::a02:111; hardware = Ethernet1;
                 no_in_acl; routing = dynamic;}
- interface:c  = {ip = ::a02:6a5; hardware = Ethernet2;}
- interface:K = {ip = ::a09:2002; virtual = {ip = ::a09:2001;}
+ interface:c  = {ip6 = ::a02:6a5; hardware = Ethernet2;}
+ interface:K = {ip6 = ::a09:2002; virtual = {ip6 = ::a09:2001;}
                 hardware = Ethernet0;}
 }
-network:c  = {ip = ::a02:6a4/126;}
-network:K = { ip = ::a09:2000/117;}
+network:c  = {ip6 = ::a02:6a4/126;}
+network:K = { ip6 = ::a09:2000/117;}
 pathrestriction:4 = interface:Z.A, interface:L.B;
 service:x = {
  user = interface:L.K.virtual, interface:Z.K.virtual;
@@ -530,32 +520,32 @@ ipv6 access-list Ethernet0_out
 ############################################################
 =TITLE=3 virtual interfaces with valid extra pathrestriction
 =TEMPL=input
-network:a = { ip = ::a01:100/120;}
-network:b = { ip = ::a02:200/120;}
-network:c = { ip = ::a03:300/120;}
+network:a = { ip6 = ::a01:100/120;}
+network:b = { ip6 = ::a02:200/120;}
+network:c = { ip6 = ::a03:300/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101; hardware = E1;}
- interface:b = {ip = ::a02:201; hardware = E2;}
+ interface:a = {ip6 = ::a01:101; hardware = E1;}
+ interface:b = {ip6 = ::a02:201; hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E4;}
- interface:c = {ip = ::a03:301; hardware = E5;}
+ interface:b = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E4;}
+ interface:c = {ip6 = ::a03:301; hardware = E5;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E6;}
- interface:c = {ip = ::a03:302; hardware = E7;}
+ interface:b = {ip6 = ::a02:203; virtual = {ip6 = ::a02:209;} hardware = E6;}
+ interface:c = {ip6 = ::a03:302; hardware = E7;}
 }
 router:r4 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:204; virtual = {ip = ::a02:209;} hardware = E6;}
- interface:c = {ip = ::a03:303; hardware = E7;}
+ interface:b = {ip6 = ::a02:204; virtual = {ip6 = ::a02:209;} hardware = E6;}
+ interface:c = {ip6 = ::a03:303; hardware = E7;}
 }
 service:test = {
  user = network:a;
@@ -567,10 +557,9 @@ service:test = {
 router:r5 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:102; hardware = E8;}
- interface:b = {ip = ::a02:205; hardware = E9;}
+ interface:a = {ip6 = ::a01:102; hardware = E8;}
+ interface:b = {ip6 = ::a02:205; hardware = E9;}
 }
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 [[router5]]
@@ -590,7 +579,6 @@ ipv6 access-list E1_in
 
 ############################################################
 =TITLE=3 virtual interfaces with extra pathrestriction allowing 2 routes
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 [[router5]]
@@ -607,7 +595,6 @@ Error: Ambiguous static routes for network:a at interface:r4.b.virtual via
 
 ############################################################
 =TITLE=3 virtual interfaces with extra pathrestriction valid for all-1
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 pathrestriction:p =
@@ -622,7 +609,6 @@ ipv6 route ::a03:300/120 ::a02:204
 
 ############################################################
 =TITLE=3 virtual interfaces with invalid extra pathrestriction
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 pathrestriction:p =
@@ -648,34 +634,34 @@ Error: Pathrestriction ambiguously affects generation of static routes
 3 virtual interfaces, dst network directly connected to 1 only -
 extra pathrestriction causing routing via physical interface
 =TEMPL=input
-network:a = { ip = ::a01:100/120;}
-network:b = { ip = ::a02:200/120;}
-network:c = { ip = ::a03:300/120;}
-network:x = { ip = ::a04:400/120;}
+network:a = { ip6 = ::a01:100/120;}
+network:b = { ip6 = ::a02:200/120;}
+network:c = { ip6 = ::a03:300/120;}
+network:x = { ip6 = ::a04:400/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = ::a01:101; hardware = E1;}
- interface:b = {ip = ::a02:201; hardware = E2;}
+ interface:a = {ip6 = ::a01:101; hardware = E1;}
+ interface:b = {ip6 = ::a02:201; hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E4;}
- interface:c = {ip = ::a03:301; hardware = E5;}
- interface:x = {ip = ::a04:401; hardware = E6;}
+ interface:b = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E4;}
+ interface:c = {ip6 = ::a03:301; hardware = E5;}
+ interface:x = {ip6 = ::a04:401; hardware = E6;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E7;}
- interface:c = {ip = ::a03:302; hardware = E8;}
+ interface:b = {ip6 = ::a02:203; virtual = {ip6 = ::a02:209;} hardware = E7;}
+ interface:c = {ip6 = ::a03:302; hardware = E8;}
 }
 router:r4 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:204; virtual = {ip = ::a02:209;} hardware = E9;}
- interface:c = {ip = ::a03:303; hardware = E10;}
+ interface:b = {ip6 = ::a02:204; virtual = {ip6 = ::a02:209;} hardware = E9;}
+ interface:c = {ip6 = ::a03:303; hardware = E10;}
 }
 pathrestriction:p =
  interface:r2.c,
@@ -688,7 +674,6 @@ service:test = {
         dst = network:x;
         prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input "interface:r3.c,"]]
 =OUTPUT=
 --ipv6/r1
@@ -699,7 +684,6 @@ ipv6 route ::a04:400/120 ::a02:202
 =TITLE=
 3 virtual interfaces, dst network directly connected to 1 only -
 invalid extra pathrestriction
-=PARAMS=--ipv6
 =INPUT=[[input ""]]
 =ERROR=
 Error: Pathrestriction ambiguously affects generation of static routes
@@ -720,39 +704,38 @@ Error: Two static routes for network:a
 =TITLE=
 Conceal invalid extra pathrestriction if routing is not required - no service
 =TEMPL=input
-network:a = { ip = ::a01:100/120;}
-network:b = { ip = ::a02:200/120;}
-network:c = { ip = ::a03:300/120;}
+network:a = { ip6 = ::a01:100/120;}
+network:b = { ip6 = ::a02:200/120;}
+network:c = { ip6 = ::a03:300/120;}
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:a = {ip = ::a01:101; hardware = E1;}
- interface:b = {ip = ::a02:201; hardware = E2;}
+ interface:a = {ip6 = ::a01:101; hardware = E1;}
+ interface:b = {ip6 = ::a02:201; hardware = E2;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E3;}
- interface:c = {ip = ::a03:301; hardware = E4;}
+ interface:b = {ip6 = ::a02:202; virtual = {ip6 = ::a02:209;} hardware = E3;}
+ interface:c = {ip6 = ::a03:301; hardware = E4;}
 }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E4;}
- interface:c = {ip = ::a03:302; hardware = E5;}
+ interface:b = {ip6 = ::a02:203; virtual = {ip6 = ::a02:209;} hardware = E4;}
+ interface:c = {ip6 = ::a03:302; hardware = E5;}
 }
 router:r4 = {
  managed;
  model = IOS, FW;
- interface:b = {ip = ::a02:204; virtual = {ip = ::a02:209;} hardware = E6;}
- interface:c = {ip = ::a03:303; hardware = E7;}
+ interface:b = {ip6 = ::a02:204; virtual = {ip6 = ::a02:209;} hardware = E6;}
+ interface:c = {ip6 = ::a03:303; hardware = E7;}
 }
 pathrestriction:p =
  interface:r1.b,
  interface:r3.c,
 ;
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/r2
@@ -769,7 +752,6 @@ ipv6 access-list E6_in
 ############################################################
 =TITLE=
 Conceal invalid extra pathrestriction if routing is not required - manual routing
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 service:test = {
@@ -804,56 +786,55 @@ ipv6 access-list E6_in
 
 ############################################################
 =TITLE=Find invalid pathrestrictions although next hop count equals size of redundancy group
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = {ip = ::a01:100/120;}
-network:n2 = {ip = ::a02:200/120;}
-network:n3 = {ip = ::a03:300/120;}
-network:n4 = {ip = ::a04:400/120;}
-network:n5 = {ip = ::a05:500/120;}
+network:n1 = {ip6 = ::a01:100/120;}
+network:n2 = {ip6 = ::a02:200/120;}
+network:n3 = {ip6 = ::a03:300/120;}
+network:n4 = {ip6 = ::a04:400/120;}
+network:n5 = {ip6 = ::a05:500/120;}
 router:r1 = {
  managed;
  model=IOS;
- interface:n1 = {ip = ::a01:101;hardware = E1;}
- interface:n2 = {ip = ::a02:201;hardware = E2;}
+ interface:n1 = {ip6 = ::a01:101;hardware = E1;}
+ interface:n2 = {ip6 = ::a02:201;hardware = E2;}
 }
 router:r2 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:202; virtual = {ip = ::a02:20a;} hardware = E1;}
- interface:n3 = {ip = ::a03:301; hardware = E2;}
- interface:n5 = {ip = ::a05:501; hardware = E3;}
+ interface:n2 = {ip6 = ::a02:202; virtual = {ip6 = ::a02:20a;} hardware = E1;}
+ interface:n3 = {ip6 = ::a03:301; hardware = E2;}
+ interface:n5 = {ip6 = ::a05:501; hardware = E3;}
 }
 router:r3 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:203; virtual = {ip = ::a02:20a;} hardware = E1;}
- interface:n3 = {ip = ::a03:302; hardware = E2;}
+ interface:n2 = {ip6 = ::a02:203; virtual = {ip6 = ::a02:20a;} hardware = E1;}
+ interface:n3 = {ip6 = ::a03:302; hardware = E2;}
 }
 router:r4 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:204; virtual = {ip = ::a02:20a;} hardware = E1;}
- interface:n3 = {ip = ::a03:303; hardware = E2;}
+ interface:n2 = {ip6 = ::a02:204; virtual = {ip6 = ::a02:20a;} hardware = E1;}
+ interface:n3 = {ip6 = ::a03:303; hardware = E2;}
 }
 router:r5 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:205; virtual = {ip = ::a02:20b;} hardware = E1;}
- interface:n4 = {ip = ::a04:401; hardware = E2;}
+ interface:n2 = {ip6 = ::a02:205; virtual = {ip6 = ::a02:20b;} hardware = E1;}
+ interface:n4 = {ip6 = ::a04:401; hardware = E2;}
 }
 router:r6 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:206; virtual = {ip = ::a02:20b;} hardware = E1;}
- interface:n4 = {ip = ::a04:402; hardware = E2;}
+ interface:n2 = {ip6 = ::a02:206; virtual = {ip6 = ::a02:20b;} hardware = E1;}
+ interface:n4 = {ip6 = ::a04:402; hardware = E2;}
 }
 router:r7 = {
  managed;
  model=IOS;
- interface:n2 = {ip = ::a02:207; virtual = {ip = ::a02:20b;} hardware = E1;}
- interface:n4 = {ip = ::a04:403; hardware = E2;}
- interface:n5 = {ip = ::a05:502; hardware = E3;}
+ interface:n2 = {ip6 = ::a02:207; virtual = {ip6 = ::a02:20b;} hardware = E1;}
+ interface:n4 = {ip6 = ::a04:403; hardware = E2;}
+ interface:n5 = {ip6 = ::a05:502; hardware = E3;}
 }
 pathrestriction:p1 =
  interface:r2.n5,

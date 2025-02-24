@@ -94,6 +94,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:t  = { ip = 10.9.1.1; hub = crypto:x; hardware = t; }
 }
@@ -101,6 +102,7 @@ network:t = { ip = 10.9.1.0/24; }
 router:r2 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:t  = { ip = 10.9.1.2; spoke = crypto:x; hardware = t; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
@@ -108,6 +110,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r3 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -115,6 +118,45 @@ network:n3 = { ip = 10.1.3.0/24; }
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
+ - any:[network:n3]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
+=TITLE=Partition name at crypto parts
+=INPUT=
+[[input]]
+network:t0 = { ip = 10.9.0.0/24; partition = INET; }
+router:rt = {
+ interface:t0;
+ interface:t;
+}
+=ERROR=
+Error: IPv4 topology has unconnected parts:
+ - any:[network:n3]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
+=TITLE=Different partition names at crypto parts
+=INPUT=
+[[input]]
+network:n0 = { ip = 10.1.0.0/24; partition = LAN; }
+router:r0 = {
+ interface:n0;
+ interface:n1;
+}
+
+network:t0 = { ip = 10.9.0.0/24; partition = INET; }
+router:rt = {
+ interface:t0;
+ interface:t;
+}
+=ERROR=
+Error: Several partition names in partition any:[network:n0]:
+ - LAN
+ - INET
+Error: IPv4 topology has unconnected parts:
  - any:[network:n3]
  Use partition attribute, if intended.
 =END=
@@ -186,7 +228,7 @@ router:r1 = {
  interface:n0 = { ip = 10.0.1.1; hardware = n0; }
  interface:t1  = { ip = 10.1.9.1; hub = crypto:x1; hardware = t1; }
 }
-network:t1 = { ip = 10.1.9.0/24; }
+network:t1 = { ip = 10.1.9.0/24; partition = t1; }
 router:vpn1 = {
  managed;
  model = IOS;
@@ -213,11 +255,107 @@ service:s1 = {
  permit src = user; dst = network:t2; prt = tcp;
 }
 =ERROR=
+Warning: Spare partition name for single partition any:[network:n0]: t1.
 Error: No valid path
  from any:[network:t1]
  to any:[network:t2]
  for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
  Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
+=TITLE=Cyclic reference between split crypto parts
+=INPUT=
+isakmp:x = {
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+ipsec:x = {
+ key_exchange = isakmp:x;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ lifetime = 3600 sec;
+}
+
+# First partition
+crypto:x1 = {
+ type = ipsec:x;
+}
+crypto:x2 = {
+ type = ipsec:x;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:t2 = { ip = 10.2.9.3; hardware = t2; }
+ interface:t1  = { ip = 10.1.9.1; hub = crypto:x1; hardware = t1; }
+}
+network:t1 = { ip = 10.1.9.0/24; }
+router:vpn1 = {
+ managed;
+ model = IOS;
+ interface:t1  = { ip = 10.1.9.2; spoke = crypto:x1; hardware = t1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:t1 = { ip = 10.1.9.3; hardware = t1; }
+ interface:t2  = { ip = 10.2.9.1; hub = crypto:x2; hardware = t2; }
+}
+network:t2 = { ip = 10.2.9.0/24; }
+router:vpn2 = {
+ managed;
+ model = IOS;
+ interface:t2  = { ip = 10.2.9.2; spoke = crypto:x2; hardware = t2; }
+ interface:n2 = { ip = 10.2.1.1; hardware = n2; }
+}
+network:n2 = { ip = 10.2.1.0/24; }
+
+# Second partition
+crypto:x1b = {
+ type = ipsec:x;
+}
+crypto:x2b = {
+ type = ipsec:x;
+}
+router:r1b = {
+ managed;
+ model = IOS;
+ interface:t2b = { ip = 10.2.9.3; hardware = t2; }
+ interface:t1b  = { ip = 10.1.9.1; hub = crypto:x1b; hardware = t1; }
+}
+network:t1b = { ip = 10.1.9.0/24; }
+router:vpn1b = {
+ managed;
+ model = IOS;
+ interface:t1b  = { ip = 10.1.9.2; spoke = crypto:x1b; hardware = t1; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1; }
+}
+network:n1b = { ip = 10.1.1.0/24; }
+router:r2b = {
+ managed;
+ model = IOS;
+ interface:t1b = { ip = 10.1.9.3; hardware = t1; }
+ interface:t2b  = { ip = 10.2.9.1; hub = crypto:x2b; hardware = t2; }
+}
+network:t2b = { ip = 10.2.9.0/24; }
+router:vpn2b = {
+ managed;
+ model = IOS;
+ interface:t2b  = { ip = 10.2.9.2; spoke = crypto:x2b; hardware = t2; }
+ interface:n2b = { ip = 10.2.1.1; hardware = n2; }
+}
+network:n2b = { ip = 10.2.1.0/24; }
+=ERROR=
+Error: IPv4 topology has unconnected parts:
+ - any:[network:t2]
+ - any:[network:t2b]
+ Use partition attribute, if intended.
 =END=
 
 ############################################################
@@ -302,7 +440,7 @@ Error: IPv4 topology has unconnected parts:
 =END=
 
 ############################################################
-=TITLE=Intentionally unconnected with more than network in zone.
+=TITLE=Intentionally unconnected with more than one network in zone.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; partition = part1; }
 network:n2 = { ip = 10.1.2.0/24; }

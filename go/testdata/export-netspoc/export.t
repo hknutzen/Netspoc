@@ -325,11 +325,13 @@ service:s1 = {
  },
  "any:[ip=10.1.0.0/23 & network:n1]": {
   "ip": "10.1.0.0/23",
+  "is_supernet": 1,
   "owner": "a",
   "zone": "any:[network:n1]"
  },
  "any:[ip=10.2.0.0/23 & network:n1]": {
   "ip": "10.2.0.0/23",
+  "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
  },
@@ -373,6 +375,7 @@ owner:b = { admins = b@example.com; }
 {
  "any:a": {
   "ip": "0.0.0.0/0",
+  "is_supernet": 1,
   "zone": "any:a"
  },
  "interface:r.n1": {
@@ -1357,6 +1360,7 @@ service:s1 = {
 {
  "any:n1": {
   "ip": "0.0.0.0/0",
+  "is_supernet": 1,
   "owner": "n1",
   "zone": "any:n1"
  },
@@ -2010,16 +2014,16 @@ area:a1 = { border = interface:r1.n1; owner = o1; }
   "all",
   "o3"
  ],
- "o1@example.com": [],
- "o2@example.com": [],
- "o2s1@example.com": [],
+ "o1@example.com": null,
+ "o2@example.com": null,
+ "o2s1@example.com": null,
  "o2s2@other": [
   "o2s2"
  ],
  "o3@sub.example.com": [
   "o3"
  ],
- "o4@example.com": []
+ "o4@example.com": null
 }
 =END=
 
@@ -2120,7 +2124,7 @@ service:s1 = {
 {
  "s1": {
   "details": {
-   "description": "test; test, test",
+   "description": "test; test, test;# With comment",
    "owner": [
     ":unknown"
    ]
@@ -2830,6 +2834,7 @@ service:s1 = {
 {
  "any:[ip=10.1.3.0/24 & network:n3]": {
   "ip": "10.1.3.0/24",
+  "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n3]"
  },
@@ -3640,7 +3645,6 @@ Aborted
 =OPTIONS=-h
 =ERROR=
 Usage: PROGRAM [options] netspoc-data out-directory
-  -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =END=
 
@@ -3657,7 +3661,6 @@ Error: unknown flag: --foo
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
 =TEMPL=usage
 Usage: PROGRAM [options] netspoc-data out-directory
-  -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =ERROR=
 [[usage]]
@@ -3748,14 +3751,14 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n0 = { ip = 10.1.0.1; hardware = n0; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2a; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n2, n2a; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n3, n3a; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = n4; }
 }
 =OUTPUT=
 --owner/all/nat_set
-[]
+null
 --owner/n23/nat_set
 [ "n2" ]
 --owner/n4/nat_set
@@ -3782,7 +3785,7 @@ router:r1 = {
 }
 =OUTPUT=
 --owner/all/nat_set
-[]
+null
 =END=
 
 ############################################################
@@ -3813,7 +3816,7 @@ router:r1 = {
 }
 =OUTPUT=
 --owner/o/nat_set
-[]
+null
 =END=
 
 ############################################################
@@ -3847,7 +3850,7 @@ router:r1 =  {
 }
 =OUTPUT=
 --owner/o1/nat_set
-[]
+null
 --owner/o2/nat_set
 [ "h1" ]
 =END=
@@ -3864,14 +3867,9 @@ router:r1  = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n1_v6 = { ip6 = 1::1; hardware = n1; }
 }
--- ipv6
-network:n1_v6 = { ip = 1::/64; owner = o; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1_v6 = { ip = 1::1; hardware = n1; }
-}
+network:n1_v6 = { ip6 = 1::/64; owner = o; }
 =OUTPUT=
 --owner/o/nat_set
 [ "n1" ]

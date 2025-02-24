@@ -216,6 +216,7 @@ Warning: network:n1 is subnet of network:n2
 
 ############################################################
 =TITLE=Find subnet relation with duplicate networks and intermediate aggregate
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
@@ -229,6 +230,9 @@ router:r1 = {
  interface:n3 = { ip = 10.1.0.1; hardware = n3; bind_nat = h2; }
 }
 =WARNING=
+Warning: network:n1 is subnet of network:n2
+ in nat_domain:[network:n2].
+ If desired, declare attribute 'subnet_of'
 Warning: network:n1 is subnet of network:n3
  in nat_domain:[network:n1].
  If desired, declare attribute 'subnet_of'
@@ -268,7 +272,46 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Two warnings for split protocol with and without modifiers
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+protocol:ftp-passive-data = tcp 1024 - 65535, stateless;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = tcp 21, protocol:ftp-passive-data;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=tcp 21; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=protocol:ftp-passive-data; stateless of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
 =TITLE=Ignore hidden network in supernet check (1)
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -302,6 +345,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Ignore hidden network in supernet check (2)
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1268,7 +1312,7 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
-=TITLE=Don't check aggregate that is subnet of network in same zone
+=TITLE=Also check aggregate that is subnet of subnet in other zone
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
@@ -1294,13 +1338,21 @@ router:u = {
 }
 network:sub-28 = { ip = 10.1.2.48/28; subnet_of = network:sub-27; }
 any:sub-29 =     { ip = 10.1.2.48/29; link = network:n2; }
-# No warning, because we know, that addresses of any:sub-29
-# are located inside network:sub-28 and not inside network:sub-27.
+# We could analyze, that addresses of any:sub-29 are located inside
+# network:sub-28 and not inside network:sub-27, and hence show no
+# warning. But this analysis is not implemented because it is too expensive.
 service:s1 = {
  user = network:n1;
  permit src = user; dst = any:sub-29; prt = tcp 80;
 }
-=WARNING=NONE
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:sub-29; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:sub-27
+ Either replace any:sub-29 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
 
 ############################################################
 =TITLE=Don't check supernet of supernet.
@@ -1997,12 +2049,13 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1;
-{{.}}
+{{.hosts}}
 }
 router:u = {
  interface:n1;
  interface:sub;
  interface:t;
+ {{.interfaces}}
 }
 network:t = { ip = 10.9.2.0/24; }
 any:t = {
@@ -2023,16 +2076,29 @@ service:s = {
  user = any:[ ip = 10.1.0.0/16 & network:n2 ];
  permit src = network:n3; dst = user; prt = tcp 80;
 }
-=INPUT=[[input ""]]
+=INPUT=
+[[input
+hosts: ""
+interfaces: ""
+]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
-=INPUT=[[input "host:h = { ip = 10.1.1.130; }"]]
+=INPUT=
+[[input
+hosts: "host:h = { ip = 10.1.1.130; }"
+interfaces: "interface:lo = { ip = 10.9.9.1; loopback; }
+interface:vip = { ip = 10.9.9.2; vip; }"
+]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:
  - network:sub
+Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
+ having loopback/vip interfaces:
+ - interface:u.lo
+ - interface:u.vip
 =END=
 
 ############################################################
@@ -2370,6 +2436,7 @@ Warning: Missing transient supernet rules
 
 ############################################################
 =TITLE=Missing transient rule with any + NAT
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -3284,7 +3351,7 @@ Error: Duplicate any:a1 and any:a2 in any:[network:n2]
 any:a1 = { ip = 10.0.0.0/8; link = network:n1; }
 network:n1 = { ip = 10.0.0.0/8; }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3298,7 +3365,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 =ERROR=
-Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3328,7 +3395,7 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 =ERROR=
-Error: any:a1 and network:n2 have identical IP/mask in any:[network:n1]
+Error: any:a1 and network:n2 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -3361,6 +3428,40 @@ service:s1 = {
 -- r2
 ! n3_in
 access-list n3_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Must not expand aggregate set of zone cluster twice
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+group:clients = any:[network:n1];
+service:s1 = {
+ user = group:clients;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! n3_in
+access-list n3_in extended permit tcp any4 10.1.4.0 255.255.255.0 eq 80
 access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 =END=

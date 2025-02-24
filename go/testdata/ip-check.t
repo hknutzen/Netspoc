@@ -26,18 +26,18 @@ Error: Invalid IP address in 'ip' of interface:r1.n1
 =END=
 
 ############################################################
-=TITLE=Interface IP doesn't match network IP/mask
+=TITLE=Interface IP doesn't match network address
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  interface:n1 = { ip = 10.1.2.3; }
 }
 =ERROR=
-Error: interface:r1.n1's IP doesn't match network:n1's IP/mask
+Error: IPv4 address of interface:r1.n1 doesn't match network:n1
 =END=
 
 ############################################################
-=TITLE=Host IP/range don't match network IP/mask
+=TITLE=Host IP or range don't match network address
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/28;
@@ -45,8 +45,8 @@ network:n1 = {
  host:r1 = { range = 10.1.1.3-10.1.1.29; }
 }
 =ERROR=
-Error: IP of host:h1 doesn't match IP/mask of network:n1
-Error: IP range of host:r1 doesn't match IP/mask of network:n1
+Error: IP of host:h1 doesn't match address of network:n1
+Error: IP range of host:r1 doesn't match address of network:n1
 =END=
 
 ############################################################
@@ -190,7 +190,7 @@ router:r1 = {
 }
 network:n2 = { ip = 10.2.2.0/24; }
 =ERROR=
-Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's IP/mask
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
 =END=
 
 ############################################################

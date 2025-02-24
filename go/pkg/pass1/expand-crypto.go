@@ -1,8 +1,9 @@
 package pass1
 
 import (
-	"golang.org/x/exp/maps"
-	"sort"
+	"cmp"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -27,9 +28,7 @@ func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 func (c *spoc) verifyAsaVpnAttributes(
 	name string, attributes map[string]string) {
 
-	keys := maps.Keys(attributes)
-	sort.Strings(keys)
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(attributes)) {
 		if _, found := asaVpnAttributes[key]; !found {
 			c.err("Invalid radius_attribute '%s' at %s", key, name)
 		}
@@ -197,10 +196,8 @@ func (c *spoc) expandCrypto() {
 	id2intf := make(map[string]intfList)
 	hasTunnel := make(map[*network]bool)
 
-	l := maps.Values(c.symTable.crypto)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].name < l[j].name
-	})
+	l := slices.SortedFunc(maps.Values(c.symTable.crypto),
+		func(a, b *crypto) int { return cmp.Compare(a.name, b.name) })
 	for _, cr := range l {
 		isakmp := cr.ipsec.isakmp
 		needId := isakmp.authentication == "rsasig"

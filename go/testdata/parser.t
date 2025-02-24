@@ -46,6 +46,24 @@ Error: Invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
 =END=
 
 ############################################################
+=TITLE=Missing = after IP in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip 10.1.0.0/16 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=ERROR=
+Error: Expected '=' at line 8 of INPUT, near "ip --HERE-->10.1.0.0/16"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP in anonymous aggregate
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -59,7 +77,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: Invalid CIDR address: 10.1.0.0 in any:[ip = ...] of user of service:s1
+Error: Invalid CIDR address in any:[ip = 10.1.0.0 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -76,7 +94,7 @@ service:s1 = {
  permit src = user; dst = interface:r.n1; prt = tcp 22;
 }
 =ERROR=
-Error: IP and mask don't match in any:[ip = ...] of user of service:s1
+Error: IP and mask don't match in any:[ip = 10.1.1.0/16 & ..] of user of service:s1
 =END=
 
 ############################################################
@@ -313,7 +331,7 @@ router:R = {
 }
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Missing IP in secondary:second of interface:R.N
+Error: Missing 'ip' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -325,7 +343,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unexpected attribute in secondary:second of interface:R.N: foo
-Error: Missing IP in secondary:second of interface:R.N
+Error: Missing 'ip' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -370,7 +388,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unexpected attribute in 'virtual' of interface:R.N: foo
-Error: Missing IP in 'virtual' of interface:R.N
+Error: Missing 'ip' in 'virtual' of interface:R.N
 =END=
 
 ############################################################
@@ -421,6 +439,7 @@ Aborted
 
 ############################################################
 =TITLE=Unexpected definition after missing ';' in list
+# No IPv6
 =INPUT=
 group:g1 =
  host:h1,
@@ -525,13 +544,14 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 
 ############################################################
 =TITLE=Structured value expected
+# No IPv6
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = 10.1.1.10; host:h2; }
 =ERROR=
 Error: Structured value expected in 'host:h1'
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Structured value expected in 'host:h2'
-Error: host:h2 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h2
 =END=
 
 ############################################################
@@ -680,6 +700,16 @@ Error: Can't resolve interface:r.n.123.nn in user of service:s1
 =END=
 
 ############################################################
+=TITLE=Invalid name of loopback interface
+=INPUT=
+router:r1 = {
+ interface:lo-10.1.2.3 = { ip = 10.1.2.3; loopback; }
+}
+=ERROR=
+Error: Invalid identifier in 'interface:lo-10.1.2.3' of 'router:r1'
+=END=
+
+############################################################
 =TITLE=Missing [any|all]
 # No IPv6
 =INPUT=
@@ -720,6 +750,7 @@ Error: Invalid identifier in definition of 'group:a@b'
 
 ############################################################
 =TITLE=Bad NAT name
+# No IPv6
 =INPUT=
 network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
 =ERROR=
@@ -896,7 +927,7 @@ Aborted
 =INPUT=
 network:n = { host:h1 = {} }
 =ERROR=
-Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Missing IP address for host:h1
 Error: Missing IP address for network:n
 =END=
 
@@ -906,8 +937,7 @@ Error: Missing IP address for network:n
 network:n = { ip = 10.1.1.0/24; unnumbered; ip = 10.1.2.0/24; }
 =ERROR=
 Error: Duplicate attribute 'ip' in network:n
-Error: Unnumbered network:n must not have attribute 'ip'
-Error: Unnumbered network:n must not have attribute 'ip'
+Error: Must not use both, "unnumbered" and "ip" in network:n
 =END=
 
 ############################################################
@@ -969,6 +999,7 @@ Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n
 
 ############################################################
 =TITLE=Unexpected NAT attribute at network
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -980,6 +1011,7 @@ Error: Unexpected attribute in nat:n of network:n: xyz
 
 ############################################################
 =TITLE=Unexpected NAT attribute at host
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -992,6 +1024,7 @@ Error: Expecting exactly one attribute 'ip' in nat:n of host:h
 
 ############################################################
 =TITLE=Unexpected NAT attribute at interface
+# No IPv6
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -1126,7 +1159,7 @@ Error: Unexpected attribute in any:n: x:yz
 =TITLE=Aggregate without attribute 'link'
 # No IPv6
 =INPUT=
-any:n = { }
+any:n = { nat:h = { hidden; } }
 =ERROR=
 Error: Attribute 'link' must be defined for any:n
 =END=

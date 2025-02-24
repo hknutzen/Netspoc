@@ -4,7 +4,7 @@
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
@@ -54,13 +54,13 @@ service:test = {
 =OUTPUT=
 --r1
 ! [ Routing ]
-ip route 10.1.3.0/25 10.9.1.2
-ip route 10.1.4.0/25 10.9.1.2
-ip route 10.1.4.128/25 10.9.1.2
-ip route 10.1.2.0/24 10.9.1.2
-ip route 10.5.0.4/30 10.9.1.3
-ip route 10.1.3.128/25 10.9.1.3
-ip route 10.1.4.0/24 10.9.1.3
+ip route 10.1.3.0 255.255.255.128 10.9.1.2
+ip route 10.1.4.0 255.255.255.128 10.9.1.2
+ip route 10.1.4.128 255.255.255.128 10.9.1.2
+ip route 10.1.2.0 255.255.255.0 10.9.1.2
+ip route 10.5.0.4 255.255.255.252 10.9.1.3
+ip route 10.1.3.128 255.255.255.128 10.9.1.3
+ip route 10.1.4.0 255.255.255.0 10.9.1.3
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -68,7 +68,7 @@ ip route 10.1.4.0/24 10.9.1.3
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
@@ -90,7 +90,7 @@ service:test = {
 =OUTPUT=
 --r1
 ! [ Routing ]
-ip route 10.1.2.0/24 10.9.1.2
+ip route 10.1.2.0 255.255.255.0 10.9.1.2
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -154,7 +154,7 @@ Error: Can't generate static routes for interface:r2.n2 because IP address is un
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
@@ -625,17 +625,18 @@ route n2 10.1.5.128 255.255.255.128 10.1.2.3
 
 ############################################################
 =TITLE=Check NAT when finding largest supernet for route.
+# No IPv6 NAT
 =INPUT=
 network:src = { ip = 10.1.1.0/24; }
 router:r = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:src = { ip = 10.1.1.1; hardware = src; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
 }
 network:t1 = { ip = 10.9.1.0/30; }
 router:hop = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:t1 = { ip = 10.9.1.2; hardware = inside; bind_nat = h; }
  interface:t2 = { ip = 10.9.2.1; hardware = outside; }
@@ -671,11 +672,11 @@ service:test2 = {
 =OUTPUT=
 --r
 ! [ Routing ]
-ip route 10.2.1.0/24 10.9.1.2
+ip route 10.2.1.0 255.255.255.0 10.9.1.2
 --hop
 ! [ Routing ]
-ip route 10.1.1.0/24 10.9.1.1
-ip route 10.2.0.0/16 10.9.2.2
+ip route 10.1.1.0 255.255.255.0 10.9.1.1
+ip route 10.2.0.0 255.255.0.0 10.9.2.2
 =END=
 
 ############################################################
@@ -685,13 +686,13 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
 }
 router:r2 = {
- model = NX-OS;
+ model = IOS;
  managed;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:t1 = { ip = 10.9.1.2; hardware = t1; }
@@ -708,11 +709,11 @@ service:test = {
 =OUTPUT=
 --r1
 ! [ Routing ]
-ip route 10.1.2.0/24 10.9.1.2
-ip route 10.1.3.0/24 10.9.1.3
+ip route 10.1.2.0 255.255.255.0 10.9.1.2
+ip route 10.1.3.0 255.255.255.0 10.9.1.3
 --r2
 ! [ Routing ]
-ip route 10.1.1.0/24 10.9.1.1
+ip route 10.1.1.0 255.255.255.0 10.9.1.1
 =END=
 
 ############################################################

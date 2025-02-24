@@ -231,7 +231,7 @@ host:h2, # after second
 group:g1 =
  # g1 trailing2
  # g1 post def
- description = This is a fine group # desc
+ description = This is a fine group;      # desc
 
  # desc post
  # desc post 2
@@ -253,7 +253,7 @@ group:g1 =
 ;
 =OUTPUT=
 group:g1 =
- description = the text # comment
+ description = the text; ;; # comment
 
 ;
 =END=
@@ -483,6 +483,69 @@ group:g1 =
  host:h1-10_1_1_7,
  host:10_1_1_8_h8,
  host:h999_99_9_0_0,
+;
+=END=
+
+############################################################
+=TITLE=Sort elements by type, IPv6 and name
+=INPUT=
+group:g1 =
+ any:[area:a4],
+ interface:r2.n-fc00_12_345_6789_10_1_9_0-120,
+ interface:r1.n99_fc00_12_345_6789_10_1_9_0-120,
+ interface:r2.n-fc00_12_345_6789_10_1_6_0-120,
+ host:h2,
+ host:h999_fc00_12_345_6789_99_9_0_0,
+ host:h1-fc00_12_345_6789_10_1_1_7,
+ host:h3-fc00_12_345_6789_999_999_0_0,
+ host:fc00_12_345_6789_10_1_1_8_h8,
+ host:range-fc00_12_345_6789_10_1_1_6-fc00_12_345_6789_10_1_1_8,
+ host:range-fc00_12_345_6789_10_1_1_5-fc00_12_345_6789_10_1_1_9,
+ network:n-fc00_12_345_6789_10_1_9_0-120,
+ network:fc00_12_345_6789_10_1_8_128-fc00_12_345_6789_10_1_8_255,
+ network:fc00_12_345_6789_10_1_7_0-net,
+ network:n-fc00_12_345_6789_10_1_6_0-120,
+ # Before
+ network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP-adress
+ network:n-77,
+ group:g9, group:g8 &! host:hx,
+ any:a-fc00_12_345_6789__-64,
+ any:customerX-__-8,
+ network:[area:a2] &! network:n-fc00_12_345_6789_10_1_9_0-120,
+ network:[area:a1] &! network:fc00_12_345_6789_n-10_1_6_0-120,
+;
+=OUTPUT=
+group:g1 =
+ group:g8
+ &! host:hx
+ ,
+ group:g9,
+ any:[area:a4],
+ any:a-fc00_12_345_6789__-64,
+ any:customerX-__-8,
+ network:[area:a2]
+ &! network:n-fc00_12_345_6789_10_1_9_0-120
+ ,
+ network:[area:a1]
+ &! network:fc00_12_345_6789_n-10_1_6_0-120
+ ,
+ network:n-77,
+ # Before
+ network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP-adress
+ network:n-fc00_12_345_6789_10_1_6_0-120,
+ network:fc00_12_345_6789_10_1_7_0-net,
+ network:fc00_12_345_6789_10_1_8_128-fc00_12_345_6789_10_1_8_255,
+ network:n-fc00_12_345_6789_10_1_9_0-120,
+ interface:r2.n-fc00_12_345_6789_10_1_6_0-120,
+ interface:r1.n99_fc00_12_345_6789_10_1_9_0-120,
+ interface:r2.n-fc00_12_345_6789_10_1_9_0-120,
+ host:h2,
+ host:range-fc00_12_345_6789_10_1_1_5-fc00_12_345_6789_10_1_1_9,
+ host:range-fc00_12_345_6789_10_1_1_6-fc00_12_345_6789_10_1_1_8,
+ host:h1-fc00_12_345_6789_10_1_1_7,
+ host:fc00_12_345_6789_10_1_1_8_h8,
+ host:h999_fc00_12_345_6789_99_9_0_0,
+ host:h3-fc00_12_345_6789_999_999_0_0,
 ;
 =END=
 
@@ -972,6 +1035,85 @@ any:a = {
 =END=
 
 ############################################################
+=TITLE=Print IPv6 networks and interfaces in one line
+=INPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = {
+  ip6 = 2001:db8:1:2::1;
+  hardware = n2;
+ }
+}
+=OUTPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+=END=
+
+############################################################
+=TITLE=Combined IPv4/v6 networks and interfaces
+=INPUT=
+owner:o = { admins = a@example.com; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
+               owner = o; crosslink; }
+network:n3 = { ip = 10.1.3.0/24; # c1
+ ip6 = 2001:db8:1:3::/64; # c2
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; } # c1
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1;
+                  hardware = n2; owner = o; }
+ interface:n3 = {
+  ip = 10.1.3.1;
+  ip6 = 2001:db8:1:3::1; # c1
+  hardware = n1; # c2
+ } # c3
+}
+=OUTPUT=
+owner:o = {
+ admins = a@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ ip6 = 2001:db8:1:2::/64;
+ owner = o;
+ crosslink;
+}
+
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; } # c2
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; } # c1
+ interface:n2 = {
+  ip = 10.1.2.1;
+  ip6 = 2001:db8:1:2::1;
+  hardware = n2;
+  owner = o;
+ }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n1; } # c2
+}
+=END=
+
+############################################################
 =TITLE=Sort hosts by IP or range
 =INPUT=
 network:n1 = {
@@ -995,6 +1137,40 @@ network:n1 = {
  host:r98-102 = { range = 10.1.1.98 - 10.1.1.102; }
  host:r98-100 = { range = 10.1.1.98 - 10.1.1.100; }
  host:h99     = { ip = 10.1.1.99; }
+}
+=END=
+
+############################################################
+=TITLE=Sort hosts by IPv6 or range
+=INPUT=
+network:n1 = {
+ ip = fc00:12:345:6789:10:1:1:0/120;
+ host:h99 = { ip = fc00:12:345:6789:10:1:1:99; }
+ host:r98-102 = {
+  range = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:102;
+ }
+ host:invalid = {}
+ host:h10 = { ip = fc00:12:345:6789:10:1:1:10; }
+ host:r98-100 = {
+  range = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:100;
+ }
+ host:h11 = {
+  ip = fc00:12:345:6789:10:1:1:11;
+  nat:n = { ip = fc00:12:345:6789:10:9:9:99; }
+ }
+}
+=OUTPUT=
+network:n1 = {
+ ip = fc00:12:345:6789:10:1:1:0/120;
+ host:invalid = { }
+ host:h10     = { ip = fc00:12:345:6789:10:1:1:10; }
+ host:h11 = {
+  ip = fc00:12:345:6789:10:1:1:11;
+  nat:n = { ip = fc00:12:345:6789:10:9:9:99; }
+ }
+ host:r98-102 = { range = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:102; }
+ host:r98-100 = { range = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:100; }
+ host:h99     = { ip = fc00:12:345:6789:10:1:1:99; }
 }
 =END=
 
@@ -1127,6 +1303,47 @@ router:u2 = {
  interface:n7 = { ip = 10.1.1.7; owner = o1; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
  interface:lo = { ip = 10.1.1.4; owner = o2; vip; }
+}
+=END=
+
+############################################################
+=TITLE=Sort successive IPv6 vip interfaces
+=INPUT=
+router:u1 = {
+ # i1
+ interface:n7 = { owner = o1; ip = fc00:12:345:6789:10:1:1:7; }
+ # i2
+ interface:lo = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:unnum = { unnumbered; }
+ interface:short;
+}
+router:u2 = {
+ interface:v2 = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:v1 = { ip = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
+ interface:n7 = { ip = fc00:12:345:6789:10:1:1:7; owner = o1; }
+ interface:lo = { ip = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
+ interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:n9 = { ip = fc00::10:1:1:9; owner = o1; vip; }
+}
+=OUTPUT=
+router:u1 = {
+ # i1
+ interface:n7    = { owner = o1; ip = fc00:12:345:6789:10:1:1:7; }
+ interface:n1    = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ # i2
+ interface:lo    = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:unnum = { unnumbered; }
+ interface:short;
+}
+
+router:u2 = {
+ interface:v1 = { ip = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
+ interface:v2 = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:n7 = { ip = fc00:12:345:6789:10:1:1:7; owner = o1; }
+ interface:n9 = { ip = fc00::10:1:1:9; owner = o1; vip; }
+ interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:lo = { ip = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
 }
 =END=
 
@@ -1331,3 +1548,19 @@ Error: Can't open f1: permission denied
 =END=
 
 ############################################################
+=TITLE=Print anonymous aggregates with ip and ip6
+=INPUT=
+service:s1 = {
+ user = any:[ip = 0.0.0.0/0 & network:n1], any:[ip6 = ::/0 & network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+service:s1 = {
+ user = any:[ip = 0.0.0.0/0 & network:n1],
+        any:[ip6 = ::/0 & network:n1],
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=END=

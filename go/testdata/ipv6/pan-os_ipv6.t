@@ -1,12 +1,11 @@
 ############################################################
 =TITLE=Need VRF
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =ERROR=
 Error: Must use VRF ('@...' in name) at router:r1 of model PAN-OS
@@ -14,18 +13,17 @@ Error: Must use VRF ('@...' in name) at router:r1 of model PAN-OS
 
 ############################################################
 =TITLE=Need router with management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1@vsys2 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = n1a; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1a; }
 }
 router:r1@vsys3 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = n1b; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1b; }
 }
 =ERROR=
 Error: Must define unmanaged router:r1
@@ -35,21 +33,20 @@ Error: Must define unmanaged router:r1
 
 ############################################################
 =TITLE=Missing attribute management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys2 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = n1a; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1a; }
 }
 router:r1@vsys3 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = n1b; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1b; }
 }
 =ERROR=
 Error: Must add attribute 'management_instance' at router:r1
@@ -57,12 +54,11 @@ Error: Must add attribute 'management_instance' at router:r1
 
 ############################################################
 =TITLE=management_instance without model
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =WARNING=
 Warning: Ignoring attribute 'management_instance' at router:r1 without model
@@ -70,13 +66,12 @@ Warning: Ignoring attribute 'management_instance' at router:r1 without model
 
 ############################################################
 =TITLE=management_instance at wrong model
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = IOS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =WARNING=
 Warning: Ignoring attribute 'management_instance' at router:r1 of model IOS
@@ -84,14 +79,13 @@ Warning: Ignoring attribute 'management_instance' at router:r1 of model IOS
 
 ############################################################
 =TITLE=management_instance at managed router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
  management_instance;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =WARNING=
 Warning: Ignoring attribute 'management_instance' at managed router:r1
@@ -99,13 +93,12 @@ Warning: Ignoring attribute 'management_instance' at managed router:r1
 
 ############################################################
 =TITLE=management_instance with VRF
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1@vrf = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =ERROR=
 Error: router:r1@vrf with attribute 'management_instance' must not use VRF
@@ -113,9 +106,8 @@ Error: router:r1@vrf with attribute 'management_instance' must not use VRF
 
 ############################################################
 =TITLE=management_instance with interface and no IP address
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
@@ -127,14 +119,13 @@ Error: router:r1 with attribute 'management_instance' needs interface with IP ad
 
 ############################################################
 =TITLE=management_instance with more than one interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
  interface:n2;
 }
 =ERROR=
@@ -143,9 +134,8 @@ Error: router:r1 with attribute 'management_instance' needs exactly one interfac
 
 ############################################################
 =TITLE=backup_of references unknown router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  backup_of = router:r2;
@@ -157,9 +147,8 @@ Warning: Ignoring undefined router:r2 in 'backup_of' of router:r1
 
 ############################################################
 =TITLE=backup_of references non router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  backup_of = network:n1;
@@ -171,16 +160,15 @@ Error: Expected type 'router:' in 'backup_of' of router:r1
 
 ############################################################
 =TITLE=backup_of without attribute management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  backup_of = router:r2;
  interface:n1;
 }
 router:r2 = {
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =WARNING=
 Warning: Ignoring attribute 'backup_of' at router:r1 without attribute 'management_instance'
@@ -188,17 +176,16 @@ Warning: Ignoring attribute 'backup_of' at router:r1 without attribute 'manageme
 
 ############################################################
 =TITLE=backup_of references router without management_instance (1)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r2;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 =WARNING=
 Warning: Ignoring attribute 'backup_of' at router:r1,
@@ -207,17 +194,16 @@ Warning: Ignoring attribute 'backup_of' at router:r1,
 
 ############################################################
 =TITLE=backup_of references router without management_instance (2)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r0 = {
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 router:r1 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r0;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =WARNING=
 Warning: Ignoring attribute 'backup_of' at router:r1,
@@ -226,31 +212,30 @@ Warning: Ignoring attribute 'backup_of' at router:r1,
 
 ############################################################
 =TITLE=More than one backup_of router
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r3;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r3;
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 router:r3 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:103; }
+ interface:n1 = { ip6 = ::a01:103; }
 }
 router:r4 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r3;
- interface:n1 = { ip = ::a01:104; }
+ interface:n1 = { ip6 = ::a01:104; }
 }
 =WARNING=
 Warning: Ignoring attribute 'backup_of' at router:r2,
@@ -261,36 +246,34 @@ Warning: Ignoring attribute 'backup_of' at router:r4,
 
 ############################################################
 =TITLE=management_instance without matching managed router is ok
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =WARNING=NONE
 
 ############################################################
 =TITLE=Managed devices must not use name of device having attribute backup_of
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 router:r2@vsys2 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:103; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; }
 }
 =ERROR=
 Error: Must define unmanaged router:r2
@@ -300,346 +283,69 @@ Error: Must define unmanaged router:r2
 =END=
 
 ############################################################
-=TITLE=Only one IPv4 management_instance
+=TITLE=IPv4 management_instance
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
 -- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
-}
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
--- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
-service:s1v6 = {
- user = network:n1v6;
- permit src = user; dst = network:n2v6; prt = tcp 80;
+ interface:n1 = { ip6 = ::a01:102; ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; ip6 = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
---ipv6/ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
---ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
+--ipv6/ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
+--ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
 =END=
 
 ############################################################
-=TITLE=Only one IPv6 management_instance
+=TITLE=IPv6 management_instance
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=
 -- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; ip6 = ::a01:200/120; }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n1 = { ip6 = ::a01:102; ip6 = ::a01:102; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; ip6 = ::a01:201; hardware = OUT; }
 }
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
--- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
-service:s1v6 = {
- user = network:n1v6;
- permit src = user; dst = network:n2v6; prt = tcp 80;
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =OUTPUT=
---ipv6/ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
---ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
-=END=
-
-############################################################
-=TITLE=IPv4 and IPv6 management_instance
-=TODO= No IPv6
-=PARAMS=--ipv6
-=INPUT=
--- ipv6/z_sort_after_ipv6
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-router:r1 = {
- model = PAN-OS;
- management_instance;
- interface:n1 = { ip = ::a01:101; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1 = { ip = ::a01:102; hardware = IN; }
- interface:n2 = { ip = ::a01:201; hardware = OUT; }
-}
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
--- ipv6/ipv6
-network:n1v6 = { ip = ::a01:100/120; }
-network:n2v6 = { ip = ::a01:200/120; }
-router:r1 = {
- model = PAN-OS;
- management_instance;
- interface:n1v6 = { ip = ::a01:101; }
-}
-router:r1@vsys1 = {
- model = PAN-OS;
- managed;
- interface:n1v6 = { ip = ::a01:102; hardware = IN; }
- interface:n2v6 = { ip = ::a01:201; hardware = OUT; }
-}
-service:s1v6 = {
- user = network:n1v6;
- permit src = user; dst = network:n2v6; prt = tcp 80;
-}
-=OUTPUT=
---ipv6/ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
---ipv6/r1
-<?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
-<config><devices><entry><vsys>
---
-<entry name="vsys1">
-<rulebase><security><rules>
-<entry name="v6r1">
-<action>allow</action>
-<from><member>IN</member></from>
-<to><member>OUT</member></to>
-<source><member>NET___a01_100_120</member></source>
-<destination><member>NET___a01_200_120</member></destination>
-<service><member>tcp 80</member></service>
-<application><member>any</member></application>
-<rule-type>interzone</rule-type>
-</entry>
-</rules></security></rulebase>
-<address-group>
-</address-group>
-<address>
-<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
-<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
-</address>
-<service>
-<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
-</service>
-</entry>
+--ipv6/ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
+--ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
 =END=
 
 ############################################################
 =TITLE=Missing policy_distribution_point at management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 =ERROR=
 Error: Missing attribute 'policy_distribution_point' for 2 devices:
@@ -649,23 +355,22 @@ Error: Missing attribute 'policy_distribution_point' for 2 devices:
 
 ############################################################
 =TITLE=Missing rule for policy_distribution_point at management_instance
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:10a; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:10a; }
 }
 router:r1 = {
  model = PAN-OS;
  management_instance;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; }
+ interface:n1 = { ip6 = ::a01:102; }
 }
 =WARNING=
 Warning: Missing rules to reach 2 devices from policy_distribution_point:
@@ -675,7 +380,6 @@ Warning: Missing rules to reach 2 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=Inherit policy_distribution_point to management_instance
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n1;
@@ -683,13 +387,13 @@ area:all = {
   policy_distribution_point = host:netspoc;
  }
 }
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:10a; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:10a; }
 }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 =WARNING=
 Warning: Missing rules to reach 1 devices from policy_distribution_point:
@@ -698,21 +402,20 @@ Warning: Missing rules to reach 1 devices from policy_distribution_point:
 
 ############################################################
 =TITLE=Ignore policy_distribution_point at managed device
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:10a; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:10a; }
 }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
 }
 =WARNING=
 Warning: Ignoring attribute 'policy_distribution_point' at router:r1@vsys1
@@ -721,41 +424,40 @@ Warning: Ignoring attribute 'policy_distribution_point' at router:r1@vsys1
 
 ############################################################
 =TITLE=Simple rules, use backup_of
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
 }
-network:n2 = { ip = ::a01:200/120;
- host:h30 = { ip = ::a01:21e; }
- host:h40 = { ip = ::a01:228; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h30 = { ip6 = ::a01:21e; }
+ host:h40 = { ip6 = ::a01:228; }
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = ::a01:109; }
+ interface:n1 = { ip6 = ::a01:109; }
 }
 router:r1@vsys2 = {
  model = PAN-OS;
  managed;
  log_default = start, end;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 router:r1@vsys3 = {
  model = PAN-OS;
  managed;
  log_default = start, setting:Panorama;
- interface:n1 = { ip = ::a01:103; hardware = z1; }
- interface:n3 = { ip = ::a01:301; hardware = z3; }
+ interface:n1 = { ip6 = ::a01:103; hardware = z1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = z3; }
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -778,15 +480,10 @@ service:s4 = {
  permit src = user; dst = network:n3; prt = tcp 81;
 }
 =OUTPUT=
+--ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101","::a01:109"],"name_list":["r1","r2"]}
 --ipv6/r1
 <?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1, r2 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101, ::a01:109 ]
--->
 <config><devices><entry><vsys>
 --
 <entry name="vsys2">
@@ -940,39 +637,38 @@ Generated by Netspoc, version devel
 
 ############################################################
 =TITLE=Address group, not shared between different vsys
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h10 = { ip = ::a01:10a; }
- host:h20 = { ip = ::a01:114; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
 }
-network:n2 = { ip = ::a01:200/120;
- host:h30 = { ip = ::a01:21e; }
- host:h40 = { ip = ::a01:228; }
+network:n2 = { ip6 = ::a01:200/120;
+ host:h30 = { ip6 = ::a01:21e; }
+ host:h40 = { ip6 = ::a01:228; }
 }
-network:n3 = { ip = ::a01:300/120;
- host:h50 = { ip = ::a01:332; }
- host:h60 = { ip = ::a01:33c; }
+network:n3 = { ip6 = ::a01:300/120;
+ host:h50 = { ip6 = ::a01:332; }
+ host:h60 = { ip6 = ::a01:33c; }
 }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
  log_default = start;
  log:other = end;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 router:r1@vsys2 = {
  model = PAN-OS;
  managed;
  log:other = start, end;
- interface:n1 = { ip = ::a01:103; hardware = z1; }
- interface:n3 = { ip = ::a01:301; hardware = z3; }
+ interface:n1 = { ip6 = ::a01:103; hardware = z1; }
+ interface:n3 = { ip6 = ::a01:301; hardware = z3; }
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -991,15 +687,10 @@ service:s4 = {
  permit src = user; dst = host:h50, host:h60; prt = ip;
 }
 =OUTPUT=
+--ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"]}
 --ipv6/r1
 <?xml version = "1.0" ?>
-<!--
-Generated by Netspoc, version devel
---
-[ BEGIN r1 ]
-[ Model = PAN-OS ]
-[ IP = ::a01:101 ]
--->
 <config><devices><entry><vsys>
 --
 <entry name="vsys1">
@@ -1098,25 +789,24 @@ Generated by Netspoc, version devel
 
 ############################################################
 =TITLE=Sort address definitions by IP and mask
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120;
- host:h08 = { ip = ::a01:108; }
- host:h09 = { ip = ::a01:109; }
- host:h10 = { ip = ::a01:10a; }
- host:h11 = { ip = ::a01:10b; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h08 = { ip6 = ::a01:108; }
+ host:h09 = { ip6 = ::a01:109; }
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h11 = { ip6 = ::a01:10b; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 service:s1 = {
  user = host:h08, host:h09, host:h10, host:h11;
@@ -1183,20 +873,19 @@ service:s3 = {
 
 ############################################################
 =TITLE=Without rules
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 =OUTPUT=
 --ipv6/r1
@@ -1214,21 +903,20 @@ router:r1@vsys1 = {
 
 ############################################################
 =TITLE=Log deny for PAN-OS
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@v1 = {
  managed;
  model = PAN-OS;
  log_deny = end;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 service:s1 = {
  user = host:h1;
@@ -1278,21 +966,99 @@ service:s2 = {
 =END=
 
 ############################################################
-=TITLE=ICMP and numeric protocol
-=PARAMS=--ipv6
+=TITLE=Source ports
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h20 = { ip6 = ::a01:114; }
+}
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
+}
+protocol:NTP = udp 123:123;
+protocol:sPort = udp 1-65535:123;
+protocol:highPort = udp 1024-65535:123;
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = protocol:NTP;
+ permit src = host:h10; dst = user; prt = protocol:sPort;
+ permit src = host:h20; dst = user; prt = protocol:highPort;
+}
+=OUTPUT=
+--ipv6/r1
+<entry name="vsys1">
+<rulebase><security><rules>
+<entry name="v6r1">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP___a01_10a</member></source>
+<destination><member>NET___a01_200_120</member></destination>
+<service><member>udp 123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="v6r2">
+<action>allow</action>
+<from><member>z1</member></from>
+<to><member>z2</member></to>
+<source><member>IP___a01_114</member></source>
+<destination><member>NET___a01_200_120</member></destination>
+<service><member>udp 1024-65535:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+<entry name="v6r3">
+<action>allow</action>
+<from><member>z2</member></from>
+<to><member>z1</member></to>
+<source><member>NET___a01_200_120</member></source>
+<destination><member>NET___a01_100_120</member></destination>
+<service><member>udp 123:123</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET___a01_100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
+<entry name="IP___a01_10a"><ip-netmask>::a01:10a/128</ip-netmask></entry>
+<entry name="IP___a01_114"><ip-netmask>::a01:114/128</ip-netmask></entry>
+<entry name="NET___a01_200_120"><ip-netmask>::a01:200/120</ip-netmask></entry>
+</address>
+<service>
+<entry name="udp 1024-65535:123"><protocol><udp><port>123</port><source-port>1024-65535</source-port></udp></protocol></entry>
+<entry name="udp 123"><protocol><udp><port>123</port></udp></protocol></entry>
+<entry name="udp 123:123"><protocol><udp><port>123</port><source-port>123</source-port></udp></protocol></entry>
+</service>
+</entry>
+=END=
+
+############################################################
+=TITLE=ICMP and numeric protocol
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip6 = ::a01:101; }
+}
+router:r1@vsys1 = {
+ model = PAN-OS;
+ managed;
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 service:s1 = {
  user = network:n1;
@@ -1338,42 +1104,41 @@ service:s1 = {
 
 ############################################################
 =TITLE=Optimize duplicate IP address
-=PARAMS=--ipv6
 =INPUT=
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = ::a01:101; }
+ interface:n1 = { ip6 = ::a01:101; }
 }
 
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:r1@vsys1 = {
  model = PAN-OS;
  managed;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = z1; }
- interface:n2 = { ip = ::a01:201; hardware = z2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = z1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = z2; }
 }
 
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 
 router:asa = {
  model = ASA;
  managed;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 
 service:s1 = {
  user = network:n2,
-        any:[ip = ::a00:0/104 & network:n3],
-        any:[ip = ::a01:0/112 & network:n4],
+        any:[ip6 = ::a00:0/104 & network:n3],
+        any:[ip6 = ::a01:0/112 & network:n4],
         ;
  permit src = user;
         dst = network:n1;
@@ -1405,3 +1170,76 @@ service:s1 = {
 </service>
 </entry>
 =END=
+
+############################################################
+=TITLE=Add policy distribution point to info file
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120;
+ host:netspoc = { ip6 = ::a01:309; }
+}
+router:r1@vrf = {
+ managed;
+ model = PAN-OS;
+ interface:n1 = { ip6 = ::a01:10b; hardware = IN; }
+ interface:n2 = { ip6 = ::a01:201; hardware = OUT; }
+}
+router:r1 = {
+ management_instance;
+ policy_distribution_point = host:netspoc;
+ model = PAN-OS;
+ interface:n1 = { ip6 = ::a01:101; hardware = device; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+}
+service:admin = {
+ user = interface:r1.n1;
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+-- ipv6/r1.info
+{"generated_by":"devel","model":"PAN-OS","ip_list":["::a01:101"],"name_list":["r1"],"policy_distribution_point":"::a01:309"}
+=END=
+
+############################################################
+=TITLE=managed = local not supported
+=INPUT=
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip6 = ::a3e:122; }
+}
+
+network:n1 = { ip6 = ::a3e:120/123; }
+router:r1@vrf = {
+ model = PAN-OS;
+ managed = local;
+ routing = manual;
+ filter_only = ::a3e:0/117, ::a3e:f100/120;
+ interface:n1 = { ip6 = ::a3e:121; hardware = IN; }
+ interface:n2 = { ip6 = ::a3e:f101; hardware = OUT; }
+}
+network:n2 = { ip6 = ::a3e:f100/125; }
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip6 = ::a3e:f102; hardware = inside; }
+ interface:extern = { ip6 = ::a7d:301; hardware = outside; }
+}
+network:extern = { ip6 = ::a7d:300/120; }
+service:Test = {
+ user = network:extern, network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=ERROR=
+Error: Must not use 'managed = local' at router:r1@vrf of model PAN-OS
+=END=
+
+############################################################

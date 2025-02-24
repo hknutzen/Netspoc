@@ -1,20 +1,20 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"net"
 	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"unicode"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
@@ -201,9 +201,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 
 	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
-	prefixes := maps.Keys(prefix2ip2net)
-	sort.Slice(prefixes, func(i, j int) bool {
-		return prefixes[i] > prefixes[j]
+	prefixes := slices.SortedFunc(maps.Keys(prefix2ip2net), func(a, b int) int {
+		return cmp.Compare(b, a)
 	})
 	type netInfo struct {
 		netip.Prefix
@@ -214,12 +213,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
 		ip2net := prefix2ip2net[prefix]
-		ips := make([]netip.Addr, 0, len(ip2net))
-		for k := range ip2net {
-			ips = append(ips, k)
-		}
-		sort.Slice(ips, func(i, j int) bool {
-			return ips[i].Less(ips[j])
+		ips := slices.SortedFunc(maps.Keys(ip2net), func(a, b netip.Addr) int {
+			return a.Compare(b)
 		})
 	NETWORK:
 		for _, ip := range ips {
@@ -264,10 +259,8 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	}
 
 	// Get sorted list of hops for deterministic output.
-	hops := maps.Keys(hop2netInfos)
-	sort.Slice(hops, func(i, j int) bool {
-		return hops[i].name < hops[j].name
-	})
+	hops := slices.SortedFunc(maps.Keys(hop2netInfos),
+		func(a, b *routerIntf) int { return cmp.Compare(a.name, b.name) })
 
 	if doAutoDefaultRoute {
 
@@ -309,7 +302,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	if vrf != "" && model.routing == "IOS" {
 		iosVrf = "vrf " + vrf + " "
 	}
-	nxosPrefix := ""
 
 	for _, hop := range hops {
 		intf := hop2intf[hop]
@@ -335,20 +327,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 					adr = iosRouteCode(netinfo.Prefix)
 				}
 				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-			case "NX-OS":
-				if vrf != "" && nxosPrefix == "" {
-
-					// Print "vrf context" only once
-					// and indent "ip route" commands.
-					fmt.Fprintln(fh, "vrf context", vrf)
-					nxosPrefix = " "
-				}
-				adr := fullPrefixCode(netinfo.Prefix)
-				ip := "ip"
-				if ipv6 {
-					ip += "v6"
-				}
-				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
 			case "ASA":
 				var adr string
 				ip := ""
@@ -417,8 +395,8 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 	checkRules(intf.outRules, true)
 
 	// Sort for better readability of ACL.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].ipp.Addr().Less(result[j].ipp.Addr())
+	slices.SortFunc(result, func(a, b *network) int {
+		return a.ipp.Addr().Compare(b.ipp.Addr())
 	})
 	return result
 }
@@ -502,7 +480,7 @@ func printTunnelGroupRa(
 			keys.push(k)
 		}
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		out := key
 
@@ -627,9 +605,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	printGroupPolicy := func(name string, attributes map[string]string) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
-		keys := maps.Keys(attributes)
-		sort.Strings(keys)
-		for _, key := range keys {
+		for _, key := range slices.Sorted(maps.Keys(attributes)) {
 
 			// Ignore attributes for tunnel-group general or own attributes.
 			if spec := asaVpnAttributes[key]; spec == tgGeneral || spec == ownAttr {
@@ -701,9 +677,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
-			keys := maps.Keys(hash)
-			sort.Strings(keys)
-			for _, id := range keys {
+			for _, id := range slices.Sorted(maps.Keys(hash)) {
 				idIntf := hash[id]
 				idName := genIdName(id)
 				src := idIntf.src
@@ -928,9 +902,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
-		keys := maps.Keys(singleCertMap)
-		sort.Strings(keys)
-		for _, id := range keys {
+		for _, id := range slices.Sorted(maps.Keys(singleCertMap)) {
 			idName := genIdName(id)
 			mapName := "ca-map-" + idName
 			fmt.Fprintln(fh, "crypto ca certificate map", mapName, "10")
@@ -941,9 +913,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			certGroupMap[mapName] = defaultTunnelGroup
 		}
 		fmt.Fprintln(fh, "webvpn")
-		keys = maps.Keys(certGroupMap)
-		sort.Strings(keys)
-		for _, mapName := range keys {
+		for _, mapName := range slices.Sorted(maps.Keys(certGroupMap)) {
 			tunnelGroupMap := certGroupMap[mapName]
 			fmt.Fprintln(fh, " certificate-group-map", mapName, "10", tunnelGroupMap)
 		}
@@ -951,9 +921,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	}
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
-	keys := maps.Keys(ldapMap)
-	sort.Strings(keys)
-	for _, name := range keys {
+	for _, name := range slices.Sorted(maps.Keys(ldapMap)) {
 		fmt.Fprintln(fh, "aaa-server", name, "protocol ldap")
 		fmt.Fprintln(fh, "aaa-server", name, "host X")
 		fmt.Fprintln(fh, " ldap-attribute-map", name)
@@ -1201,7 +1169,7 @@ func (c *spoc) printCiscoAcls(fh *os.File, r *router) {
 			}
 
 			// Post-processing for hardware interface
-			if filter == "IOS" || filter == "NX-OS" {
+			if filter == "IOS" {
 				var filterCmd string
 				if ipv6 {
 					filterCmd = "ipv6 traffic-filter"
@@ -1248,97 +1216,6 @@ func (c *spoc) genCryptoRules(local, remote []*network) []*groupedRule {
 		dst,
 		[]*proto{c.prt.IP},
 	)}
-}
-
-func (c *spoc) printEzvpn(fh *os.File, r *router) {
-	interfaces := r.interfaces
-	var tunnelIntf *routerIntf
-	for _, intf := range interfaces {
-		if intf.ipType == tunnelIP {
-			tunnelIntf = intf
-		}
-	}
-	tunNatMap := tunnelIntf.natMap
-	wanIntf := tunnelIntf.realIntf
-	wanHw := wanIntf.hardware
-	wanNatMap := wanHw.natMap
-	var lanIntfs intfList
-	for _, intf := range interfaces {
-		if intf != wanIntf && intf != tunnelIntf {
-			lanIntfs.push(intf)
-		}
-	}
-
-	// Ezvpn configuration.
-	ezvpnName := "vpn"
-	cryptoAclName := "ACL-Split-Tunnel"
-	cryptoFilterName := "ACL-crypto-filter"
-	virtualIntfNumber := 1
-	fmt.Fprintln(fh, "crypto ipsec client ezvpn", ezvpnName)
-	fmt.Fprintln(fh, " connect auto")
-	fmt.Fprintln(fh, " mode network-extension")
-
-	// Unnumbered, negotiated and short interfaces have been
-	// rejected already.
-	peer := tunnelIntf.peer
-	peerIp := prefixCode(peer.realIntf.address(wanNatMap))
-	fmt.Fprintln(fh, " peer", peerIp)
-
-	// Bind split tunnel ACL.
-	fmt.Fprintln(fh, " acl", cryptoAclName)
-
-	// Use virtual template defined above.
-	fmt.Fprintln(fh, " virtual-interface", virtualIntfNumber)
-
-	// xauth is unused, but syntactically needed.
-	fmt.Fprintln(fh, " username test pass test")
-	fmt.Fprintln(fh, " xauth userid mode local")
-
-	// Apply ezvpn to WAN and LAN interface.
-	for _, intf := range lanIntfs {
-		lanHw := intf.hardware
-		lanHw.subcmd.push("crypto ipsec client ezvpn " + ezvpnName + " inside")
-	}
-	wanHw.subcmd.push("crypto ipsec client ezvpn " + ezvpnName)
-
-	// Crypto ACL controls which traffic needs to be encrypted.
-	cryptoRules := c.genCryptoRules(tunnelIntf.peer.peerNetworks,
-		[]*network{c.getNetwork00(r.ipV6)})
-	acls := &aclInfo{
-		name:        cryptoAclName,
-		rules:       cryptoRules,
-		natMap:      tunNatMap,
-		isCryptoACL: true,
-	}
-	r.aclList.push(acls)
-	printAclPlaceholder(fh, r, cryptoAclName)
-
-	// Crypto filter ACL.
-	acls = &aclInfo{
-		name:        cryptoFilterName,
-		rules:       tunnelIntf.rules,
-		intfRules:   tunnelIntf.intfRules,
-		addDeny:     true,
-		protectSelf: true,
-		natMap:      tunNatMap,
-	}
-	tunnelIntf.rules = nil
-	tunnelIntf.intfRules = nil
-	r.aclList.push(acls)
-	printAclPlaceholder(fh, r, cryptoFilterName)
-
-	// Bind crypto filter ACL to virtual template.
-	fmt.Fprintln(fh,
-		"interface Virtual-Template"+strconv.Itoa(virtualIntfNumber),
-		"type tunnel")
-	var prefix string
-	if r.ipV6 {
-		prefix = " ipv6 traffic-filter"
-	} else {
-		prefix = " ip access-group"
-	}
-
-	fmt.Fprintln(fh, prefix, cryptoFilterName, "in")
 }
 
 // Print crypto ACL.
@@ -1432,20 +1309,15 @@ func printCryptoMapAttributes(fh *os.File, prefix, cryptoType, cryptoAclName, cr
 
 	if pair := ipsec.lifetime; pair != nil {
 		sec, kb := pair[0], pair[1]
-		args := ""
 
 		// Don't print default values for backend IOS.
 		if sec != -1 && !(sec == 3600 && cryptoType == "IOS") {
-			args += "seconds " + strconv.Itoa(sec)
+			fmt.Fprintln(fh, prefix, "set security-association lifetime seconds",
+				strconv.Itoa(sec))
 		}
 		if kb != -1 && !(kb == 4608000 && cryptoType == "IOS") {
-			if args != "" {
-				args += " "
-			}
-			args += "kilobytes " + strconv.Itoa(kb)
-		}
-		if args != "" {
-			fmt.Fprintln(fh, prefix, "set security-association lifetime", args)
+			fmt.Fprintln(fh, prefix, "set security-association lifetime kilobytes",
+				strconv.Itoa(kb))
 		}
 	}
 }
@@ -1494,10 +1366,9 @@ func (c *spoc) printStaticCryptoMap(
 	natMap := hw.natMap
 
 	// Sort crypto maps by peer IP to get deterministic output.
-	l := make([]*routerIntf, 0, len(interfaces))
-	l = append(l, interfaces...)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].peer.realIntf.ip.Less(l[j].peer.realIntf.ip)
+	l := slices.Clone(interfaces)
+	slices.SortFunc(l, func(a, b *routerIntf) int {
+		return a.peer.realIntf.ip.Compare(b.peer.realIntf.ip)
 	})
 
 	// Build crypto map for each tunnel interface.
@@ -1551,10 +1422,9 @@ func (c *spoc) printDynamicCryptoMap(
 	seqNum := 65536
 
 	// Sort crypto maps by certificate to get deterministic output.
-	l := make([]*routerIntf, 0, len(interfaces))
-	l = append(l, interfaces...)
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].peer.id < l[j].peer.id
+	l := slices.Clone(interfaces)
+	slices.SortFunc(l, func(a, b *routerIntf) int {
+		return strings.Compare(a.peer.id, b.peer.id)
 	})
 
 	// Build crypto map for each tunnel interface.
@@ -1623,8 +1493,8 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	}
 
 	// Sort entries by name to get deterministic output.
-	sort.Slice(ipsecList, func(i, j int) bool {
-		return ipsecList[i].name < ipsecList[j].name
+	slices.SortFunc(ipsecList, func(a, b *ipsec) int {
+		return strings.Compare(a.name, b.name)
 	})
 
 	// List of isakmp definitions used at current router.
@@ -1641,11 +1511,6 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 
 	printHeader(fh, r, "Crypto")
 
-	if cryptoType == "EZVPN" {
-		c.printEzvpn(fh, r)
-		return
-	}
-
 	// Use interface access lists to filter incoming crypto traffic.
 	// Group policy and per-user authorization access list can't be used
 	// because they are stateless.
@@ -1656,12 +1521,6 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 
 	if cryptoType == "ASA_VPN" {
 		c.printAsavpn(fh, r)
-		return
-	}
-
-	// Crypto config for ASA as EZVPN client is configured manually once.
-	// No config is generated by netspoc.
-	if cryptoType == "ASA_EZVPN" {
 		return
 	}
 
@@ -1837,13 +1696,8 @@ func printRouterIntf(fh *os.File, r *router) {
 			case negotiatedIP:
 				addrCmd = "ip address negotiated"
 			default:
-				if model.usePrefix || ipv6 {
-					if ipv6 {
-						addrCmd = "ipv6"
-					} else {
-						addrCmd = "ip"
-					}
-					addrCmd += " address " + netip.PrefixFrom(
+				if ipv6 {
+					addrCmd = "ipv6 address " + netip.PrefixFrom(
 						intf.ip,
 						intf.network.ipp.Bits(),
 					).String()
@@ -1858,16 +1712,12 @@ func printRouterIntf(fh *os.File, r *router) {
 				}
 			}
 			subcmd.push(addrCmd)
-			if !ipv6 || class == "NX-OS" {
+			if !ipv6 {
 				secondary = true
 			}
 		}
 		if vrf := r.vrf; vrf != "" {
-			if class == "NX-OS" {
-				subcmd.push("vrf member " + vrf)
-			} else {
-				subcmd.push("ip vrf forwarding " + vrf)
-			}
+			subcmd.push("ip vrf forwarding " + vrf)
 		}
 
 		// Add "ip inspect" as marker, that stateful filtering is expected.
@@ -1980,15 +1830,12 @@ func (c *spoc) disableSecondOptForDynHostNet(
 
 // Precompute string representation of IP addresses when NAT is not active.
 func (c *spoc) setupStdAddr() {
-	addNet := func(n *network) {
-		n.stdAddr = n.ipp.String()
-	}
 	// Aggregates, networks, subnets.
 	for _, n := range c.allNetworks {
 		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
-		addNet(n)
+		n.stdAddr = n.ipp.String()
 		for _, s := range n.subnets {
 			s.stdAddr = s.ipp.String()
 		}
@@ -2045,6 +1892,13 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		doAuth := model.doAuth
 		activeLog := r.log
 		needProtect := getNeedProtect(r)
+		var filterOnly []string
+		if fo := r.filterOnly; fo != nil {
+			filterOnly = make([]string, len(fo))
+			for i, f := range fo {
+				filterOnly[i] = fullPrefixCode(f)
+			}
+		}
 
 		process := func(acl *aclInfo) *jcode.ACLInfo {
 			jACL := new(jcode.ACLInfo)
@@ -2237,7 +2091,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 				a := getAddr(n, natMap)
 				addrList.push(a)
 			}
-			sort.Strings(addrList)
+			slices.Sort(addrList)
 			jACL.OptNetworks = addrList
 
 			addrList = make(stringList, 0, len(noOptAddrs))
@@ -2245,7 +2099,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 				a := getAddr(o, natMap)
 				addrList.push(a)
 			}
-			sort.Strings(addrList)
+			slices.Sort(addrList)
 			jACL.NoOptAddrs = addrList
 
 			if model.needVRF {
@@ -2254,6 +2108,11 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			if t := model.tier; t != "" {
 				jACL.Tier = t
 			}
+			if r.logDeny == "" {
+				r.logDeny = r.logDefault
+			}
+			jACL.LogDeny = r.logDeny
+			jACL.FilterOnly = filterOnly
 			return jACL
 		}
 
@@ -2281,18 +2140,6 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		ACLs:          aclList,
 		DoObjectgroup: model.canObjectgroup && !r.noGroupCode,
 	}
-
-	if filterOnly := r.filterOnly; filterOnly != nil {
-		list := make([]string, len(filterOnly))
-		for i, f := range filterOnly {
-			list[i] = fullPrefixCode(f)
-		}
-		result.FilterOnly = list
-	}
-	if r.logDeny == "" {
-		r.logDeny = r.logDefault
-	}
-	result.LogDeny = r.logDeny
 	c.writeJson(path, result)
 }
 
@@ -2348,7 +2195,6 @@ func (c *spoc) getDevices() []*router {
 
 	// Take only one router of multi VRF device.
 	// Ignore split part of crypto router.
-	// Create ipv6 subdirectory.
 	var result []*router
 	seen := make(map[*router]bool)
 	for _, r := range c.managedRouters {
@@ -2363,51 +2209,53 @@ func (c *spoc) getDevices() []*router {
 	return result
 }
 
-func (c *spoc) printPanOS(fd *os.File, l []*router) {
-	r := l[0]
-	mgmt := c.getManagementInstance(r)
-	hostnames := mgmt.deviceName
-	ipList := mgmt.interfaces[0].ip.String()
-	if backup := mgmt.backupInstance; backup != nil {
-		hostnames += ", " + backup.deviceName
-		ipList += ", " + backup.interfaces[0].ip.String()
+type codeInfo struct {
+	GeneratedBy             string   `json:"generated_by"`
+	Model                   string   `json:"model"`
+	IPList                  []string `json:"ip_list,omitempty"`
+	NameList                []string `json:"name_list,omitempty"`
+	PolicyDistributionPoint string   `json:"policy_distribution_point,omitempty"`
+}
+
+func (c *spoc) getCodeInfo(vrfMembers []*router) *codeInfo {
+	r0 := vrfMembers[0]
+	var ipList, nameList stringList
+	if m := c.getManagementInstance(r0); m != nil && m.managementInstance {
+		r0 = m
+		nameList.push(m.deviceName)
+		ipList.push(m.interfaces[0].ip.String())
+		if b := m.backupInstance; b != nil {
+			nameList.push(b.deviceName)
+			ipList.push(b.interfaces[0].ip.String())
+		}
+	} else {
+		for _, r := range vrfMembers {
+			ipList = append(ipList, r.adminIP...)
+		}
 	}
-	fmt.Fprintf(fd,
-		`<?xml version = "1.0" ?>
-<!--
-Generated by %s, version %s
+	pdp := ""
+	if p := r0.policyDistributionPoint; p != nil {
+		pdp = p.ip.String()
+	}
+	return &codeInfo{
+		GeneratedBy:             version,
+		Model:                   r0.model.class,
+		IPList:                  ipList,
+		NameList:                nameList,
+		PolicyDistributionPoint: pdp,
+	}
+}
 
-[ BEGIN %s ]
-[ Model = %s ]
-[ IP = %s ]
--->
-`,
-		program, version, hostnames, r.model.class, ipList)
-
+func (c *spoc) printPanOS(fd *os.File, vrfMembers []*router) {
+	fmt.Fprintln(fd, `<?xml version = "1.0" ?>`)
 	fmt.Fprintln(fd, "<config><devices><entry><vsys>")
-	for _, r := range l {
+	for _, r := range vrfMembers {
 		fmt.Fprintln(fd, "#insert", r.vrf)
 	}
 	fmt.Fprintln(fd, "</vsys></entry></devices></config>")
 }
 
-func (c *spoc) printNSX(fd *os.File, l []*router) {
-	r := l[0]
-	mgmt := c.getManagementInstance(r)
-	hostnames := mgmt.deviceName
-	ipList := mgmt.interfaces[0].ip.String()
-	if backup := mgmt.backupInstance; backup != nil {
-		hostnames += ", " + backup.deviceName
-		ipList += ", " + backup.interfaces[0].ip.String()
-	}
-	fmt.Fprintf(fd,
-		`#Generated by %s, version %s
-#
-#[ BEGIN %s ]
-#[ Model = %s ]
-#[ IP = %s ]
-`,
-		program, version, hostnames, r.model.class, ipList)
+func (c *spoc) printNSX(fd *os.File, vrfMembers []*router) {
 	fmt.Fprintln(fd, "#insert JSON")
 }
 
@@ -2419,15 +2267,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		path = "ipv6/" + path
 	}
 
-	// File for router config without ACLs.
-	configFile := filepath.Join(dir, path+".config")
-	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		c.abort("Can't %v", err)
-	}
-	defer fd.Close()
 	model := r.model
-	commentChar := model.commentChar
 
 	// Restore interfaces of split router.
 	if orig := r.origIntfs; orig != nil {
@@ -2440,6 +2280,18 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		vrfMembers = []*router{r}
 	}
 
+	// Print info file in JSON format.
+	infoData := c.getCodeInfo(vrfMembers)
+	c.writeJson(filepath.Join(dir, path+".info"), infoData)
+
+	// File for router config without ACLs.
+	configFile := filepath.Join(dir, path+".config")
+	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		c.abort("Can't %v", err)
+	}
+	defer fd.Close()
+
 	if model.filter == "PAN-OS" {
 		c.printPanOS(fd, vrfMembers)
 		for _, vrouter := range vrfMembers {
@@ -2451,26 +2303,6 @@ func (c *spoc) printRouter(r *router, dir string) string {
 			c.printCiscoAcls(fd, vrouter)
 		}
 	} else {
-
-		// Print version header.
-		fmt.Fprintf(fd, "%s Generated by %s, %s", commentChar, program, version)
-		fmt.Fprintln(fd)
-
-		header := func(key, val string) {
-			fmt.Fprintf(fd, "%s [ %s %s ]\n", commentChar, key, val)
-		}
-		header("BEGIN", deviceName)
-		header("Model =", model.class)
-		ips := make([]string, 0, len(vrfMembers))
-		for _, r := range vrfMembers {
-			if r.adminIP != nil {
-				ips = append(ips, r.adminIP...)
-			}
-		}
-		if len(ips) != 0 {
-			header("IP =", strings.Join(ips, ","))
-		}
-
 		for _, vrouter := range vrfMembers {
 			c.printRoutes(fd, vrouter)
 			if vrouter.managed == "" {
@@ -2482,9 +2314,6 @@ func (c *spoc) printRouter(r *router, dir string) string {
 			printAclSuffix(fd, vrouter)
 			printRouterIntf(fd, vrouter)
 		}
-
-		header("END", deviceName)
-		fmt.Fprintln(fd)
 	}
 
 	// Print ACLs in machine independent format into separate file.

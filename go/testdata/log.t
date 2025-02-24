@@ -99,21 +99,6 @@ Error: Invalid 'log:a = foo' at router:r1 of model IOS
 =END=
 
 ############################################################
-=TITLE=Unknown log severity at NX-OS
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-router:r1 = {
- managed;
- model = NX-OS;
- log:a = foo;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-=ERROR=
-Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
- Use 'log:a;' only.
-=END=
-
-############################################################
 =TITLE=Unknown log values at PAN-OS
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
@@ -369,21 +354,21 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Logging at NX-OS
+=TITLE=Simple logging at two IOS devices
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 router:r1 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
  managed;
- model = NX-OS;
+ model = IOS;
  log:a;
  log:b;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
@@ -397,16 +382,16 @@ service:t = {
 =OUTPUT=
 -- r1
 ! [ ACL ]
-ip access-list n1_in
- 10 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 80 log
- 20 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 81
- 30 deny ip any any
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 81
+ deny ip any any
 -- r2
 ! [ ACL ]
-ip access-list n2_in
- 10 deny ip any 10.1.3.2/32
- 20 permit tcp 10.1.1.0/24 10.1.3.0/24 range 80 81 log
- 30 deny ip any any
+ip access-list extended n2_in
+ deny ip any host 10.1.3.2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 80 81 log
+ deny ip any any
 =END=
 
 ############################################################

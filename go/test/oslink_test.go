@@ -8,7 +8,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/test/capture"
-	"github.com/hknutzen/Netspoc/go/test/tstdata"
+	"github.com/hknutzen/testtxt"
 )
 
 func TestOsLink(t *testing.T) {
@@ -62,21 +62,20 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 			diag: true,
 		},
 		{
-			title: "Test stdout",
-			param: "network:n1",
-			run:   pass1.PrintGroupMain,
-			input: "network:n1 = { ip = 10.1.1.0/24; }",
+			title:  "Test stdout",
+			param:  "network:n1",
+			run:    pass1.PrintGroupMain,
+			input:  "network:n1 = { ip = 10.1.1.0/24; }",
 			stdout: "10.1.1.0/24	network:n1\n",
 		},
 	}
 	for _, descr := range tests {
-		descr := descr // capture range variable
 		t.Run(descr.title, func(t *testing.T) {
 			workDir := t.TempDir()
 			os.Chdir(workDir)
 			os.Args = []string{"PROGRAM", "-q"}
 			inDir := "netspoc"
-			tstdata.PrepareInDir(inDir, descr.input)
+			testtxt.PrepareInDir(t, inDir, "INPUT", descr.input)
 			os.Args = append(os.Args, inDir)
 			if p := descr.param; p != "" {
 				os.Args = append(os.Args, p)

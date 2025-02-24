@@ -3,7 +3,7 @@ package pass2
 /*
 Pass 2 of Netspoc - A Network Security Policy Compiler
 
-(C) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -24,12 +24,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -109,14 +111,9 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 	}
 
 	// Compare networks.
-	var prefixList []int
-	for k := range prefixIPMap {
-		prefixList = append(prefixList, k)
-	}
 	// Go from small to larger networks.
-	sort.Slice(prefixList, func(i, j int) bool {
-		return prefixList[i] > prefixList[j]
-	})
+	prefixList := slices.SortedFunc(maps.Keys(prefixIPMap),
+		func(a, b int) int { return cmp.Compare(b, a) })
 	for i, prefix := range prefixList {
 		upperPrefixes := prefixList[i+1:]
 
@@ -132,8 +129,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				n, _ := ip.Prefix(p)
-				bignet, ok := prefixIPMap[p][n.Addr()]
-				if ok {
+				if bignet, ok := prefixIPMap[p][n.Addr()]; ok {
 					subnet.up = bignet
 					break
 				}
@@ -143,17 +139,13 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Propagate content of attribute optNetworks to all subnets.
 	// Go from large to smaller networks.
-	sort.Slice(prefixList, func(i, j int) bool {
-		return prefixList[i] < prefixList[j]
-	})
+	slices.Reverse(prefixList)
 	for _, prefix := range prefixList {
 		for _, n := range prefixIPMap[prefix] {
-			up := n.up
-			if up == nil {
-				continue
-			}
-			if optNetworks := up.optNetworks; optNetworks != nil {
-				n.optNetworks = optNetworks
+			if up := n.up; up != nil {
+				if optNetworks := up.optNetworks; optNetworks != nil {
+					n.optNetworks = optNetworks
+				}
 			}
 		}
 	}
@@ -191,6 +183,7 @@ type aclInfo struct {
 	objectGroups                                     []*objGroup
 	tier                                             string
 	vrf                                              string
+	logDeny                                          string
 }
 
 func convertACLs(
@@ -206,7 +199,7 @@ func convertACLs(
 	rules, hasLog2 := convertRuleObjects(
 		jACL.Rules, ipNet2obj, prt2obj)
 
-	filterOnly := ipNetList(jData.FilterOnly, ipNet2obj)
+	filterOnly := ipNetList(jACL.FilterOnly, ipNet2obj)
 
 	optNetworks := ipNetList(jACL.OptNetworks, ipNet2obj)
 	for _, obj := range optNetworks {
@@ -229,6 +222,7 @@ func convertACLs(
 		addDeny:      jACL.AddDeny,
 		tier:         jACL.Tier,
 		vrf:          jACL.VRF,
+		logDeny:      jACL.LogDeny,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -283,8 +277,7 @@ type routerData struct {
 	model           string
 	ipv6            bool
 	acls            []*aclInfo
-	logDeny         string
-	filterOnlyGroup *ipNet
+	filterOnlyGroup map[string]*ipNet
 	doObjectgroup   bool
 	objGroupsMap    map[groupKey][]*objGroup
 	objGroupCounter int
@@ -308,7 +301,6 @@ func readJSON(path string) *routerData {
 		rData.ipv6 = true
 	}
 	rData.model = jData.Model
-	rData.logDeny = jData.LogDeny
 	rData.doObjectgroup = jData.DoObjectgroup
 	acls := make([]*aclInfo, len(jData.ACLs))
 	for i, jACL := range jData.ACLs {

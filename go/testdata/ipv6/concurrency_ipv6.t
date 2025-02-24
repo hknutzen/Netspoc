@@ -2,21 +2,21 @@
 ############################################################
 =TITLE=Pass 2: 3 devices with up to 8 jobs
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 router:asa2 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
 }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:103; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; }
 }
 =END=
 # Expect normal operation with concurrency enabled.
@@ -33,7 +33,6 @@ access-group n1_in in interface n1
 ! n1_in
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 [[output]]
@@ -41,7 +40,6 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Pass 2: 3 devices with up to 2 jobs
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 [[output]]
@@ -49,10 +47,9 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Abort early, if backgroud job has too many errors, with following error
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:100/121; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:100/121; }
 router:r1 = {
  interface:n1;
  interface:n2;
@@ -71,10 +68,9 @@ Aborted after 2 errors
 
 ############################################################
 =TITLE=Abort early, if backgroud job has too many errors, with previous error
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:100/121; subnet_of = network:n1; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:100/121; subnet_of = network:n1; }
 router:r1 = {
  interface:n1;
  interface:n2;

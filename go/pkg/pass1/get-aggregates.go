@@ -1,10 +1,10 @@
 package pass1
 
 import (
+	"cmp"
+	"maps"
 	"net/netip"
-	"sort"
-
-	"golang.org/x/exp/maps"
+	"slices"
 )
 
 // #############################################################################
@@ -12,17 +12,14 @@ import (
 // It sets aggregate properties according to those of the linked zone.
 //
 //	It Stores aggregates in allNetworks.
-func (c *spoc) linkAggregateToZone(
-	agg *network, z *zone, ipp netip.Prefix) {
+func (c *spoc) linkAggregateToZone(agg *network, z *zone) {
 
 	// Link aggregate with zone.
 	agg.zone = z
-	z.ipPrefix2aggregate[ipp] = agg
+	z.ipPrefix2aggregate[agg.ipp] = agg
 
 	// Set aggregate properties.
-	if z.hasIdHosts {
-		agg.hasIdHosts = true
-	}
+	agg.hasIdHosts = z.hasIdHosts
 
 	// Store aggregate in global list of networks.
 	c.allNetworks.push(agg)
@@ -33,22 +30,20 @@ func (c *spoc) linkAggregateToZone(
 // Remember:
 // .up is relation inside set of all networks and aggregates.
 // .networks is attribute of aggregates and networks,	but value is list of networks.
-func (c *spoc) linkImplicitAggregateToZone(
-	agg *network, z *zone, ipp netip.Prefix) {
+func (c *spoc) linkImplicitAggregateToZone(agg *network, z *zone) {
 
 	ipPrefix2aggregate := z.ipPrefix2aggregate
 
 	// Collect all aggregates, networks and subnets of current zone.
 	// Get aggregates in deterministic order.
-	var objects netList = maps.Values(ipPrefix2aggregate)
-	sort.Slice(objects, func(i, j int) bool {
-		return objects[i].name < objects[j].name
-	})
+	var objects netList = slices.SortedFunc(maps.Values(ipPrefix2aggregate),
+		func(a, b *network) int { return cmp.Compare(a.name, b.name) })
 	processWithSubnetworks(z.networks, func(n *network) {
 		objects.push(n)
 	})
 
 	// Find subnets of new aggregate.
+	ipp := agg.ipp
 	for _, obj := range objects {
 		if obj.ipp.Bits() <= ipp.Bits() {
 			continue
@@ -82,8 +77,8 @@ func (c *spoc) linkImplicitAggregateToZone(
 			larger.push(obj)
 		}
 	}
-	sort.Slice(larger, func(i, j int) bool {
-		return larger[i].ipp.Bits() > larger[j].ipp.Bits()
+	slices.SortFunc(larger, func(a, b *network) int {
+		return cmp.Compare(b.ipp.Bits(), a.ipp.Bits())
 	})
 	for _, obj := range larger {
 		if obj.ipp.Contains(ipp.Addr()) {
@@ -94,7 +89,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		}
 	}
 
-	c.linkAggregateToZone(agg, z, ipp)
+	c.linkAggregateToZone(agg, z)
 }
 
 // Inversed inheritance: If an implicit aggregate has no direct owner
@@ -166,6 +161,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 	agg2.name = agg.name
 	agg2.isAggregate = true
 	agg2.ipp = agg.ipp
+	agg2.ipV6 = agg.ipV6
 	agg2.invisible = agg.invisible
 	agg2.owner = agg.owner
 	agg2.attr = agg.attr
@@ -181,9 +177,9 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 
 	// Link new aggregate object and cluster
 	if implicit {
-		c.linkImplicitAggregateToZone(agg2, z, agg.ipp)
+		c.linkImplicitAggregateToZone(agg2, z)
 	} else {
-		c.linkAggregateToZone(agg2, z, agg.ipp)
+		c.linkAggregateToZone(agg2, z)
 	}
 }
 
@@ -196,7 +192,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 //            networks inside a zone. Therefore, every zone inside a cluster
 //            gets its own copy of the defined aggregate to collect the zones
 //            networks matching the aggregates IP address.
-// TDOD     : Aggregate may be a non aggregate network,
+// TODD     : Aggregate may be a non aggregate network,
 //            e.g. a network with ip/mask 0/0. ??
 */
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
@@ -243,8 +239,9 @@ func (c *spoc) getAny(
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
 			if ipp.Bits() != 0 {
+				attr := v6Attr("ip", z.ipV6)
 				name =
-					name[:len("any:[")] + "ip=" + ipp.String() + " & " +
+					name[:len("any:[")] + attr + "=" + ipp.String() + " & " +
 						name[len("any:["):]
 			}
 			agg := new(network)
@@ -253,9 +250,20 @@ func (c *spoc) getAny(
 			agg.ipp = ipp
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
-
-			c.linkImplicitAggregateToZone(agg, z, ipp)
+			c.linkImplicitAggregateToZone(agg, z)
 			c.duplicateAggregateToCluster(agg, true)
+			// Add non matching aggregate to combined zone.
+			if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
+				agg2 := new(network)
+				agg2.name = name
+				agg2.isAggregate = true
+				agg2.ipV6 = !agg.ipV6
+				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
+				agg.combined46 = agg2
+				agg2.combined46 = agg
+				c.linkImplicitAggregateToZone(agg2, z2)
+				c.duplicateAggregateToCluster(agg2, true)
+			}
 		}
 	}
 	var result netList
@@ -291,8 +299,9 @@ func (c *spoc) getAny(
 				if supernet.ipp.Bits() != ipp.Bits() {
 					relation = "is subnet"
 				}
-				c.err("Must not use any:[ip = %s & ..] in %s\n"+
+				c.err("Must not use any:[%s = %s & ..] in %s\n"+
 					" because it %s of %s which is translated by nat:%s",
+					v6Attr("ip", supernet.ipV6),
 					ipp, ctx, relation, supernet, tag)
 			}
 		}

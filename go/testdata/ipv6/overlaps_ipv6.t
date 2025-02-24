@@ -2,23 +2,22 @@
 ############################################################
 # Common topology for multiple tests
 =TEMPL=topo
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:filter = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; }
- host:h2 = { ip = ::a01:20b; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; }
+ host:h2 = { ip6 = ::a01:20b; }
 }
 =END=
 
 ############################################################
 =TITLE=Warn on duplicate and redundant rule
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1a = {
@@ -50,7 +49,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Suppressed warning
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1a = {
@@ -86,7 +84,6 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=udp 123; of serv
 
 ############################################################
 =TITLE=Reference unknown service
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1a = {
@@ -101,7 +98,6 @@ Error: Expected type 'service:' in attribute 'overlaps' of service:test1a
 
 ############################################################
 =TITLE=Suppressed warning by protocol modifier
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ssh = tcp 22, overlaps;
@@ -125,7 +121,6 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=protocol:ssh; of
 
 ############################################################
 =TITLE=Single protocol won't suppress warning
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:ssh = tcp 22, overlaps;
@@ -153,7 +148,6 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 
 ############################################################
 =TITLE=Show useless overlap, if warning was suppressed by modifier
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 protocol:Ping_Net = icmpv6 8, src_net, dst_net, overlaps;
@@ -178,7 +172,6 @@ DIAG: Removed duplicate permit src=network:n1; dst=network:n2; prt=protocol:Ping
 
 ############################################################
 =TITLE=Don't show useless overlap for disabled service
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -200,7 +193,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Don't show useless attribute if this warning is disabled
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -221,7 +213,6 @@ service:s2 = {
 
 ############################################################
 =TITLE=Multiple larger rules, one suppressed
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -241,54 +232,53 @@ Warning: Redundant rules in service:test compared to service:test:
 
 ############################################################
 =TITLE=Inherited overlaps = restrict, enable, ok
-=PARAMS=--ipv6
 =INPUT=
 owner:o8 = { admins = a8@example.com; overlaps = ok; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
-network:n5 = { ip = ::a01:500/120; }
-network:n6 = { ip = ::a01:600/121; }
-network:n7 = { ip = ::a01:700/120; overlaps = ok; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
+network:n6 = { ip6 = ::a01:600/121; }
+network:n7 = { ip6 = ::a01:700/120; overlaps = ok; }
 network:n8 = {
- ip = ::a01:800/120;
+ ip6 = ::a01:800/120;
  overlaps = restrict;
- host:h8 = { ip = ::a01:80a; owner = o8; }
+ host:h8 = { ip6 = ::a01:80a; owner = o8; }
 }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 router:r3 = {
  managed;
  model = ASA;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r4 = {
  managed;
  model = ASA;
- interface:n5 = { ip = ::a01:502; hardware = n5; }
- interface:n6 = { ip = ::a01:601; hardware = n6; }
- interface:n7 = { ip = ::a01:701; hardware = n7; }
- interface:n8 = { ip = ::a01:801; hardware = n8; }
+ interface:n5 = { ip6 = ::a01:502; hardware = n5; }
+ interface:n6 = { ip6 = ::a01:601; hardware = n6; }
+ interface:n7 = { ip6 = ::a01:701; hardware = n7; }
+ interface:n8 = { ip6 = ::a01:801; hardware = n8; }
 }
 area:all = { anchor = network:n1; overlaps = restrict; }
 area:a1234 = { inclusive_border = interface:r2.n5; overlaps = enable; }
 area:a1 = { border = interface:r1.n1; overlaps = ok; }
 area:a34 = { border = interface:r2.n3; overlaps = ok; }
 area:a4 = { border = interface:r3.n4; overlaps = restrict; }
-any:a6 = { ip = ::a01:600/120; link = network:n6; overlaps = enable; }
+any:a6 = { ip6 = ::a01:600/120; link = network:n6; overlaps = enable; }
 any:a8 = { link = network:n8; overlaps = enable; }
 # n1: restrict, enable, ok
 # n2: restrict, enable

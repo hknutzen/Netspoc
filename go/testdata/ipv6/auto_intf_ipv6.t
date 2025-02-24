@@ -1,26 +1,25 @@
 
 ############################################################
 =TITLE=All interfaces at router at network with virtual and secondary interfaces
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = ::a01:103, ::a01:104;
+  ip6 = ::a01:103, ::a01:104;
   hardware = n1;
-  virtual = { ip = ::a01:101; }
+  virtual = { ip6 = ::a01:101; }
  }
- interface:n2 = { ip = ::a01:203; hardware = n2; virtual = { ip = ::a01:201; } }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; virtual = { ip6 = ::a01:201; } }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:102; hardware = n1; virtual = { ip = ::a01:101; } }
- interface:n2 = { ip = ::a01:202; hardware = n2; virtual = { ip = ::a01:201; } }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; virtual = { ip6 = ::a01:101; } }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; virtual = { ip6 = ::a01:201; } }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 
 service:s1 = {
  user = interface:[interface:[managed & network:n1].[all]].[all];
@@ -46,31 +45,32 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=All interfaces of aggregate in zone cluster
+=TODO= No IPv6
+#
 # Must not add
 # - interface of unmanaged router with bind_nat,
 # - managed interface of unnumbered network.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a09:900/120; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:un = { unnumbered; }
+network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::a09:900/120; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:un = { unnumbered6; }
 any:n2-3 = { link = network:n2; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
- interface:n2 = { ip = ::a01:202; }
+ interface:n2 = { ip6 = ::a01:202; }
  interface:n3 = { bind_nat = n1; }
  interface:un = { bind_nat = n1; }
 }
 router:r3 = {
  model = IOS;
  managed;
- interface:un = { unnumbered; hardware = un; }
+ interface:un = { unnumbered6; hardware = un; }
 }
 service:s = {
  user = interface:[any:n2-3].[all];
@@ -86,15 +86,14 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Ignore managed interface of unnumbered network
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:un = { unnumbered; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:un = { unnumbered6; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:un = { unnumbered; hardware = un; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered6; hardware = un; }
 }
 service:s = {
  user = interface:[managed & network:un, network:n1].[all];
@@ -110,18 +109,17 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Ignore interfaces of unnumbered network
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:un = { unnumbered; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:un = { unnumbered6; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:un = { unnumbered; hardware = un; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered6; hardware = un; }
 }
 router:r2 = {
- interface:un = { unnumbered; }
+ interface:un = { unnumbered6; }
 }
 service:s = {
  user = interface:[network:un, network:n1].[all];
@@ -138,20 +136,19 @@ ipv6 access-list n1_in
 ############################################################
 =TITLE=Add managed interfaces of network at routing_only
 # Must add interface of router with routing_only.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  model = IOS;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  model = IOS;
  managed = routing_only;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 service:s = {
  user = interface:[managed & network:n2].[all];
@@ -169,31 +166,30 @@ ipv6 access-list n1_in
 ############################################################
 =TITLE=Auto interface of network
 =TEMPL=topo
-network:a = { ip = ::a00:0/120; }
+network:a = { ip6 = ::a00:0/120; }
 router:r1 =  {
  managed;
  model = IOS,FW;
  routing = manual;
- interface:a = { ip = ::a00:1; hardware = e1; }
- interface:b1 = { ip = ::a01:101; hardware = e0; }
+ interface:a = { ip6 = ::a00:1; hardware = e1; }
+ interface:b1 = { ip6 = ::a01:101; hardware = e0; }
 }
 router:r2 =  {
  managed;
  model = IOS,FW;
  routing = manual;
- interface:a = { ip = ::a00:2; hardware = f1; }
- interface:b2 = { ip = ::a01:201; hardware = f0; }
+ interface:a = { ip6 = ::a00:2; hardware = f1; }
+ interface:b2 = { ip6 = ::a01:201; hardware = f0; }
 }
-network:b1 = { ip = ::a01:100/120; }
-network:b2 = { ip = ::a01:200/120; }
+network:b1 = { ip6 = ::a01:100/120; }
+network:b2 = { ip6 = ::a01:200/120; }
 router:u = {
- interface:b1 = { ip = ::a01:102; }
- interface:b2 = { ip = ::a01:202; }
- interface:b3 = { ip = ::a01:301; }
+ interface:b1 = { ip6 = ::a01:102; }
+ interface:b2 = { ip6 = ::a01:202; }
+ interface:b3 = { ip6 = ::a01:301; }
 }
-network:b3 = { ip = ::a01:300/120; }
+network:b3 = { ip6 = ::a01:300/120; }
 any:b = { link = network:b1; }
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1 = {
@@ -239,7 +235,6 @@ ipv6 access-list f0_in
 
 ############################################################
 =TITLE=Auto interface of router
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test2 = {
@@ -263,7 +258,6 @@ ipv6 access-list f1_in
 
 ############################################################
 =TITLE=Managed auto interface of unmanaged interface
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test2 = {
@@ -281,7 +275,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=All interfaces of aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -299,7 +292,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=All interfaces of implicit aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -318,7 +310,6 @@ ipv6 access-list e1_in
 ############################################################
 =TITLE=Managed interfaces of implicit aggregate
 # Border interfaces of zone are managed by definition.
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -336,22 +327,20 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Interfaces of matching implicit aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
- user = interface:[any:[ip = ::a01:0/112 & network:b3]].[all];
+ user = interface:[any:[ip6 = ::a01:0/112 & network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
 =ERROR=
 Error: Must not use interface:[..].[all]
- with any:[ip=::a01:0/112 & network:b1] having ip/mask
+ with any:[ip6=::a01:0/112 & network:b1] having ip/mask
  in user of service:s
 =END=
 
 ############################################################
 =TITLE=Auto interfaces of aggregate
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -364,7 +353,6 @@ Error: Must not use interface:[any:..].[auto] in user of service:s
 
 ############################################################
 =TITLE=All interfaces of network
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -382,7 +370,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Managed interfaces of network
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -399,14 +386,13 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Ignore short interface of network
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=SUBST=/interface:b1 = { ip = ::a01:102; }/interface:b1;/
+=SUBST=/interface:b1 = { ip6 = ::a01:102; }/interface:b1;/
 =WARNING=
 Warning: Ignoring interface:u.b1 without IP address in dst of rule in service:s
 =OUTPUT=
@@ -419,7 +405,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=All interfaces from auto interface of network
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -432,7 +417,6 @@ Error: Can't use interface:[network:b1].[auto] inside interface:[..].[all] of us
 
 ############################################################
 =TITLE=All interfaces from auto interface of router
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -451,7 +435,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Auto interface from auto interface of router
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -469,7 +452,6 @@ ipv6 access-list e1_in
 
 ############################################################
 =TITLE=Auto interface from auto interface
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s = {
@@ -482,58 +464,57 @@ Error: Can't use interface:[network:b1].[auto] inside interface:[..].[auto] of u
 
 ############################################################
 =TITLE=Auto interfaces in nested loop
-=PARAMS=--ipv6
 =INPUT=
-network:Serv = {ip = ::a0a:0/116;}
+network:Serv = {ip6 = ::a0a:0/116;}
 router:ZT45 = {
- interface:Serv = {ip = ::a0a:3; virtual = {ip = ::a0a:102;}}
- interface:ZT45 = {ip = ::a15:70e;}
+ interface:Serv = {ip6 = ::a0a:3; virtual = {ip6 = ::a0a:102;}}
+ interface:ZT45 = {ip6 = ::a15:70e;}
 }
-network:ZT45 = {ip = ::a15:70c/126;}
+network:ZT45 = {ip6 = ::a15:70c/126;}
 router:LV41 = {
- interface:Serv = {ip = ::a0a:2; virtual = {ip = ::a0a:102;}}
- interface:LV41 = {ip = ::a16:801;}
+ interface:Serv = {ip6 = ::a0a:2; virtual = {ip6 = ::a0a:102;}}
+ interface:LV41 = {ip6 = ::a16:801;}
 }
-network:LV41 = {ip = ::a16:800/126;}
-network:Trns = {ip = ::a18:114/126;}
-network:Crss = {ip = ::a18:214/126;}
+network:LV41 = {ip6 = ::a16:800/126;}
+network:Trns = {ip6 = ::a18:114/126;}
+network:Crss = {ip6 = ::a18:214/126;}
 router:LV96 = {
- interface:Trns = {ip = ::a18:116;}
- interface:Crss = {ip = ::a18:216;}
- interface:LV96 = {ip = ::a16:816;}
+ interface:Trns = {ip6 = ::a18:116;}
+ interface:Crss = {ip6 = ::a18:216;}
+ interface:LV96 = {ip6 = ::a16:816;}
 }
 router:ZT21 = {
- interface:Trns = {ip = ::a18:115;}
- interface:Crss = {ip = ::a18:215;}
- interface:ZT21 = {ip = ::a15:715;}
+ interface:Trns = {ip6 = ::a18:115;}
+ interface:Crss = {ip6 = ::a18:215;}
+ interface:ZT21 = {ip6 = ::a15:715;}
 }
-network:LV96 = {ip = ::a16:814/126;}
-network:ZT21 = {ip = ::a15:714/126;}
+network:LV96 = {ip6 = ::a16:814/126;}
+network:ZT21 = {ip6 = ::a15:714/126;}
 router:Plus = {
- interface:LV41 = {ip = ::a16:802;}
- interface:LV96 = {ip = ::a16:815;}
- interface:Plus = {ip = ::a17:806;}
+ interface:LV41 = {ip6 = ::a16:802;}
+ interface:LV96 = {ip6 = ::a16:815;}
+ interface:Plus = {ip6 = ::a17:806;}
 }
 router:Base = {
- interface:ZT45	= {ip = ::a15:70d;}
- interface:ZT21 = {ip = ::a15:716;}
- interface:Base = {ip = ::a17:706;}
+ interface:ZT45	= {ip6 = ::a15:70d;}
+ interface:ZT21 = {ip6 = ::a15:716;}
+ interface:Base = {ip6 = ::a17:706;}
 }
-network:Plus = {ip = ::a17:804/126;}
-network:Base = {ip = ::a17:704/126;}
+network:Plus = {ip6 = ::a17:804/126;}
+network:Base = {ip6 = ::a17:704/126;}
 router:R5 = {
- interface:Plus = {ip = ::a17:805;}
- interface:Base = {ip = ::a17:705;}
- interface:G112 = {ip = ::a17:605;}
+ interface:Plus = {ip6 = ::a17:805;}
+ interface:Base = {ip6 = ::a17:705;}
+ interface:G112 = {ip6 = ::a17:605;}
 }
-network:G112 = {ip = ::a17:604/126;}
+network:G112 = {ip6 = ::a17:604/126;}
 router:FW = {
  managed;
  model = ASA;
- interface:G112 = {ip = ::a17:606; hardware = outside; }
- interface:Mgmt = {ip = ::a0b:b0d; hardware = inside;}
+ interface:G112 = {ip6 = ::a17:606; hardware = outside; }
+ interface:Mgmt = {ip6 = ::a0b:b0d; hardware = inside;}
 }
-network:Mgmt = {ip = ::a0b:b00/120;}
+network:Mgmt = {ip6 = ::a0b:b00/120;}
 service:IPSEC = {
  user = interface:R5.[auto],
         interface:Base.[auto],
@@ -577,23 +558,22 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Different paths to auto interface with same result
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = {ip = ::a01:100/120;}
+network:n1 = {ip6 = ::a01:100/120;}
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = {ip = ::a01:101;hardware = n1;}
- interface:n2 = {ip = ::a01:201;hardware = n2;}
+ interface:n1 = {ip6 = ::a01:101;hardware = n1;}
+ interface:n2 = {ip6 = ::a01:201;hardware = n2;}
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h2 = { ip = ::a01:20a;}
+ ip6 = ::a01:200/120;
+ host:h2 = { ip6 = ::a01:20a;}
 }
 router:r2 = {
  model = Linux;
  managed;
- interface:n2 = {ip = ::a01:202; hardware = n2;}
+ interface:n2 = {ip6 = ::a01:202; hardware = n2;}
 }
 service:s1 = {
  user = host:h2, network:n1;
@@ -615,18 +595,17 @@ service:s1 = {
 
 ############################################################
 =TITLE=Different paths to auto interface with different result
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = {ip = ::a01:100/120;}
+network:n1 = {ip6 = ::a01:100/120;}
 router:r1 = {
  model = Linux;
  managed;
- interface:n1 = {ip = ::a01:101;hardware = n1;}
- interface:n2 = {ip = ::a01:201;hardware = n2;}
+ interface:n1 = {ip6 = ::a01:101;hardware = n1;}
+ interface:n2 = {ip6 = ::a01:201;hardware = n2;}
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h2 = { ip = ::a01:20a;}
+ ip6 = ::a01:200/120;
+ host:h2 = { ip6 = ::a01:20a;}
 }
 service:s1 = {
  user = host:h2, network:n1;
@@ -649,33 +628,32 @@ service:s1 = {
 ############################################################
 =TITLE=Auto interface with pathrestriction
 # Would not find result if search starts at router.
-=PARAMS=--ipv6
 =INPUT=
-network:n1 =  { ip = ::a01:100/120; }
+network:n1 =  { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = Vlan20; }
- interface:n2 = { ip = ::a01:201; hardware = G0/1;
+ interface:n1 = { ip6 = ::a01:101; hardware = Vlan20; }
+ interface:n2 = { ip6 = ::a01:201; hardware = G0/1;
  }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = Vlan20; }
- interface:n2 = { ip = ::a01:202; hardware = G0/1;  }
+ interface:n1 = { ip6 = ::a01:102; hardware = Vlan20; }
+ interface:n2 = { ip6 = ::a01:202; hardware = G0/1;  }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r3 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n2 = { ip = ::a01:246; hardware = E0; }
- interface:n3 = { ip = ::a01:301; hardware = E1; }
+ interface:n2 = { ip6 = ::a01:246; hardware = E0; }
+ interface:n3 = { ip6 = ::a01:301; hardware = E1; }
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 pathrestriction:restrict1 =
  interface:r1.n1,
  interface:r3.n2,
@@ -708,28 +686,27 @@ ipv6 access-list E0_in
 
 ############################################################
 =TITLE=Ignore interface with pathrestriction at border of loop (1)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:t2 = { ip = ::a09:202; hardware = t2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:202; hardware = t2; }
 }
-network:t1 = { ip = ::a09:100/120; }
-network:t2 = { ip = ::a09:200/120; }
+network:t1 = { ip6 = ::a09:100/120; }
+network:t2 = { ip6 = ::a09:200/120; }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:t1 = { ip = ::a09:101; hardware = t1; }
- interface:t2 = { ip = ::a09:201; hardware = t2; }
- interface:n2 = { ip = ::a01:201; hardware = n2 ;}
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:201; hardware = t2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2 ;}
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 pathrestriction:p =
  interface:r1.n1,
  interface:r1.t2,
@@ -751,28 +728,27 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Ignore interface with pathrestriction at border of loop (2)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = IOS;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r3  = {
  managed;
  model = IOS;
- interface:n2 = { ip = ::a01:203; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 pathrestriction:p1 = interface:r1.n2, interface:r2.n2;
 service:s1 = {
@@ -788,26 +764,25 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Find auto interface with pathrestriction in loop
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3;}
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3;}
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 pathrestriction:p =
  interface:r1.n2,
  interface:r2.n2,
@@ -829,33 +804,32 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Find auto interface with pathrestriction at border of loop at zone
-=PARAMS=--ipv6
 =INPUT=
-network:n1 =  { ip = ::a01:100/120; }
+network:n1 =  { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2;
  }
 }
 router:r2 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2;  }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2;  }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r3 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:203; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 pathrestriction:restrict1 =
  interface:r2.n1,
  interface:r3.n2,
@@ -875,37 +849,37 @@ ipv6 access-list n2_in
 ############################################################
 =TITLE=Multiple auto interfaces in src and dst
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r3 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r4 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 service:s = {
  user = interface:r1.[auto], interface:r2.[auto];
@@ -913,7 +887,6 @@ service:s = {
         dst = interface:r3.[auto], interface:r4.[auto];
         prt = tcp 22;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/r1
@@ -991,7 +964,6 @@ ipv6 access-list n4_in
 =TITLE=Multiple auto interfaces in src and dst with pathrestriction
 # pathrestriction leads to more complicated expansion of auto interfaces,
 # because result is different for different destinations.
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 pathrestriction:r = interface:r1.n4, interface:r3.n3;
@@ -1062,29 +1034,28 @@ ipv6 access-list n4_in
 
 ############################################################
 =TITLE=Auto interface of internally split router with pathrestriction (1)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 =  { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 =  { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 # r1 is split internally into two parts
 # r1 with n1,n2
 # r1' with n3
 # both connected by unnumbered network.
 router:r1 = {
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 pathrestriction:r =
  interface:r1.n3,
  interface:r2.n3,
@@ -1121,32 +1092,31 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Auto interface of internally split router with pathrestriction (2)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
- interface:n1 = { ip = ::a01:102; }
- interface:n4 = { ip = ::a01:402; loopback; }
- interface:n3 = { ip = ::a01:302; }
+ interface:n1 = { ip6 = ::a01:102; }
+ interface:n4 = { ip6 = ::a01:402; loopback; }
+ interface:n3 = { ip6 = ::a01:302; }
 }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r3 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = ::a01:209; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n2 = { ip6 = ::a01:209; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
-network:n5 = { ip = ::a01:500/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 pathrestriction:r =
  interface:r1.n2,
  interface:r2.n3,
@@ -1169,38 +1139,37 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Auto interface of internally split router with pathrestriction (3)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n4 = { ip = ::a01:400/120; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:r2 = {
- interface:n1 = { ip = ::a01:102; }
- interface:n4 = { ip = ::a01:402; }
- interface:n3 = { ip = ::a01:302; }
+ interface:n1 = { ip6 = ::a01:102; }
+ interface:n4 = { ip6 = ::a01:402; }
+ interface:n3 = { ip6 = ::a01:302; }
 }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r3 = {
  interface:n2;
  interface:n3;
  interface:n5;
 }
-network:n5 = { ip = ::a01:500/120; }
+network:n5 = { ip6 = ::a01:500/120; }
 router:r4 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n5 = { ip = ::a01:501; hardware = n5; }
- interface:n6 = { ip = ::a01:601; hardware = n6; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
+ interface:n6 = { ip6 = ::a01:601; hardware = n6; }
 }
-network:n6 = { ip = ::a01:600/120; }
+network:n6 = { ip6 = ::a01:600/120; }
 pathrestriction:r =
  interface:r1.n2,
  interface:r2.n3,
@@ -1221,71 +1190,71 @@ access-group n6_in in interface n6
 
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (1)
-=PARAMS=--ipv6
 =INPUT=
-network:a = { ip = ::a00:0/120; host:netspoc = { ip = ::a00:a; } }
+network:a = { ip6 = ::a00:0/120; host:netspoc = { ip6 = ::a00:a; } }
 router:r1 =  {
  managed;
  model = IOS,FW;
  policy_distribution_point = host:netspoc;
  routing = manual;
- interface:a = { ip = ::a00:1; hardware = e1; }
- interface:b1 = { ip = ::a01:101; hardware = e0; }
+ interface:a = { ip6 = ::a00:1; hardware = e1; }
+ interface:b1 = { ip6 = ::a01:101; hardware = e0; }
 }
 router:r2 =  {
  managed;
  model = IOS,FW;
  routing = manual;
- interface:a = { ip = ::a00:2; hardware = e1; }
- interface:b1 = { ip = ::a01:102; hardware = e0; }
+ interface:a = { ip6 = ::a00:2; hardware = e1; }
+ interface:b1 = { ip6 = ::a01:102; hardware = e0; }
 }
-network:b1 = { ip = ::a01:100/120; }
+network:b1 = { ip6 = ::a01:100/120; }
 service:test = {
  user = interface:r1.[auto];
  permit src = network:a; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a00:1,::a01:101 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["::a00:1","::a01:101"],"policy_distribution_point":"::a00:a"}
 =END=
 
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (2)
+=TODO= No IPv6
+#
 # Find interfaces in given order n3, n4,
 # even if reversed path was already found previously while
 # "Checking and marking rules with hidden or dynamic NAT"
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:16f; } }
-network:n2 = { ip = ::a01:200/126; }
-network:n3 = { ip = ::a01:300/126; }
-network:n4 = { ip = ::a01:400/126; }
-network:n5 = { ip = ::a01:500/123; nat:h = { hidden; } }
-network:n6 = { ip = ::a01:600/123; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:16f; } }
+network:n2 = { ip6 = ::a01:200/126; }
+network:n3 = { ip6 = ::a01:300/126; }
+network:n4 = { ip6 = ::a01:400/126; }
+network:n5 = { ip6 = ::a01:500/123; nat:h = { hidden; } }
+network:n6 = { ip6 = ::a01:600/123; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n6 = { ip = ::a01:601; hardware = n6; bind_nat = h; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n6 = { ip6 = ::a01:601; hardware = n6; bind_nat = h; }
 }
 router:r2 = {
  model = IOS;
  managed;
  routing = manual;
  policy_distribution_point = host:h1;
- interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
- interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 router:r3 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
 }
 service:s1 = {
  user = network:n1;
@@ -1293,25 +1262,24 @@ service:s1 = {
  permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
 }
 =OUTPUT=
---ipv6/r2
-! [ IP = ::a01:302,::a01:401 ]
+--ipv6/r2.info
+{"generated_by":"devel","model":"IOS","ip_list":["::a01:302","::a01:401"],"policy_distribution_point":"::a01:16f"}
 =END=
 
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (3)
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:16f; } }
-network:n2 = { ip = ::a01:200/126; }
-network:n3 = { ip = ::a01:300/126; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:16f; } }
+network:n2 = { ip6 = ::a01:200/126; }
+network:n3 = { ip6 = ::a01:300/126; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
  policy_distribution_point = host:h1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 
 service:s1 = {
@@ -1321,46 +1289,45 @@ service:s1 = {
         prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a01:201,::a01:301 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:201","::a01:301"],"policy_distribution_point":"::a01:16f"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
 =TITLE=Only one interface in loop talks to policy_distribution_point
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:103; hardware = n1; virtual = { ip = ::a01:101; } }
- interface:n2 = { ip = ::a01:203; hardware = n2; virtual = { ip = ::a01:201; } }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; virtual = { ip6 = ::a01:101; } }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; virtual = { ip6 = ::a01:201; } }
 }
 router:r2 = {
  managed;
  model = ASA;
  policy_distribution_point = host:netspoc;
- interface:n1 = { ip = ::a01:102; hardware = n1; virtual = { ip = ::a01:101; } }
- interface:n2 = { ip = ::a01:202; hardware = n2; virtual = { ip = ::a01:201; } }
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; virtual = { ip6 = ::a01:101; } }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; virtual = { ip6 = ::a01:201; } }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r3 = {
  managed;
  model = IOS;
- interface:n2 = { ip = ::a01:209; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:209; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120; host:netspoc = { ip = ::a01:309; } }
+network:n3 = { ip6 = ::a01:300/120; host:netspoc = { ip6 = ::a01:309; } }
 service:s = {
  user = interface:r1.[auto], interface:r2.[auto];
  permit src = network:n3; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---ipv6/r1
-! [ IP = ::a01:203 ]
---ipv6/r2
-! [ IP = ::a01:202 ]
+--ipv6/r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:203"],"policy_distribution_point":"::a01:309"}
+--ipv6/r2.info
+{"generated_by":"devel","model":"ASA","ip_list":["::a01:202"],"policy_distribution_point":"::a01:309"}
 =END=
 
 ############################################################
@@ -1368,19 +1335,18 @@ service:s = {
 
 ############################################################
 =TEMPL=topo
-network:x = { ip = ::a01:100/120; }
+network:x = { ip6 = ::a01:100/120; }
 router:r = {
  model = IOS, FW;
  managed;
- interface:x = { ip = ::a01:101; hardware = e0; }
- interface:y = { ip = ::a01:202; hardware = e1; }
+ interface:x = { ip6 = ::a01:101; hardware = e0; }
+ interface:y = { ip6 = ::a01:202; hardware = e1; }
 }
-network:y = { ip = ::a01:200/120; }
+network:y = { ip6 = ::a01:200/120; }
 =END=
 
 ############################################################
 =TITLE=Interface and auto interface in intersection
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -1393,7 +1359,6 @@ Warning: Useless delete of interface:r.x in user of service:test
 
 ############################################################
 =TITLE=Interface and auto interface in union
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 group:g = interface:r.[auto], interface:r.x, network:y;
@@ -1407,7 +1372,6 @@ service:test = {
 
 ############################################################
 =TITLE=Interface and auto network interface
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -1420,7 +1384,6 @@ Warning: Useless delete of interface:r.x in user of service:test
 
 ############################################################
 =TITLE=Auto interface and auto network interface
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -1433,7 +1396,6 @@ Warning: Useless delete of interface:r.[auto] in user of service:test
 
 ############################################################
 =TITLE=Non conflicting auto network interfaces
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -1446,7 +1408,6 @@ Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 
 ############################################################
 =TITLE=Non conflicting auto network interface with interface
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -1460,42 +1421,41 @@ Warning: Useless delete of interface:r.y in user of service:test
 ############################################################
 =TITLE=Find interfaces of subnet in area, incl. loopback
 =TEMPL=input
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3Sup = { ip = ::a01:300/120; }
-network:n3 = { ip = ::a01:300/121; subnet_of = network:n3Sup; }
-network:n4Sup = { ip = ::a01:400/120; }
-network:n4 = { ip = ::a01:400/121; subnet_of = network:n4Sup; }
-network:trans = { unnumbered; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3Sup = { ip6 = ::a01:300/120; }
+network:n3 = { ip6 = ::a01:300/121; subnet_of = network:n3Sup; }
+network:n4Sup = { ip6 = ::a01:400/120; }
+network:n4 = { ip6 = ::a01:400/121; subnet_of = network:n4Sup; }
+network:trans = { unnumbered6; }
 area:a3-4 = { inclusive_border = interface:r2.n2; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:lo = { ip = ::a09:901; hardware = lo; loopback; }
- interface:n3Sup = { ip = ::a01:381; hardware = n3Sup; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:lo = { ip6 = ::a09:901; hardware = lo; loopback; }
+ interface:n3Sup = { ip6 = ::a01:381; hardware = n3Sup; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 router:r3 = {
- interface:n3Sup = { ip = ::a01:382; hardware = n3Sup; }
- interface:trans = { unnumbered; }
+ interface:n3Sup = { ip6 = ::a01:382; hardware = n3Sup; }
+ interface:trans = { unnumbered6; }
 }
 router:r4 = {
- interface:trans = { unnumbered; }
- interface:lo = { ip = ::a09:902; hardware = lo; loopback; }
- interface:n3 = { ip = ::a01:301; }
+ interface:trans = { unnumbered6; }
+ interface:lo = { ip6 = ::a09:902; hardware = lo; loopback; }
+ interface:n3 = { ip6 = ::a01:301; }
 }
 router:r5 = {
- interface:n4 = { ip = ::a01:402; }
- interface:n4Sup = { ip = ::a01:481; hardware = n4Sup; }
+ interface:n4 = { ip6 = ::a01:402; }
+ interface:n4Sup = { ip6 = ::a01:481; hardware = n4Sup; }
 }
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 service:test = {
@@ -1522,7 +1482,6 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Find interfaces of subnet in area, no managed loopback
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 service:test = {
@@ -1547,13 +1506,12 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Must not use auto interface of host
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 service:test = {
  user = interface:[host:h1].[auto] ;
@@ -1565,13 +1523,12 @@ Error: Unexpected 'host:h1' in interface:[..].[auto] of user of service:test
 
 ############################################################
 =TITLE=Unresolvable auto interface and interface
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 service:test = {
  user = interface:r99.[auto], interface:88.n1;
@@ -1584,13 +1541,12 @@ Error: Can't resolve interface:88.n1 in user of service:test
 
 ############################################################
 =TITLE=Auto interface in wrong context
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:103; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; }
 }
 service:s = {
  user = host:[interface:r1.[auto]],

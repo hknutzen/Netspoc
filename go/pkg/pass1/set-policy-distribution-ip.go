@@ -1,6 +1,9 @@
 package pass1
 
-import "golang.org/x/exp/maps"
+import (
+	"maps"
+	"slices"
+)
 
 //#############################################################################
 // Find IP of each device, reachable from policy distribution point.
@@ -30,13 +33,13 @@ func (c *spoc) setPolicyDistributionIP() {
 				for _, m := range l {
 					seen[m] = true
 					if p := m.policyDistributionPoint; p != nil {
-						pdpRouters = append(pdpRouters, m)
 						if found != nil && found != p {
 							c.err("Instances of router:%s must not use different"+
 								" 'policy_distribution_point':\n -%s\n -%s",
 								m.deviceName, found, p)
-							break
+							m.policyDistributionPoint = nil
 						} else {
+							pdpRouters = append(pdpRouters, m)
 							found = p
 						}
 					}
@@ -144,7 +147,7 @@ func (c *spoc) setPolicyDistributionIP() {
 
 		// Ready, if exactly one management interface was found.
 		if len(foundMap) == 1 {
-			result = maps.Keys(foundMap)
+			result = slices.Collect(maps.Keys(foundMap))
 		} else if r.managed != "" || r.routingOnly {
 
 			// debug("%s: %d", r.name, len(foundMap))

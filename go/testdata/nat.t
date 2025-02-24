@@ -111,7 +111,7 @@ network:n1b = {
  nat:t2 = { ip = 10.9.2.0/24; }
 }
 =ERROR=
-Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =END=
 
 ############################################################
@@ -298,7 +298,7 @@ access-group n3_in in interface n3
 =TITLE=Declared subnet of NAT network in area doesn't match
 =INPUT=[[input 10.11.3.16/28]]
 =ERROR=
-Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's IP/mask
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's address
 =END=
 
 ############################################################
@@ -513,7 +513,7 @@ Warning: nat:C of network:Test is subnet of network:X
 =TITLE=Declared NAT network subnet doesn't match
 =INPUT=[[input  {ip: "10.8.4.240/28", sub: "subnet_of = network:X;"}]]
 =ERROR=
-Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
+Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's address
 =END=
 
 ############################################################
@@ -665,7 +665,7 @@ router:filter = {
 }
 network:X = { ip = 10.8.3.0/24; }
 =WARNING=
-Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
+Warning: Ignoring duplicate element in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
 Warning: Ignoring useless nat:E/F bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
@@ -696,6 +696,66 @@ Warning: Ignoring useless nat:h bound at interface:r3.n3
 =END=
 
 ############################################################
+=TITLE=Bound to same interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2, n3; }
+ interface:n5 = { bind_nat = n1, n2, n3; }
+}
+=WARNING=
+Warning: nat:n1 and nat:n2 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n1 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+Warning: nat:n2 and nat:n3 are bound to same interfaces
+ and should be merged into a single definition
+=END=
+
+############################################################
+=TITLE=Bound to same and different interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n2, n3; }
+ interface:n6 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Bound to same interfaces, but one is hidden
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { hidden; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/29; dynamic; }}
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1, n2; }
+ interface:n5 = { bind_nat = n1, n3; }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Non matching static NAT mask
 =INPUT=
 network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.8.8.0/23; } }
@@ -722,8 +782,8 @@ router:r1 = {
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
-Error: nat:x: IP of host:h1 doesn't match IP/mask of network:n1
-Error: nat:x: IP of interface:r1.n1 doesn't match IP/mask of network:n1
+Error: nat:x: IP of host:h1 doesn't match address of network:n1
+Error: nat:x: IP of interface:r1.n1 doesn't match address of network:n1
 =END=
 
 ############################################################
@@ -869,8 +929,8 @@ network:Test =  {
 }
 router:C = {
  {{.}}
- model = ASA;
- interface:Test = { ip = 10.9.1.1; hardware = inside;}
+ model = IOS;
+ interface:Test = { ip = 10.9.1.1; hardware = inside; nat:C = { ip = 1.9.2.11; }}
  interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
 }
 network:Trans = { ip = 10.0.0.0/24; }
@@ -1908,7 +1968,7 @@ router:r2 = {
 network:n2a = { ip = 172.18.2.0/24; }
 area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
 =ERROR=
-Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical IP/mask
+Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical address
  in nat_domain:[network:n1]
 =END=
 
@@ -1942,9 +2002,9 @@ router:asa1 = {
  policy_distribution_point = host:h3;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-router:asa2 = {
+router:r2 = {
  managed;
- model = ASA;
+ model = Linux;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = dyn; }
 }
@@ -1953,7 +2013,7 @@ service:s = {
  permit src = host:h3; dst = user; prt = tcp 22;
 }
 =ERROR=
-Error: interface:asa1.n2 needs static translation for nat:dyn at router:asa2 to be valid in rule
+Error: interface:asa1.n2 needs static translation for nat:dyn at router:r2 to be valid in rule
  permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
 =END=
 
@@ -2104,7 +2164,7 @@ router:r1 = {
 network:t = { ip = 10.4.4.0/30; }
 router:r2 = {
  managed;
- model = ASA;
+ model = Linux;
  routing = manual;
  interface:t = {ip = 10.4.4.2; hardware = t; bind_nat = b;}
  interface:b = {ip = 10.2.2.1; hardware = b;}
@@ -2226,7 +2286,7 @@ network:t = { ip = 10.2.3.0/24; }
 router:r2 =  {
  managed;
  model = ASA;
- interface:t  = { ip = 10.2.3.2; hardware = t; }
+ interface:t  = { ip = 10.2.3.2; hardware = t; bind_nat = t1; }
  interface:k1 = { ip = 10.2.1.2; hardware = k1; bind_nat = h1; }
  interface:k2 = { ip = 10.2.2.2; hardware = k2; bind_nat = h2; }
 }
@@ -2256,7 +2316,7 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = t3; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:t  = { ip = 10.2.0.1; hardware = t; bind_nat = t1, t3; }
@@ -2438,7 +2498,7 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
-=TITLE=Groupd NAT tags with multiple NAT domains
+=TITLE=Grouped NAT tags with multiple NAT domains
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -2456,11 +2516,11 @@ network:n8 = { ip = 10.1.8.0/24;
  nat:n1b = { ip = 10.9.8.0/24; }
 }
 router:r1 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- interface:n1;
+ interface:n1 = { bind_nat = n4; }
  interface:n3 = { bind_nat = n1b; }
 }
 router:r3 = {
@@ -2541,12 +2601,97 @@ Error: Must not change dynamic nat:t1 to static using nat:t2
 =END=
 
 ############################################################
-=TITLE=Prevent NAT from hidden back to IP
+=TITLE=Inconsistent NAT in loop with multiple hidden NAT tags
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ nat:h2 = { hidden; }
+ nat:h3 = { hidden; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ interface:n3;
+ interface:n4 = { bind_nat = h1; }
+ interface:n5 = { bind_nat = h3; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5;
+ interface:n6 = { bind_nat = h2; }
+}
+=ERROR=
+Error: Inconsistent bind_nat in loop
+ - interface:r2.n4: bind_nat = h1
+ - interface:r2.n5: bind_nat = h3
+=END=
+
+############################################################
+=TITLE=Multiple hidden NAT applied in sequence
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ nat:h2 = { hidden; }
+ nat:h3 = { hidden; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h1; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4 = { bind_nat = h2; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5 = { bind_nat = h3; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n3, network:n4, network:n5; prt = tcp 80;
+}
+=ERROR=
+Error: network:n1 is hidden by nat:h1 in rule
+ permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
+Error: network:n1 is hidden by nat:h2 in rule
+ permit src=network:n1; dst=network:n4; prt=tcp 80; of service:s1
+Error: network:n1 is hidden by nat:h2 in rule
+ permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
+Error: network:n2 is hidden by nat:h2 in rule
+ permit src=network:n2; dst=network:n4; prt=tcp 80; of service:s1
+Error: network:n2 is hidden by nat:h3 in rule
+ permit src=network:n2; dst=network:n5; prt=tcp 80; of service:s1
+=END=
+
+############################################################
+=TITLE=Multiple hidden NAT is ok
 =INPUT=
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
- nat:t2 = { ip = 10.9.9.0/24; }
+ nat:t2 = { hidden; }
 }
 router:R0 = {
  interface:U1;
@@ -2560,18 +2705,15 @@ router:R2 = {
  interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
 }
 network:K = { ip = 10.2.2.0/24; }
-=ERROR=
-Error: Must not change hidden nat:t1 using nat:t2
- for network:U1 at router:R2
-=END=
+=WARNING=NONE
 
 ############################################################
-=TITLE=Prevent multiple hidden NAT
+=TITLE=Prevent NAT from hidden back to IP
 =INPUT=
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
- nat:t2 = { hidden; }
+ nat:t2 = { ip = 10.9.9.0/24; }
 }
 router:R0 = {
  interface:U1;
@@ -2970,6 +3112,49 @@ Error: Must not apply dynamic NAT 'd' to dst of rule
 =END=
 
 ############################################################
+=TITLE=Mixed static and dynamic NAT with same tag
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:d = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:d = { ip = 10.9.2.0/27; dynamic; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = d; }
+}
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+pathrestriction:p = interface:r2.n3, interface:r4.n2;
+
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not apply dynamic NAT 'd' to src of rule
+ permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
+ NAT 'd' is active at
+ - interface:r3.n4
+ - interface:r4.n4
+ Add pathrestriction to exclude this path
+=END=
+
+############################################################
 =TITLE=Inconsistent NAT in loop (1)
 =INPUT=
 network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
@@ -2986,8 +3171,9 @@ router:r2 = {
 }
 network:b = {ip = 10.156.5.160/28;}
 =ERROR=
-Error: Inconsistent NAT in loop at router:r1:
- nat:(none) vs. nat:h
+Error: Inconsistent bind_nat in loop
+ - interface:r1.b: bind_nat = h
+ - interface:r1.a: (none)
 =END=
 
 ############################################################
@@ -3012,10 +3198,15 @@ router:r3 = {
  interface:n4 = { bind_nat = x; }
 }
 =ERROR=
-Error: Inconsistent NAT in loop at router:r2:
- nat:(none) vs. nat:x
-Error: Inconsistent NAT in loop at router:r3:
- nat:(none) vs. nat:x
+Error: Inconsistent bind_nat in loop
+ - interface:r2.n1: bind_nat = x
+ - interface:r2.n3: (none)
+Error: Inconsistent bind_nat in loop
+ - interface:r3.n4: bind_nat = x
+ - interface:r3.n3: (none)
+Error: Inconsistent bind_nat in loop
+ - interface:r3.n3: (none)
+ - interface:r3.n1: bind_nat = x
 =END=
 
 ############################################################
@@ -3384,6 +3575,43 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
+=TITLE=ASA checks real IP of host with dynamic NAT
+=INPUT=
+network:Test =  {
+ ip = 10.9.1.0/24;
+ nat:C = { ip = 1.9.2.0/24; dynamic;}
+ host:h3 = { ip = 10.9.1.3; }
+}
+router:C = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = inside; }
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+}
+network:Trans = { ip = 10.0.0.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = {
+  ip = 10.0.0.2;
+  hardware = inside;
+ }
+ interface:X = { ip = 10.8.3.1; hardware = outside; }
+}
+network:X = { ip = 10.8.3.0/24; }
+service:s1 = {
+ user = network:X;
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+=OUTPUT=
+-- C
+! outside_in
+access-list outside_in extended permit tcp 10.8.3.0 255.255.255.0 host 10.9.1.3 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+=END=
+
+############################################################
 =TITLE=ASA uses real IP, more than 2 effective NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
@@ -3647,7 +3875,7 @@ network:t = { ip = 10.9.1.0/24; }
 router:r2 = {
  managed;
  model = ASA;
- interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:t = { ip = 10.9.1.2; hardware = t; bind_nat = intern1; }
  interface:extern = { ip = 2.2.2.2; hardware = outside; }
 }
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
@@ -3675,8 +3903,8 @@ access-group t_in in interface t
 -- r2
 ! t_in
 object-group network g0
- network-object 2.1.1.0 255.255.255.0
  network-object 2.1.2.0 255.255.255.0
+ network-object 10.1.1.0 255.255.255.0
 access-list t_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
@@ -4091,10 +4319,9 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
-=TITLE=Multiple subnets with identical NAT IP
+=TITLE=Multiple networks with identical NAT IP
 # Must not show warning for network:n2.
-# Both subnets must be marked as subnet although they have identical
-# IP addresses in NAT domain n4.
+# Both subnets have identical IP addresses in NAT domain n4.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
@@ -4119,32 +4346,52 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
-=TITLE=NAT definitions with different type.
+=TITLE=Multiple subnets with identical NAT IP
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.1.0/24; } }
-network:n2 = { ip = 10.1.2.0/24; nat:x = { ip = 10.9.2.2/31; dynamic; } }
-network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
-network:n4 = { ip = 10.1.4.0/24; }
-router:r1 = {
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+router:u = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:lo = { ip = 10.1.5.0; loopback; nat:x = { hidden; } }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.127.0.1; hardware = n4; bind_nat = a; }
+}
+network:n4 = { ip = 10.127.0.0/16; }
+=WARNING=
+Warning: nat:a of network:n1 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+Warning: nat:a of network:n2 is subnet of network:n4
+ in nat_domain:[network:n4].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
+=TITLE=Mixed hidden and non hidden.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:y = { ip = 10.9.2.2/31; dynamic; } }
+network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1 = { bind_nat = y; }
+ interface:n2;
+ interface:n3;
+ interface:lo = { ip = 10.1.5.0; loopback; nat:y = { hidden; } }
  interface:n4 = { bind_nat = x; }
 }
 =ERROR=
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - dynamic for network:n2
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for network:n3
-Error: All definitions of nat:x must have equal type.
- But found
- - static for network:n1
- - hidden for interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:y.
+ Check network:n2 and interface:r1.lo
+Error: Must not mix hidden and real NAT at nat:x.
+ Check network:n3 and network:n1
 =END=
 
 ############################################################
@@ -4198,7 +4445,7 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = tcp;
 }
 =ERROR=
-Error: any:n1 and network:n1 have identical IP/mask in any:[network:n1]
+Error: any:n1 and network:n1 have identical address in any:[network:n1]
 =END=
 
 ############################################################
@@ -4354,6 +4601,49 @@ router:r1 = {
 }
 =WARNING=
 Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
+=TITLE=Useless subnet_of with network 0/0 present
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ nat:h2 = { identity; }
+ subnet_of = network:n2;
+}
+network:n2 = {
+ ip = 10.1.0.0/21;
+ nat:h2 = { hidden; }
+}
+network:inet = { ip = 0.0.0.0/0; has_subnets; }
+router:r1 = {
+ interface:n1 = { bind_nat = h2; }
+ interface:n2 = { bind_nat = h1; }
+ interface:inet = { bind_nat = h2; }
+}
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
+=TITLE=Must find subnet relation even with intermediate aggregate and NAT
+=INPUT=
+network:n0 = { ip = 10.0.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
+any:n1 = { ip = 10.1.0.0/22; link = network:n1; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.0.0.1; hardware = n0; bind_nat = h2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; }
+}
+=WARNING=
+Warning: network:n1 is subnet of network:n2
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
 =END=
 
 ############################################################

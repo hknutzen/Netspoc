@@ -590,6 +590,32 @@ service:s2 = {
 =PARAMS=host:c host:d
 
 ############################################################
+=TITLE=Remove some rules of service
+=INPUT=
+service:x = {
+ user = host:a;
+ deny   src = host:x;
+        dst = user;
+        prt = tcp 80;
+ permit src = user;
+        dst = group:y,
+              host:x,
+              ;
+        prt = tcp;
+ permit src = host:x;
+        dst = user;
+        prt = tcp;
+}
+=OUTPUT=
+service:x = {
+ user = host:a;
+ permit src = user;
+        dst = group:y;
+        prt = tcp;
+}
+=PARAMS=host:x
+
+############################################################
 =TITLE=Find and change umlauts
 =INPUT=
 group:BÖSE =
@@ -625,7 +651,7 @@ group:g =
  interface:r.n.sec,
  host:abc,
 ;
-=FOPTION=
+=FILE_OPTION=
 any:aaa
 network:abx
 host:id:xyz@dom

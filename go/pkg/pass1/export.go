@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2023 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2024 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -26,19 +26,18 @@ https://github.com/hknutzen/Netspoc-Web
 */
 
 import (
+	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -69,17 +68,11 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 	c.writeJson(dir+"/"+path, data)
 }
 
-func printNetworkIp(n *network) string {
-	pIP := n.ipp.Addr().String()
-	bits := strconv.Itoa(n.ipp.Bits())
-	return pIP + "/" + bits
-}
-
 type jsonMap map[string]interface{}
 
 // Add attributes ip and nat to dst object.
 func ipNatForObject(obj srvObj, dst jsonMap) {
-	var ip string
+	var ip, ip6 string
 	natMap := make(map[string]string)
 
 	// This code is a modified copy of func address.
@@ -98,11 +91,14 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return n.ipp.Addr().String()
 			}
 
-			return printNetworkIp(n)
+			return n.ipp.String()
 		}
 		ip = getIp(x)
 		for tag, natNet := range x.nat {
 			natMap[tag] = getIp(natNet)
+		}
+		if n6 := x.combined46; n6 != nil {
+			ip6 = n6.ipp.String()
 		}
 	case *host:
 		getIp := func(h *host, n *network) string {
@@ -118,7 +114,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				}
 
 				// Dynamic NAT, take whole network.
-				return printNetworkIp(n)
+				return n.ipp.String()
 			}
 			if ip := h.ip; ip.IsValid() {
 				return mergeIP(ip, n).String()
@@ -132,8 +128,14 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 		for tag, natNet := range n.nat {
 			natMap[tag] = getIp(x, natNet)
 		}
+		if h6 := x.combined46; h6 != nil {
+			if ip := h6.ip; ip.IsValid() {
+				ip6 = ip.String()
+			} else {
+				ip6 = h6.ipRange.String()
+			}
+		}
 	case *routerIntf:
-
 		getIp := func(intf *routerIntf, n *network) string {
 			if n.dynamic {
 				natTag := n.natTag
@@ -147,7 +149,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				}
 
 				// Dynamic NAT, take whole network.
-				return printNetworkIp(n)
+				return n.ipp.String()
 			}
 			switch intf.ipType {
 			case shortIP:
@@ -156,7 +158,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return "bridged"
 			case negotiatedIP:
 				// Take whole network.
-				return printNetworkIp(n)
+				return n.ipp.String()
 			default:
 				return mergeIP(intf.ip, n).String()
 			}
@@ -166,19 +168,30 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 		for tag, natNet := range n.nat {
 			natMap[tag] = getIp(x, natNet)
 		}
+		if intf6 := x.combined46; intf6 != nil {
+			ip6 = getIp(intf6, intf6.network)
+		}
 	}
 	dst["ip"] = ip
+	if ip6 != "" {
+		dst["ip6"] = ip6
+	}
 	if len(natMap) != 0 {
 		dst["nat"] = natMap
 	}
 }
 
-// Zone with network 0/0 doesn't have an aggregate 0/0.
 func (c *spoc) getZoneName(z *zone) string {
+	// Ignore IPv6 part of dual stack zone.
+	// This must match check in exportZone2Areas.
+	if z.ipV6 && z.combined46 != nil {
+		z = z.combined46
+	}
 	ipp := c.getNetwork00(z.ipV6).ipp
 	if any := z.ipPrefix2aggregate[ipp]; any != nil {
 		return any.name
 	} else {
+		// Zone with network 0/0 doesn't have an aggregate 0/0.
 		return z.name
 	}
 }
@@ -201,9 +214,7 @@ func ownersForObjects(l srvObjList) stringList {
 			names[name] = true
 		}
 	}
-	result := maps.Keys(names)
-	sort.Strings(result)
-	return result
+	return slices.Sorted(maps.Keys(names))
 }
 
 type xOwner map[srvObj][]*owner
@@ -223,9 +234,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 			names[name] = true
 		}
 	}
-	result := maps.Keys(names)
-	sort.Strings(result)
-	return result
+	return slices.Sorted(maps.Keys(names))
 }
 
 func protoDescr(l []*proto) stringList {
@@ -297,17 +306,14 @@ func protoDescr(l []*proto) stringList {
 	}
 
 	// Sort by protocol, port/type, all (if proto and num are equal)
-	sort.Slice(pList, func(i, j int) bool {
-		if cmp := strings.Compare(pList[i].pType, pList[j].pType); cmp != 0 {
-			return cmp == -1
+	slices.SortFunc(pList, func(a, b protoSort) int {
+		if cmp := strings.Compare(a.pType, b.pType); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num < pList[j].num {
-			return true
+		if cmp := cmp.Compare(a.num, b.num); cmp != 0 {
+			return cmp
 		}
-		if pList[i].num > pList[j].num {
-			return false
-		}
-		return strings.Compare(pList[i].desc, pList[j].desc) == -1
+		return strings.Compare(a.desc, b.desc)
 	})
 
 	result := make(stringList, len(pList))
@@ -411,7 +417,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				prev = name
 				names.push(name)
 			}
-			sort.Strings(names)
+			slices.Sort(names)
 			return names
 		}
 		getUserKey := func(l srvObjList) string {
@@ -428,25 +434,19 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, sv)
+				srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, sv)
+				if has46 {
+					srcDstListPairs = joinV46Pairs(srcDstListPairs)
+				}
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 
 					// Artificially take one of 'src' and 'dst' as user
 					// for case like
 					// src = user; dst = any:[user];
-					listEq := func(l1, l2 srvObjList) bool {
-						if len(l1) != len(l2) {
-							return false
-						}
-						for i, el := range l1 {
-							if el != l2[i] {
-								return false
-							}
-						}
-						return true
-					}
-					if hasUser == "both" && (!listEq(srcList, dstList) || foreach) {
+					if hasUser == "both" &&
+						(!slices.Equal(srcList, dstList) || foreach) {
+
 						if seenAsUser(srcList) {
 							hasUser = "src"
 						} else if seenAsUser(dstList) {
@@ -492,6 +492,26 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			}
 		}
 
+		// Ignore split part with empty users or only empty rules.
+		// This is an relict from expanding auto interfaces.
+		if len(key2rules) > 1 {
+		RULE:
+			for userKey, rules := range key2rules {
+				if len(key2user[userKey]) == 0 {
+					delete(key2rules, userKey)
+					continue
+				}
+				for _, tRule := range rules {
+					r := tRule.jsonRule
+					v := r["has_user"].(string)
+					if v == "both" || len(tRule.objList) != 0 {
+						continue RULE
+					}
+				}
+				delete(key2rules, userKey)
+			}
+		}
+
 		// 'user' has different value for some rules
 		// and implicitly we get multiple services with identical name.
 		isSplit := len(key2rules) > 1
@@ -517,24 +537,6 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			// Add extension to make name of split service unique.
 			var rulesKey string
 			if isSplit {
-
-				// Ignore split part with empty users or only empty rules.
-				// This is an relict from expanding auto interfaces.
-				if len(userList) == 0 {
-					continue
-				}
-				empty := true
-				for i, r := range jsonRules {
-					v := r["has_user"].(string)
-					if v == "both" || len(rules[i].objList) != 0 {
-						empty = false
-						break
-					}
-				}
-				if empty {
-					continue
-				}
-
 				rulesKey = calcRulesKey(jsonRules)
 				newName += "(" + rulesKey + ")"
 
@@ -560,6 +562,64 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 		}
 	}
 	return result
+}
+
+// Analyze and combine split rules from combined v4/v6 objects and from auto
+// interfaces.
+func joinV46Pairs(pairs [][2]srvObjList) [][2]srvObjList {
+	i := slices.IndexFunc(pairs, func(pair [2]srvObjList) bool {
+		if pair[0] != nil {
+			return pair[0][0].isIPv6()
+		}
+		return pair[1][0].isIPv6()
+	})
+	if i < 0 {
+		return pairs
+	}
+	v4Pairs := pairs[:i]
+	v6Pairs := pairs[i:]
+	eqComb46 := func(l4, l6 srvObjList) bool {
+		m := make(map[string]bool)
+		for _, ob := range l4 {
+			if ob.isCombined46() {
+				m[ob.String()] = true
+			}
+		}
+		count := 0
+		for _, ob := range l6 {
+			if ob.isCombined46() {
+				if !m[ob.String()] {
+					return false
+				}
+				count++
+			}
+		}
+		return count == len(m)
+	}
+	join6 := func(l4, l6 srvObjList) srvObjList {
+		for _, ob := range l6 {
+			if !ob.isCombined46() {
+				l4 = append(l4, ob)
+			}
+		}
+		return l4
+	}
+	// Merge IPv6 pair into IPv4 pair if it has identical combined src
+	// and dst objects.
+	var v6Extra [][2]srvObjList
+V6:
+	for _, p6 := range v6Pairs {
+		for i, p4 := range v4Pairs {
+			if eqComb46(p4[0], p6[0]) && eqComb46(p4[1], p6[1]) {
+				v4Pairs[i] = [2]srvObjList{
+					join6(p4[0], p6[0]), join6(p4[1], p6[1]),
+				}
+				continue V6
+			}
+		}
+		v6Extra = append(v6Extra, p6)
+	}
+	return append(v4Pairs, v6Extra...)
 }
 
 func (c *spoc) setupServiceInfo(
@@ -686,7 +746,7 @@ func (c *spoc) setupPartOwners() xOwner {
 	// Substitute map by slice.
 	pInfo := make(xOwner)
 	for ob, m := range pMap {
-		pInfo[ob] = maps.Keys(m)
+		pInfo[ob] = slices.Collect(maps.Keys(m))
 	}
 	return pInfo
 }
@@ -740,10 +800,8 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
-		l := maps.Keys(m)
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].name < l[j].name
-		})
+		l := slices.SortedFunc(maps.Keys(m),
+			func(a, b *owner) int { return cmp.Compare(a.name, b.name) })
 		return l
 	}
 
@@ -873,8 +931,8 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
 func (c *spoc) exportNatSet(dir string,
-	natTag2multinatDef map[string][]natTagMap, natTag2natType map[string]string,
-	pInfo, oInfo xOwner) {
+	natTag2multinatDef map[string][]natTagMap, pInfo, oInfo xOwner,
+) {
 
 	c.progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
@@ -911,9 +969,8 @@ func (c *spoc) exportNatSet(dir string,
 		for d := range doms {
 			natSets = append(natSets, d.natSet)
 		}
-		combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-		natList := maps.Keys(combined)
-		sort.Strings(natList)
+		combined := combineNatSets(natSets, natTag2multinatDef)
+		natList := slices.Sorted(maps.Keys(combined))
 
 		c.createDirs(dir, "owner/"+ownerName)
 		c.exportJson(dir, "owner/"+ownerName+"/nat_set", natList)
@@ -970,12 +1027,12 @@ func (c *spoc) exportAssets(
 			}
 		}
 
-		names := make(stringList, 0)
-		for _, ob := range childs {
+		names := make(stringList, len(childs))
+		for i, ob := range childs {
 			allObjects[ob] = true
-			names.push(ob.String())
+			names[i] = ob.String()
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		return jsonMap{net.name: names}
 	}
 
@@ -999,8 +1056,18 @@ func (c *spoc) exportAssets(
 			m3["networks"] = make(jsonMap)
 		}
 		m4 := m3["networks"].(jsonMap)
-		for k, v := range add {
-			m4[k] = v
+		// Combined IPv4 and IPv6 networks have same name.
+		// Hence combine lists of childs.
+		for n, childs := range add {
+			if childs4, found := m4[n]; found {
+				l := childs4.(stringList)
+				l6 := childs.(stringList)
+				l = append(l, l6...)
+				slices.Sort(l)
+				m4[n] = slices.Compact(l)
+			} else {
+				m4[n] = childs
+			}
 		}
 	}
 
@@ -1147,9 +1214,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	names := maps.Keys(c.symTable.owner)
-	sort.Strings(names)
-	for _, ow := range names {
+	for ow := range maps.Keys(c.symTable.owner) {
 		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
@@ -1179,10 +1244,10 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 				for i, user := range users {
 					uNames[i] = user.String()
 				}
-				sort.Strings(uNames)
+				slices.Sort(uNames)
 				service2users[sName] = slices.Compact(uNames)
 			}
-			sort.Strings(sNames)
+			slices.Sort(sNames)
 			type2snames[typ] = sNames
 		}
 		c.createDirs(dir, "owner/"+ow)
@@ -1226,6 +1291,9 @@ func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 	c.progress("Export objects")
 	result := make(jsonMap)
 	for obj := range allObjects {
+		if obj.isCombined46() && obj.isIPv6() {
+			continue
+		}
 		descr := make(jsonMap)
 
 		// Add key 'ip' and optionally key 'nat'.
@@ -1254,6 +1322,9 @@ func (c *spoc) exportMasterOwner(dir string, masterOwner string) {
 func (c *spoc) exportZone2Areas(dir string) {
 	result := make(jsonMap)
 	for _, z := range c.allZones {
+		if z.ipV6 && z.combined46 != nil {
+			continue
+		}
 		var l stringList
 		a := z.inArea
 		for a != nil {
@@ -1301,7 +1372,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 		}
 
 		export := func(l []string, key, path string) {
-			sort.Strings(l)
+			slices.Sort(l)
 			out := make([]map[string]string, len(l))
 			for i, e := range l {
 				m := make(map[string]string)
@@ -1339,9 +1410,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for e, m := range email2owners {
 
 		// Sort owner names for output.
-		l := maps.Keys(m)
-		sort.Strings(l)
-		email2oList[e] = l
+		email2oList[e] = slices.Sorted(maps.Keys(m))
 	}
 	c.exportJson(outDir, "email", email2oList)
 }
@@ -1366,7 +1435,7 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.readNetspoc(inDir)
 	c.setZone()
 	c.setPath()
-	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
+	natDomains, multiNAT := c.distributeNatInfo()
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := c.normalizeServicesForExport()
@@ -1384,7 +1453,7 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.exportUsersAndServiceLists(outDir, expSvcList, allObjects, pInfo, oInfo)
 	c.exportObjects(outDir, allObjects)
 	c.exportZone2Areas(outDir)
-	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
+	c.exportNatSet(outDir, multiNAT, pInfo, oInfo)
 	c.copyPolicyFile(inDir, outDir)
 	c.progress("Ready")
 }
@@ -1401,7 +1470,6 @@ func ExportMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -1421,7 +1489,6 @@ func ExportMain(d oslink.Data) int {
 	out := args[1]
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)

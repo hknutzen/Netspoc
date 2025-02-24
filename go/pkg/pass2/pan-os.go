@@ -1,12 +1,12 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
@@ -114,11 +114,11 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange, name: name}
 		return member(name)
 	}
-	getLog := func(ru *ciscoRule) string {
+	getLog := func(ru *ciscoRule, aclInfo *aclInfo) string {
 		result := ""
 		modifiers := ru.log
 		if modifiers == "" && ru.deny {
-			modifiers = rData.logDeny
+			modifiers = aclInfo.logDeny
 		}
 		if modifiers != "" {
 			for _, log := range strings.Split(modifiers, " ") {
@@ -149,7 +149,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 				source := getAddress(rule.src)
 				destination := getAddress(rule.dst)
 				service := getService(rule)
-				log := getLog(rule)
+				log := getLog(rule, acl)
 				fmt.Fprintf(fd,
 					`<entry name="%s">
 <action>%s</action>
@@ -168,12 +168,11 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
 	}
 	printAddresses := func() {
-		l := maps.Keys(ip2addr)
-		sort.Slice(l, func(i, j int) bool {
-			if l[i].Addr() == l[j].Addr() {
-				return l[i].Bits() > l[j].Bits()
+		l := slices.SortedFunc(maps.Keys(ip2addr), func(a, b *ipNet) int {
+			if cmp := a.Addr().Compare(b.Addr()); cmp != 0 {
+				return cmp
 			}
-			return l[i].Addr().Less(l[j].Addr())
+			return cmp.Compare(b.Bits(), a.Bits())
 		})
 		fmt.Fprintln(fd, "<address>")
 		for _, n := range l {
@@ -201,19 +200,15 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</address-group>")
 	}
 	printServices := func() {
-		l := maps.Values(protoMap)
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].prt.protocol < l[j].prt.protocol ||
-				l[i].prt.protocol == l[j].prt.protocol &&
-					(l[i].prt.ports[0] < l[j].prt.ports[0] ||
-						l[i].prt.ports[0] == l[j].prt.ports[0] &&
-							(l[i].prt.ports[1] < l[j].prt.ports[1] ||
-								l[i].prt.ports[1] == l[j].prt.ports[1] &&
-									(l[i].srcRg != nil && l[j].srcRg != nil &&
-										l[i].srcRg.ports[0] < l[j].srcRg.ports[0] ||
-										l[i].srcRg.ports[0] == l[j].srcRg.ports[0] &&
-											l[i].srcRg.ports[1] < l[j].srcRg.ports[1])))
-		})
+		l := slices.SortedFunc(maps.Values(protoMap),
+			func(a, b srcRgPrt) int {
+				return cmp.Or(
+					cmp.Compare(a.prt.protocol, b.prt.protocol),
+					cmp.Compare(a.prt.ports[0], b.prt.ports[0]),
+					cmp.Compare(a.prt.ports[1], b.prt.ports[1]),
+					// Name contains source port.
+					cmp.Compare(a.name, b.name))
+			})
 		fmt.Fprintln(fd, "<service>")
 		for _, pair := range l {
 			p := pair.prt

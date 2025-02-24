@@ -1,10 +1,12 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
-	"golang.org/x/exp/maps"
+	"maps"
 	"net/netip"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 )
@@ -213,11 +215,11 @@ func genAddrBintree(
 
 	// Sort by mask size and then by IP.
 	// I.e. large networks coming first.
-	sort.Slice(nodes, func(i, j int) bool {
-		if nodes[i].Bits() == nodes[j].Bits() {
-			return !nodes[i].Addr().Less(nodes[j].Addr())
+	slices.SortFunc(nodes, func(a, b *netBintree) int {
+		if cmp := cmp.Compare(a.Bits(), b.Bits()); cmp != 0 {
+			return cmp
 		}
-		return nodes[i].Bits() < nodes[j].Bits()
+		return b.Addr().Compare(a.Addr())
 	})
 
 	bintree := nodes[0]
@@ -358,8 +360,8 @@ PRT:
 		default:
 			ports := make([]*proto, len(prtAref))
 			copy(ports, prtAref)
-			sort.Slice(ports, func(i, j int) bool {
-				return ports[i].ports[0] < ports[j].ports[0]
+			slices.SortFunc(ports, func(a, b *proto) int {
+				return cmp.Compare(a.ports[0], b.ports[0])
 			})
 
 			// Split array in two halves (prefer larger left part).
@@ -419,11 +421,11 @@ PRT:
 	}
 
 	// Add single nodes for numeric protocols.
-	if aref, ok := topPrt["proto"]; ok {
-		sort.Slice(aref, func(i, j int) bool {
-			return aref[i].protocol < aref[j].protocol
+	if l, ok := topPrt["proto"]; ok {
+		slices.SortFunc(l, func(a, b *proto) int {
+			return cmp.Compare(a.protocol, b.protocol)
 		})
-		for _, prt := range aref {
+		for _, prt := range l {
 			node := &prtBintree{proto: *prt, subtree: tree2bintree[tree[prt]]}
 			seq = append(seq, node)
 		}
@@ -451,12 +453,12 @@ PRT:
 		// Parameter is array of icmp protocols all having
 		// the same type and different but defined code.
 		// Return reference to array of nodes sorted by code.
-		genIcmpTypeCodeSorted := func(aref []*proto) []*prtBintree {
-			sort.Slice(aref, func(i, j int) bool {
-				return aref[i].icmpCode < aref[j].icmpCode
+		genIcmpTypeCodeSorted := func(l []*proto) []*prtBintree {
+			slices.SortFunc(l, func(a, b *proto) int {
+				return cmp.Compare(a.icmpCode, b.icmpCode)
 			})
-			result := make([]*prtBintree, len(aref))
-			for i, proto := range aref {
+			result := make([]*prtBintree, len(l))
+			for i, proto := range l {
 				result[i] = &prtBintree{
 					proto:   *proto,
 					subtree: tree2bintree[tree[proto]],
@@ -469,9 +471,7 @@ PRT:
 		var seq2 []*prtBintree
 
 		// Process grouped icmp protocols having the same type.
-		types := maps.Keys(type2prt)
-		sort.Ints(types)
-		for _, icmpType := range types {
+		for _, icmpType := range slices.Sorted(maps.Keys(type2prt)) {
 			aref2 := type2prt[icmpType]
 			var node2 *prtBintree
 

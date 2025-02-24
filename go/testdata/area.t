@@ -117,10 +117,10 @@ service:pdp3 = {
  permit src = host:h3; dst = user; prt = ip;
 }
 =OUTPUT=
---asa1
-! [ IP = 10.1.1.1 ]
---asa2
-! [ IP = 10.1.3.2 ]
+--asa1.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.1.1"],"policy_distribution_point":"10.1.1.10"}
+--asa2.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.3.2"],"policy_distribution_point":"10.1.3.10"}
 =OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################
@@ -395,7 +395,7 @@ area:all = {
 network:n = { ip = 10.1.1.0/24; host:h = { ip = 10.1.1.111; } }
 router:r = {
  managed;
- model = NX-OS;
+ model = IOS;
   policy_distribution_point = host:h;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }

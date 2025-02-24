@@ -1,6 +1,3 @@
-
-############################################################
-=TITLE=Service timed out for 365 days
 =TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
@@ -10,59 +7,48 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
-=END=
+=TEMPL=disabled_service
+service:s = {
+ disable_at = {{DATE .}};
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
 =TEMPL=output
 --r1
 ! n1_in
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
-=DATE=-365
+=END=
+
+############################################################
+=TITLE=Service timed out for 365 days
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service -365]]
 =OUTPUT=
 [[output]]
 =END=
 
 =TITLE=Service timed out for 30 days
-=DATE=-30
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service -30]]
 =OUTPUT=
 [[output]]
 =END=
 
 =TITLE=Service timed out for 1 day
-=DATE=-1
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service -1]]
 =OUTPUT=
 [[output]]
 =END=
 
 =TITLE=Service timed out today
-=DATE=-0
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service -0]]
 =OUTPUT=
 [[output]]
 =END=
@@ -75,40 +61,25 @@ service:s = {
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
-=DATE=1
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service 1]]
 =OUTPUT=
 [[output]]
 =END=
 
 =TITLE=Service times out in 10 days
-=DATE=10
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service 10]]
 =OUTPUT=
 [[output]]
 =END=
 
 =TITLE=Service times out in 1000 days
-=DATE=1000
 =INPUT=
 [[topo]]
-service:s = {
- disable_at = [[DATE]];
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
+[[disabled_service 1000]]
 =OUTPUT=
 [[output]]
 =END=

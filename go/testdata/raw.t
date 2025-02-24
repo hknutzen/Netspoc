@@ -38,14 +38,12 @@ ip route 10.1.2.0 255.255.255.0 10.1.1.1
 =END=
 
 ############################################################
-=TITLE=Ignore hidden file and file named CVS
+=TITLE=Ignore hidden file
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 -- raw/.hidden
 abc
--- raw/CVS
-xyz
 =WITH_OUTDIR=
 =WARNING=NONE
 

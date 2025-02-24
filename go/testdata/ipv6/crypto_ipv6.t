@@ -45,7 +45,6 @@ crypto:sts = {
 
 ############################################################
 =TITLE=Missing ISAKMP attributes
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  nat_traversal = additional;
@@ -60,7 +59,6 @@ Error: Missing 'lifetime' for isakmp:aes256SHA
 
 ############################################################
 =TITLE=Bad ISAKMP attribute
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  authentication = rsasig;
@@ -76,7 +74,6 @@ Error: Unexpected attribute in isakmp:aes256SHA: foo
 
 ############################################################
 =TITLE=Bad ISAKMP value
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  authentication = rsa-signature;
@@ -92,7 +89,6 @@ Error: Invalid value in 'group' of isakmp:aes256SHA: 3
 
 ############################################################
 =TITLE=Bad ISAKMP lifetime (1)
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  authentication = rsasig;
@@ -107,7 +103,6 @@ Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 
 ############################################################
 =TITLE=Bad ISAKMP lifetime (2)
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  authentication = rsasig;
@@ -122,7 +117,6 @@ Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 
 ############################################################
 =TITLE=Bad ISAKMP lifetime (3)
-=PARAMS=--ipv6
 =INPUT=
 isakmp:aes256SHA = {
  authentication = rsasig;
@@ -137,7 +131,6 @@ Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 
 ############################################################
 =TITLE=Missing IPSec attributes
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -149,7 +142,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec attribute
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  lifetime = 100 sec;
@@ -162,7 +154,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec lifetime type (1)
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -175,7 +166,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec lifetime type (2)
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -188,7 +178,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec lifetime type (3)
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -201,7 +190,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec lifetime type (4)
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -214,7 +202,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad IPSec lifetime type (5)
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
@@ -227,14 +214,13 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Bad key_exchange attribute
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = xyz:aes256SHA;
  esp_encryption = aes256;
  lifetime = 600 sec;
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Expected type 'isakmp:' in 'key_exchange' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -242,14 +228,13 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Unknown key_exchange
-=PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = isakmp:abc;
  esp_encryption = aes256;
  lifetime = 600 sec;
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Can't resolve reference to isakmp:abc in ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
@@ -257,7 +242,6 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 
 ############################################################
 =TITLE=Missing type of crypto definition
-=PARAMS=--ipv6
 =INPUT=
 crypto:c = {}
 =ERROR=
@@ -266,10 +250,9 @@ Error: Missing 'type' for crypto:c
 
 ############################################################
 =TITLE=Unknown type in crypto definition
-=PARAMS=--ipv6
 =INPUT=
 crypto:c = { type = xyz:abc; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Expected type 'ipsec:' in 'type' of crypto:c
 Error: Missing 'type' for crypto:c
@@ -277,10 +260,9 @@ Error: Missing 'type' for crypto:c
 
 ############################################################
 =TITLE=Unknown ipsec referenced in crypto definition
-=PARAMS=--ipv6
 =INPUT=
 crypto:c = { type = ipsec:abc; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
 Error: Can't resolve reference to ipsec:abc in crypto:c
 Error: Missing 'type' for crypto:c
@@ -288,20 +270,18 @@ Error: Missing 'type' for crypto:c
 
 ############################################################
 =TITLE=No hub defined for crypto
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 =WARNING=
 Warning: No hub has been defined for crypto:vpn
 =END=
 
 ############################################################
 =TITLE=No spokes defined for crypto
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:asavpn = {
  model = ASA, VPN;
@@ -310,7 +290,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
  }
@@ -321,10 +301,10 @@ Warning: No spokes have been defined for crypto:vpn
 
 ############################################################
 =TITLE=No bind_nat allowed at hub
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a02:200/120; } }
+network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::a02:200/120; } }
 
 router:asavpn = {
  model = ASA, VPN;
@@ -333,7 +313,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   bind_nat = n1;
   hardware = n1;
@@ -346,11 +326,10 @@ Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
 
 ############################################################
 =TITLE=Crypto must not share hardware
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 
 router:asavpn = {
  model = ASA, VPN;
@@ -359,11 +338,11 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
  }
- interface:n2 = { ip = ::a01:201; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n1; }
 }
 =ERROR=
 Error: Crypto interface:asavpn.n1 must not share hardware with other interface:asavpn.n2
@@ -371,10 +350,9 @@ Error: Crypto interface:asavpn.n1 must not share hardware with other interface:a
 
 ############################################################
 =TITLE=Unnumbered crypto interface
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { unnumbered; }
+network:n1 = { unnumbered6; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -382,7 +360,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  unnumbered;
+  unnumbered6;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
@@ -393,8 +371,8 @@ router:softclients = {
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Crypto hub interface:asavpn.n1 must have IP address
@@ -402,10 +380,9 @@ Error: Crypto hub interface:asavpn.n1 must have IP address
 
 ############################################################
 =TITLE=Need authentication rsasig
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -413,19 +390,19 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
 }
 =SUBST=/rsasig/preshare/
 =ERROR=
@@ -434,10 +411,9 @@ Error: router:asavpn needs authentication=rsasig in isakmp:aes256SHA
 
 ############################################################
 =TITLE=Missing ID hosts at software client
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -445,17 +421,17 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:other;
 }
-network:other = { ip = ::a63:900/120; }
+network:other = { ip6 = ::a63:900/120; }
 =ERROR=
 Error: Networks behind crypto tunnel to router:asavpn of model 'ASA, VPN' need to have ID hosts:
  - network:other
@@ -463,12 +439,11 @@ Error: Networks behind crypto tunnel to router:asavpn of model 'ASA, VPN' need t
 
 ############################################################
 =TITLE=Mixed ID hosts and non ID hosts in network
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
- host:bar = { ip = ::a63:10b; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
+ host:bar = { ip6 = ::a63:10b; }
 }
 =ERROR=
 Error: All hosts must have ID in network:clients
@@ -476,14 +451,13 @@ Error: All hosts must have ID in network:clients
 
 ############################################################
 =TITLE=Mixed ldap_id and ID hosts
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  cert_id = cert1;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
  host:bar = {
-  range = ::a63:110 - ::a63:11f;
+  range6 = ::a63:110 - ::a63:11f;
   ldap_id = CN=example3,OU=VPN,DC=example,DC=com;
  }
 }
@@ -493,11 +467,10 @@ Error: All hosts must have attribute 'ldap_id' in network:clients
 
 ############################################################
 =TITLE=ID host without crypto router
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: network:clients having ID hosts must be connected to router with crypto spoke
@@ -506,10 +479,9 @@ Error: network:clients having ID hosts must be connected to router with crypto s
 
 ############################################################
 =TITLE=Mixed ID hosts and non ID hosts at software client
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -517,22 +489,22 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
  interface:other;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
-network:other = { ip = ::a63:900/120; }
+network:other = { ip6 = ::a63:900/120; }
 =ERROR=
 Error: Must not use networks having ID hosts and other networks having no ID hosts
  together at router:softclients:
@@ -542,10 +514,9 @@ Error: Must not use networks having ID hosts and other networks having no ID hos
 
 ############################################################
 =TITLE=Non ID hosts behind ID hosts
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -553,35 +524,34 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 router:u = {
  interface:clients;
  interface:other;
 }
-network:other = { ip = ::a63:900/120; }
+network:other = { ip6 = ::a63:900/120; }
 =ERROR=
 Error: Exactly one network must be located behind unmanaged interface:softclients.clients of crypto router
 =END=
 
 ############################################################
 =TITLE=Invalid radius attributes
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -591,23 +561,23 @@ router:asavpn = {
   split-tunnel-policy = whatever;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   invalid;
  }
  host:id:foo@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
   radius_attributes = { trust-point = ASDM_TrustPoint1; }
  }
 }
@@ -620,10 +590,9 @@ Error: Invalid radius_attribute 'unknown' at router:asavpn
 
 ############################################################
 =TITLE=Use authentication-server-group only with ldap_id (1)
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -631,22 +600,22 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   authentication-server-group = LDAP_1;
  }
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Attribute 'authentication-server-group' at network:clients must only be used together with attribute 'ldap_id' at host
@@ -654,10 +623,9 @@ Error: Attribute 'authentication-server-group' at network:clients must only be u
 
 ############################################################
 =TITLE=Use authentication-server-group only with ldap_id (2)
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -666,19 +634,19 @@ router:asavpn = {
   authentication-server-group = LDAP_1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
  }
 }
 router:softclients = {
- interface:n1 = { ip = ::a01:102; spoke = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:102; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Attribute 'authentication-server-group' at router:asavpn must only be used together with attribute 'ldap_id' at host
@@ -686,12 +654,11 @@ Error: Attribute 'authentication-server-group' at router:asavpn must only be use
 
 ############################################################
 =TITLE=Must not use ldap_id at ID host
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  host:id:foo@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
   ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
  }
 }
@@ -702,10 +669,9 @@ Error: network:clients having ID hosts must be connected to router with crypto s
 
 ############################################################
 =TITLE=cert_id and ldap_append only together with ldap_id
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  cert_id = cert99;
  ldap_append = ,OU=VPN,DC=example,DC=com;
 }
@@ -716,10 +682,9 @@ Warning: Ignoring 'cert_id' at network:clients
 
 ############################################################
 =TITLE=Ignore radius_attributes without ID hosts
-=PARAMS=--ipv6
 =INPUT=
 network:clients = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -730,10 +695,9 @@ Warning: Ignoring 'radius_attributes' at network:clients
 
 ############################################################
 =TITLE=no_in_acl at crypto interface
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -741,7 +705,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_in_acl;
@@ -752,8 +716,8 @@ router:softclients = {
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Don't use attribute 'no_in_acl' together with crypto tunnel at router:asavpn
@@ -761,20 +725,19 @@ Error: Don't use attribute 'no_in_acl' together with crypto tunnel at router:asa
 
 ############################################################
 =TITLE=Duplicate crypto hub
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; }
+network:intern = { ip6 = ::a01:200/120; }
 router:r = {
  model = IOS;
  managed = routing_only;
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:901; hardware = e1; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:901; hardware = e1; }
 }
-network:trans = { ip = ::a09:900/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
- interface:trans = { ip = ::a09:902; }
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:trans = { ip6 = ::a09:902; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn1 = {
  model = ASA, VPN;
@@ -784,7 +747,7 @@ router:asavpn1 = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
@@ -798,22 +761,22 @@ router:asavpn2 = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:66;
+  ip6 = f000::c0a8:66;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
-  ip = ::a63:10b;
+  ip6 = ::a63:10b;
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
@@ -825,20 +788,19 @@ Error: Must use 'hub = crypto:vpn' exactly once, not at both
 
 ############################################################
 =TITLE=Crypto spoke with secondary IP
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; }
+network:intern = { ip6 = ::a01:200/120; }
 router:r = {
  model = IOS;
  managed = routing_only;
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:901; hardware = e1; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:901; hardware = e1; }
 }
-network:trans = { ip = ::a09:900/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
- interface:trans = { ip = ::a09:902; }
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:trans = { ip6 = ::a09:902; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn1 = {
  model = ASA, VPN;
@@ -848,22 +810,22 @@ router:asavpn1 = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903, ::a09:909; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903, ::a09:909; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
-  ip = ::a63:10b;
+  ip6 = ::a63:10b;
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
@@ -873,13 +835,12 @@ Error: interface:softclients.trans with attribute 'spoke' must not have secondar
 
 ############################################################
 =TITLE=Missing hub at ASA, VPN
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = ASA, VPN;
- interface:n = { ip = ::a01:101; hardware = n; }
+ interface:n = { ip6 = ::a01:101; hardware = n; }
 }
 =WARNING=
 Warning: Attribute 'hub' needs to be defined at some interface of router:r of model ASA, VPN
@@ -887,14 +848,13 @@ Warning: Attribute 'hub' needs to be defined at some interface of router:r of mo
 
 ############################################################
 =TITLE=Ignoring radius_attributes at non ASA, VPN
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = ASA;
  radius_attributes = { banner = Welcome; }
- interface:n = { ip = ::a01:101; hardware = n; }
+ interface:n = { ip6 = ::a01:101; hardware = n; }
 }
 =WARNING=
 Warning: Ignoring 'radius_attributes' at router:r
@@ -902,14 +862,13 @@ Warning: Ignoring 'radius_attributes' at router:r
 
 ############################################################
 =TITLE=Ignoring merge_tunnelspecified at non ASA, VPN
-=PARAMS=--ipv6
 =INPUT=
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
  model = ASA;
  merge_tunnelspecified = ::a01:0/113, ::a09:900/120;
- interface:n = { ip = ::a01:101; hardware = n; }
+ interface:n = { ip6 = ::a01:101; hardware = n; }
 }
 =WARNING=
 Warning: Ignoring 'merge_tunnelspecified' at router:r
@@ -917,68 +876,64 @@ Warning: Ignoring 'merge_tunnelspecified' at router:r
 
 ############################################################
 =TITLE=Crypto not supported
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
-network:n = { ip = ::a01:100/120; }
+network:n = { ip6 = ::a01:100/120; }
 router:r = {
  managed;
- model = NX-OS;
- interface:n = { ip = ::a01:101; hardware = n; hub = crypto:sts; }
+ model = Linux;
+ interface:n = { ip6 = ::a01:101; hardware = n; hub = crypto:sts; }
 }
 =ERROR=
-Error: Crypto not supported for router:r of model NX-OS
+Error: Crypto not supported for router:r of model Linux
 =END=
 
 ############################################################
 =TITLE=Virtual interface must not be hub
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
 router:asavpn1 = {
  model = ASA, VPN;
  managed;
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
-  virtual = { ip = f000::c0a8:1; }
+  virtual = { ip6 = f000::c0a8:1; }
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 =ERROR=
 Error: interface:asavpn1.dmz with virtual interface must not use attribute 'hub'
 =END=
 
 ############################################################
 =TITLE=Crypto hub can't be spoke
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
 router:asavpn1 = {
  model = ASA, VPN;
  managed;
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   spoke = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 =ERROR=
 Error: interface:asavpn1.dmz with attribute 'spoke' must not have attribute 'hub'
 =END=
 
 ############################################################
 =TITLE=Duplicate crypto spoke
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern1 = { ip = ::a01:100/120;}
+network:intern1 = { ip6 = ::a01:100/120;}
 router:gw1 = {
  interface:intern1;
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
 }
 router:asavpn1 = {
  model = ASA, VPN;
@@ -988,7 +943,7 @@ router:asavpn1 = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
@@ -997,10 +952,10 @@ router:asavpn1 = {
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
-network:intern2 = { ip = ::a01:200/120;}
+network:intern2 = { ip6 = ::a01:200/120;}
 router:gw2 = {
  interface:intern2;
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn2 = {
  model = ASA, VPN;
@@ -1010,21 +965,21 @@ router:asavpn2 = {
   trust-point = ASDM_TrustPoint2;
  }
  interface:dmz = {
-  ip = f000::c0a8:66;
+  ip6 = f000::c0a8:66;
   hub = crypto:vpn2;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
  interface:intern1 = { spoke = crypto:vpn; }
  interface:intern2 = { spoke = crypto:vpn2; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Must not define crypto spoke at more than one interface:
@@ -1034,15 +989,14 @@ Error: Must not define crypto spoke at more than one interface:
 
 ############################################################
 =TITLE=Duplicate crypto spoke to same device
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern1 = { ip = ::a01:100/120;}
-network:intern2 = { ip = ::a01:200/120;}
+network:intern1 = { ip6 = ::a01:100/120;}
+network:intern2 = { ip6 = ::a01:200/120;}
 router:gw = {
  interface:intern1;
  interface:intern2;
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn = {
  model = ASA, VPN;
@@ -1052,21 +1006,21 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
  interface:intern1 = { spoke = crypto:vpn; }
  interface:intern2 = { spoke = crypto:vpn; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Must not define crypto spoke at more than one interface:
@@ -1076,18 +1030,17 @@ Error: Must not define crypto spoke at more than one interface:
 
 ############################################################
 =TITLE=ID of host must match ip/range
-=PARAMS=--ipv6
 =INPUT=
 network:n = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
- host:id:@domain.x    = { ip = ::a63:10b; }
- host:id:domain.x     = { ip = ::a63:10c; }
- host:id:@domain.y    = { range = ::a63:110-::a63:111; }
- host:id:domain.y     = { range = ::a63:112-::a63:113; }
- host:id:bar@domain.y = { range = ::a63:114-::a63:117; }
- host:id:boo@domain.y = { range = ::a63:101-::a63:13f; }
- host:id:b1@domain.y = { range = ::a63:101-::a63:101; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
+ host:id:@domain.x    = { ip6 = ::a63:10b; }
+ host:id:domain.x     = { ip6 = ::a63:10c; }
+ host:id:@domain.y    = { range6 = ::a63:110-::a63:111; }
+ host:id:domain.y     = { range6 = ::a63:112-::a63:113; }
+ host:id:bar@domain.y = { range6 = ::a63:114-::a63:117; }
+ host:id:boo@domain.y = { range6 = ::a63:101-::a63:13f; }
+ host:id:b1@domain.y = { range6 = ::a63:101-::a63:101; }
 }
 =ERROR=
 Error: ID of host:id:@domain.x.n must not start with character '@'
@@ -1100,9 +1053,8 @@ Error: network:n having ID hosts must be connected to router with crypto spoke
 
 ############################################################
 =TITLE=Unkown crypto at hub and spoke
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1110,7 +1062,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
@@ -1121,8 +1073,8 @@ router:softclients = {
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 =ERROR=
 Error: Can't resolve reference to crypto:vpn in 'hub' of interface:asavpn.n1
@@ -1135,7 +1087,7 @@ Error: Can't resolve reference to crypto:vpn in 'spoke' of interface:softclients
 ############################################################
 =TEMPL=topo
 [[crypto_vpn]]
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1144,60 +1096,60 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
  interface:customers2;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:bar@domain.x = {
-  ip = ::a63:10b;
+  ip6 = ::a63:10b;
   radius_attributes = { split-tunnel-policy = tunnelall;
                         banner = Willkommen zu Hause; }
  }
  host:id:baz@domain.x = {
-  ip = ::a63:10c;
+  ip6 = ::a63:10c;
   radius_attributes = { anyconnect-custom_perapp = SomeName;
                         anyconnect-custom_dynamic-split-exclude-domains =
                         a.dom b.dom c.sub.dom;
   }
  }
  host:id:unused@domain.x = {
-  ip = ::a63:1fe;
+  ip6 = ::a63:1fe;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 network:customers2 = {
- ip = ::a63:200/120;
+ ip6 = ::a63:200/120;
  radius_attributes = {
   vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
   }
  host:id:domain.x = {
-  range = ::a63:200 - ::a63:23f;
+  range6 = ::a63:200 - ::a63:23f;
   radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou;#
                         authorization-server-group = LDAP_1;
@@ -1207,13 +1159,13 @@ network:customers2 = {
                         password-management_password-expire-in-days = 91; }
  }
  host:id:@domain.y = {
-  range = ::a63:240 - ::a63:27f;
+  range6 = ::a63:240 - ::a63:27f;
   radius_attributes = { vpn-idle-timeout = 40;
                         trust-point = ASDM_TrustPoint3;
                         group-lock; }
  }
  host:id:zzz = {
-  range = ::a63:280 - ::a63:2bf;
+  range6 = ::a63:280 - ::a63:2bf;
   radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2;
                         check-subject-name = ou; }
@@ -1225,16 +1177,16 @@ network:customers2 = {
 =TITLE=VPN ASA with software clients
 =TEMPL=input
 [[topo]]
-network:work1 = { ip = ::a00:100/120; host:h1 = { ip = ::a00:10a; } }
-network:work2 = { ip = ::a00:200/120; host:h2 = { ip = ::a00:20a; } }
-network:work3 = { ip = ::a00:300/120; host:h3 = { ip = ::a00:30a; } }
-network:work4 = { ip = ::a00:400/120; }
+network:work1 = { ip6 = ::a00:100/120; host:h1 = { ip6 = ::a00:10a; } }
+network:work2 = { ip6 = ::a00:200/120; host:h2 = { ip6 = ::a00:20a; } }
+network:work3 = { ip6 = ::a00:300/120; host:h3 = { ip6 = ::a00:30a; } }
+network:work4 = { ip6 = ::a00:400/120; }
 router:u = {
  interface:work1;
  interface:work2;
  interface:work3;
  interface:work4;
- interface:intern = { ip = ::a01:101; }
+ interface:intern = { ip6 = ::a01:101; }
 }
 group:g1 =
  network:work1,
@@ -1261,7 +1213,6 @@ service:test3 = {
  user = host:id:domain.x.customers2, host:id:zzz.customers2;
  permit src = user; dst = group:g2; prt = tcp 82;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/type = ipsec:aes256SHA;/type = ipsec:aes256SHA;detailed_crypto_acl;/
 =OUTPUT=
@@ -1474,7 +1425,6 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Missing radius_attribute check-subject-name at host
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/check-subject-name = ou;#//
 =ERROR=
@@ -1484,7 +1434,6 @@ Error: Missing radius_attribute 'check-subject-name'
 
 ############################################################
 =TITLE=Ignoring value of radius_attribute group-lock
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/group-lock;#/group-lock = enabled;/
 =WARNING=
@@ -1493,7 +1442,6 @@ Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.cus
 
 ############################################################
 =TITLE=Missing trust-point
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/trust-point = ASDM_TrustPoint1;//
 =ERROR=
@@ -1502,7 +1450,6 @@ Error: Missing 'trust-point' in radiusAttributes of router:asavpn
 
 ############################################################
 =TITLE=Permit all ID hosts in network
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:s1 = {
@@ -1607,7 +1554,6 @@ access-group outside_in in interface outside
 =TITLE=ASA, VPN in CONTEXT
 # This line is missing from config:
 #  ikev1 user-authentication none
-=PARAMS=--ipv6
 =INPUT=[[topo]]
 =SUBST=/ASA, VPN/ASA, VPN, CONTEXT/
 =OUTPUT=
@@ -1628,21 +1574,20 @@ tunnel-group-map default-group VPN-single
 
 ############################################################
 =TITLE=Merge split tunnel lists
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:work1 = { ip = ::a00:100/120; host:h1 = { ip = ::a00:10a; } }
-network:work2 = { ip = ::a00:200/120; host:h2 = { ip = ::a00:20a; } }
-network:work3 = { ip = ::a00:300/120; host:h3 = { ip = ::a00:30a; } }
-network:work4 = { ip = ::a09:400/120; host:h4 = { ip = ::a09:40a; } }
+network:work1 = { ip6 = ::a00:100/120; host:h1 = { ip6 = ::a00:10a; } }
+network:work2 = { ip6 = ::a00:200/120; host:h2 = { ip6 = ::a00:20a; } }
+network:work3 = { ip6 = ::a00:300/120; host:h3 = { ip6 = ::a00:30a; } }
+network:work4 = { ip6 = ::a09:400/120; host:h4 = { ip6 = ::a09:40a; } }
 router:u = {
  interface:work1;
  interface:work2;
  interface:work3;
  interface:work4;
- interface:intern = { ip = ::a01:101; }
+ interface:intern = { ip6 = ::a01:101; }
 }
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1651,44 +1596,44 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   banner = Willkommen;
  }
  host:id:u1@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u2@domain.x = {
-  ip = ::a63:10b;
+  ip6 = ::a63:10b;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u3@domain.x = {
-  ip = ::a63:10c;
+  ip6 = ::a63:10c;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u4@domain.x = {
-  ip = ::a63:1fe;
+  ip6 = ::a63:1fe;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
@@ -1782,10 +1727,9 @@ username u4@domain.x attributes
 
 ############################################################
 =TITLE=Missing authentication-server-group at network with ldap_id
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1794,45 +1738,45 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  cert_id = cert1;
  radius_attributes = {
   check-subject-name = cn;
  }
  host:example1 = {
   ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
-  range = ::a63:108 - ::a63:10f;
+  range6 = ::a63:108 - ::a63:10f;
   radius_attributes = {
    authentication-server-group = LDAP_1;
   }
  }
  host:example2 = {
   ldap_id = CN=example2,OU=VPN,DC=example,DC=com;
-  range = ::a63:110 - ::a63:11f;
+  range6 = ::a63:110 - ::a63:11f;
  }
  host:example3 = {
   ldap_id = CN=example3,OU=VPN,DC=example,DC=com;
-  range = ::a63:120 - ::a63:12f;
+  range6 = ::a63:120 - ::a63:12f;
  }
 }
 =ERROR=
@@ -1846,7 +1790,7 @@ Error: Missing attribute 'authentication-server-group' at network:customers1 hav
 ############################################################
 =TEMPL=topo
 [[crypto_vpn]]
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1855,28 +1799,28 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
  interface:customers2;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  cert_id = cert1;
  radius_attributes = {
   check-subject-name = cn;
@@ -1884,11 +1828,11 @@ network:customers1 = {
  }
  host:example1 = {
   ldap_id = CN=example1,OU="my" VPN,DC=example,DC=com;
-  range = ::a63:108 - ::a63:10f;
+  range6 = ::a63:108 - ::a63:10f;
  }
 }
 network:customers2 = {
- ip = ::a63:200/120;
+ ip6 = ::a63:200/120;
  cert_id = cert2;
  ldap_append = ,OU=VPN,DC=example,DC=com;
  radius_attributes = {
@@ -1898,13 +1842,13 @@ network:customers2 = {
  }
  host:example2a = {
   ldap_id = CN=example2a;
-  range = ::a63:200 - ::a63:23f;
+  range6 = ::a63:200 - ::a63:23f;
   radius_attributes = { username-from-certificate = CN;
                         authorization-required; }
  }
  host:example2b = {
   ldap_id = CN=example2b;
-  range = ::a63:280 - ::a63:2bf;
+  range6 = ::a63:280 - ::a63:2bf;
   radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
  }
 }
@@ -1912,7 +1856,6 @@ network:customers2 = {
 
 ############################################################
 =TITLE=Missing radius_attribute check-subject-name at network
-=PARAMS=--ipv6
 =INPUT=[[topo]]
 =SUBST=/check-subject-name = ou;//
 =ERROR=
@@ -1922,7 +1865,6 @@ Error: Missing radius_attribute 'check-subject-name'
 
 ############################################################
 =TITLE=VPN ASA with ldap_id
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test1 = {
@@ -2004,20 +1946,19 @@ ldap attribute-map LDAP_2
 
 ############################################################
 =TITLE=Bad check-extended-key-usage
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; }
+network:intern = { ip6 = ::a01:200/120; }
 router:r = {
  model = IOS;
  managed = routing_only;
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:901; hardware = e1; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:901; hardware = e1; }
 }
-network:trans = { ip = ::a09:900/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
- interface:trans = { ip = ::a09:902; }
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:trans = { ip6 = ::a09:902; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn = {
  model = ASA, VPN;
@@ -2027,38 +1968,38 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903; }
  interface:customers1;
  interface:customers2;
  interface:customers3;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
- host:id:foo@domain.x = { ip = ::a63:10a; }
- host:id:bar@domain.x = { ip = ::a63:10b;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
+ host:id:bar@domain.x = { ip6 = ::a63:10b;
   radius_attributes = { check-extended-key-usage = bar; }}
- host:id:@domain.x = { range = ::a63:10c-::a63:10f; }
- host:id:@domain.y = { range = ::a63:110-::a63:11f; }
+ host:id:@domain.x = { range6 = ::a63:10c-::a63:10f; }
+ host:id:@domain.y = { range6 = ::a63:110-::a63:11f; }
 }
 network:customers2 = {
- ip = ::a63:200/120;
+ ip6 = ::a63:200/120;
  radius_attributes = { check-extended-key-usage = foo; }
- host:id:foo@domain.y = { ip = ::a63:20a; }
+ host:id:foo@domain.y = { ip6 = ::a63:20a; }
 }
 network:customers3 = {
- ip = ::a63:300/120;
- host:id:foo@domain.z = { ip = ::a63:30a;
+ ip6 = ::a63:300/120;
+ host:id:foo@domain.z = { ip6 = ::a63:30a;
   radius_attributes = { check-extended-key-usage = foo; }}
- host:id:bar@domain.z = { ip = ::a63:30b;
+ host:id:bar@domain.z = { ip6 = ::a63:30b;
   radius_attributes = { check-extended-key-usage = foo; }}
 }
 =ERROR=
@@ -2070,20 +2011,20 @@ Error: All ID hosts having domain '@domain.y' must use identical value from 'che
 =TITLE=VPN ASA with internal software clients
 =TEMPL=input
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; }
+network:intern = { ip6 = ::a01:200/120; }
 router:r = {
  model = IOS;
  managed = routing_only;
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:901; hardware = e1; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:901; hardware = e1; }
 }
-network:trans = { ip = ::a09:900/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
  model = IOS;
  managed;
  routing = manual;
- interface:trans = { ip = ::a09:902; hardware = e0; }
- interface:dmz = { ip = f000::c0a8:2; hardware = e1; }
+ interface:trans = { ip6 = ::a09:902; hardware = e0; }
+ interface:dmz = { ip6 = f000::c0a8:2; hardware = e1; }
 }
 router:asavpn = {
  model = ASA, VPN;
@@ -2093,23 +2034,23 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
-  ip = ::a63:10b;
+  ip6 = ::a63:10b;
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
@@ -2121,7 +2062,6 @@ service:test1 = {
  permit src = user; dst = network:intern; prt = tcp 80, protocol:ping_net;
  permit src = network:intern; dst = user; prt = protocol:ping_net;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/r
@@ -2190,15 +2130,14 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Missing route for VPN ASA with internal software clients
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 router:gw2 = {
  model = IOS;
  managed;
  routing = manual;
- interface:trans = { ip = ::a09:904; hardware = e0; }
- interface:dmz = { ip = f000::c0a8:4; hardware = e1; }
+ interface:trans = { ip6 = ::a09:904; hardware = e0; }
+ interface:dmz = { ip6 = f000::c0a8:4; hardware = e1; }
 }
 =ERROR=
 Error: Can't determine next hop to reach network:trans while moving routes
@@ -2219,43 +2158,43 @@ Error: Ambiguous static routes for network:customers1 at interface:r.trans via
 
 ############################################################
 =TITLE=NAT with VPN ASA
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; nat:E = { ip = f000::c0a8:200/120; } }
-network:trans = { ip = ::a09:900/120; }
+network:intern = { ip6 = ::a01:200/120; nat:E = { ip6 = f000::c0a8:200/120; } }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:902; }
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:902; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn = {
  model = ASA, VPN;
  managed;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
  interface:extern = {
-  ip = f000::c0a8:101;
+  ip6 = f000::c0a8:101;
   hardware = extern;
   bind_nat = E;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- nat:E = { ip = f000::c0a8:6300/120; }
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ nat:E = { ip6 = f000::c0a8:6300/120; }
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
 }
-network:extern = { ip = f000::c0a8:100/120; nat:I = { ip = ::a07:700/120; }}
+network:extern = { ip6 = f000::c0a8:100/120; nat:I = { ip6 = ::a07:700/120; }}
 service:test1 = {
  user = host:id:foo@domain.x.customers1;
  permit src = user; dst = network:intern; prt = tcp 80;
@@ -2295,12 +2234,14 @@ access-group extern_in in interface extern
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (1)
+=TODO= No IPv6
+#
 # Must use NAT ip of internal network, not NAT ip of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internet.
 =TEMPL=input
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -2308,55 +2249,54 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; host:X = { ip = ::102:304; } }
+network:internet = { ip6 = ::/0; has_subnets; host:X = { ip6 = ::102:304; } }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:soft1;
 }
 network:soft1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  host:id:foo@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 router:Firewall = {
  managed;
  model = Linux;
- interface:internet = { negotiated; hardware = internet; bind_nat = h; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:internet = { negotiated6; hardware = internet; bind_nat = h; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
-network:n3 = { ip = ::a01:300/120;}
+network:n3 = { ip6 = ::a01:300/120;}
 router:r1 = {
- interface:n1 = { ip = ::a01:102; bind_nat = n2; }
- interface:n3 = { ip = ::a01:302; bind_nat = x; }
- interface:n2 = { ip = f000::ac11:1; }
+ interface:n1 = { ip6 = ::a01:102; bind_nat = n2; }
+ interface:n3 = { ip6 = ::a01:302; bind_nat = x; }
+ interface:n2 = { ip6 = f000::ac11:1; }
 }
 network:n2 = {
- ip = f000::ac11:0/112;
- nat:n2 = { ip = ::a01:200/120; dynamic; }
- nat:x = { ip = ::a01:6300/120; dynamic; }
+ ip6 = f000::ac11:0/112;
+ nat:n2 = { ip6 = ::a01:200/120; dynamic; }
+ nat:x = { ip6 = ::a01:6300/120; dynamic; }
  nat:h = { hidden; }
 }
 service:s1 = {
  user = host:id:foo@domain.x.soft1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 -- ipv6/asavpn
@@ -2389,10 +2329,11 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (2)
+=TODO= No IPv6
+#
 # No error, because NAT isn't applicable for encrypted packets.
-=PARAMS=--ipv6
 =INPUT=[[input]]
-=SUBST=|hidden|ip = ::a02:200/120; dynamic|
+=SUBST=|hidden|ip6 = ::a02:200/120; dynamic|
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
@@ -2402,13 +2343,14 @@ ipv6 route inside ::a01:200/120 ::a01:102
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (3)
+=TODO= No IPv6
+#
 # Must use NAT IP of internal network, not NAT IP of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internal network.
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -2416,41 +2358,41 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; bind_nat = n; }
+ interface:dmz = { ip6 = f000::c0a8:1; bind_nat = n; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:fw-extern = {
  managed;
  model = ASA;
  interface:internet = {
-  ip = ::101:101;
+  ip6 = ::101:101;
   bind_nat = x;
   routing = dynamic;
   hardware = outside;
  }
- interface:dmz1 = { ip = ::afe:fe90; hardware = inside; }
+ interface:dmz1 = { ip6 = ::afe:fe90; hardware = inside; }
 }
 network:dmz1 = {
- ip = ::afe:fe00/120;
- nat:x = { ip = ::102:381/128; dynamic; }
- nat:n = { ip = ::102:304/128; dynamic; }
+ ip6 = ::afe:fe00/120;
+ nat:x = { ip6 = ::102:381/128; dynamic; }
+ nat:n = { ip6 = ::102:304/128; dynamic; }
  nat:h = { hidden; }
 }
 router:vpn1 = {
  interface:dmz1 = {
-  ip = ::afe:fe06;
+  ip6 = ::afe:fe06;
   id = cert@example.com;
   spoke = crypto:sts;
   bind_nat = lan1;
@@ -2458,28 +2400,28 @@ router:vpn1 = {
  interface:lan1;
 }
 network:lan1 = {
- ip = ::a63:100/120;
- nat:lan1 = { ip = ::a0a:a00/120; }
+ ip6 = ::a63:100/120;
+ nat:lan1 = { ip6 = ::a0a:a00/120; }
 }
 router:Firewall = {
  managed;
  model = Linux;
- interface:internet = { negotiated; hardware = internet; bind_nat = x; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; bind_nat = h; }
+ interface:internet = { negotiated6; hardware = internet; bind_nat = x; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; bind_nat = h; }
 }
-network:n3 = { ip = ::a01:300/120;}
-network:n4 = { ip = ::a01:400/120;}
+network:n3 = { ip6 = ::a01:300/120;}
+network:n4 = { ip6 = ::a01:400/120;}
 router:r1 = {
- interface:n1 = { ip = ::a01:102; bind_nat = h; }
- interface:n2 = { ip = f000::ac11:1; }
- interface:n3 = { ip = ::a01:302; bind_nat = n; }
+ interface:n1 = { ip6 = ::a01:102; bind_nat = h; }
+ interface:n2 = { ip6 = f000::ac11:1; }
+ interface:n3 = { ip6 = ::a01:302; bind_nat = n; }
 }
 network:n2 = {
- ip = f000::ac11:0/112;
+ ip6 = f000::ac11:0/112;
  nat:h = { hidden; }
- nat:n = { ip = ::a01:200/120; dynamic; }
- nat:x = { ip = ::6363:6300/120; dynamic; }
+ nat:n = { ip6 = ::a01:200/120; dynamic; }
+ nat:x = { ip6 = ::6363:6300/120; dynamic; }
 }
 =OUTPUT=
 -- ipv6/asavpn
@@ -2489,55 +2431,54 @@ ipv6 route outside ::102:304/128 f000::c0a8:1
 
 ############################################################
 =TITLE=Route to internet at internal interface
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
 
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA;
  managed;
  interface:n1 = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  negotiated;
+  negotiated6;
   id = cert@example.com;
   spoke = crypto:sts;
  }
  interface:lan1;
 }
 network:lan1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
 }
 
 router:Firewall = {
  managed;
  model = Linux;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:internet = { ip = ::101:102; hardware = internet; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:internet = { ip6 = ::101:102; hardware = internet; }
 }
 router:internet = {
  interface:internet;
  interface:n2;
 }
 
-network:n2 = { ip = ::101:200/120; }
+network:n2 = { ip6 = ::101:200/120; }
 
 service:s1 = {
  user = network:lan1;
@@ -2550,7 +2491,7 @@ Error: Two static routes for network:internet
 
 ############################################################
 =TITLE=Use real ip in ACL but NAT IP in crypto ACL
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -2576,38 +2517,38 @@ crypto:sts = {
  bind_nat = intern;
 }
 network:intern = {
- ip = ::a01:100/120;
- nat:intern = { ip = f000::c0a8:200/120; }
+ ip6 = ::a01:100/120;
+ nat:intern = { ip6 = f000::c0a8:200/120; }
 }
 
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = ::102:302;
+  ip6 = ::102:302;
   hub = crypto:sts;
   hardware = outside;
  }
 }
 
-network:dmz = { ip = ::102:300/121; }
+network:dmz = { ip6 = ::102:300/121; }
 
 router:extern = {
- interface:dmz = { ip = ::102:301; }
+ interface:dmz = { ip6 = ::102:301; }
  interface:internet;
 }
 
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 
 router:vpn1 = {
- interface:internet = { ip = ::101:101; spoke = crypto:sts; }
- interface:lan1 = {  ip = ::a63:101; }
+ interface:internet = { ip6 = ::101:101; spoke = crypto:sts; }
+ interface:lan1 = {  ip6 = ::a63:101; }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 service:test = {
  user = network:lan1;
  permit src = user; dst = network:intern; prt = tcp 80;
@@ -2620,7 +2561,8 @@ crypto map crypto-outside 1 set peer ::101:101
 crypto map crypto-outside 1 match address crypto-::101:101
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group ::101:101 type ipsec-l2l
 tunnel-group ::101:101 ipsec-attributes
  peer-id-validate nocheck
@@ -2636,7 +2578,7 @@ access-group outside_in in interface outside
 =TITLE=Directly connected software clients
 =TEMPL=input
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -2645,7 +2587,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
-  ip = ::a01:101;
+  ip6 = ::a01:101;
   hub = crypto:vpn;
   hardware = n1;
   no_check;
@@ -2654,19 +2596,18 @@ router:asavpn = {
 router:softclients = {
  interface:n1 = {
   spoke = crypto:vpn;
-  ip = ::a01:102;
+  ip6 = ::a01:102;
  }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 service:s1 = {
  user = host:id:foo@domain.x.clients;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 -- ipv6/asavpn
@@ -2681,9 +2622,8 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Directly connected software clients; peer without IP
-=PARAMS=--ipv6
 =INPUT=[[input]]
-=SUBST=/ip = ::a01:102;//
+=SUBST=/ip6 = ::a01:102;//
 =ERROR=
 Error: interface:softclients.n1 used to reach software clients
  must not be directly connected to interface:asavpn.n1
@@ -2692,9 +2632,8 @@ Error: interface:softclients.n1 used to reach software clients
 
 ############################################################
 =TITLE=Directly connected software clients; without routing
-=PARAMS=--ipv6
 =INPUT=[[input]]
-=SUBST=/ip = ::a01:102;//
+=SUBST=/ip6 = ::a01:102;//
 =SUBST=/# routing = manual/ routing = manual/
 =OUTPUT=
 -- ipv6/asavpn
@@ -2706,17 +2645,16 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=No secondary optimization for incoming ID host
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed = secondary;
@@ -2724,7 +2662,7 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n2 = {
-  ip = ::a01:202;
+  ip6 = ::a01:202;
   hub = crypto:vpn;
   hardware = n2;
   no_check;
@@ -2733,13 +2671,13 @@ router:asavpn = {
 router:softclients = {
  interface:n2 = {
   spoke = crypto:vpn;
-  ip = ::a01:203;
+  ip6 = ::a01:203;
  }
  interface:clients;
 }
 network:clients = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 service:s1 = {
  user = host:id:foo@domain.x.clients;
@@ -2757,30 +2695,29 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Empty software clients
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120; }
-network:trans = { ip = ::a09:900/120; }
+network:intern = { ip6 = ::a01:200/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:gw = {
- interface:intern = { ip = ::a01:201; hardware = e0; }
- interface:trans = { ip = ::a09:902; }
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:intern = { ip6 = ::a01:201; hardware = e0; }
+ interface:trans = { ip6 = ::a09:902; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn = {
  model = ASA, VPN;
  managed;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
- interface:trans = { spoke = crypto:vpn; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn; ip6 = ::a09:903; }
 }
 =OUTPUT=
 -- ipv6/asavpn
@@ -2791,13 +2728,12 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Must not use aggregate with software clients
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:200/120;}
+network:intern = { ip6 = ::a01:200/120;}
 router:gw = {
  interface:intern;
- interface:dmz = { ip = f000::c0a8:2; }
+ interface:dmz = { ip6 = f000::c0a8:2; }
 }
 router:asavpn = {
  model = ASA, VPN;
@@ -2807,20 +2743,20 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
   no_check;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:softclients = {
  interface:intern = { spoke = crypto:vpn; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = {  ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {  ip6 = ::a63:10a; }
 }
 service:test1 = {
  user = any:[network:customers1];
@@ -2832,13 +2768,12 @@ Warning: Ignoring any:[network:customers1] with software clients in src of rule 
 
 ############################################################
 =TITLE=Duplicate ID-hosts
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -2847,52 +2782,52 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz1 = {
-  ip = f000::c0a8:101;
+  ip6 = f000::c0a8:101;
   hub = crypto:vpn;
   hardware = dmz1;
  }
  interface:dmz2 = {
-  ip = f000::c0a8:201;
+  ip6 = f000::c0a8:201;
   hub = crypto:vpn2;
   hardware = dmz2;
  }
 }
-network:dmz1 = { ip = f000::c0a8:100/120; }
+network:dmz1 = { ip6 = f000::c0a8:100/120; }
 router:extern = {
- interface:dmz1 = { ip = f000::c0a8:102; }
+ interface:dmz1 = { ip6 = f000::c0a8:102; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients1 = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
  interface:customers2;
 }
 network:customers1 = {
- ip = ::a63:100/120;
- host:id:foo@domain.x = { ip = ::a63:10a; }
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = { ip6 = ::a63:10a; }
 }
 network:customers2 = {
- ip = ::a63:200/120;
- host:id:foo@domain.x = { ip = ::a63:20a; }
+ ip6 = ::a63:200/120;
+ host:id:foo@domain.x = { ip6 = ::a63:20a; }
 }
-network:dmz2 = { ip = f000::c0a8:200/120; }
+network:dmz2 = { ip6 = f000::c0a8:200/120; }
 router:gw = {
- interface:dmz2 = { ip = f000::c0a8:202; }
- interface:trans = { ip = ::a09:902; }
+ interface:dmz2 = { ip6 = f000::c0a8:202; }
+ interface:trans = { ip6 = ::a09:902; }
 }
-network:trans = { ip = ::a09:900/120; }
+network:trans = { ip6 = ::a09:900/120; }
 router:softclients2 = {
- interface:trans = { spoke = crypto:vpn2; ip = ::a09:903; }
+ interface:trans = { spoke = crypto:vpn2; ip6 = ::a09:903; }
  interface:customers3;
 }
 network:customers3 = {
- ip = ::a63:300/120;
- host:id:foo@domain.x = { ip = ::a63:30a; }
+ ip6 = ::a63:300/120;
+ host:id:foo@domain.x = { ip6 = ::a63:30a; }
 }
 service:test1 = {
  user = host:id:foo@domain.x.customers1,
@@ -2908,6 +2843,7 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT
+=TODO= No IPv6
 =TEMPL=input
 ipsec:aes192SHA = {
  key_exchange = isakmp:aes192SHA;
@@ -2949,63 +2885,62 @@ crypto:sts2 = {
  detailed_crypto_acl;
 }
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   bind_nat = lan2a;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts1, crypto:sts2;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = f000::ac10:102;
+  ip6 = f000::ac10:102;
   id = cert@example.com;
   spoke = crypto:sts1;
  }
  interface:lan1 = {
-  ip = ::a63:101;
+  ip6 = ::a63:101;
  }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 router:vpn2 = {
  interface:internet = {
-  ip = f000::ac10:202;
+  ip6 = f000::ac10:202;
   spoke = crypto:sts2;
  }
  interface:lan2 = {
-  ip = ::a63:201;
+  ip6 = ::a63:201;
  }
  interface:lan2a = {
-  ip = f000::c0a8:1601;
+  ip6 = f000::c0a8:1601;
  }
 }
-network:lan2 = { ip = ::a63:200/120; }
+network:lan2 = { ip6 = ::a63:200/120; }
 network:lan2a = {
- ip = f000::c0a8:1600/120;
- nat:lan2a = { ip = ::a63:1600/120;}
+ ip6 = f000::c0a8:1600/120;
+ nat:lan2a = { ip6 = ::a63:1600/120;}
 }
 protocol:http = tcp 80;
 service:test = {
  user = network:lan1, network:lan2, network:lan2a;
  permit src = user; dst = host:netspoc; prt = protocol:http;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
@@ -3053,7 +2988,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT (IKEv2)
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
@@ -3106,7 +3041,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=IOS with two crypto spokes and NAT (IKEv2)
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =SUBST=/ASA/IOS/
@@ -3154,6 +3089,7 @@ crypto map crypto-outside 2 ipsec-isakmp
 
 ############################################################
 =TITLE=ASA with two dynamic crypto spokes, same ipsec at different tunnels
+=TODO= No IPv6
 =TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -3180,64 +3116,63 @@ crypto:sts2 = {
  detailed_crypto_acl;
 }
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   bind_nat = lan2a;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts1, crypto:sts2;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  negotiated;
+  negotiated6;
   spoke = crypto:sts1;
   id = vpn1@example.com;
  }
  interface:lan1 = {
-  ip = ::a63:201;
+  ip6 = ::a63:201;
  }
 }
-network:lan1 = { ip = ::a63:200/120; }
+network:lan1 = { ip6 = ::a63:200/120; }
 router:vpn2 = {
  interface:internet = {
-  negotiated;
+  negotiated6;
   spoke = crypto:sts2;
   id = vpn2@example.com;
  }
  interface:lan2 = {
-  ip = ::a63:301;
+  ip6 = ::a63:301;
  }
  interface:lan2a = {
-  ip = f000::c0a8:1601;
+  ip6 = f000::c0a8:1601;
  }
 }
-network:lan2 = { ip = ::a63:300/120; }
+network:lan2 = { ip6 = ::a63:300/120; }
 network:lan2a = {
- ip = f000::c0a8:1600/120;
- nat:lan2a = { ip = ::a63:1600/120;}
+ ip6 = f000::c0a8:1600/120;
+ nat:lan2a = { ip6 = ::a63:1600/120;}
 }
 protocol:http = tcp 80;
 service:test = {
  user = network:lan1, network:lan2, network:lan2a;
  permit src = user; dst = host:netspoc; prt = protocol:http;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 # Use individual routes to VPN peers, even if all have same next hop.
 =OUTPUT=
@@ -3289,7 +3224,6 @@ crypto map crypto-outside interface outside
 ############################################################
 =TITLE=Generate individual routes even if no ::/0
 =TODO= No IPv6
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=,::/0,::100:0/8,
 # Use individual routes to VPN peers, even if all have same next hop
@@ -3305,7 +3239,7 @@ ipv6 route outside ::100:0/104 f000::c0a8:1
 
 ############################################################
 =TITLE=Must not reuse crypto id
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
 =ERROR=
@@ -3316,9 +3250,8 @@ Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'rou
 
 ############################################################
 =TITLE=id only valid with spoke
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { unnumbered; }
+network:n1 = { unnumbered6; }
 router:r1 = { interface:n1 = { id = a.b.c; } }
 =WARNING=
 Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
@@ -3326,7 +3259,6 @@ Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
 
 ############################################################
 =TITLE=detailed_crypto_acl
-=PARAMS=--ipv6
 =INPUT=
 crypto:psk-detailed = {
  type = ipsec:aes256_sha256_ikev2_psk;
@@ -3348,20 +3280,20 @@ isakmp:aes256_sha256_ikev2_psk = {
  group = 19;
  lifetime = 86400 sec;
 }
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:dmz = { ip = f000::c0a8:104; hardware = dmz;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:dmz = { ip6 = f000::c0a8:104; hardware = dmz;
                    hub = crypto:psk-detailed; }
 }
-network:dmz = { ip = f000::c0a8:100/123;}
+network:dmz = { ip6 = f000::c0a8:100/123;}
 router:r1 = {
- interface:dmz = { ip = f000::c0a8:102; spoke = crypto:psk-detailed; }
+ interface:dmz = { ip6 = f000::c0a8:102; spoke = crypto:psk-detailed; }
  interface:n2;
 }
-network:n2 = { ip = ::a01:200/120;}
+network:n2 = { ip6 = ::a01:200/120;}
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 22;
@@ -3388,52 +3320,51 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Unexpected dynamic crypto spoke
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = IOS;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  negotiated;
+  negotiated6;
   spoke = crypto:sts;
   id = vpn1@example.com;
  }
  interface:lan1 = {
-  ip = ::a63:201;
+  ip6 = ::a63:201;
  }
 }
-network:lan1 = { ip = ::a63:200/120; }
+network:lan1 = { ip6 = ::a63:200/120; }
 =ERROR=
 Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
 =END=
 
 ############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks
-=TEMPL=input
+=TITLE=VPN ASA to VPN router with two local networks
+=INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -3445,48 +3376,46 @@ router:asavpn = {
   wins-server = ::a01:114;
  }
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn = {
  managed;
- model = IOS, EZVPN;
+ model = IOS;
  interface:internet = {
-  negotiated;
+  negotiated6;
   spoke = crypto:vpn;
   id = abc@123.45;
   hardware = e1;
  }
  interface:lan2 = {
-  ip = ::a63:201;
+  ip6 = ::a63:201;
   hardware = e2;
  }
  interface:lan3 = {
-  ip = ::a63:301;
+  ip6 = ::a63:301;
   hardware = e3;
  }
 }
-network:lan2 = { ip = ::a63:200/120; }
-network:lan3 = { ip = ::a63:300/120; }
+network:lan2 = { ip6 = ::a63:200/120; }
+network:lan3 = { ip6 = ::a63:300/120; }
 service:test = {
  user = network:lan2, network:lan3;
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=PARAMS=--ipv6
-=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 tunnel-group VPN-single type remote-access
@@ -3523,26 +3452,6 @@ access-list outside_in extended permit tcp ::a63:200/119 ::a01:100/120 eq 80
 access-list outside_in extended deny ip any6 any6
 access-group outside_in in interface outside
 --ipv6/vpn
-crypto ipsec client ezvpn vpn
- connect auto
- mode network-extension
- peer f000::c0a8:65
- acl ACL-Split-Tunnel
- virtual-interface 1
- username test pass test
- xauth userid mode local
-ipv6 access-list ACL-Split-Tunnel
- permit ipv6 ::a63:200/120 any
- permit ipv6 ::a63:300/120 any
-ipv6 access-list ACL-crypto-filter
- deny ipv6 any host ::a63:201
- deny ipv6 any host ::a63:301
- permit udp ::a01:100/120 ::a63:200/119 eq 123
- permit tcp ::a01:100/120 ::a63:200/119 established
- deny ipv6 any any
-interface Virtual-Template1 type tunnel
- ipv6 traffic-filter ACL-crypto-filter in
---
 ipv6 access-list e1_in
  permit 50 host f000::c0a8:65 any
  permit udp host f000::c0a8:65 eq 500 any eq 500
@@ -3555,111 +3464,55 @@ ipv6 access-list e2_in
 --
 interface e1
  ip address negotiated
- crypto ipsec client ezvpn vpn
+ crypto map crypto-e1
  ipv6 traffic-filter e1_in in
 interface e2
  ipv6 address ::a63:201/120
- crypto ipsec client ezvpn vpn inside
  ipv6 traffic-filter e2_in in
 interface e3
  ipv6 address ::a63:301/120
- crypto ipsec client ezvpn vpn inside
  ipv6 traffic-filter e3_in in
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks authenticated only
-# Protocol 50 is also used if only esp_authentication.
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/esp_encryption = aes256;//
-=OUTPUT=
---ipv6/vpn
-ipv6 access-list e1_in
- permit 50 host f000::c0a8:65 any
- permit udp host f000::c0a8:65 eq 500 any eq 500
- deny ipv6 any any
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN ASA with two local networks
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=OUTPUT=
---ipv6/vpn
-! [ Routing ]
-ipv6 route e1 ::/0 e1
---
-! VPN traffic is filtered at interface ACL
-no sysopt connection permit-vpn
---
-! e1_in
-access-list e1_in extended permit udp ::a01:100/120 ::a63:200/119 eq 123
-access-list e1_in extended deny ip any6 any6
-access-group e1_in in interface e1
---
-! e2_in
-access-list e2_in extended permit tcp ::a63:200/120 ::a01:100/120 eq 80
-access-list e2_in extended deny ip any6 any6
-access-group e2_in in interface e2
---
-! e3_in
-access-list e3_in extended permit tcp ::a63:300/120 ::a01:100/120 eq 80
-access-list e3_in extended deny ip any6 any6
-access-group e3_in in interface e3
-=END=
-
-############################################################
-=TITLE=Missing ID at EZVPN router to VPN ASA
-=PARAMS=--ipv6
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=SUBST=/id =/#id/
-=ERROR=
-Error: interface:vpn.tunnel:vpn needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
 =END=
 
 ############################################################
 =TITLE=ASA as managed VPN spoke
 =TEMPL=input
 [[crypto_sts]]
-network:intern = { ip = ::a01:100/120; }
+network:intern = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:101;
+  ip6 = f000::c0a8:101;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:100/120; }
+network:dmz = { ip6 = f000::c0a8:100/120; }
 router:vpn1 = {
  managed;
  model = ASA;
  interface:dmz = {
-  ip = f000::c0a8:102;
+  ip6 = f000::c0a8:102;
   id = cert@example.com;
   spoke = crypto:sts;
   hardware = GigabitEthernet0;
  }
  interface:lan1 = {
-  ip = ::a63:101;
+  ip6 = ::a63:101;
   hardware = Fastethernet8;
  }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 service:test = {
  user = network:lan1;
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/vpn1
@@ -3675,7 +3528,8 @@ crypto map crypto-GigabitEthernet0 1 set peer f000::c0a8:101
 crypto map crypto-GigabitEthernet0 1 match address crypto-f000::c0a8:101
 crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
 crypto map crypto-GigabitEthernet0 1 set pfs group2
-crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime kilobytes 100000
 tunnel-group f000::c0a8:101 type ipsec-l2l
 tunnel-group f000::c0a8:101 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3695,7 +3549,6 @@ access-group Fastethernet8_in in interface Fastethernet8
 
 ############################################################
 =TITLE=Missing trust_point in isakmp for spoke and hub (1)
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/trust_point/#trust_point/
 =ERROR=
@@ -3705,7 +3558,6 @@ Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 
 ############################################################
 =TITLE=Missing trust_point in isakmp for spoke and hub (2)
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/trust_point = ASDM_TrustPoint3;/trust_point = none;/
 =ERROR=
@@ -3720,69 +3572,69 @@ Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 =TEMPL=topo
 [[crypto_sts]]
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = ::102:302;
+  ip6 = ::102:302;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = ::102:300/121; }
+network:dmz = { ip6 = ::102:300/121; }
 router:extern = {
- interface:dmz = { ip = ::102:301; }
+ interface:dmz = { ip6 = ::102:301; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:firewall = {
  managed;
  model = ASA;
  interface:internet = {
-  ip = ::101:101;
+  ip6 = ::101:101;
   bind_nat = vpn1;
   routing = dynamic;
   hardware = outside;
  }
- interface:dmz1 = { ip = ::afe:fe90; hardware = inside; }
+ interface:dmz1 = { ip6 = ::afe:fe90; hardware = inside; }
 }
 network:dmz1 = {
- ip = ::afe:fe00/120;
- nat:vpn1 = { ip = ::102:381/128; dynamic; }
+ ip6 = ::afe:fe00/120;
+ nat:vpn1 = { ip6 = ::102:381/128; dynamic; }
 }
 router:vpn1 = {
  managed;#
  model = IOS;
  interface:dmz1 = {
-  ip = ::afe:fe06;
+  ip6 = ::afe:fe06;
 id = cert@example.com;#
-  nat:vpn1 = { ip = ::102:381; }
+  nat:vpn1 = { ip6 = ::102:381; }
   spoke = crypto:sts;
   bind_nat = lan1;
   hardware = GigabitEthernet0;
  }
  interface:lan1 = {
-  ip = ::a63:101, ::a63:1fd;
+  ip6 = ::a63:101, ::a63:1fd;
   hardware = Fastethernet8;
  }
 }
 network:lan1 = {
- ip = ::a63:100/120;
- nat:lan1 = { ip = ::a0a:a00/120; }
- #host:id:h1@example.com = { ip = ::a63:182; }
+ ip6 = ::a63:100/120;
+ nat:lan1 = { ip6 = ::a0a:a00/120; }
+ #host:id:h1@example.com = { ip6 = ::a63:182; }
 }
 =END=
 
 ############################################################
 =TITLE=Create crypto ACL even if no rule is defined
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 =OUTPUT=
@@ -3793,7 +3645,8 @@ crypto map crypto-outside 1 set peer ::102:381
 crypto map crypto-outside 1 match address crypto-::102:381
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group ::102:381 type ipsec-l2l
 tunnel-group ::102:381 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3806,7 +3659,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Access VPN interface
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -3831,7 +3684,7 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
 
 ############################################################
 =TITLE=NAT of IPSec traffic at ASA and NAT of VPN network at IOS
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -3847,7 +3700,8 @@ crypto map crypto-outside 1 set peer ::102:381
 crypto map crypto-outside 1 match address crypto-::102:381
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group ::102:381 type ipsec-l2l
 tunnel-group ::102:381 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3901,7 +3755,7 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=detailed_crypto_acl at managed spoke
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=[[topo]]
 =SUBST=/type = ipsec:/detailed_crypto_acl; type = ipsec:/
 =ERROR=
@@ -3910,14 +3764,14 @@ Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:v
 
 ############################################################
 =TITLE=Don't add hidden network to crypto ACL
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 network:lan2 = {
- ip = ::a63:200/120;
+ ip6 = ::a63:200/120;
  nat:h = { hidden; }
 }
-=SUBST=/interface:lan1/interface:lan2={ip=::a63:201;hardware=lan2;}interface:lan1/
+=SUBST=/interface:lan1/interface:lan2={ip6=::a63:201;hardware=lan2;}interface:lan1/
 =SUBST=/bind_nat = lan1;/bind_nat = h, lan1; /
 =OUTPUT=
 --ipv6/asavpn
@@ -3927,7 +3781,8 @@ crypto map crypto-outside 1 set peer ::102:381
 crypto map crypto-outside 1 match address crypto-::102:381
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group ::102:381 type ipsec-l2l
 tunnel-group ::102:381 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3940,23 +3795,23 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Multiple zones behind managed crypto router
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 router:r1 = {
  managed;
  model = IOS;
- interface:lan1 = { ip = ::a63:102; hardware = lan1; }
- interface:x = { ip = ::a63:181; hardware = x; }
+ interface:lan1 = { ip6 = ::a63:102; hardware = lan1; }
+ interface:x = { ip6 = ::a63:181; hardware = x; }
 }
-network:x = { ip = ::a63:180/122; subnet_of = network:lan1; }
+network:x = { ip6 = ::a63:180/122; subnet_of = network:lan1; }
 =ERROR=
 Error: Exactly one security zone must be located behind managed interface:vpn1.lan1 of crypto router
 =END=
 
 ############################################################
 =TITLE=ID hosts behind managed crypto router
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3967,7 +3822,7 @@ Error: network:lan1 having ID hosts must not be located behind managed router:vp
 
 ############################################################
 =TITLE=ID hosts behind unmanaged crypto router
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3978,7 +3833,7 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 
 ############################################################
 =TITLE=Attribute 'id' with wrong authentication
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 [[topo]]
 =SUBST=/rsasig/preshare/
@@ -3992,44 +3847,43 @@ Error: Invalid attribute 'id' at interface:vpn1.tunnel:vpn1.
 =TEMPL=topo
 [[crypto_sts]]
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:vpn = {
  model = IOS;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = intern;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts;
   hardware = dmz;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = f000::ac10:102;
+  ip6 = f000::ac10:102;
   id = cert@example.com;
   spoke = crypto:sts;
  }
  interface:lan1 = {
-  ip = ::a63:101;
+  ip6 = ::a63:101;
  }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 =END=
 
 ############################################################
 =TITLE=IOS router as VPN hub
-=PARAMS=--ipv6
 =INPUT=
 [[topo]]
 service:test = {
@@ -4079,48 +3933,38 @@ interface dmz
 =END=
 
 ############################################################
-=TITLE=Must not use EZVPN as hub
-=PARAMS=--ipv6
-=INPUT=[[topo]]
-=SUBST=/IOS/IOS, EZVPN/
-=ERROR=
-Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
-=END=
-
-############################################################
 =TITLE=Unmanaged VPN spoke with unknown ID
 =TEMPL=input
 [[crypto_sts]]
-network:intern = { ip = ::a01:100/120; }
+network:intern = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = ::102:302;
+  ip6 = ::102:302;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = ::102:300/121; }
+network:dmz = { ip6 = ::102:300/121; }
 router:extern = {
- interface:dmz = { ip = ::102:301; }
+ interface:dmz = { ip6 = ::102:301; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-    ip = ::101:101;
+    ip6 = ::101:101;
 #  id = cert@example.com;
   spoke = crypto:sts;
  }
  interface:lan1;
 }
-network:lan1 = { ip = ::a63:100/120; }
-=PARAMS=--ipv6
+network:lan1 = { ip6 = ::a63:100/120; }
 =INPUT=[[input]]
 =ERROR=
 Error: interface:vpn1.tunnel:vpn1 needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
@@ -4128,7 +3972,6 @@ Error: interface:vpn1.tunnel:vpn1 needs attribute 'id', because isakmp:aes256SHA
 
 ############################################################
 =TITLE=Unmanaged VPN spoke with known ID
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/#  id/  id/
 =OUTPUT=
@@ -4142,7 +3985,8 @@ crypto map crypto-outside 1 set peer ::101:101
 crypto map crypto-outside 1 match address crypto-::101:101
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group ::101:101 type ipsec-l2l
 tunnel-group ::101:101 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -4159,7 +4003,6 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Must not traverse crypto interface
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 service:t = {
@@ -4177,39 +4020,38 @@ Error: No valid path
 
 ############################################################
 =TITLE=Must not use ID-host at model=ASA;
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
-network:intern = { ip = ::a01:100/120; }
+network:intern = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = ::102:302;
+  ip6 = ::102:302;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = ::102:300/121; }
+network:dmz = { ip6 = ::102:300/121; }
 router:extern = {
- interface:dmz = { ip = ::102:301; }
+ interface:dmz = { ip6 = ::102:301; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = ::101:101;
+  ip6 = ::101:101;
   spoke = crypto:sts;
  }
  interface:lan1;
 }
 network:lan1 = {
- ip = ::a63:100/120;
- host:id:@example.com = { range = ::a63:120 - ::a63:13f; }
+ ip6 = ::a63:100/120;
+ host:id:@example.com = { range6 = ::a63:120 - ::a63:13f; }
 }
 =ERROR=
 Error: network:lan1 having ID hosts can't be checked by router:asavpn
@@ -4217,39 +4059,38 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 
 ############################################################
 =TITLE=Virtual interface must not be spoke
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_sts]]
-network:intern = { ip = ::a01:100/120; }
+network:intern = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = ::102:302;
+  ip6 = ::102:302;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = ::102:300/121; }
+network:dmz = { ip6 = ::102:300/121; }
 router:extern = {
- interface:dmz = { ip = ::102:301; }
+ interface:dmz = { ip6 = ::102:301; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = ::101:102;
-  virtual = { ip = ::a01:101; }
+  ip6 = ::101:102;
+  virtual = { ip6 = ::a01:101; }
   spoke = crypto:sts;
  }
  interface:lan1;
 }
 network:lan1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
 }
 =ERROR=
 Error: interface:vpn1.internet with virtual interface must not use attribute 'spoke'
@@ -4257,10 +4098,9 @@ Error: interface:vpn1.internet with virtual interface must not use attribute 'sp
 
 ############################################################
 =TITLE=Silently ignore auto interface at crypto tunnel
-=PARAMS=--ipv6
 =INPUT=
 [[crypto_vpn]]
-network:intern = { ip = ::a01:100/120;}
+network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -4268,32 +4108,32 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = ::a01:166;
+  ip6 = ::a01:166;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:vpn;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:softclients = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
 }
 network:customers1 = {
- ip = ::a63:100/120;
+ ip6 = ::a63:100/120;
  radius_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
-  ip = ::a63:10a;
+  ip6 = ::a63:10a;
  }
 }
 service:mgmt = {
@@ -4309,13 +4149,12 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Sort crypto rules in ACL
-=PARAMS=--ipv6
 =INPUT=
-network:n0 = { ip = ::a01:0/120; }
-network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
-network:n2 = { ip = ::a01:200/120; }
-network:n0-sub = { ip = ::a01:0/122; subnet_of = network:n0; }
-network:n2-sub = { ip = ::a01:200/121; subnet_of = network:n2; }
+network:n0 = { ip6 = ::a01:0/120; }
+network:n1 = { ip6 = ::a01:100/120; host:h1 = { ip6 = ::a01:10a; } }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n0-sub = { ip6 = ::a01:0/122; subnet_of = network:n0; }
+network:n2-sub = { ip6 = ::a01:200/121; subnet_of = network:n2; }
 router:u1 = {
  interface:n0-sub;
  interface:n0;
@@ -4324,9 +4163,9 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n0 = { ip = ::a01:41;  hardware = n0; }
- interface:n1 = { ip = ::a01:101;   hardware = n1; }
- interface:n2 = { ip = ::a01:281; hardware = n2; }
+ interface:n0 = { ip6 = ::a01:41;  hardware = n0; }
+ interface:n1 = { ip6 = ::a01:101;   hardware = n1; }
+ interface:n2 = { ip6 = ::a01:281; hardware = n2; }
 }
 router:u2 = {
  interface:n2;
@@ -4393,16 +4232,15 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Sort AH rules only
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101;   hardware = n1; }
- interface:n2 = { ip = ::a01:281; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101;   hardware = n1; }
+ interface:n2 = { ip6 = ::a01:281; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -4422,16 +4260,15 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=Sort ESP rules only
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101;   hardware = n1; }
- interface:n2 = { ip = ::a01:281; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101;   hardware = n1; }
+ interface:n2 = { ip6 = ::a01:281; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -4471,44 +4308,43 @@ crypto:sts1 = {
  type = ipsec:aes256SHA;
 }
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts1;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = f000::ac10:102;
+  ip6 = f000::ac10:102;
   id = cert@example.com;
   spoke = crypto:sts1;
  }
  interface:lan1 = {
-  ip = ::a63:101;
+  ip6 = ::a63:101;
  }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
@@ -4538,7 +4374,6 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=ASA with unencrypted spoke using AH  (IKEv2)
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
@@ -4594,44 +4429,43 @@ crypto:sts = {
 }
 
 network:intern = {
- ip = ::a01:100/120;
- host:netspoc = { ip = ::a01:16f; }
+ ip6 = ::a01:100/120;
+ host:netspoc = { ip6 = ::a01:16f; }
 }
 router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = ::a01:165;
+  ip6 = ::a01:165;
   hardware = inside;
  }
  interface:dmz = {
-  ip = f000::c0a8:65;
+  ip6 = f000::c0a8:65;
   hub = crypto:sts;
   hardware = outside;
  }
 }
-network:dmz = { ip = f000::c0a8:0/120; }
+network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip = f000::c0a8:1; }
+ interface:dmz = { ip6 = f000::c0a8:1; }
  interface:internet;
 }
-network:internet = { ip = ::/0; has_subnets; }
+network:internet = { ip6 = ::/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
-  ip = f000::ac10:102;
+  ip6 = f000::ac10:102;
   id = f000::ac10:102;
   spoke = crypto:sts;
  }
  interface:lan1 = {
-  ip = ::a63:101;
+  ip6 = ::a63:101;
  }
 }
-network:lan1 = { ip = ::a63:100/120; }
+network:lan1 = { ip6 = ::a63:100/120; }
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 =OUTPUT=
@@ -4665,7 +4499,6 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=IOS crypto with aes-gcm-256
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 =SUBST=/ASA/IOS/

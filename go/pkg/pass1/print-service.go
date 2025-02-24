@@ -28,10 +28,6 @@ Uses network:name as reference when resolving IP address in a NAT environment.
 
 Show name, not IP of elements.
 
-=item B<-ipv6>
-
-Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
-
 =item B<-quiet>
 
 Don't print progress messages.
@@ -48,7 +44,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -71,11 +67,10 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -224,9 +219,7 @@ func (c *spoc) printService(
 		return strings.Join(result, " ")
 	}
 
-	names := maps.Keys(s2rules)
-	sort.Strings(names)
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(s2rules)) {
 		for _, r := range s2rules[name] {
 			action := "permit"
 			if r.deny {
@@ -253,7 +246,6 @@ func PrintServiceMain(d oslink.Data) int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
 	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
@@ -279,7 +271,6 @@ func PrintServiceMain(d oslink.Data) int {
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
-		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 	return toplevelSpoc(d, cnf, func(c *spoc) {

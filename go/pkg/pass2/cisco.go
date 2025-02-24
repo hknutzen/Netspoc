@@ -1,13 +1,15 @@
 package pass2
 
 import (
+	"cmp"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net/netip"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
 
 func optimizeRedundantRules(cmp, chg ruleTree) bool {
@@ -246,8 +248,8 @@ func joinRanges1(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		// overlaps, because they have been split in function
 		// 'orderRanges'. There can't be sub-ranges, because they have
 		// been deleted as redundant already.
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].prt.ports[0] < list[j].prt.ports[0]
+		slices.SortFunc(list, func(a, b *ciscoRule) int {
+			return cmp.Compare(a.prt.ports[0], b.prt.ports[0])
 		})
 		ruleA := list[0]
 		proto := ruleA.prt.protocol
@@ -339,37 +341,34 @@ func moveRulesEspAh(
 		if val := a.Addr().Compare(b.Addr()); val != 0 {
 			return val
 		}
-		if a.Bits() < b.Bits() {
-			return -1
-		}
-		if a.Bits() > b.Bits() {
+		return cmp.Compare(a.Bits(), b.Bits())
+	}
+	hasLog = true
+	slices.SortStableFunc(rules, func(a, b *ciscoRule) int {
+		cmpBool := func(a, b bool) int {
+			if a == b {
+				return 0
+			}
+			if a {
+				return -1
+			}
 			return 1
 		}
-		return 0
-	}
-	sort.SliceStable(rules, func(i, j int) bool {
-		if rules[i].deny {
-			return !rules[j].deny
+		if a.deny || b.deny {
+			return cmpBool(a.deny, b.deny)
 		}
-		if rules[j].deny {
-			return false
+		sa := needSort(a)
+		sb := needSort(b)
+		if !sa || !sb {
+			return cmpBool(!sb, !sa)
 		}
-		if !needSort(rules[i]) {
-			return false
+		if cmp := strings.Compare(a.prt.protocol, b.prt.protocol); cmp != 0 {
+			return cmp
 		}
-		if !needSort(rules[j]) {
-			return true
+		if cmp := cmpAddr(a.src, b.src); cmp != 0 {
+			return cmp
 		}
-		if cmp := strings.Compare(
-			rules[i].prt.protocol,
-			rules[j].prt.protocol); cmp != 0 {
-
-			return cmp == -1
-		}
-		if cmp := cmpAddr(rules[i].src, rules[j].src); cmp != 0 {
-			return cmp == -1
-		}
-		return cmpAddr(rules[i].dst, rules[j].dst) == -1
+		return cmpAddr(a.dst, b.dst)
 	})
 	return rules
 }
@@ -412,13 +411,16 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 			if len(objList) == 1 {
 				return objList[0]
 			}
-			if routerData.filterOnlyGroup != nil {
+			if ref := routerData.filterOnlyGroup[aclInfo.vrf]; ref != nil {
 
-				// Reuse object-group at all interfaces.
-				return routerData.filterOnlyGroup
+				// Reuse object-group at all interfaces of same VRF.
+				return ref
 			}
 			group := createGroup(objList, aclInfo, routerData)
-			routerData.filterOnlyGroup = group.ref
+			if routerData.filterOnlyGroup == nil {
+				routerData.filterOnlyGroup = make(map[string]*ipNet)
+			}
+			routerData.filterOnlyGroup[aclInfo.vrf] = group.ref
 			return group.ref
 		}
 		aclInfo.rules.push(
@@ -469,8 +471,8 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	// Sort by IP address. Adjacent networks will be adjacent elements then.
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
-	sort.Slice(rules, func(i, j int) bool {
-		return get(rules[i]).Addr().Less(get(rules[j]).Addr())
+	slices.SortFunc(rules, func(a, b *ciscoRule) int {
+		return get(a).Addr().Compare(get(b).Addr())
 	})
 
 	// Find left and rigth part with identical mask and combine them
@@ -548,7 +550,7 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 
 	// Leave 'intfRules' untouched, because
 	// - these rules are ignored at ASA,
-	// - NX-OS needs them individually when optimizing needProtect.
+	// - we don't support groups for IOS.
 	rules := aclInfo.rules
 
 	// Find object-groups in src / dst of rules.
@@ -807,13 +809,7 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 
 	// Object group.
 	if !obj.Prefix.IsValid() {
-		var keyword string
-		if model == "NX-OS" {
-			keyword = "addrgroup"
-		} else {
-			keyword = "object-group"
-		}
-		return keyword + " " + obj.name
+		return "object-group " + obj.name
 	}
 
 	prefix := obj.Bits()
@@ -827,9 +823,6 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 		}
 		return "any"
 	}
-	if model == "NX-OS" {
-		return obj.name
-	}
 	ipCode := ip.String()
 	if obj.Prefix.IsSingleIP() {
 		return "host " + ipCode
@@ -842,7 +835,7 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 	bytes := maskNet.Addr().As4()
 
 	// Inverse mask bits.
-	if model == "NX-OS" || model == "IOS" {
+	if model == "IOS" {
 		for i, byte := range bytes {
 			bytes[i] = ^byte
 		}
@@ -852,23 +845,12 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 }
 
 func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
-	var keyword string
-	if model == "NX-OS" {
-		keyword = "object-group ip address"
-	} else {
-		keyword = "object-group network"
-	}
+	keyword := "object-group network"
 	for _, group := range aclInfo.objectGroups {
-		numbered := 10
 		fmt.Fprintln(fd, keyword, group.name)
 		for _, element := range group.elements {
 			adr := ciscoACLAddr(element, model)
-			if model == "NX-OS" {
-				fmt.Fprintln(fd, "", numbered, adr)
-				numbered += 10
-			} else {
-				fmt.Fprintln(fd, " network-object", adr)
-			}
+			fmt.Fprintln(fd, " network-object", adr)
 		}
 	}
 }
@@ -960,20 +942,14 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 
 	name := aclInfo.name
 	ipv6 := routerData.ipv6
-	numbered := 10
 	prefix := ""
 	switch model {
-	case "IOS", "NX-OS":
+	case "IOS":
 		if ipv6 {
 			fmt.Fprintln(fd, "ipv6 access-list", name)
 			break
 		}
-		switch model {
-		case "IOS":
-			fmt.Fprintln(fd, "ip access-list extended", name)
-		case "NX-OS":
-			fmt.Fprintln(fd, "ip access-list", name)
-		}
+		fmt.Fprintln(fd, "ip access-list extended", name)
 	case "ASA":
 		prefix = "access-list " + name + " extended"
 	}
@@ -997,14 +973,8 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 			}
 			if rule.log != "" {
 				result += " " + rule.log
-			} else if rule.deny && routerData.logDeny != "" {
-				result += " " + routerData.logDeny
-			}
-
-			// Add line numbers.
-			if model == "NX-OS" {
-				result = " " + strconv.Itoa(numbered) + result
-				numbered += 10
+			} else if rule.deny && aclInfo.logDeny != "" {
+				result += " " + aclInfo.logDeny
 			}
 			fmt.Fprintln(fd, result)
 		}

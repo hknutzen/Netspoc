@@ -62,7 +62,7 @@ deny   10.1.1.11 10.0.0.0 tcp 85
 =TITLE=Packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 10.1.1.11 10.1.2.12 tcp 85
 10.1.1.11 10.0.0.0 udp 123
 10.1.1.11 10.1.2.12 icmp 3/3
@@ -78,7 +78,7 @@ deny   10.1.1.11 10.1.2.12 icmp 3/13
 =TITLE=Duplicate packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 10.1.1.11 10.1.2.12 tcp 085
 10.1.1.11 10.1.2.12 tcp 85
 10.1.1.11 10.0.0.0 tcp 85
@@ -183,7 +183,7 @@ Warning: Ignored packet with invalid protocol number: 999
 =TITLE=Bad packets from file
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
-=FOPTION=
+=FILE_OPTION=
 # Comment, then empty line
 
 10.1.1.11 10.1.2.12 tcp 85
@@ -207,13 +207,13 @@ deny   10.1.1.11 10.0.0.0 tcp 85
 ############################################################
 =TITLE=IPv6
 =INPUT=
-network:n1 = { ip = 1000::abcd:0001:0/112;}
-network:n2 = { ip = 1000::abcd:0002:0/112;}
+network:n1 = { ip6 = 1000::abcd:0001:0/112;}
+network:n2 = { ip6 = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
- interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+ interface:n1 = {ip6 = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip6 = 1000::abcd:0002:0001; hardware = n2;}
 }
 service:s1 = {
  user = network:n1;
@@ -221,7 +221,6 @@ service:s1 = {
  dst = network:n2;
  prt = tcp 80-90;
 }
-=OPTIONS=-6
 =PARAMS=ipv6/r1 n1_in
 =PARAM=
 1000::abcd:0001:11 1000::abcd:0002:12 tcp 85

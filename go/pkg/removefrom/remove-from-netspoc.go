@@ -79,6 +79,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -115,7 +116,8 @@ func setupObjects(m map[string]bool, objects []string) error {
 }
 
 func process(s *astset.State, remove map[string]bool, delDef bool) {
-	var emptySvc []string
+	var emptySvc []*ast.Service
+	emptySvcRules := make(map[*ast.Service][]int)
 	retain := make(map[string]bool)
 	// Remove elements from element lists.
 	s.Modify(func(n ast.Toplevel) bool {
@@ -180,13 +182,10 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 			}
 			return l[:j]
 		}
-		empty := false
-		change := func(l *[]ast.Element) {
+		change := func(l *[]ast.Element) bool {
 			l2 := traverse(*l, false)
-			if len(l2) == 0 {
-				empty = true
-			}
 			*l = l2
+			return len(l2) == 0
 		}
 
 		switch x := n.(type) {
@@ -195,13 +194,18 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 				change(&x.Elements)
 			}
 		case *ast.Service:
-			change(&x.User.Elements)
-			for _, r := range x.Rules {
-				change(&r.Src.Elements)
-				change(&r.Dst.Elements)
+			userEmpty := change(&x.User.Elements)
+			var emptyRules []int
+			for i, r := range x.Rules {
+				empty := change(&r.Src.Elements)
+				if (change(&r.Dst.Elements) || empty) && !userEmpty {
+					emptyRules = append(emptyRules, i)
+				}
 			}
-			if empty {
-				emptySvc = append(emptySvc, x.Name)
+			if userEmpty || len(emptyRules) == len(x.Rules) {
+				emptySvc = append(emptySvc, x)
+			} else if len(emptyRules) > 0 {
+				emptySvcRules[x] = emptyRules
 			}
 		}
 		return changed
@@ -228,8 +232,30 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 		}
 	}
 	// Delete definition of empty service.
-	for _, name := range emptySvc {
-		s.DeleteToplevel(name)
+	for _, sv := range emptySvc {
+		s.DeleteToplevelNode(sv)
+	}
+	deleteEmptyRules(s, emptySvcRules)
+}
+
+func deleteEmptyRules(s *astset.State, empty map[*ast.Service][]int) {
+	for sv, l := range empty {
+		s.Modify(func(toplevel ast.Toplevel) bool {
+			modified := false
+			if n, ok := toplevel.(*ast.Service); ok && n == sv {
+				j := 0
+				for i, a := range n.Rules {
+					if slices.Contains(l, i) {
+						modified = true
+					} else {
+						n.Rules[j] = a
+						j++
+					}
+				}
+				n.Rules = n.Rules[:j]
+			}
+			return modified
+		})
 	}
 }
 
@@ -291,7 +317,7 @@ func Main(d oslink.Data) int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	s, err := astset.Read(path, cnf.IPV6)
+	s, err := astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1

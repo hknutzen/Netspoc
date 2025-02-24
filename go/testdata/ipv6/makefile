@@ -1,6 +1,6 @@
 VPATH = ../
 
-ignore=$(wildcard ../*ipv*.t) ../options.t
+ignore=$(wildcard ../*ipv*.t) ../options.t ../nat.t
 files=$(filter-out $(ignore), $(wildcard ../*.t))
 
 all : $(patsubst ../%.t, %_ipv6.t, $(files))

@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -276,7 +276,7 @@ func (c *spoc) showRedundantRules(ri *redundInfo) {
 		for _, pair := range rulePairs {
 			list.push(pair[0].print() + "\n< " + pair[1].print())
 		}
-		sort.Strings(list)
+		slices.Sort(list)
 		msg += strings.Join(list, "\n  ")
 		c.warnOrErr(action, msg)
 	}
@@ -519,14 +519,13 @@ func (c *spoc) checkRedundantRules() {
 	count := 0
 	dcount := 0
 	rcount := 0
-	ri := new(redundInfo)
-	ri.hasSameDupl = make(map[*service][]*service)
-	ri.overlapsUsed = make(map[[2]*service]bool)
-	ri.overlapsRestricted = make(map[*service]bool)
-
+	ri := &redundInfo{
+		hasSameDupl:        make(map[*service][]*service),
+		overlapsUsed:       make(map[[2]*service]bool),
+		overlapsRestricted: make(map[*service]bool),
+	}
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-
 		// Process rules in chunks to reduce memory usage and allow
 		// concurrent processing. Rules with different srcPath / dstPath
 		// can't be redundant to each other.
@@ -548,7 +547,6 @@ func (c *spoc) checkRedundantRules() {
 			setLocalPrtRelation(rules)
 			rcount += c.findRedundantRules(ruleTree, ri)
 		}
-
 		c.showDuplicateRules(ri)
 		c.showRedundantRules(ri)
 	})

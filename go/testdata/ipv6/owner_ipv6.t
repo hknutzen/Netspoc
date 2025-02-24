@@ -5,11 +5,10 @@
 owner:o1 = { admins = o1@b.c; }
 owner:o2 = { admins = o2@b.c; }
 owner:a1 = { admins = a1@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o2; }
+network:n1 = { ip6 = ::a01:100/120; owner = o2; }
 router:r1 = {
  interface:n1;
 }
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=
 Warning: Unused owner:a1
@@ -19,7 +18,6 @@ Warning: Unused owner:o1
 ############################################################
 =TITLE=Error on unused owners
 =OPTIONS=--check_unused_owners=1
-=PARAMS=--ipv6
 =INPUT=[[input]]
 =ERROR=
 Error: Unused owner:a1
@@ -28,16 +26,14 @@ Error: Unused owner:o1
 
 ############################################################
 =TITLE=No warning if owner is used at aggregate
-=PARAMS=--ipv6
 =INPUT=
 owner:o = { admins = a@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 any:n1 = { link = network:n1; owner = o; }
 =WARNING=NONE
 
 ############################################################
 =TITLE=Duplicates in admins/watchers
-=PARAMS=--ipv6
 =INPUT=
 owner:x = {
  admins = a@b.c, b@b.c, a@b.c;
@@ -60,28 +56,26 @@ owner:xx = {
  admins = a@b.c;
 }
 area:all = { owner = xx; anchor = network:VLAN_40_41/40; }
-network:VLAN_40_41/40 = { ip = ::a02:160/124; }
+network:VLAN_40_41/40 = { ip6 = ::a02:160/124; }
 router:asa = {
  managed;
  model = ASA;
  interface:VLAN_40_41/40 = { hardware = outside; }
  interface:VLAN_40_41/41 = { hardware = inside; }
- interface:VLAN_40_41 = { ip = ::a02:163; hardware = device; }
+ interface:VLAN_40_41 = { ip6 = ::a02:163; hardware = device; }
 }
-network:VLAN_40_41/41 = { ip = ::a02:160/124; {{.}}}
+network:VLAN_40_41/41 = { ip6 = ::a02:160/124; {{.}}}
 service:test = {
  user = network:VLAN_40_41/40;
  permit src = user;
         dst = interface:asa.VLAN_40_41;
         prt = ip;
 }
-=PARAMS=--ipv6
 =INPUT=[[input ""]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Redundant owner at bridged network
-=PARAMS=--ipv6
 =INPUT=[[input "owner = xx;"]]
 =WARNING=
 Warning: Useless owner:xx at network:VLAN_40_41/41,
@@ -90,7 +84,6 @@ Warning: Useless owner:xx at network:VLAN_40_41/41,
 
 ############################################################
 =TITLE=Redundant owner at nested areas
-=PARAMS=--ipv6
 =INPUT=
 owner:x = {
  admins = a@b.c;
@@ -100,20 +93,20 @@ area:all = { owner = x; anchor = network:n1; }
 area:a1 = { owner = x; border = interface:asa1.n1; }
 area:a2 = { owner = x; border = interface:asa1.n2; }
 area:a3 = { owner = x; border = interface:asa2.n3; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 =WARNING=
 Warning: Useless owner:x at area:a1,
@@ -126,22 +119,21 @@ Warning: Useless owner:x at area:a3,
 
 ############################################################
 =TITLE=Owner at vip interface
-=PARAMS=--ipv6
 =INPUT=
 owner:x = { admins = x@a.b; }
 owner:y = { admins = y@a.b; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:R = {
- interface:n2 = { ip = ::a01:202; owner = x; }
- interface:V = { ip = ::a03:303; vip; owner = y; }
+ interface:n2 = { ip6 = ::a01:202; owner = x; }
+ interface:V = { ip6 = ::a03:303; vip; owner = y; }
 }
 service:test = {
     user = network:n1;
@@ -154,16 +146,15 @@ Warning: service:test has multiple owners:
 
 ############################################################
 =TITLE=Owner at interface of managed router
-=PARAMS=--ipv6
 =INPUT=
 owner:y = { admins = y@a.b; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; owner = y; }
- interface:V = { ip = ::a03:303; loopback; hardware = lo1; owner = y; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; owner = y; }
+ interface:V = { ip6 = ::a03:303; loopback; hardware = lo1; owner = y; }
 }
 =WARNING=
 Warning: Ignoring attribute 'owner' at managed interface:r1.n1
@@ -172,16 +163,15 @@ Warning: Ignoring attribute 'owner' at managed interface:r1.V
 
 ############################################################
 =TITLE=vip interface at managed router
-=PARAMS=--ipv6
 =INPUT=
 owner:y = { admins = y@a.b; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = e0; }
- interface:V  = { ip = ::a03:303; hardware = lo; vip; }
+ interface:n1 = { ip6 = ::a01:101; hardware = e0; }
+ interface:V  = { ip6 = ::a03:303; hardware = lo; vip; }
 }
 =ERROR=
 Error: Must not use attribute 'vip' at interface:r1.V of managed router
@@ -189,19 +179,18 @@ Error: Must not use attribute 'vip' at interface:r1.V of managed router
 
 ############################################################
 =TITLE=Inherit owner from router to interface and secondary interface
-=PARAMS=--ipv6
 =INPUT=
 owner:y = { admins = y@a.b; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  owner = y;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:n2 = {
-  ip = ::a01:201, ::a01:202;
-  secondary:other = { ip = ::a01:263; }
+  ip6 = ::a01:201, ::a01:202;
+  secondary:other = { ip6 = ::a01:263; }
   hardware = n2;
  }
 }
@@ -214,28 +203,27 @@ service:s1 = {
 
 ############################################################
 =TITLE=Owner at router with managed = routing_only
-=PARAMS=--ipv6
 =INPUT=
 owner:y = { admins = y@a.b; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 router:r1 = {
  managed;
  model = ASA;
  owner = y;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed = routing_only;
  model = IOS;
- interface:n2 = { ip = ::a01:202; hardware = n2; owner = y; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; owner = y; }
 }
 router:r3 = {
  managed = routing_only;
  model = IOS;
  owner = y;
- interface:n2 = { ip = ::a01:203; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
 }
 service:s1 = {
  user = network:n1;
@@ -248,29 +236,26 @@ Warning: Unknown owner for interface:r2.n2 in service:s1
 
 ############################################################
 =TITLE=Owner with only watchers
-=PARAMS=--ipv6
 =INPUT=
 owner:x = { watchers = x@a.b; }
 owner:y = { watchers = y@a.b; }
 area:all = { owner = x; anchor = network:n1; }
-network:n1 = { owner = y; ip = ::a01:100/120; }
+network:n1 = { owner = y; ip6 = ::a01:100/120; }
 =ERROR=
 Error: Missing attribute 'admins' in owner:y of network:n1
 =END=
 
 ############################################################
 =TITLE=Wildcard address not valid as admin
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = [all]@example.com; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
 =ERROR=
 Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.com
 =END=
 
 ############################################################
 =TITLE=Invalid email address
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { watchers = abc.example.com; }
 =ERROR=
@@ -279,25 +264,23 @@ Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.c
 
 ############################################################
 =TITLE=Wildcard address with invalid domain
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = abc@example.com; watchers = [all]@...; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
 =ERROR=
 Error: Invalid email address (ASCII only) in watchers of owner:o1: [all]@...
 =END=
 
 ############################################################
 =TITLE=Owner with attribute only_watch only usable at area
-=PARAMS=--ipv6
 =INPUT=
 owner:x = { admins = a@a.b; watchers = x@a.b; only_watch; }
 owner:y = { admins = b@a.b; watchers = y@a.b; only_watch; }
 owner:z = { watchers = z@a.b; only_watch; }
 any:a1 = { owner = x; link = network:n1; }
 network:n1 = {
- owner = y; ip = ::a01:100/120;
- host:h1 = { owner = z; ip = ::a01:101; }
+ owner = y; ip6 = ::a01:100/120;
+ host:h1 = { owner = z; ip6 = ::a01:101; }
 }
 =ERROR=
 Error: owner:y with attribute 'only_watch' must only be used at area,
@@ -311,21 +294,20 @@ Error: owner:x with attribute 'only_watch' must only be used at area,
 
 ############################################################
 =TITLE=Missing part in owner with attribute "show_all"
-=PARAMS=--ipv6
 =INPUT=
 owner:a1 = { admins = a1@b.c; show_all; }
 area:a1 = { owner = a1; border = interface:asa1.n1; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; owner = a1; }
-network:n4 = { ip = ::a01:400/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; owner = a1; }
+network:n4 = { ip6 = ::a01:400/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 =ERROR=
 Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
@@ -352,28 +334,27 @@ ipsec:ipsecaes256SHA = {
  lifetime = 3600 sec;
 }
 crypto:vpn = { type = ipsec:ipsecaes256SHA; }
-network:n1 = { ip = ::a01:100/120;}
+network:n1 = { ip6 = ::a01:100/120;}
 router:r = {
  model = ASA;
  managed;
- interface:n1 = { ip = ::a01:101; hardware = inside; }
- interface:n2 = { ip = f000::c0a8:102; hardware = outside; hub = crypto:vpn; }
+ interface:n1 = { ip6 = ::a01:101; hardware = inside; }
+ interface:n2 = { ip6 = f000::c0a8:102; hardware = outside; hub = crypto:vpn; }
 }
-network:n2 = { ip = f000::c0a8:100/124;}
+network:n2 = { ip6 = f000::c0a8:100/124;}
 router:dmz = {
- interface:n2 = { ip = f000::c0a8:101; }
+ interface:n2 = { ip6 = f000::c0a8:101; }
  interface:Internet;
 }
-network:Internet = { ip = ::/0; has_subnets; }
+network:Internet = { ip6 = ::/0; has_subnets; }
 router:VPN1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:Internet = { ip = ::101:101; spoke = crypto:vpn; hardware = Internet; }
- interface:v1 = { ip = ::a09:101; hardware = v1; }
+ interface:Internet = { ip6 = ::101:101; spoke = crypto:vpn; hardware = Internet; }
+ interface:v1 = { ip6 = ::a09:101; hardware = v1; }
 }
-network:v1 = { ip = ::a09:100/120; }
-=PARAMS=--ipv6
+network:v1 = { ip6 = ::a09:100/120; }
 =INPUT=
 [[input]]
 owner:all = { admins = a@example.com; show_all; }
@@ -387,7 +368,6 @@ Error: owner:all has attribute 'show_all', but doesn't own whole topology.
 
 ############################################################
 =TITLE=Owner with "show_all" must not only own VPN transfer area
-=PARAMS=--ipv6
 =INPUT=
 [[input]]
 owner:all = { admins = a@example.com; show_all; }
@@ -401,18 +381,17 @@ Error: owner:all has attribute 'show_all', but doesn't own whole topology.
 
 ############################################################
 =TITLE=Invalid owner in area and router_attributes of area
-=PARAMS=--ipv6
 =INPUT=
 area:a1 = {
  border = interface:asa1.n1;
  owner = xx;
  router_attributes = { owner = xx; }
 }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =WARNING=
 Warning: Ignoring undefined owner:xx of area:a1
@@ -421,7 +400,6 @@ Warning: Ignoring undefined owner:xx of router_attributes of area:a1
 
 ############################################################
 =TITLE=Inherit owner from router_attributes of area
-=PARAMS=--ipv6
 =INPUT=
 area:all = {
  anchor = network:n1;
@@ -433,22 +411,22 @@ area:a2 = {
 }
 owner:o1 = { admins = o1@b.c; }
 owner:o2 = { admins = o2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
  owner = o1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
  owner = o2;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 =WARNING=
 Warning: Useless 'owner' at router:r2,
@@ -459,7 +437,6 @@ Warning: Useless 'owner' at router:r1,
 
 ############################################################
 =TITLE=Useless inheritance from nested areas
-=PARAMS=--ipv6
 =INPUT=
 owner:o = { admins = a@example.com; }
 area:a1234 = {
@@ -486,18 +463,18 @@ area:a3  = {
  owner = o;
 }
 any:n1 = { link = network:n1; owner = o; }
-network:n1 = { ip = ::a01:100/120; owner = o; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:n4 = { ip = ::a01:400/120; owner = o; }
+network:n1 = { ip6 = ::a01:100/120; owner = o; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; owner = o; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
- interface:n4 = { ip = ::a01:401; hardware = n4; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 =WARNING=
 Warning: Useless owner:o at any:n1,
@@ -518,22 +495,21 @@ Warning: Useless owner:o at network:n4,
 
 ############################################################
 =TITLE=Owner mismatch of overlapping hosts
-=PARAMS=--ipv6
 =INPUT=
 owner:a1 = { admins = a1@b.c; }
 owner:a2 = { admins = a2@b.c; }
 owner:a3 = { admins = a3@b.c; }
-network:n1 = { ip = ::a01:100/120;
- host:h1 = { range = ::a01:107-::a01:10f; owner = a1; }
- host:h2 = { range = ::a01:107-::a01:110; owner = a2; }
- host:h3 = { ip = ::a01:107; owner = a3; }
- host:h4 = { ip = ::a01:110; owner = a3; }
- host:h5 = { range = ::a01:108-::a01:10b; owner = a3; }
+network:n1 = { ip6 = ::a01:100/120;
+ host:h1 = { range6 = ::a01:107-::a01:10f; owner = a1; }
+ host:h2 = { range6 = ::a01:107-::a01:110; owner = a2; }
+ host:h3 = { ip6 = ::a01:107; owner = a3; }
+ host:h4 = { ip6 = ::a01:110; owner = a3; }
+ host:h5 = { range6 = ::a01:108-::a01:10b; owner = a3; }
 }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 =WARNING=
 Warning: Inconsistent owner definition for host:h1 and host:h2
@@ -545,17 +521,16 @@ Warning: Inconsistent owner definition for host:h1 and host:h5
 
 ############################################################
 =TITLE=Useless multi_owner, unknown_owner
-=PARAMS=--ipv6
 =INPUT=
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; owner = o2; }
+network:n2 = { ip6 = ::a01:200/120; owner = o2; }
 service:s1 = {
  unknown_owner;
  multi_owner;
@@ -569,19 +544,18 @@ Warning: Useless 'unknown_owner' at service:s1
 
 ############################################################
 =TITLE=Unknown service owner
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; }
- host:h2 = { ip = ::a01:20b; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; }
+ host:h2 = { ip6 = ::a01:20b; }
 }
 protocol:print = tcp 514, reversed;
 service:s1 = {
@@ -605,21 +579,20 @@ Warning: Unknown owner for network:n2 in service:s1, service:s2
 
 ############################################################
 =TITLE=Unknown owner in simple coupling rule
-=PARAMS=--ipv6
 =INPUT=
 owner:o2 = { admins = a2@b.c; }
 owner:o3 = { admins = a3@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o3; }
+network:n1 = { ip6 = ::a01:100/120; owner = o3; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 service:s1 = {
  user = network:n1, host:h1, host:h2;
@@ -631,18 +604,17 @@ Warning: Unknown owner for host:h1 in service:s1
 
 ############################################################
 =TITLE=Restrict attribute 'unknown_owner'
-=PARAMS=--ipv6
 =INPUT=
 owner:o2 = { admins = a2@example.com; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; owner = o2; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; owner = o2; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 area:a23 = { inclusive_border = interface:r1.n1; unknown_owner = restrict; }
 service:s1 = {
@@ -657,18 +629,17 @@ Warning: Unknown owner for network:n3 in service:s1
 
 ############################################################
 =TITLE=Ignore useless 'unknown_owner = restrict'
-=PARAMS=--ipv6
 =INPUT=
 owner:o2 = { admins = a2@example.com; }
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; owner = o2; }
-network:n3 = { ip = ::a01:300/120; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; owner = o2; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 any:a2 = { link = network:n2; unknown_owner = restrict; }
 service:s1 = {
@@ -681,16 +652,15 @@ service:s1 = {
 
 ############################################################
 =TITLE=Ignore unknown owners in zone
-=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip6 = ::a01:200/120; }
 any:n2 = { link = network:n2; unknown_owner = ok; }
 service:s1 = {
  user = network:n1;
@@ -701,26 +671,25 @@ service:s1 = {
 
 ############################################################
 =TITLE=Inherit owner
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
 owner:o3 = { admins = a3@b.c; }
-any:10_1-16 = { ip = ::a01:0/112; link = network:n1; owner = o1; }
+any:10_1-16 = { ip6 = ::a01:0/112; link = network:n1; owner = o1; }
 network:n1 = {
- ip = ::a01:100/120;
- host:h5 = { ip = ::a01:105; }
+ ip6 = ::a01:100/120;
+ host:h5 = { ip6 = ::a01:105; }
 }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120; owner = o2;
- host:h10 = { ip = ::a01:20a; }
- host:h11 = { ip = ::a01:20b; owner = o3; }
+ ip6 = ::a01:200/120; owner = o2;
+ host:h10 = { ip6 = ::a01:20a; }
+ host:h11 = { ip6 = ::a01:20b; owner = o3; }
 }
 service:s1 = {
  user = interface:asa1.n1;
@@ -733,14 +702,13 @@ Warning: service:s1 has multiple owners:
 
 ############################################################
 =TITLE=Automatic owner at implicit aggregate
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
 }
 service:s1 = {
  user = interface:asa1.n1;
@@ -751,19 +719,19 @@ service:s1 = {
 
 ############################################################
 =TITLE=Automatic owner at implicit aggregate in zone cluster
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
-network:n2 = { ip = ::a01:200/120; owner = o1; nat:n2 = { ip = ::a01:c00/120; } }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
+network:n2 = { ip6 = ::a01:200/120; owner = o1; nat:n2 = { ip6 = ::a01:c00/120; } }
 router:r1 = {
  interface:n1 = { bind_nat = n2; }
- interface:n2 = { ip = ::a01:201; }
+ interface:n2 = { ip6 = ::a01:201; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 service:s1 = {
  user = interface:r2.n2;
@@ -774,20 +742,20 @@ service:s1 = {
 
 ############################################################
 =TITLE=No automatic owner at implicit aggregate in zone cluster
-=PARAMS=--ipv6
+=TODO= No IPv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
-network:n2 = { ip = ::a01:200/120; owner = o2; nat:n2 = { ip = ::a01:c00/120; } }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
+network:n2 = { ip6 = ::a01:200/120; owner = o2; nat:n2 = { ip6 = ::a01:c00/120; } }
 router:r1 = {
  interface:n1 = { bind_nat = n2; }
- interface:n2 = { ip = ::a01:201; }
+ interface:n2 = { ip6 = ::a01:201; }
 }
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
 }
 service:s1 = {
  user = interface:r2.n2;
@@ -800,31 +768,29 @@ Warning: Unknown owner for any:[network:n1] in service:s1
 
 ############################################################
 =TITLE=Invalid attribute 'unknown_owner' at owner
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; unknown_owner = restrict; }
-network:n1 = { ip = ::a01:100/120; owner = o1; }
+network:n1 = { ip6 = ::a01:100/120; owner = o1; }
 =WARNING=
 Warning: Ignoring attribute 'unknown_owner' in owner:o1
 =END=
 
 ############################################################
 =TITLE=Multiple service owners
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 service:s1 = {
  user = network:n1;
@@ -836,23 +802,118 @@ Warning: service:s1 has multiple owners:
 =END=
 
 ############################################################
-=TITLE=Useless multi_owner when user objects have single owner
-=PARAMS=--ipv6
+=TITLE=Multiple service owners can be avoided
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
 owner:o3 = { admins = a3@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o3; }
+network:n1 = { ip6 = ::a01:100/120; owner = o3; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+=WARNING=
+Warning: service:s1 has multiple owners:
+ o1, o2
+ This should be avoided.
+ All 'user' objects belong to single owner:o3.
+ Either swap objects of 'user' and objects of rules,
+ or split service into multiple parts, one for each owner.
+=END=
+
+############################################################
+=TITLE=Must not swap user and rules, if rules have different objects.
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip6 = ::a01:100/120; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+network:n2 = {
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+ permit src = user; dst = host:h1; prt = tcp 81;
+}
+=WARNING=
+Warning: service:s1 has multiple owners:
+ o1, o2
+=END=
+
+############################################################
+=TITLE=Useless multi_owner when expanded user objects have single owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = {
+ ip6 = ::a01:100/120;
+ owner = o3;
+ host:h11 = { ip6 = ::a01:10a; owner = o1; }
+ host:h12 = { ip6 = ::a01:10b; owner = o2; }
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+network:n2 = {
+ ip6 = ::a01:200/120;
+ host:h21 = { ip6 = ::a01:20a; owner = o1; }
+ host:h22 = { ip6 = ::a01:20b; owner = o2; }
+}
+group:g1 = host:h11, host:h12;
+service:s1 = {
+ multi_owner;
+ user = group:g1;
+ permit src = network:[user]; dst = host:h21, host:h22; prt = tcp 80;
+ permit src = host:h21, host:h22; dst = network:[user]; prt = tcp 81;
+}
+=WARNING=
+Warning: Unnecessary 'multi_owner' at service:s1
+ All 'user' objects belong to single owner:o3.
+ Either swap objects of 'user' and objects of rules,
+ or split service into multiple parts, one for each owner.
+=END=
+
+############################################################
+=TITLE=Useless multi_owner when user objects have single owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip6 = ::a01:100/120; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+network:n2 = {
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 group:g1 = host:h1, host:h2;
 service:s1 = {
@@ -870,20 +931,51 @@ Warning: Unnecessary 'multi_owner' at service:s1
 =END=
 
 ############################################################
+=TITLE=Need multi_owner even though user seems to have single owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = {
+ ip6 = ::a01:100/120;
+ owner = o3;
+ host:h11 = { ip6 = ::a01:10a; owner = o1; }
+ host:h12 = { ip6 = ::a01:10b; owner = o2; }
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+network:n2 = {
+ ip6 = ::a01:200/120;
+ host:h21 = { ip6 = ::a01:20a; owner = o1; }
+ host:h22 = { ip6 = ::a01:20b; owner = o2; }
+}
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = host:[user]; dst = host:h21, host:h22; prt = tcp 80;
+ permit src = host:h21, host:h22; dst = user; prt = tcp 81;
+}
+# No Warning: Unnecessary 'multi_owner' at service:s1
+=WARNING=NONE
+
+############################################################
 =TITLE=multi_owner ok with empty user objects
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 group:g1 = ;
 service:s1 = {
@@ -895,23 +987,22 @@ service:s1 = {
 
 ############################################################
 =TITLE=multi_owner ok with multiple owners in user objects
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
 owner:o3 = { admins = a3@b.c; }
-network:n1 = { ip = ::a01:100/120; owner = o3; }
+network:n1 = { ip6 = ::a01:100/120; owner = o3; }
 router:asa1 = {
  managed;
  model = ASA;
  owner = o1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 service:s1 = {
  multi_owner;
@@ -922,22 +1013,21 @@ service:s1 = {
 
 ############################################################
 =TITLE=multi_owner ok with missing owner in user objects
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
  owner = o1;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 service:s1 = {
  multi_owner;
@@ -948,21 +1038,20 @@ service:s1 = {
 
 ############################################################
 =TITLE=Restrict attribute 'multi_owner'
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 any:n2 = { link = network:n2; multi_owner = restrict; }
 service:s1 = {
@@ -978,21 +1067,20 @@ Warning: service:s1 has multiple owners:
 
 ############################################################
 =TITLE=Ignore multiple owners in zone
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
 }
 any:n2 = { link = network:n2; multi_owner = ok; }
 service:s1 = {
@@ -1003,25 +1091,24 @@ service:s1 = {
 
 ############################################################
 =TITLE=Ignore multiple owners with attribute from owner
-=PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = a1@b.c; multi_owner = ok; }
 owner:o2 = { admins = a2@b.c; multi_owner = ok; }
 owner:o3 = { admins = a3@b.c; }
-network:n1 = { ip = ::a01:100/120; }
+network:n1 = { ip6 = ::a01:100/120; }
 
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 
 network:n2 = {
- ip = ::a01:200/120;
- host:h1 = { ip = ::a01:20a; owner = o1; }
- host:h2 = { ip = ::a01:20b; owner = o2; }
- host:h3 = { ip = ::a01:20c; owner = o3; }
+ ip6 = ::a01:200/120;
+ host:h1 = { ip6 = ::a01:20a; owner = o1; }
+ host:h2 = { ip6 = ::a01:20b; owner = o2; }
+ host:h3 = { ip6 = ::a01:20c; owner = o3; }
 }
 
 service:s1 = {

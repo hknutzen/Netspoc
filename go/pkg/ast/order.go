@@ -2,10 +2,10 @@
 package ast
 
 import (
-	"encoding/binary"
-	"net"
+	"cmp"
+	"net/netip"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -19,49 +19,49 @@ var typeOrder = map[string]int{
 	"host":      6,
 }
 
-var ipv4NameRegex = regexp.MustCompile(`(?:^|[-_])(\d+_\d+_\d+_\d+)`)
+var ipV4NameRegex = regexp.MustCompile(`(?i:^|[-_])(\d{1,3}(?:_\d{1,3}){3})`)
+var ipV6NameRegex = regexp.MustCompile(
+	`(?i:^|[-_])([\da-f]{1,4}(?:_[\da-f]{1,4}){7})`)
 
-func ipV4ToInt(s string) int {
-	if ip := net.ParseIP(s); ip != nil {
-		ip = ip.To4()
-		return int(binary.BigEndian.Uint32(ip))
+func findIPInName(s string) netip.Addr {
+	if l := ipV6NameRegex.FindStringSubmatch(s); l != nil {
+		m := strings.ReplaceAll(l[1], "_", ":")
+		if ip, err := netip.ParseAddr(m); err == nil {
+			return ip
+		}
 	}
-	return 0
-}
-
-func findIPv4InName(s string) int {
-	l := ipv4NameRegex.FindStringSubmatch(s)
-	if l != nil {
+	if l := ipV4NameRegex.FindStringSubmatch(s); l != nil {
 		m := strings.ReplaceAll(l[1], "_", ".")
-		return ipV4ToInt(m)
+		ip, _ := netip.ParseAddr(m)
+		return ip
 	}
-	return 0
+	return netip.Addr{}
 }
 
 func sortElem(l []Element) {
-	sort.SliceStable(l, func(i, j int) bool {
-		t1 := typeOrder[l[i].GetType()]
-		t2 := typeOrder[l[j].GetType()]
-		if t1 != t2 {
-			return t1 < t2
+	slices.SortStableFunc(l, func(a, b Element) int {
+		t1 := typeOrder[a.GetType()]
+		t2 := typeOrder[b.GetType()]
+		if cmp := cmp.Compare(t1, t2); cmp != 0 {
+			return cmp
 		}
-		getNameIP := func(el Element) (string, int) {
+		getNameIP := func(el Element) (string, netip.Addr) {
 			if x, ok := el.(*Intersection); ok {
 				el = x.Elements[0]
 			}
 			if x, ok := el.(NamedElem); ok {
 				n := x.GetName()
-				i := findIPv4InName(n)
-				return n, i
+				ip := findIPInName(n)
+				return strings.ToLower(n), ip
 			}
-			return "", 0
+			return "", netip.Addr{}
 		}
-		n1, i1 := getNameIP(l[i])
-		n2, i2 := getNameIP(l[j])
-		if i1 == i2 {
-			return strings.ToLower(n1) < strings.ToLower(n2)
+		n1, ip1 := getNameIP(a)
+		n2, ip2 := getNameIP(b)
+		if cmp := ip1.Compare(ip2); cmp != 0 {
+			return cmp
 		}
-		return i1 < i2
+		return strings.Compare(n1, n2)
 	})
 }
 
@@ -84,16 +84,16 @@ var protoOrder = map[string]int{
 }
 
 func sortProto(l []*Value) {
-	sort.Slice(l, func(i, j int) bool {
-		v1 := l[i].Value
-		v2 := l[j].Value
+	slices.SortFunc(l, func(a, b *Value) int {
+		v1 := a.Value
+		v2 := b.Value
 		o1 := protoOrder[getType(v1)]
 		o2 := protoOrder[getType(v2)]
-		if o1 != o2 {
-			return o1 < o2
+		if cmp := cmp.Compare(o1, o2); cmp != 0 {
+			return cmp
 		}
 		if o1 != 0 {
-			return getName(v1) < getName(v2)
+			return strings.Compare(getName(v1), getName(v2))
 		}
 		// Simple protocol
 		d1 := strings.Split(v1, " ")
@@ -101,8 +101,8 @@ func sortProto(l []*Value) {
 		// icmp < ip < proto < tcp < udp
 		p1 := d1[0]
 		p2 := d2[0]
-		if p1 != p2 {
-			return p1 < p2
+		if cmp := strings.Compare(p1, p2); cmp != 0 {
+			return cmp
 		}
 		var n1, n2 []int
 		if p1 == "tcp" || p1 == "udp" {
@@ -148,21 +148,13 @@ func sortProto(l []*Value) {
 			n1 = conv(d1[1:])
 			n2 = conv(d2[1:])
 		}
-		for i, d1 := range n1 {
-			if i >= len(n2) {
-				return false
-			}
-			if d2 := n2[i]; d1 != d2 {
-				return d1 < d2
-			}
-		}
-		return true
+		return slices.Compare(n1, n2)
 	})
 }
 
 func sortAttr(l []*Attribute) {
-	sort.Slice(l, func(i, j int) bool {
-		return l[i].Name < l[j].Name
+	slices.SortFunc(l, func(a, b *Attribute) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 }
 
@@ -203,8 +195,8 @@ func (a *NamedUnion) Order() {
 
 func (a *Attribute) Order() {
 	vals := a.ValueList
-	sort.Slice(vals, func(i, j int) bool {
-		return strings.ToLower(vals[i].Value) < strings.ToLower(vals[j].Value)
+	slices.SortFunc(vals, func(a, b *Value) int {
+		return strings.Compare(strings.ToLower(a.Value), strings.ToLower(b.Value))
 	})
 }
 
@@ -232,22 +224,26 @@ func (a *Service) Order() {
 	}
 }
 
-var ipv4StartRegex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+`)
-
 func sortByIP(l []*Attribute) {
-	getIPv4 := func(host *Attribute) int {
+	getIP := func(host *Attribute) netip.Addr {
 		for _, a := range host.ComplexValue {
 			if a.Name == "ip" || a.Name == "range" {
 				list := a.ValueList
 				if len(list) >= 1 {
-					return ipV4ToInt(ipv4StartRegex.FindString(list[0].Value))
+					v := list[0].Value
+					if a.Name == "range" {
+						v, _, _ = strings.Cut(v, "-")
+					}
+					v = strings.TrimSpace(v)
+					ip, _ := netip.ParseAddr(v)
+					return ip
 				}
 			}
 		}
-		return 0
+		return netip.Addr{}
 	}
-	sort.SliceStable(l, func(i, j int) bool {
-		return getIPv4(l[i]) < getIPv4(l[j])
+	slices.SortStableFunc(l, func(a, b *Attribute) int {
+		return getIP(a).Compare(getIP(b))
 	})
 }
 

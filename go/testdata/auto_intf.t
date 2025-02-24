@@ -45,6 +45,8 @@ ip access-list extended n1_in
 
 ############################################################
 =TITLE=All interfaces of aggregate in zone cluster
+# No IPv6 NAT
+#
 # Must not add
 # - interface of unmanaged router with bind_nat,
 # - managed interface of unnumbered network.
@@ -1211,12 +1213,14 @@ service:test = {
  permit src = network:a; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.0.0.1,10.1.1.1 ]
+--r1.info
+{"generated_by":"devel","model":"IOS","ip_list":["10.0.0.1","10.1.1.1"],"policy_distribution_point":"10.0.0.10"}
 =END=
 
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (2)
+# No IPv6 NAT
+#
 # Find interfaces in given order n3, n4,
 # even if reversed path was already found previously while
 # "Checking and marking rules with hidden or dynamic NAT"
@@ -1258,8 +1262,8 @@ service:s1 = {
  permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
 }
 =OUTPUT=
---r2
-! [ IP = 10.1.3.2,10.1.4.1 ]
+--r2.info
+{"generated_by":"devel","model":"IOS","ip_list":["10.1.3.2","10.1.4.1"],"policy_distribution_point":"10.1.1.111"}
 =END=
 
 ############################################################
@@ -1285,8 +1289,8 @@ service:s1 = {
         prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.1.2.1,10.1.3.1 ]
+--r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.1","10.1.3.1"],"policy_distribution_point":"10.1.1.111"}
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
@@ -1320,10 +1324,10 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 22;
 }
 =OUTPUT=
---r1
-! [ IP = 10.1.2.3 ]
---r2
-! [ IP = 10.1.2.2 ]
+--r1.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.3"],"policy_distribution_point":"10.1.3.9"}
+--r2.info
+{"generated_by":"devel","model":"ASA","ip_list":["10.1.2.2"],"policy_distribution_point":"10.1.3.9"}
 =END=
 
 ############################################################

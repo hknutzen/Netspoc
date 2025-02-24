@@ -20,8 +20,8 @@ type expAutoPair struct {
 type pathOrAuto interface{}
 
 func (c *spoc) pathAutoInterfaces(
-	src *autoIntf, dst pathOrAuto, origDst groupObj) intfList {
-
+	src *autoIntf, dst pathOrAuto, origDst groupObj,
+) intfList {
 	managed := src.managed
 	srcPath := src.getPathNode()
 
@@ -35,7 +35,7 @@ func (c *spoc) pathAutoInterfaces(
 		dstPath = x
 		toList = []pathStore{x}
 	}
-	if srcPath == dstPath {
+	if srcPath == dstPath || srcPath.isIPv6() != dstPath.isIPv6() {
 		return nil
 	}
 	result := c.findAutoInterfaces(
@@ -148,64 +148,120 @@ func (c *spoc) substituteAutoIntf(
 	return convertedSrc, resultPairList
 }
 
+func splitCombined46(l groupObjList) (v4, v6 groupObjList, v46 bool) {
+	for _, obj := range l {
+		if obj.isCombined46() {
+			v46 = true
+		}
+		if obj.isIPv6() {
+			v6.push(obj)
+		} else {
+			v4.push(obj)
+		}
+	}
+	return
+}
+
 func (c *spoc) normalizeSrcDstList(
-	r *unexpRule, l groupObjList, s *service) [][2]srvObjList {
+	r *unexpRule, l groupObjList, s *service) ([][2]srvObjList, bool) {
 
 	ctx := s.name
-	ipv6 := s.ipV6
 	c.userObj.elements = l
-	srcList := c.expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
-	dstList := c.expandGroupInRule(r.dst, "dst of rule in "+ctx, ipv6)
+	srcList := c.expandGroupInRule(r.src, "src of rule in "+ctx)
+	dstList := c.expandGroupInRule(r.dst, "dst of rule in "+ctx)
 	c.userObj.elements = nil
 
-	// Expand auto interfaces in srcList.
-	expSrcList, extraSrcDst := c.substituteAutoIntf(srcList, dstList, ctx)
-
-	var extraResult [][2]srvObjList
-
-	toGrp := func(l srvObjList) groupObjList {
-		result := make(groupObjList, len(l))
-		for i, obj := range l {
-			result[i] = obj.(groupObj)
+	srcList4, srcList6, srcHas46 := splitCombined46(srcList)
+	dstList4, dstList6, dstHas46 := splitCombined46(dstList)
+	has46 := srcHas46 || dstHas46
+	if has46 {
+		if s.ipV4Only {
+			srcList6 = c.filterV46Only(srcList6, s.ipV4Only, s.ipV6Only, s.name)
+			dstList6 = c.filterV46Only(dstList6, s.ipV4Only, s.ipV6Only, s.name)
+			has46 = false
 		}
-		return result
-	}
-	toSrv := func(l groupObjList) srvObjList {
-		result := make(srvObjList, len(l))
-		for i, obj := range l {
-			result[i] = obj.(srvObj)
+		if s.ipV6Only {
+			srcList4 = c.filterV46Only(srcList4, s.ipV4Only, s.ipV6Only, s.name)
+			dstList4 = c.filterV46Only(dstList4, s.ipV4Only, s.ipV6Only, s.name)
+			has46 = false
 		}
-		return result
-	}
-	addExtra := func(extraDstSrc []*expAutoPair) {
-		for _, pair := range extraDstSrc {
-			extraResult = append(
-				extraResult, [2]srvObjList{toSrv(pair.dstList), pair.srcList})
+	} else {
+		if s.ipV4Only {
+			c.err("Must not use 'ipv4_only' in %s,"+
+				" because no combined IPv4/IPv6 objects are in use", s)
+		}
+		if s.ipV6Only {
+			c.err("Must not use 'ipv6_only' in %s,"+
+				" because no combined IPv4/IPv6 objects are in use", s)
+		}
+		if srcList4 != nil && dstList6 != nil {
+			c.err("Must not use IPv4 %s and IPv6 %s together in %s",
+				srcList4[0], dstList6[0], s)
+		} else if srcList6 != nil && dstList4 != nil {
+			c.err("Must not use IPv6 %s and IPv4 %s together in %s",
+				srcList6[0], dstList4[0], s)
 		}
 	}
 
-	// Expand auto interfaces in dst of extraSrcDst.
-	for _, pair := range extraSrcDst {
-		sList, dList := pair.srcList, pair.dstList
+	var resultPairs [][2]srvObjList
+	process := func(srcList, dstList groupObjList) {
+		if srcList == nil && dstList == nil {
+			return
+		}
+		// Expand auto interfaces in srcList.
+		expSrcList, extraSrcDst := c.substituteAutoIntf(srcList, dstList, ctx)
+
+		var extraResult [][2]srvObjList
+
+		toGrp := func(l srvObjList) groupObjList {
+			result := make(groupObjList, len(l))
+			for i, obj := range l {
+				result[i] = obj.(groupObj)
+			}
+			return result
+		}
+		toSrv := func(l groupObjList) srvObjList {
+			result := make(srvObjList, len(l))
+			for i, obj := range l {
+				result[i] = obj.(srvObj)
+			}
+			return result
+		}
+		addExtra := func(extraDstSrc []*expAutoPair) {
+			for _, pair := range extraDstSrc {
+				extraResult = append(
+					extraResult, [2]srvObjList{toSrv(pair.dstList), pair.srcList})
+			}
+		}
+
+		// Expand auto interfaces in dst of extraSrcDst.
+		for _, pair := range extraSrcDst {
+			sList, dList := pair.srcList, pair.dstList
+			expDstList, extraDstSrc :=
+				c.substituteAutoIntf(dList, toGrp(sList), ctx)
+			extraResult = append(extraResult, [2]srvObjList{sList, expDstList})
+			addExtra(extraDstSrc)
+		}
+
+		// Expand auto interfaces in dstList.
 		expDstList, extraDstSrc :=
-			c.substituteAutoIntf(dList, toGrp(sList), ctx)
-		extraResult = append(extraResult, [2]srvObjList{sList, expDstList})
+			c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
 		addExtra(extraDstSrc)
+
+		if expSrcList == nil && expDstList == nil {
+			return
+		}
+		resultPairs = append(resultPairs, [2]srvObjList{expSrcList, expDstList})
+		resultPairs = append(resultPairs, extraResult...)
 	}
-
-	// Expand auto interfaces in dstList.
-	expDstList, extraDstSrc :=
-		c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
-	addExtra(extraDstSrc)
-
-	return append([][2]srvObjList{{expSrcList, expDstList}}, extraResult...)
+	process(srcList4, dstList4)
+	process(srcList6, dstList6)
+	return resultPairs, has46
 }
 
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	user := c.expandUser(s)
-	s.expandedUser = user
 	hasRules := false
-
 	for _, uRule := range s.rules {
 		deny := uRule.action == "deny"
 		var store *serviceRuleList
@@ -221,7 +277,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 		}
 		simplePrtList, complexPrtList := classifyProtocols(prtList)
 		process := func(elt groupObjList) {
-			srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
+			srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, s)
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
@@ -230,27 +286,34 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 				if srcList == nil || dstList == nil || s.disabled {
 					continue
 				}
+				v6Active := srcList[0].isIPv6()
+				l := c.checkProtoListV4V6(simplePrtList, v6Active, has46, s.name)
 				rule := serviceRule{
 					deny: deny,
 					src:  srcList,
 					dst:  dstList,
-					prt:  simplePrtList,
+					prt:  l,
 					log:  log,
 					rule: uRule,
 				}
-				if simplePrtList != nil {
+				if l != nil {
 					store.push(&rule)
 				}
-				for _, c := range complexPrtList {
-					prt, srcRange := c.prt, c.src
+				for _, compl := range complexPrtList {
+					prt, srcRange := compl.prt, compl.src
+					l := protoList{prt}
+					l = c.checkProtoListV4V6(l, v6Active, has46, s.name)
+					if l == nil {
+						continue
+					}
 					r2 := rule
-					if c.modifiers != nil {
-						r2.modifiers = *c.modifiers
-						if c.modifiers.reversed {
+					if compl.modifiers != nil {
+						r2.modifiers = *compl.modifiers
+						if compl.modifiers.reversed {
 							r2.src, r2.dst = rule.dst, rule.src
 						}
 					}
-					r2.prt = protoList{prt}
+					r2.prt = l
 					r2.srcRange = srcRange
 					r2.statelessICMP = prt.statelessICMP
 					store.push(&r2)

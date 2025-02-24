@@ -301,6 +301,7 @@ Warning: No spokes have been defined for crypto:vpn
 
 ############################################################
 =TITLE=No bind_nat allowed at hub
+# No IPv6 NAT
 =INPUT=
 [[crypto_vpn]]
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
@@ -880,11 +881,11 @@ Warning: Ignoring 'merge_tunnelspecified' at router:r
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = Linux;
  interface:n = { ip = 10.1.1.1; hardware = n; hub = crypto:sts; }
 }
 =ERROR=
-Error: Crypto not supported for router:r of model NX-OS
+Error: Crypto not supported for router:r of model Linux
 =END=
 
 ############################################################
@@ -2157,6 +2158,7 @@ Error: Ambiguous static routes for network:customers1 at interface:r.trans via
 
 ############################################################
 =TITLE=NAT with VPN ASA
+# No IPv6 NAT
 =INPUT=
 [[crypto_vpn]]
 network:intern = { ip = 10.1.2.0/24; nat:E = { ip = 192.168.2.0/24; } }
@@ -2232,6 +2234,8 @@ access-group extern_in in interface extern
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (1)
+# No IPv6 NAT
+#
 # Must use NAT ip of internal network, not NAT ip of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internet.
@@ -2325,6 +2329,8 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (2)
+# No IPv6 NAT
+#
 # No error, because NAT isn't applicable for encrypted packets.
 =INPUT=[[input]]
 =SUBST=|hidden|ip = 10.2.2.0/24; dynamic|
@@ -2337,6 +2343,8 @@ route inside 10.1.2.0 255.255.255.0 10.1.1.2
 
 ############################################################
 =TITLE=Mixed NAT at ASA crypto interface (3)
+# No IPv6 NAT
+#
 # Must use NAT IP of internal network, not NAT IP of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internal network.
@@ -2483,6 +2491,7 @@ Error: Two static routes for network:internet
 
 ############################################################
 =TITLE=Use real ip in ACL but NAT IP in crypto ACL
+# No IPv6 NAT
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -2552,7 +2561,8 @@ crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  peer-id-validate nocheck
@@ -2833,6 +2843,7 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT
+# No IPv6 NAT
 =TEMPL=input
 ipsec:aes192SHA = {
  key_exchange = isakmp:aes192SHA;
@@ -2977,6 +2988,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT (IKEv2)
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
@@ -3029,6 +3041,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=IOS with two crypto spokes and NAT (IKEv2)
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =SUBST=/ASA/IOS/
@@ -3076,6 +3089,7 @@ crypto map crypto-outside 2 ipsec-isakmp
 
 ############################################################
 =TITLE=ASA with two dynamic crypto spokes, same ipsec at different tunnels
+# No IPv6 NAT
 =TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -3209,7 +3223,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Generate individual routes even if no 0.0.0.0/0
-# No IPv6
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=,0.0.0.0/0,1.0.0.0/8,
 # Use individual routes to VPN peers, even if all have same next hop
@@ -3225,6 +3239,7 @@ route outside 1.0.0.0 255.0.0.0 192.168.0.1
 
 ############################################################
 =TITLE=Must not reuse crypto id
+# No IPv6 NAT
 =INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
 =ERROR=
@@ -3346,8 +3361,8 @@ Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet wi
 =END=
 
 ############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks
-=TEMPL=input
+=TITLE=VPN ASA to VPN router with two local networks
+=INPUT=
 [[crypto_vpn]]
 network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
@@ -3378,7 +3393,7 @@ router:extern = {
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
 router:vpn = {
  managed;
- model = IOS, EZVPN;
+ model = IOS;
  interface:internet = {
   negotiated;
   spoke = crypto:vpn;
@@ -3401,7 +3416,6 @@ service:test = {
  permit src = user; dst = network:intern; prt = tcp 80;
  permit src = network:intern; dst = user; prt = udp 123;
 }
-=INPUT=[[input]]
 =OUTPUT=
 --asavpn
 tunnel-group VPN-single type remote-access
@@ -3438,26 +3452,6 @@ access-list outside_in extended permit tcp 10.99.2.0 255.255.254.0 10.1.1.0 255.
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --vpn
-crypto ipsec client ezvpn vpn
- connect auto
- mode network-extension
- peer 192.168.0.101
- acl ACL-Split-Tunnel
- virtual-interface 1
- username test pass test
- xauth userid mode local
-ip access-list extended ACL-Split-Tunnel
- permit ip 10.99.2.0 0.0.0.255 any
- permit ip 10.99.3.0 0.0.0.255 any
-ip access-list extended ACL-crypto-filter
- deny ip any host 10.99.2.1
- deny ip any host 10.99.3.1
- permit udp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.1.255 eq 123
- permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.1.255 established
- deny ip any any
-interface Virtual-Template1 type tunnel
- ip access-group ACL-crypto-filter in
---
 ip access-list extended e1_in
  permit 50 host 192.168.0.101 any
  permit udp host 192.168.0.101 eq 500 any eq 500
@@ -3470,66 +3464,14 @@ ip access-list extended e2_in
 --
 interface e1
  ip address negotiated
- crypto ipsec client ezvpn vpn
+ crypto map crypto-e1
  ip access-group e1_in in
 interface e2
  ip address 10.99.2.1 255.255.255.0
- crypto ipsec client ezvpn vpn inside
  ip access-group e2_in in
 interface e3
  ip address 10.99.3.1 255.255.255.0
- crypto ipsec client ezvpn vpn inside
  ip access-group e3_in in
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN router with two local networks authenticated only
-# Protocol 50 is also used if only esp_authentication.
-=INPUT=[[input]]
-=SUBST=/esp_encryption = aes256;//
-=OUTPUT=
---vpn
-ip access-list extended e1_in
- permit 50 host 192.168.0.101 any
- permit udp host 192.168.0.101 eq 500 any eq 500
- deny ip any any
-=END=
-
-############################################################
-=TITLE=VPN ASA to EZVPN ASA with two local networks
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=OUTPUT=
---vpn
-! [ Routing ]
-route e1 0.0.0.0 0.0.0.0 e1
---
-! VPN traffic is filtered at interface ACL
-no sysopt connection permit-vpn
---
-! e1_in
-access-list e1_in extended permit udp 10.1.1.0 255.255.255.0 10.99.2.0 255.255.254.0 eq 123
-access-list e1_in extended deny ip any4 any4
-access-group e1_in in interface e1
---
-! e2_in
-access-list e2_in extended permit tcp 10.99.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list e2_in extended deny ip any4 any4
-access-group e2_in in interface e2
---
-! e3_in
-access-list e3_in extended permit tcp 10.99.3.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list e3_in extended deny ip any4 any4
-access-group e3_in in interface e3
-=END=
-
-############################################################
-=TITLE=Missing ID at EZVPN router to VPN ASA
-=INPUT=[[input]]
-=SUBST=/IOS/ASA/
-=SUBST=/id =/#id/
-=ERROR=
-Error: interface:vpn.tunnel:vpn needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
 =END=
 
 ############################################################
@@ -3586,7 +3528,8 @@ crypto map crypto-GigabitEthernet0 1 set peer 192.168.1.1
 crypto map crypto-GigabitEthernet0 1 match address crypto-192.168.1.1
 crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
 crypto map crypto-GigabitEthernet0 1 set pfs group2
-crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime kilobytes 100000
 tunnel-group 192.168.1.1 type ipsec-l2l
 tunnel-group 192.168.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3691,6 +3634,7 @@ network:lan1 = {
 
 ############################################################
 =TITLE=Create crypto ACL even if no rule is defined
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =OUTPUT=
@@ -3701,7 +3645,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3714,6 +3659,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Access VPN interface
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 service:test = {
@@ -3738,6 +3684,7 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
 
 ############################################################
 =TITLE=NAT of IPSec traffic at ASA and NAT of VPN network at IOS
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 service:test = {
@@ -3753,7 +3700,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3807,6 +3755,7 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=detailed_crypto_acl at managed spoke
+# No IPv6 NAT
 =INPUT=[[topo]]
 =SUBST=/type = ipsec:/detailed_crypto_acl; type = ipsec:/
 =ERROR=
@@ -3815,6 +3764,7 @@ Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:v
 
 ############################################################
 =TITLE=Don't add hidden network to crypto ACL
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 network:lan2 = {
@@ -3831,7 +3781,8 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3844,6 +3795,7 @@ crypto map crypto-outside interface outside
 
 ############################################################
 =TITLE=Multiple zones behind managed crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 router:r1 = {
@@ -3859,6 +3811,7 @@ Error: Exactly one security zone must be located behind managed interface:vpn1.l
 
 ############################################################
 =TITLE=ID hosts behind managed crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3869,6 +3822,7 @@ Error: network:lan1 having ID hosts must not be located behind managed router:vp
 
 ############################################################
 =TITLE=ID hosts behind unmanaged crypto router
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/#host/host/
@@ -3879,6 +3833,7 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 
 ############################################################
 =TITLE=Attribute 'id' with wrong authentication
+# No IPv6 NAT
 =INPUT=
 [[topo]]
 =SUBST=/rsasig/preshare/
@@ -3978,14 +3933,6 @@ interface dmz
 =END=
 
 ############################################################
-=TITLE=Must not use EZVPN as hub
-=INPUT=[[topo]]
-=SUBST=/IOS/IOS, EZVPN/
-=ERROR=
-Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
-=END=
-
-############################################################
 =TITLE=Unmanaged VPN spoke with unknown ID
 =TEMPL=input
 [[crypto_sts]]
@@ -4038,7 +3985,8 @@ crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 100000
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3

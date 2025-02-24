@@ -254,11 +254,3 @@ func (s *Scanner) ToEOL() (int, string) {
 	}
 	return pos, string(s.src[pos:s.offset])
 }
-
-func (s *Scanner) ToEOLorComment() (int, string) {
-	pos := s.offset
-	for s.ch != '\n' && s.ch != '#' && s.ch >= 0 {
-		s.next()
-	}
-	return pos, string(s.src[pos:s.offset])
-}

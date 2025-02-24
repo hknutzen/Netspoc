@@ -316,7 +316,7 @@ func Main(d oslink.Data) int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	s, err := astset.Read(path, cnf.IPV6)
+	s, err := astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1

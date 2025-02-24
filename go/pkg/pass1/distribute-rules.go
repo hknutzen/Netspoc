@@ -1,7 +1,8 @@
 package pass1
 
 import (
-	"sort"
+	"slices"
+	"strings"
 )
 
 //#############################################################################
@@ -110,15 +111,14 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 		}
 	}
 
-	addRule := func(intf *routerIntf, ru *groupedRule) {
-		if intfRules {
-			intf.intfRules.push(ru)
-		} else {
-			intf.rules.push(ru)
-		}
-	}
 	if in.ipType == tunnelIP {
-
+		addRule := func(intf *routerIntf, ru *groupedRule) {
+			if intfRules {
+				intf.intfRules.push(ru)
+			} else {
+				intf.rules.push(ru)
+			}
+		}
 		// Rules for single software clients are stored individually.
 		// Consistency checks have already been done at expandCrypto.
 		// Rules are needed at tunnel for generating split tunnel ACL
@@ -340,8 +340,8 @@ func (c *spoc) distributeGeneralPermit() {
 					for _, idIntf := range idRules {
 						srcList = append(srcList, idIntf.src)
 					}
-					sort.Slice(srcList, func(i, j int) bool {
-						return srcList[i].String() < srcList[j].String()
+					slices.SortFunc(srcList, func(a, b someObj) int {
+						return strings.Compare(a.String(), b.String())
 					})
 					for _, src := range srcList {
 						addRule(src)
@@ -360,9 +360,8 @@ func (c *spoc) distributeGeneralPermit() {
 						continue
 					}
 
-					// For IOS and NX-OS print this rule only
-					// once at interface filter rules below
-					// (for incoming ACL).
+					// For IOS print this rule only once at interface
+					// filter rules below (for incoming ACL).
 					if needProtect {
 						outHw := out.hardware
 

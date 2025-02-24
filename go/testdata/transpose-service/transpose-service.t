@@ -139,7 +139,7 @@ service:s2 = {
 
 ############################################################
 =TITLE=Transpose two services at once and read names from file
-=FOPTION=
+=FILE_OPTION=
 service:s1
 
 s2
