@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.078     2025-02-24 14:42:54+01:00 Europe/Berlin
+
  - New commandline programs export-netvis and print-path have been added.
 
     These tools output information as JSON to be used in
