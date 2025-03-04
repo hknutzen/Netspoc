@@ -67,7 +67,9 @@ func (c *spoc) printPath(stdout io.Writer, path string, params []string) {
 		elements := c.expandGroup(parsed, "print-path", false)
 		c.stopOnErr()
 		if len(elements) != 1 {
-			c.abort("Only one element allowed in %s", elements)
+			if !(len(elements) == 2 && elements[0].isCombined46()) {
+				c.abort("Only one element allowed in %s", elements)
+			}
 		}
 		switch el := elements[0].(type) {
 		case *network:
