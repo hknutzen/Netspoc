@@ -329,26 +329,26 @@ func findVisibility(owners, uowners stringList) string {
 	for _, ow := range owners {
 		m[ow] = true
 	}
-	var DAExtra stringList
-	var otherExtra stringList
+	DAExtra := 0
+	otherExtra := 0
 	for _, ow := range uowners {
 		if !m[ow] {
 			if strings.HasPrefix(ow, "DA_") {
-				DAExtra.push(ow)
+				DAExtra++
 			} else {
-				otherExtra.push(ow)
+				otherExtra++
 			}
 		}
 	}
 
 	// No known owner or owner of users.
-	if len(DAExtra) == 0 && len(otherExtra) == 0 {
+	if DAExtra == 0 && otherExtra == 0 {
 		// Set of uowners is subset of owners.
 		// This also true, if both owners and uoners are empty.
 		// Visibility: private
-	} else if len(otherExtra) <= 2 {
+	} else if otherExtra <= 2 {
 		// Restricted visibility
-		if len(DAExtra) >= 3 {
+		if DAExtra >= 3 {
 			visibility = "DA_"
 		}
 	} else {
