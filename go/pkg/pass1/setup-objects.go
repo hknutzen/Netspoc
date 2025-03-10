@@ -1798,10 +1798,7 @@ func (c *spoc) setupRouter2(r *router) {
 			if intf.ipType == bridgedIP {
 				if layer3Intf == nil {
 					i := slices.IndexFunc(r.interfaces, func(intf *routerIntf) bool {
-						if intf.isLayer3 {
-							return true
-						}
-						return false
+						return intf.isLayer3
 					})
 					if i == -1 {
 						l3Name, _, _ := strings.Cut(intf.vxName(), "/")
