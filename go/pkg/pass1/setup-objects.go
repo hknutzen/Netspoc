@@ -301,8 +301,6 @@ func (c *spoc) checkUnnumbered(v *ast.Network, na4, na6 *ast.Attribute) {
 	}
 }
 
-var intfV4Attr = []string{"ip", "unnumbered", "negotiated"}
-
 // Clone router having interfaces with both ip and ip6 attributes.
 func (c *spoc) setupRouter46(a *ast.Router) {
 	rName := strings.TrimPrefix(a.Name, "router:")
