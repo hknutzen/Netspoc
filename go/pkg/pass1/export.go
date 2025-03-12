@@ -324,37 +324,32 @@ func protoDescr(l []*proto) stringList {
 }
 
 func findVisibility(owners, uowners stringList) string {
-	var visibility string
+	DAOwner := false
 	m := make(map[string]bool)
 	for _, ow := range owners {
+		if strings.HasPrefix(ow, "DA_") {
+			DAOwner = true
+		}
 		m[ow] = true
 	}
-	DAExtra := 0
-	otherExtra := 0
+	DAUser := 0
+	otherUser := 0
 	for _, ow := range uowners {
 		if !m[ow] {
 			if strings.HasPrefix(ow, "DA_") {
-				DAExtra++
+				DAUser++
 			} else {
-				otherExtra++
+				otherUser++
 			}
 		}
 	}
 
-	// No known owner or owner of users.
-	if DAExtra == 0 && otherExtra == 0 {
-		// Set of uowners is subset of owners.
-		// This also true, if both owners and uoners are empty.
-		// Visibility: private
-	} else if otherExtra <= 2 {
-		// Restricted visibility
-		if DAExtra >= 3 {
-			visibility = "DA_"
-		}
-	} else {
-		visibility = "*"
+	if otherUser >= 3 {
+		return "*"
+	} else if DAOwner || DAUser >= 3 {
+		return "DA_"
 	}
-	return visibility
+	return ""
 }
 
 // Calculate unique id for set of rules.

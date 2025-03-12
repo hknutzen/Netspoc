@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - If service has some owner with name "DA_*",
+   this service is marked as visible for all owners with name "DA_*"
+   in exported data for Netspoc-Web.
+
 6.078     2025-02-24 14:42:54+01:00 Europe/Berlin
 
  - New commandline programs export-netvis and print-path have been added.
