@@ -60,6 +60,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -67,7 +68,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
-	"slices"
 )
 
 type state struct {

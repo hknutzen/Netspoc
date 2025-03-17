@@ -147,10 +147,7 @@ func (c *spoc) checkAttrOverlaps(
 
 	srcAttr := getAttr(rule.src, overlapsAttr)
 	dstAttr := getAttr(rule.dst, overlapsAttr)
-	overlapsUsed := func() bool {
-		return slices.Contains(sv.overlaps, osv)
-	}
-	if overlapsUsed() {
+	if slices.Contains(sv.overlaps, osv) {
 		ri.overlapsUsed[[2]*service{sv, osv}] = true
 		if srcAttr == restrictVal && dstAttr == restrictVal {
 			if !ri.overlapsRestricted[sv] {

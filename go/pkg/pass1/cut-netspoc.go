@@ -53,6 +53,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -60,8 +62,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"maps"
-	"slices"
 )
 
 func removeAttr(ref *[]*ast.Attribute, name string) {
@@ -112,9 +112,7 @@ func setIntfUsed(intf *routerIntf, isUsed map[string]bool) {
 func (c *spoc) saveOrigNat(origNat map[*network]natTagMap) {
 	copyNat := func(n *network) {
 		if nat := n.nat; nat != nil {
-			cpy := make(natTagMap)
-			maps.Copy(cpy, nat)
-			origNat[n] = cpy
+			origNat[n] = maps.Clone(nat)
 		}
 	}
 	for _, n := range c.symTable.network {
