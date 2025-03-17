@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.079     2025-03-17 12:53:54+01:00 Europe/Berlin
+
  - If service has some owner with name "DA_*",
    this service is marked as visible for all owners with name "DA_*"
    in exported data for Netspoc-Web.
