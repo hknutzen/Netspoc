@@ -301,8 +301,6 @@ func (c *spoc) checkUnnumbered(v *ast.Network, na4, na6 *ast.Attribute) {
 	}
 }
 
-var intfV4Attr = []string{"ip", "unnumbered", "negotiated"}
-
 // Clone router having interfaces with both ip and ip6 attributes.
 func (c *spoc) setupRouter46(a *ast.Router) {
 	rName := strings.TrimPrefix(a.Name, "router:")
@@ -1278,39 +1276,31 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 		}
 	}
 	c.checkDuplAttr(v.Attributes, name)
-	if !hasLink {
-		c.err("Attribute 'link' must be defined for %s", name)
-	} else if net := ag.link; net != nil {
-		if !ag.ipp.IsValid() {
-			ag.ipp = c.getNetwork00(net.ipV6).ipp
-			ag.ipV6 = net.ipV6
-			if net6 := net.combined46; net6 != nil {
-				ag6 := *ag
-				ag6.link = net6
-				ag6.ipp = c.getNetwork00(true).ipp
-				ag6.ipV6 = true
-				ag6.nat = nil
-				ag6.combined46 = ag
-				ag.combined46 = &ag6
-			}
-		} else if ag.ipV6 != ag.link.ipV6 {
+	net := ag.link
+	if net == nil {
+		if !hasLink {
+			c.err("Attribute 'link' must be defined for %s", name)
+		}
+		return
+	}
+	// If no ipAttr is given, this case is handled later when
+	// processing zones.
+	if ipAttr != "" {
+		if ag.ipV6 != net.ipV6 {
 			c.err("Must not link %s address to %s network in %s",
 				ipvx(ag.ipV6), ipvx(ag.link.ipV6), name)
 		}
-	}
-	if ag.nat != nil && ag.link.ipV6 {
-		c.err("NAT not supported for IPv6 %s", ag)
-	}
-	if ag.ipp.Bits() != 0 {
-		for _, a := range v.Attributes {
-			switch a.Name {
-			case "ip", "ip6", "link", "owner",
-				"overlaps", "identical_body", "multi_owner", "has_unenforceable":
-				continue
-			}
-			if !strings.HasPrefix(a.Name, "nat:") {
-				c.err("Must not use attribute '%s' if IP is set for %s",
-					a.Name, name)
+		if ag.ipp.Bits() != 0 {
+			for _, a := range v.Attributes {
+				switch a.Name {
+				case "ip", "ip6", "link", "owner",
+					"overlaps", "identical_body", "multi_owner", "has_unenforceable":
+					continue
+				}
+				if !strings.HasPrefix(a.Name, "nat:") {
+					c.err("Must not use attribute '%s' if IP is set for %s",
+						a.Name, name)
+				}
 			}
 		}
 	}
@@ -1808,10 +1798,7 @@ func (c *spoc) setupRouter2(r *router) {
 			if intf.ipType == bridgedIP {
 				if layer3Intf == nil {
 					i := slices.IndexFunc(r.interfaces, func(intf *routerIntf) bool {
-						if intf.isLayer3 {
-							return true
-						}
-						return false
+						return intf.isLayer3
 					})
 					if i == -1 {
 						l3Name, _, _ := strings.Cut(intf.vxName(), "/")
@@ -2389,7 +2376,7 @@ func (c *spoc) setupService(v *ast.Service) {
 	sv := c.symTable.service[sName]
 	sv.name = name
 	if d := v.Description; d != nil {
-		sv.description = strings.TrimSuffix(strings.TrimSpace(d.Text), ";")
+		sv.description = d.Text
 	}
 	for _, a := range v.Attributes {
 		switch a.Name {

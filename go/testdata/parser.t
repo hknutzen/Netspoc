@@ -1159,7 +1159,7 @@ Error: Unexpected attribute in any:n: x:yz
 =TITLE=Aggregate without attribute 'link'
 # No IPv6
 =INPUT=
-any:n = { }
+any:n = { nat:h = { hidden; } }
 =ERROR=
 Error: Attribute 'link' must be defined for any:n
 =END=

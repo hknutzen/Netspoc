@@ -61,6 +61,8 @@ var tests = []test{
 	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
 	{"export-netspoc-syntax", stdoutT, exportsyntax.Main, jsonCheck},
+	{"export-netvis", stdoutT, pass1.ExportNetvisMain, jsonCheck},
+	{"print-path", stdoutT, pass1.PrintPathMain, jsonCheck},
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
 	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},

@@ -3083,7 +3083,7 @@ service:s = {
 }
 =OUTPUT=
 network:n1 = {
- description = network:n1
+ description = network:n1; # looks like code
  ip = 10.1.1.0/24;
 }
 network:n2 = { ip = 10.1.2.0/24; }

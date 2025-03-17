@@ -9,13 +9,6 @@ import (
 	"go4.org/netipx"
 )
 
-const (
-	hostsUnset = iota
-	hostsNone
-	hostsReadable
-	hostsBinary
-)
-
 func (c *spoc) getAutoIPv6Hosts(a *ast.Attribute, ctx string) string {
 	v := c.getSingleValue(a, ctx)
 	switch v {

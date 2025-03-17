@@ -670,6 +670,7 @@ func (c *spoc) processAggregates() {
 		func(a, b *network) int {
 			return strings.Compare(a.name, b.name)
 		})
+	var unset netip.Prefix
 	for _, agg := range aggList {
 		process := func(agg *network, z *zone) {
 			// Assure that no other aggregate with same IP and mask
@@ -692,19 +693,30 @@ func (c *spoc) processAggregates() {
 			c.linkAggregateToZone(agg, z)
 		}
 		z := agg.link.zone
-		process(agg, z)
-		// Add non matching aggregate to combined zone.
-		if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
-			agg2 := new(network)
-			agg2.name = agg.name
-			agg2.isAggregate = true
-			agg2.ipV6 = !agg.ipV6
-			agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
-			agg.combined46 = agg2
-			agg2.combined46 = agg
-			process(agg2, z2)
+		if agg.ipp == unset {
+			agg.ipp = c.getNetwork00(z.ipV6).ipp
+			agg.ipV6 = z.ipV6
+			process(agg, z)
+			// Add non matching aggregate to combined zone.
+			if z2 := z.combined46; z2 != nil {
+				agg2 := new(network)
+				agg2.name = agg.name
+				agg2.isAggregate = true
+				agg2.ipV6 = z2.ipV6
+				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
+				if !agg2.ipV6 {
+					agg2.nat = agg.nat
+					agg.nat = nil
+				}
+				agg.combined46 = agg2
+				agg2.combined46 = agg
+				process(agg2, z2)
+			} else if agg.ipV6 && agg.nat != nil {
+				c.err("NAT not supported for IPv6 %s", agg)
+			}
+		} else {
+			process(agg, z)
 		}
-
 	}
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggList {

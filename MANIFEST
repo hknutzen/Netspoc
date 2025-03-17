@@ -13,10 +13,12 @@ bin/cut-netspoc
 bin/expand-group
 bin/export-netspoc
 bin/export-netspoc-syntax
+bin/export-netvis
 bin/format-netspoc
 bin/modify-netspoc-api
 bin/netspoc
 bin/print-group
+bin/print-path
 bin/print-service
 bin/remove-from-netspoc
 bin/remove-service
@@ -56,10 +58,12 @@ go/cmd/cut-netspoc/main.go
 go/cmd/expand-group/main.go
 go/cmd/export-netspoc-syntax/main.go
 go/cmd/export-netspoc/main.go
+go/cmd/export-netvis/main.go
 go/cmd/format-netspoc/main.go
 go/cmd/modify-netspoc-api/main.go
 go/cmd/netspoc/main.go
 go/cmd/print-group/main.go
+go/cmd/print-path/main.go
 go/cmd/print-service/main.go
 go/cmd/remove-from-netspoc/main.go
 go/cmd/remove-service/main.go
@@ -102,6 +106,7 @@ go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go
 go/pkg/pass1/expand-crypto.go
 go/pkg/pass1/expand-group.go
+go/pkg/pass1/export-netvis.go
 go/pkg/pass1/export.go
 go/pkg/pass1/find-subnets.go
 go/pkg/pass1/get-aggregates.go
@@ -115,6 +120,7 @@ go/pkg/pass1/order-protocols.go
 go/pkg/pass1/path-walk.go
 go/pkg/pass1/print-code.go
 go/pkg/pass1/print-group.go
+go/pkg/pass1/print-path.go
 go/pkg/pass1/print-service.go
 go/pkg/pass1/protocol.go
 go/pkg/pass1/remove-dupl-rules.go
@@ -169,6 +175,7 @@ go/testdata/expand-group/expand-group.t
 go/testdata/export-netspoc-syntax/export.t
 go/testdata/export-netspoc/combined46.t
 go/testdata/export-netspoc/export.t
+go/testdata/export-netvis/export.t
 go/testdata/format-netspoc/format-netspoc.t
 go/testdata/general-permit.t
 go/testdata/group.t
@@ -255,6 +262,7 @@ go/testdata/print-group/crypto.t
 go/testdata/print-group/group.t
 go/testdata/print-group/mixed-ipv4-ipv6.t
 go/testdata/print-group/owner.t
+go/testdata/print-path/print-path.t
 go/testdata/print-service/print-service.t
 go/testdata/protect-interfaces.t
 go/testdata/protocols.t

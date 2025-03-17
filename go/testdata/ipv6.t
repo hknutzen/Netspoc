@@ -446,7 +446,6 @@ Aborted
 =TITLE=NAT not supported
 =INPUT=
 area:n1 = { anchor = network:n1; nat:ar = { hidden; } }
-any:n1 = { link = network:n1; nat:ag = { hidden; } }
 network:n1 = {
  ip6 = 2001:db8:1:1::/64; nat:n = { hidden; }
  host:h1 = { ip6 = 2001:db8:1:1::10; nat:h = { ip = 2001:db8:1:ffff::10; } }
@@ -458,6 +457,17 @@ router:r1 = {
 =ERROR=
 Error: NAT not supported for IPv6 host:h1
 Error: NAT not supported for IPv6 network:n1
-Error: NAT not supported for IPv6 any:n1
 Error: NAT not supported for IPv6 area:n1
+=END=
+
+############################################################
+=TITLE=NAT not supported at aggregate
+=INPUT=
+any:n1 = { link = network:n1; nat:ag = { hidden; } }
+network:n1 = {
+ ip6 = 2001:db8:1:1::/64;
+}
+=ERROR=
+Error: NAT not supported for IPv6 any:n1
+Warning: nat:ag is defined, but not bound to any interface
 =END=

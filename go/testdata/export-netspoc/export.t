@@ -786,6 +786,15 @@ service:s6 = {
  user = host:DA_5;
  permit src = user; dst = host:x5; prt = tcp 82;
 }
+service:s7 = {
+ user = host:x1;
+ permit src = user; dst = host:DA_1; prt = tcp 80;
+}
+service:s8 = {
+ multi_owner;
+ user = host:x1;
+ permit src = user; dst = host:DA_1, host:x2; prt = tcp 80;
+}
 =OUTPUT=
 --owner/x1/service_lists
 {
@@ -795,7 +804,9 @@ service:s6 = {
  ],
  "user": [
   "s1",
-  "s4"
+  "s4",
+  "s7",
+  "s8"
  ],
  "visible": []
 }
@@ -811,7 +822,9 @@ service:s6 = {
 --owner/DA_1/service_lists
 {
  "owner": [
-  "s1"
+  "s1",
+  "s7",
+  "s8"
  ],
  "user": [
   "s2",
@@ -828,7 +841,9 @@ service:s6 = {
   "s1",
   "s2",
   "s4",
-  "s5"
+  "s5",
+  "s7",
+  "s8"
  ]
 }
 =END=
@@ -2124,7 +2139,7 @@ service:s1 = {
 {
  "s1": {
   "details": {
-   "description": "test; test, test",
+   "description": "test; test, test;# With comment",
    "owner": [
     ":unknown"
    ]
