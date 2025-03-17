@@ -3,6 +3,7 @@
  - If service has some owner with name "DA_*",
    this service is marked as visible for all owners with name "DA_*"
    in exported data for Netspoc-Web.
+ - Command 'print-path' now accepts dual stack objects.
 
 6.078     2025-02-24 14:42:54+01:00 Europe/Berlin
 
