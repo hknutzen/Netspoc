@@ -69,7 +69,7 @@ func Main(d oslink.Data) int {
 	return 0
 }
 
-type jsonMap map[string]interface{}
+type jsonMap map[string]any
 
 func convertToMap(n ast.Toplevel) jsonMap {
 	m := make(jsonMap)

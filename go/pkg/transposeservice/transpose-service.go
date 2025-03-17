@@ -67,6 +67,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
+	"slices"
 )
 
 type state struct {
@@ -160,12 +161,7 @@ func hasUserInElements(l []ast.Element) bool {
 			return false
 		}
 	}
-	for _, el := range l {
-		if hasUser(el) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(l, hasUser)
 }
 
 func Main(d oslink.Data) int {

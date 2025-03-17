@@ -79,7 +79,7 @@ func genIPv6FromIPv4(ip netip.Addr, ipp netip.Prefix, attr string) netip.Addr {
 		s4 := ip.String()
 		dec := strings.Split(s4, ".")
 		s := fmt.Sprintf("%04s%04s%04s%04s", dec[0], dec[1], dec[2], dec[3])
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			x := s[2*i : 2*i+2]
 			fmt.Sscanf(x, "%x", &b16[8+i])
 		}

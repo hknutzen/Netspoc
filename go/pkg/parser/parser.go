@@ -68,7 +68,7 @@ func (p *parser) nextMulti() {
 	p.pos, p.isSep, p.tok = p.scanner.TokenToComma()
 }
 
-func (p *parser) syntaxErr(format string, args ...interface{}) {
+func (p *parser) syntaxErr(format string, args ...any) {
 	p.scanner.SyntaxErr(p.pos, format, args...)
 }
 

@@ -98,7 +98,7 @@ func (c *spoc) convertHosts() {
 
 		// Set {up} relation and
 		// check compatibility of hosts in subnet relation.
-		for i := 0; i < len(subnetAref); i++ {
+		for i := range subnetAref {
 			ip2subnet := subnetAref[i]
 			for ip, subnet := range ip2subnet {
 				// Search for enclosing subnet.
@@ -122,7 +122,7 @@ func (c *spoc) convertHosts() {
 		// Find adjacent subnets which build a larger subnet.
 		s := n.ipp.Bits()
 		networkSize := bitstrLen - s
-		for i := 0; i < len(subnetAref); i++ {
+		for i := range subnetAref {
 			ip2subnet := subnetAref[i]
 			if ip2subnet == nil {
 				continue

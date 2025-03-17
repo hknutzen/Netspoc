@@ -636,10 +636,8 @@ INTF:
 			outNatTags := outIntf.bindNat
 			// Found error: reached the same NAT tag twice.
 			// Signal this error with return value true.
-			for _, tag2 := range outNatTags {
-				if tag2 == tag {
-					return true
-				}
+			if slices.Contains(outNatTags, tag) {
+				return true
 			}
 			// Non hidden 'tag' is implicitly deactivated by activation
 			// of another NAT tag used together with 'tag' in a multi NAT

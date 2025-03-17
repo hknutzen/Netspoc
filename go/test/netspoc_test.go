@@ -481,7 +481,7 @@ func jsonEq(t *testing.T, expected string, got []byte) {
 		if d[0] == '#' {
 			return string(d)
 		}
-		var v interface{}
+		var v any
 		if err := json.Unmarshal(d, &v); err != nil {
 			t.Fatal(err)
 		}

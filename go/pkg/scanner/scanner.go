@@ -113,13 +113,13 @@ func (s *Scanner) context(offset int) string {
 	return c
 }
 
-func (s *Scanner) SyntaxErr(offset int, format string, args ...interface{}) {
+func (s *Scanner) SyntaxErr(offset int, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	msg = msg + s.context(offset)
 	s.abort(errors.New(msg))
 }
 
-func (s *Scanner) syntaxErr(format string, args ...interface{}) {
+func (s *Scanner) syntaxErr(format string, args ...any) {
 	s.SyntaxErr(s.offset, format, args...)
 }
 func lower(ch rune) rune     { return ('a' - 'A') | ch } // returns lower-case ch iff ch is ASCII letter

@@ -516,9 +516,7 @@ func printTunnelGroupRa(
 func combineAttr(l ...map[string]string) map[string]string {
 	result := make(map[string]string)
 	for _, attr := range l {
-		for k, v := range attr {
-			result[k] = v
-		}
+		maps.Copy(result, attr)
 	}
 	return result
 }

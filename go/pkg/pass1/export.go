@@ -53,7 +53,7 @@ func (c *spoc) createDirs(dir, path string) {
 	}
 }
 
-func (c *spoc) writeJson(path string, data interface{}) {
+func (c *spoc) writeJson(path string, data any) {
 	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
@@ -64,11 +64,11 @@ func (c *spoc) writeJson(path string, data interface{}) {
 	enc.Encode(data)
 }
 
-func (c *spoc) exportJson(dir, path string, data interface{}) {
+func (c *spoc) exportJson(dir, path string, data any) {
 	c.writeJson(dir+"/"+path, data)
 }
 
-type jsonMap map[string]interface{}
+type jsonMap map[string]any
 
 // Add attributes ip and nat to dst object.
 func ipNatForObject(obj srvObj, dst jsonMap) {

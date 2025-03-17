@@ -72,7 +72,7 @@ func Main(d oslink.Data) int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
 
-	showErr := func(format string, args ...interface{}) {
+	showErr := func(format string, args ...any) {
 		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
 	}
 
@@ -126,7 +126,7 @@ func (s *state) doJob(data json.RawMessage) error {
 	if len(j.Params) == 0 {
 		return fmt.Errorf("Missing \"params\" in JSON input")
 	}
-	var dummy map[string]interface{}
+	var dummy map[string]any
 	if err := json.Unmarshal(j.Params, &dummy); err != nil {
 		return fmt.Errorf("In \"params\" of JSON input: %s", err)
 	}
@@ -270,7 +270,7 @@ func (s *state) modifyHost(j *job) error {
 	return nil
 }
 
-type jsonMap map[string]interface{}
+type jsonMap map[string]any
 
 func (s *state) createOwner(j *job) error {
 	var p struct {
@@ -305,7 +305,7 @@ func (s *state) addToGroup(j *job) error {
 	return s.patch(&job{Method: "add", Params: params})
 }
 
-func getParams(j *job, p interface{}) {
+func getParams(j *job, p any) {
 	// Ignore error and handle params with wrong type like missing params.
 	json.Unmarshal(j.Params, p)
 }

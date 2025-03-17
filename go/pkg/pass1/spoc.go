@@ -90,11 +90,11 @@ func handleBailout(f, cleanup func()) {
 	f()
 }
 
-func (c *spoc) toStderrf(format string, args ...interface{}) {
+func (c *spoc) toStderrf(format string, args ...any) {
 	c.toStderr(fmt.Sprintf(format, args...))
 }
 
-func (c *spoc) abort(format string, args ...interface{}) {
+func (c *spoc) abort(format string, args ...any) {
 	c.toStderrf("Error: "+format, args...)
 	c.toStderr("Aborted")
 	c.errCount++
@@ -108,7 +108,7 @@ func (c *spoc) stopOnErr() {
 	}
 }
 
-func (c *spoc) err(format string, args ...interface{}) {
+func (c *spoc) err(format string, args ...any) {
 	msg := fmt.Sprintf("Error: "+format, args...)
 	c.errCount++
 	c.toStderr(msg)
@@ -118,12 +118,12 @@ func (c *spoc) err(format string, args ...interface{}) {
 	}
 }
 
-func (c *spoc) warn(format string, args ...interface{}) {
+func (c *spoc) warn(format string, args ...any) {
 	c.toStderrf("Warning: "+format, args...)
 }
 
 func (c *spoc) warnOrErr(
-	errType conf.TriState, format string, args ...interface{}) {
+	errType conf.TriState, format string, args ...any) {
 
 	if errType == "warn" {
 		c.warn(format, args...)
@@ -138,7 +138,7 @@ func (c *spoc) uselessSvcAttr(attr string, svc *service) {
 	}
 }
 
-func (c *spoc) info(format string, args ...interface{}) {
+func (c *spoc) info(format string, args ...any) {
 	if !c.conf.Quiet {
 		c.toStderrf(format, args...)
 	}
@@ -154,7 +154,7 @@ func (c *spoc) progress(msg string) {
 	}
 }
 
-func (c *spoc) diag(format string, args ...interface{}) {
+func (c *spoc) diag(format string, args ...any) {
 	if c.showDiag {
 		c.toStderrf("DIAG: "+format, args...)
 	}

@@ -16,7 +16,7 @@ type printer struct {
 
 func (p *printer) print(line string) {
 	if line != "" {
-		for i := 0; i < p.indent; i++ {
+		for range p.indent {
 			p.output = append(p.output, ' ')
 		}
 		p.output = append(p.output, []byte(line)...)

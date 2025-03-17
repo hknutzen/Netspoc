@@ -17,7 +17,7 @@ type expAutoPair struct {
 	dstList groupObjList
 }
 
-type pathOrAuto interface{}
+type pathOrAuto any
 
 func (c *spoc) pathAutoInterfaces(
 	src *autoIntf, dst pathOrAuto, origDst groupObj,

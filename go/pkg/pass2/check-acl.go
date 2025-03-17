@@ -86,7 +86,7 @@ func readPackets(stderr io.Writer, path string) ([]*packet, error) {
 
 func parsePackets(stderr io.Writer, lines []string) []*packet {
 	var result []*packet
-	warn := func(format string, args ...interface{}) {
+	warn := func(format string, args ...any) {
 		fmt.Fprintf(stderr, "Warning: "+format+"\n", args...)
 	}
 	checkIP := func(s string) string {

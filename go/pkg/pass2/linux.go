@@ -83,8 +83,7 @@ func debugBintree (tree *netBintree, depth string) {
 }
 */
 
-type netOrProt interface {
-}
+type netOrProt any
 
 type lRuleTree map[netOrProt]*lRuleTree
 
@@ -567,8 +566,8 @@ func (tree *prtBintree) Noop() bool { return tree.noop }
 
 type attrOrder [4]struct {
 	count int
-	get   func(*ciscoRule) interface{}
-	set   func(*linuxRule, interface{})
+	get   func(*ciscoRule) any
+	set   func(*linuxRule, any)
 	name  string
 }
 type lChain struct {
@@ -836,35 +835,35 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 		order *attrOrder
 	}
 	var ruleSets []treeAndOrder
-	var count [4]map[interface{}]int
+	var count [4]map[any]int
 	for i := range count {
-		count[i] = make(map[interface{}]int)
+		count[i] = make(map[any]int)
 	}
 	order := attrOrder{
 		{
-			get: func(rule *ciscoRule) interface{} { return rule.srcRange },
-			set: func(rule *linuxRule, val interface{}) {
+			get: func(rule *ciscoRule) any { return rule.srcRange },
+			set: func(rule *linuxRule, val any) {
 				rule.srcRange = val.(*prtBintree)
 			},
 			name: "srcRange",
 		},
 		{
-			get: func(rule *ciscoRule) interface{} { return rule.dst },
-			set: func(rule *linuxRule, val interface{}) {
+			get: func(rule *ciscoRule) any { return rule.dst },
+			set: func(rule *linuxRule, val any) {
 				rule.dst = val.(*netBintree)
 			},
 			name: "dst",
 		},
 		{
-			get: func(rule *ciscoRule) interface{} { return rule.prt },
-			set: func(rule *linuxRule, val interface{}) {
+			get: func(rule *ciscoRule) any { return rule.prt },
+			set: func(rule *linuxRule, val any) {
 				rule.prt = val.(*prtBintree)
 			},
 			name: "prt",
 		},
 		{
-			get: func(rule *ciscoRule) interface{} { return rule.src },
-			set: func(rule *linuxRule, val interface{}) {
+			get: func(rule *ciscoRule) any { return rule.src },
+			set: func(rule *linuxRule, val any) {
 				rule.src = val.(*netBintree)
 			},
 			name: "src",
@@ -894,7 +893,7 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 					order[i].count = len(attrMap)
 
 					// Reset counter for next tree.
-					count[i] = make(map[interface{}]int)
+					count[i] = make(map[any]int)
 				}
 
 				// Use key with smaller number of different values

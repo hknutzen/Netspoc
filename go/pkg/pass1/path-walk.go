@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"fmt"
+	"slices"
 )
 
 // getPathNode provides path node objects for objects specified as src or dst.
@@ -337,11 +338,8 @@ func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 				}
 			} else {
 				// Prohibit paths traversing related redundancy interfaces.
-				for _, rIntf := range startEnd.redundancyIntfs {
-					if intf == rIntf {
-						markDeleted(idx)
-						break
-					}
+				if slices.Contains(startEnd.redundancyIntfs, intf) {
+					markDeleted(idx)
 				}
 			}
 		}

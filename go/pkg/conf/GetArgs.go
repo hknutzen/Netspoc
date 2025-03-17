@@ -212,7 +212,7 @@ func parseFile(filename string, fs *flag.FlagSet) error {
 		isSet[f] = true
 	})
 	var errList []string
-	addErr := func(format string, args ...interface{}) {
+	addErr := func(format string, args ...any) {
 		errList = append(errList, fmt.Sprintf(format, args...))
 	}
 	fs.VisitAll(func(f *flag.Flag) {

@@ -14,13 +14,13 @@ import (
 type change struct {
 	method     string
 	okIfExists bool
-	val        interface{}
+	val        any
 }
 
 func (s *state) patch(j *job) error {
 	var p struct {
 		Path       string
-		Value      interface{}
+		Value      any
 		OkIfExists bool `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
@@ -180,7 +180,7 @@ func patchRules(l *[]*ast.Rule, names []string, c change) error {
 	names = names[1:]
 	if len(names) == 0 {
 		if c.method == "delete" {
-			*l = append((*l)[:idx], (*l)[idx+1:]...)
+			*l = slices.Delete((*l), idx, idx+1)
 			return nil
 		}
 		return fmt.Errorf("Attribute of rule must be given for '%s'", c.method)
@@ -294,7 +294,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				// Fallthrough: delete attribute if value list becomes empty.
 			}
 			if c.method == "delete" {
-				*l = append((*l)[:i], (*l)[i+1:]...)
+				*l = slices.Delete((*l), i, i+1)
 				return nil
 			}
 			return fmt.Errorf("Missing value to add at '%s'", name)
@@ -342,7 +342,7 @@ VAL:
 			val := v.Value
 			if cmp(val, val2) {
 				// delete found element
-				a.ValueList = append(a.ValueList[:i], a.ValueList[i+1:]...)
+				a.ValueList = slices.Delete(a.ValueList, i, i+1)
 				continue VAL
 			}
 		}
@@ -351,7 +351,7 @@ VAL:
 	return nil
 }
 
-func getValueList(val interface{}) ([]*ast.Value, error) {
+func getValueList(val any) ([]*ast.Value, error) {
 	a := &ast.Attribute{}
 	if err := setAttrValue(a, val); err != nil {
 		return nil, err
@@ -389,7 +389,7 @@ func (s *state) addToplevel(name string, c change) error {
 }
 
 func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
-	m, ok := c.val.(map[string]interface{})
+	m, ok := c.val.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf(
 			"Expecting JSON object in attribute 'value' but got: %T", c.val)
@@ -474,7 +474,7 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	return fmt.Errorf("'%s' already exists", n.GetName())
 }
 
-func getTopList(name string, m map[string]interface{}) (ast.Toplevel, error) {
+func getTopList(name string, m map[string]any) (ast.Toplevel, error) {
 	elements, found := m["elements"]
 	if !found {
 		return nil, fmt.Errorf("Missing attribute 'elements' in '%s'", name)
@@ -498,7 +498,7 @@ func getTopList(name string, m map[string]interface{}) (ast.Toplevel, error) {
 	return tl, nil
 }
 
-func getService(name string, m map[string]interface{}) (ast.Toplevel, error) {
+func getService(name string, m map[string]any) (ast.Toplevel, error) {
 	user, found := m["user"]
 	if !found {
 		return nil, fmt.Errorf("Missing attribute 'user' in '%s'", name)
@@ -519,7 +519,7 @@ func getService(name string, m map[string]interface{}) (ast.Toplevel, error) {
 	if err != nil {
 		return nil, err
 	}
-	l, ok := rules.([]interface{})
+	l, ok := rules.([]any)
 	if !ok {
 		return nil, fmt.Errorf(
 			"Expecting JSON array after 'rules' but got: %T", rules)
@@ -534,8 +534,8 @@ func getService(name string, m map[string]interface{}) (ast.Toplevel, error) {
 	return s, nil
 }
 
-func getRuleDef(v interface{}) (*ast.Rule, error) {
-	obj, ok := v.(map[string]interface{})
+func getRuleDef(v any) (*ast.Rule, error) {
+	obj, ok := v.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("Unexpected type when reading rule: %T", v)
 	}
@@ -579,7 +579,7 @@ func getRuleDef(v interface{}) (*ast.Rule, error) {
 }
 
 func getTopStruct(
-	name string, m map[string]interface{}) (*ast.TopStruct, error) {
+	name string, m map[string]any) (*ast.TopStruct, error) {
 
 	t := new(ast.TopStruct)
 	t.Name = name
@@ -599,13 +599,13 @@ func getTopStruct(
 	return t, nil
 }
 
-func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
+func getAttribute(name string, v any) (*ast.Attribute, error) {
 	a := &ast.Attribute{Name: name}
 	switch x := v.(type) {
 	case nil:
 	case string:
 		a.ValueList = []*ast.Value{&ast.Value{Value: x}}
-	case []interface{}:
+	case []any:
 		for _, v := range x {
 			s, ok := v.(string)
 			if !ok {
@@ -613,7 +613,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 			}
 			a.ValueList = append(a.ValueList, &ast.Value{Value: s})
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		var l []*ast.Attribute
 		for _, k := range slices.Sorted(maps.Keys(x)) {
 			attr, err := getAttribute(k, x[k])
@@ -629,7 +629,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 	return a, nil
 }
 
-func setAttrValue(a *ast.Attribute, val interface{}) error {
+func setAttrValue(a *ast.Attribute, val any) error {
 	a2, err := getAttribute(a.Name, val)
 	if err != nil {
 		return err
@@ -661,7 +661,7 @@ ELEM:
 		for i, el2 := range *l {
 			if el2.String() == v1 {
 				// delete found element
-				*l = append((*l)[:i], (*l)[i+1:]...)
+				*l = slices.Delete((*l), i, i+1)
 				continue ELEM
 			}
 		}
@@ -670,12 +670,12 @@ ELEM:
 	return nil
 }
 
-func getNamedUnion(name string, val interface{}) (*ast.NamedUnion, error) {
+func getNamedUnion(name string, val any) (*ast.NamedUnion, error) {
 	l, err := getElementList(val)
 	return &ast.NamedUnion{Name: name, Elements: l}, err
 }
 
-func getElementList(val interface{}) ([]ast.Element, error) {
+func getElementList(val any) ([]ast.Element, error) {
 	var elements []ast.Element
 	addOneElement := func(val string) error {
 		l, err := parser.ParseUnion([]byte(val))
@@ -696,7 +696,7 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 		if err != nil {
 			return nil, err
 		}
-	case []interface{}:
+	case []any:
 		for _, v := range x {
 			if s, ok := v.(string); ok {
 				err := addOneElement(s)

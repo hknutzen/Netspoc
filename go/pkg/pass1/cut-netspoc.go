@@ -60,6 +60,8 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
+	"maps"
+	"slices"
 )
 
 func removeAttr(ref *[]*ast.Attribute, name string) {
@@ -111,9 +113,7 @@ func (c *spoc) saveOrigNat(origNat map[*network]natTagMap) {
 	copyNat := func(n *network) {
 		if nat := n.nat; nat != nil {
 			cpy := make(natTagMap)
-			for t, n := range nat {
-				cpy[t] = n
-			}
+			maps.Copy(cpy, nat)
 			origNat[n] = cpy
 		}
 	}
@@ -474,12 +474,7 @@ func (c *spoc) markElements(
 }
 
 func hasUserInList(l []ast.Element) bool {
-	for _, el := range l {
-		if hasUser(el) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(l, hasUser)
 }
 
 func hasUser(el ast.Element) bool {

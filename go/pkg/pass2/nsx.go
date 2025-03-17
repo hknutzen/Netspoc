@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-type jsonMap map[string]interface{}
+type jsonMap map[string]any
 
 func printNSXRules(fd *os.File, rData *routerData) {
 	prepareACLs(rData)

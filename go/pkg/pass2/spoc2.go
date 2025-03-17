@@ -38,7 +38,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 )
 
-func panicf(format string, args ...interface{}) {
+func panicf(format string, args ...any) {
 	panic(fmt.Sprintf(format, args...))
 }
 
