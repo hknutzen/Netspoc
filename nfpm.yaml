@@ -1,0 +1,14 @@
+
+name: Netspoc
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: none
+section: default
+maintainer: Heinz Knutzen <heinz.knutzen@gmail.com>
+description: NETwork Security POlicy Compiler
+homepage: https://github.com/hknutzen/Netspoc
+license: GPL
+contents:
+  - src: ./bin/*
+    dst: /usr/local/bin/
