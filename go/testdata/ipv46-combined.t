@@ -284,6 +284,66 @@ Error: IPv4 topology has unconnected parts:
 =END=
 
 ############################################################
+=TITLE=Unconnected v6 part in combined zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip = 10.1.5.0/24; ip6 = 2001:db8:1:5::/64; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:u1 = {
+ interface:n2;
+ interface:n3;
+}
+router:u2 = {
+ interface:n3;
+ interface:n4;
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.1; ip6 = 2001:db8:1:4::1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; ip6 = 2001:db8:1:5::1; hardware = n5; }
+}
+=ERROR=
+Error: IPv6 topology has unconnected parts:
+ - any:[network:n1]
+ - any:[network:n4]
+ Use partition attribute, if intended.
+=END=
+
+############################################################
+=TITLE=Missing v4, v6 IP at next hop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:u1 = {
+ interface:n2;
+ interface:n3;
+}
+=ERROR=
+Error: Can't generate static routes for IPv4 interface:r1.n2 because IP address is unknown for:
+ - interface:u1.n2
+Error: Can't generate static routes for IPv6 interface:r1.n2 because IP address is unknown for:
+ - interface:u1.n2
+=END=
+
+############################################################
 =TITLE=Rule beween v4 and v6 network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
