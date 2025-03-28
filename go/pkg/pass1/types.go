@@ -183,8 +183,8 @@ func (x *network) getUp() someObj {
 	return x.up
 }
 func (x *network) intfList() intfList { return x.interfaces }
-func (x network) isCombined46() bool  { return x.combined46 != nil }
-func (x network) vxName() string {
+func (x *network) isCombined46() bool { return x.combined46 != nil }
+func (x *network) vxName() string {
 	return vxName(x.name, x.ipV6, x.combined46 != nil)
 }
 
