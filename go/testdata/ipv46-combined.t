@@ -266,6 +266,51 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
+=TITLE=v4 part and v6 part connected only by v46 unnumbered network
+=INPUT=
+any:un = { link = network:un; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:un = { unnumbered; unnumbered6; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip6 = 2001:db8:1:3::/64; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:un;
+ interface:n2;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = any:un;
+ permit src = user; dst = network:n3, network:n4; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r2
+! n2_in
+access-list n2_in extended permit tcp any6 2001:db8:1:3::/64 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+--r3
+! n1_in
+access-list n1_in extended permit tcp any4 10.1.4.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Unconnected v4 part of combined network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
