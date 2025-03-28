@@ -154,32 +154,33 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 		return
 	}
 
-	// debug("Dupl. %s to %s", agg, to z)
-
-	// Create new aggregate object for every zone inside the cluster
-	agg2 := new(network)
-	agg2.name = agg.name
-	agg2.isAggregate = true
-	agg2.ipp = agg.ipp
-	agg2.ipV6 = agg.ipV6
-	agg2.invisible = agg.invisible
-	agg2.owner = agg.owner
-	agg2.attr = agg.attr
-
-	// Create copy of NAT map for zones in cluster.
-	// If same map is used, NAT tags inherited from area would be
-	// added multiple times for each cluster element.
-	if nat := agg.nat; nat != nil {
-		cpy := make(map[string]*network, len(nat))
-		maps.Copy(cpy, nat)
-		agg2.nat = cpy
+	// Create new aggregate from aggregate or network and attach it to zone.
+	clone := func(n *network, z *zone) *network {
+		agg := new(network)
+		agg.name = n.name
+		agg.isAggregate = true
+		agg.ipp = n.ipp
+		agg.ipV6 = n.ipV6
+		agg.invisible = n.invisible
+		agg.owner = n.owner
+		agg.attr = n.attr
+		// Create copy of NAT map for zones in cluster.
+		// Otherwise NAT tags inherited from area would be
+		// added multiple times for each cluster element.
+		agg.nat = maps.Clone(n.nat)
+		if implicit {
+			c.linkImplicitAggregateToZone(agg, z)
+		} else {
+			c.linkAggregateToZone(agg, z)
+		}
+		return agg
 	}
-
-	// Link new aggregate object and cluster
-	if implicit {
-		c.linkImplicitAggregateToZone(agg2, z)
-	} else {
-		c.linkAggregateToZone(agg2, z)
+	agg2 := clone(agg, z)
+	z2 := z.combined46
+	if a6 := agg.combined46; a6 != nil && z2 != nil {
+		a2 := clone(a6, z2)
+		agg2.combined46 = a2
+		a2.combined46 = agg2
 	}
 }
 
@@ -196,11 +197,15 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 //            e.g. a network with ip/mask 0/0. ??
 */
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
-	cluster := agg.zone.cluster
-
-	// Process every zone of the zone cluster
-	for _, z := range cluster {
+	// Process every zone of the zone cluster, v4 and dual stack.
+	for _, z := range agg.zone.cluster {
 		c.duplicateAggregateToZone(agg, z, implicit)
+	}
+	if a6 := agg.combined46; a6 != nil && a6.ipp.Bits() == 0 {
+		// Process v6 only zones.
+		for _, z := range a6.zone.cluster {
+			c.duplicateAggregateToZone(a6, z, implicit)
+		}
 	}
 	if implicit {
 		propagateOwnerToAggregates(agg)
@@ -251,31 +256,28 @@ func (c *spoc) getAny(
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
 			c.linkImplicitAggregateToZone(agg, z)
-			c.duplicateAggregateToCluster(agg, true)
 			// Add non matching aggregate to combined zone.
 			if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
 				agg2 := new(network)
 				agg2.name = name
 				agg2.isAggregate = true
-				agg2.ipV6 = !agg.ipV6
+				agg2.ipV6 = z2.ipV6
 				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
 				agg.combined46 = agg2
 				agg2.combined46 = agg
 				c.linkImplicitAggregateToZone(agg2, z2)
-				c.duplicateAggregateToCluster(agg2, true)
 			}
+			c.duplicateAggregateToCluster(agg, true)
 		}
 	}
 	var result netList
-	var supernet *network
+	var super *network
 	for _, z := range cluster {
 		aggOrNet := z.ipPrefix2aggregate[ipp]
 		result.push(aggOrNet)
 		if visible {
-
 			// Mark aggregate as visible for findZoneNetworks.
 			aggOrNet.invisible = false
-
 			// Find smallest non aggregate supernet of aggregates in
 			// cluster for checking error condition.
 			// Only needed if result will be visible.
@@ -286,23 +288,23 @@ func (c *spoc) getAny(
 					break
 				}
 			}
-			if s != nil && (supernet == nil || supernet.ipp.Bits() < s.ipp.Bits()) {
-				supernet = s
+			if s != nil && (super == nil || super.ipp.Bits() < s.ipp.Bits()) {
+				super = s
 			}
 		}
 	}
 	// Check error condition.
-	if supernet != nil {
-		for tag, nat := range supernet.nat {
+	if super != nil {
+		for tag, nat := range super.nat {
 			if !nat.hidden {
 				relation := "has address"
-				if supernet.ipp.Bits() != ipp.Bits() {
+				if super.ipp.Bits() != ipp.Bits() {
 					relation = "is subnet"
 				}
 				c.err("Must not use any:[%s = %s & ..] in %s\n"+
 					" because it %s of %s which is translated by nat:%s",
-					v6Attr("ip", supernet.ipV6),
-					ipp, ctx, relation, supernet, tag)
+					v6Attr("ip", super.ipV6),
+					ipp, ctx, relation, super, tag)
 			}
 		}
 	}

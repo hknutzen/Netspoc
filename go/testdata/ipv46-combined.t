@@ -1077,6 +1077,84 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
+=TEMPL=INPUT
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip = 10.1.5.0/24; ip6 = 2001:db8:1:5::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip6 = 2001:db8:1:4::1; hardware = n4; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; }
+ interface:n3 = { ip = 10.1.3.2; }
+ interface:n4 = { ip6 = 2001:db8:1:4::2; }
+ interface:n5;
+}
+pathrestriction:p1 = interface:r1.n1, interface:r2.n3;
+pathrestriction:p2 = interface:r1.n1, interface:r2.n4;
+=END=
+
+############################################################
+=TITLE=Named non matching aggregate with mixed v4, v4/6, v6 in zone cluster
+=INPUT=
+[[INPUT]]
+any:a2 = { link = network:n2; }
+service:s1 = {
+ user = any:a2;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+--ipv6/r1
+! n4_in
+access-list n4_in extended permit tcp any6 2001:db8:1:1::/64 eq 80
+access-list n4_in extended deny ip any6 any6
+access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=Anonymous non matching aggregate with mixed v4, v4/6, v6 in zone cluster
+=INPUT=
+[[INPUT]]
+service:s1 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+--ipv6/r1
+! n4_in
+access-list n4_in extended permit tcp any6 2001:db8:1:1::/64 eq 80
+access-list n4_in extended deny ip any6 any6
+access-group n4_in in interface n4
+=END=
+
+############################################################
 =TITLE=Bridged network
 =INPUT=
 network:n1/left = {

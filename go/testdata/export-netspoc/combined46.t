@@ -495,6 +495,108 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Combined non matching aggregate in zone mixed v4, v46 cluster
+=INPUT=
+area:all = { anchor = network:n1; owner = o; }
+owner:o = { admins = a1@example.com; }
+
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip = 10.1.5.0/24; ip6 = 2001:db8:1:5::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip6 = 2001:db8:1:4::1; hardware = n4; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; }
+ interface:n3 = { ip = 10.1.3.2; }
+ interface:n4 = { ip6 = 2001:db8:1:4::2; }
+ interface:n5;
+}
+pathrestriction:p1 = interface:r1.n1, interface:r2.n3;
+pathrestriction:p2 = interface:r1.n1, interface:r2.n4;
+
+any:a2 = { link = network:n2; }
+=OUTPUT=
+--objects
+{
+ "any:a2": {
+  "ip": "0.0.0.0/0",
+  "ip6": "::/0",
+  "is_supernet": 1,
+  "owner": "o",
+  "zone": "any:a2"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "ip6": "2001:db8:1:1::1"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1",
+  "ip6": "2001:db8:1:2::1"
+ },
+ "interface:r1.n3": {
+  "ip": "10.1.3.1"
+ },
+ "interface:r1.n4": {
+  "ip": "2001:db8:1:4::1"
+ },
+ "interface:r2.n2": {
+  "ip": "10.1.2.2",
+  "ip6": "2001:db8:1:2::2",
+  "owner": "o"
+ },
+ "interface:r2.n3": {
+  "ip": "10.1.3.2",
+  "owner": "o"
+ },
+ "interface:r2.n4": {
+  "ip": "2001:db8:1:4::2",
+  "owner": "o"
+ },
+ "interface:r2.n5": {
+  "ip": "short",
+  "ip6": "short",
+  "owner": "o"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "ip6": "2001:db8:1:1::/64",
+  "owner": "o",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/24",
+  "ip6": "2001:db8:1:2::/64",
+  "owner": "o",
+  "zone": "any:a2"
+ },
+ "network:n3": {
+  "ip": "10.1.3.0/24",
+  "owner": "o",
+  "zone": "any:a2"
+ },
+ "network:n4": {
+  "ip": "2001:db8:1:4::/64",
+  "owner": "o",
+  "zone": "any:a2"
+ },
+ "network:n5": {
+  "ip": "10.1.5.0/24",
+  "ip6": "2001:db8:1:5::/64",
+  "owner": "o",
+  "zone": "any:a2"
+ }
+}
+=END=
+
+############################################################
 =TITLE=Combined non matching aggregates with v4/v6 names
 =INPUT=
 area:all = { anchor = network:n1; owner = o; }

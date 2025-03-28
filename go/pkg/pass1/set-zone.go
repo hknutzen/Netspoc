@@ -145,8 +145,16 @@ func (c *spoc) clusterZones() {
 				// Zone with only tunnel was not added to cluster.
 				z.cluster = []*zone{z}
 			} else {
-				for _, z2 := range cluster {
+				// If cluster has at least one combined46 zone, then store
+				// first combined46 zone as first element of cluster. Thus
+				// it is simple to check if cluster is combined46 cluster.
+				found46 := false
+				for i, z2 := range cluster {
 					z2.cluster = cluster
+					if !found46 && z2.combined46 != nil {
+						found46 = true
+						cluster[0], cluster[i] = cluster[i], cluster[0]
+					}
 				}
 			}
 		}
@@ -692,8 +700,11 @@ func (c *spoc) processAggregates() {
 			// Link aggragate and zone (also setting z.ipPrefix2aggregate)
 			c.linkAggregateToZone(agg, z)
 		}
+		// Take zone from
 		z := agg.link.zone
 		if agg.ipp == unset {
+			// Make sure to get dual stack zone in mixed v4, dual stack cluster.
+			z = agg.link.zone.cluster[0]
 			agg.ipp = c.getNetwork00(z.ipV6).ipp
 			agg.ipV6 = z.ipV6
 			process(agg, z)
@@ -721,9 +732,6 @@ func (c *spoc) processAggregates() {
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
-		if a2 := agg.combined46; a2 != nil {
-			c.duplicateAggregateToCluster(a2, false)
-		}
 	}
 }
 

@@ -98,7 +98,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			natMap[tag] = getIp(natNet)
 		}
 		if n6 := x.combined46; n6 != nil {
-			ip6 = n6.ipp.String()
+			ip6 = getIp(n6)
 		}
 	case *host:
 		getIp := func(h *host, n *network) string {
@@ -1286,9 +1286,20 @@ func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 	c.progress("Export objects")
 	result := make(jsonMap)
 	for obj := range allObjects {
+		// Special case for dual stack non matching aggregate in zone cluster.
+		// Zone cluster may consist of v4, v6 and dual stack zones.
+		// cluster[0] ist known to contain the dual stack zone, if available.
+		if n, ok := obj.(*network); ok && n.isAggregate {
+			obj = n.zone.cluster[0].ipPrefix2aggregate[n.ipp]
+		}
+		name := obj.String()
+		if _, found := result[name]; found {
+			continue
+		}
 		if obj.isCombined46() && obj.isIPv6() {
 			continue
 		}
+
 		descr := make(jsonMap)
 
 		// Add key 'ip' and optionally key 'nat'.
@@ -1302,7 +1313,7 @@ func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 		if o := ownerForObject(obj); o != "" {
 			descr["owner"] = o
 		}
-		result[obj.String()] = descr
+		result[name] = descr
 	}
 	c.exportJson(dir, "objects", result)
 }
