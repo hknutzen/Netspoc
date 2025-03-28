@@ -50,7 +50,8 @@ type test struct {
 var tests = []test{
 	{".", outDirT, pass1.SpocMain, netspocCheck},
 	{"ipv6", outDirT, pass1.SpocMain, netspocCheck},
-	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
+	{"checkpoint", outDirT, pass1.SpocMain, jsonFilesCheck},
+	{"export-netspoc", outDirT, pass1.ExportMain, jsonFilesCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
 	{"expand-group", chgInputT, expand.Main, chgInputCheck},
@@ -390,7 +391,7 @@ func getBlocks(data string, blocks []string) string {
 	return out
 }
 
-func exportCheck(t *testing.T, spec, dir string) {
+func jsonFilesCheck(t *testing.T, spec, dir string) {
 	// Blocks of expected output are split by single lines of dashes,
 	// followed by file name.
 	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)
