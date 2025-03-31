@@ -215,7 +215,6 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 func (c *spoc) getAny(
 	z *zone, ipp netip.Prefix, visible bool, ctx string) netList {
 
-	cluster := z.cluster
 	if z.ipPrefix2aggregate[ipp] == nil {
 
 		// Check, if there is a network with same IP as the requested
@@ -224,7 +223,7 @@ func (c *spoc) getAny(
 		// wouldn't be well defined.
 		var n *network
 	CLUSTER:
-		for _, z := range cluster {
+		for _, z := range z.cluster {
 			for _, n2 := range z.networks {
 				if n2.ipp == ipp {
 					n = n2
@@ -273,7 +272,7 @@ func (c *spoc) getAny(
 	}
 	var result netList
 	var super *network
-	for _, z := range cluster {
+	for _, z := range z.cluster {
 		aggOrNet := z.ipPrefix2aggregate[ipp]
 		result.push(aggOrNet)
 		if visible {
