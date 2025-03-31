@@ -3,6 +3,7 @@ package pass1
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -590,13 +591,10 @@ func (c *spoc) expandGroup1(
 					}
 				}
 
-				hasCombined := false
-				for _, ob := range subObjects {
-					if ob.isCombined46() {
-						hasCombined = true
-						break
-					}
-				}
+				hasCombined :=
+					slices.ContainsFunc(subObjects, func(ob groupObj) bool {
+						return ob.isCombined46()
+					})
 
 				// Ignore duplicate aggregates resulting
 				// - from different interfaces connected to the same aggregate,
