@@ -78,10 +78,19 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	}
 
 	// Link IPv4 and IPv6 zone if it has at least one combined network.
-	if n2 := n.combined46; n2 != nil && z.combined46 == nil {
-		if z2 := n2.zone; z2 != nil {
+	link := func(z, z2 *zone) {
+		if z.combined46 == nil {
 			z.combined46 = z2
-			z2.combined46 = z
+		} else if z.combined46 != z2 {
+			if !slices.Contains(z.combined46Other, z2) {
+				z.combined46Other = append(z.combined46Other, z2)
+			}
+		}
+	}
+	if n2 := n.combined46; n2 != nil {
+		if z2 := n2.zone; z2 != nil {
+			link(z, z2)
+			link(z2, z)
 		}
 	}
 
@@ -145,12 +154,13 @@ func (c *spoc) clusterZones() {
 				// Zone with only tunnel was not added to cluster.
 				z.cluster = []*zone{z}
 			} else {
-				// If cluster has at least one combined46 zone, then store
-				// first combined46 zone as first element of cluster. Thus
-				// it is simple to check if cluster is combined46 cluster.
 				found46 := false
 				for i, z2 := range cluster {
+					// Store final cluster elements in all zones of cluster.
 					z2.cluster = cluster
+					// If cluster has at least one combined46 zone, then store
+					// first combined46 zone as first element of cluster. Thus
+					// it is simple to check if cluster is combined46 cluster.
 					if !found46 && z2.combined46 != nil {
 						found46 = true
 						cluster[0], cluster[i] = cluster[i], cluster[0]
@@ -700,11 +710,11 @@ func (c *spoc) processAggregates() {
 			// Link aggragate and zone (also setting z.ipPrefix2aggregate)
 			c.linkAggregateToZone(agg, z)
 		}
-		// Take zone from
 		z := agg.link.zone
 		if agg.ipp == unset {
-			// Make sure to get dual stack zone in mixed v4, dual stack cluster.
+			// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
 			z = agg.link.zone.cluster[0]
+			c.checkDualStackZone(z)
 			agg.ipp = c.getNetwork00(z.ipV6).ipp
 			agg.ipV6 = z.ipV6
 			process(agg, z)
@@ -732,6 +742,23 @@ func (c *spoc) processAggregates() {
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggList {
 		c.duplicateAggregateToCluster(agg, false)
+	}
+}
+
+func (c *spoc) checkDualStackZone(z *zone) {
+	check := func(z *zone) {
+		for _, z2 := range z.combined46Other {
+			if !zoneEq(z.combined46, z2) {
+				c.err(`%s zone %q must not be connected to different %s zones:
+- %s
+- %s`,
+					ipvx(z.ipV6), z.name, ipvx(z2.ipV6), z.combined46.name, z2.name)
+			}
+		}
+	}
+	if z2 := z.combined46; z2 != nil {
+		check(z)
+		check(z2)
 	}
 }
 

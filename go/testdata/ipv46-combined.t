@@ -366,6 +366,122 @@ Error: IPv6 topology has unconnected parts:
 =END=
 
 ############################################################
+# Two v4 zones combined with single v6 zone
+=TEMPL=INPUT
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n6 = { ip6 = 2001:db8:1:6::/64; }
+network:n14 = { ip = 10.1.4.0/24; }
+network:n24 = { ip = 10.2.4.0/24; }
+router:u1 = {
+ interface:n1;
+ interface:n14;
+ interface:n6;
+}
+router:u2 = {
+ interface:n2;
+ interface:n24;
+ interface:n6;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n14 = { ip = 10.1.4.1; hardware = n14; }
+ interface:n24 = { ip = 10.2.4.1; hardware = n24; }
+}
+
+############################################################
+=TITLE=Two v4 zones combined with single v6 zone, without aggregate
+=INPUT=[[INPUT]]
+=WARNING=NONE
+
+############################################################
+=TITLE=Two v4 zones combined with single v6 zone, with named aggregate
+=INPUT=
+[[INPUT]]
+any:a1 = { link = network:n1; }
+=ERROR=
+Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
+- any:[network:n14]
+- any:[network:n24]
+=END=
+
+############################################################
+=TITLE=Two v4 zones combined with single v6 zone, with unnnamed aggregate
+=INPUT=
+[[INPUT]]
+service:s1 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
+- any:[network:n14]
+- any:[network:n24]
+=END=
+
+############################################################
+=TITLE=Two v6 zones combined with single v4 zone, with named aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+any:a1 = { link = network:n1; }
+=ERROR=
+Error: IPv4 zone "any:[network:n1]" must not be connected to different IPv6 zones:
+- any:[network:n1]
+- any:[network:n2]
+=END=
+
+############################################################
+=TITLE=v4 and v6 zone cluster with different zones
+# v4: n2 belongs to zone n1
+# v6: n2 belongs to zone n3
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1_4 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r2_4 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r1_6 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; }
+}
+router:r2_6 = {
+ interface:n2 = { ip6 = 2001:db8:1:2::2; }
+ interface:n3 = { ip6 = 2001:db8:1:3::2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; ip6 = 2001:db8:1:1::3; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.3; ip6 = 2001:db8:1:3::3; hardware = n3; }
+}
+any:a1 = { link = network:n1; }
+pathrestriction:p =
+ interface:r2_4.n3,
+ interface:r1_6.n1,
+ interface:r3.n1,
+;
+=WARNING=NONE
+
+############################################################
 =TITLE=Missing v4, v6 IP at next hop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }

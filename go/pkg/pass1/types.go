@@ -525,6 +525,7 @@ type zone struct {
 	cluster              []*zone
 	managedLocalCluster  *managedLocalCluster
 	combined46           *zone
+	combined46Other      []*zone
 }
 
 func (x zone) String() string { return x.name }

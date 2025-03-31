@@ -258,6 +258,7 @@ func (c *spoc) getAny(
 			c.linkImplicitAggregateToZone(agg, z)
 			// Add non matching aggregate to combined zone.
 			if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
+				c.checkDualStackZone(z)
 				agg2 := new(network)
 				agg2.name = name
 				agg2.isAggregate = true
