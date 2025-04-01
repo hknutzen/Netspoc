@@ -475,7 +475,8 @@ service:s1 = {
    {
     "action": "permit",
     "dst": [
-     "any:[network:n2]"
+     "any:[ip6=::/0 & network:n2]",
+     "any:[ip=0.0.0.0/0 & network:n2]"
     ],
     "has_user": "src",
     "prt": [
@@ -489,6 +490,72 @@ service:s1 = {
 --owner/o/users
 {
  "s1": [
+  "any:n1"
+ ]
+}
+=END=
+
+############################################################
+=TITLE=Multiple combined non matching aggregates in rule
+=INPUT=
+area:all = { anchor = network:n1; owner = o; }
+owner:o = { admins = a1@example.com; }
+any:n1 = { link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+network:n4 = { ip = 10.1.4.0/24; ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip = 10.1.5.0/24; ip6 = 2001:db8:1:5::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; ip6 = 2001:db8:1:4::1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; ip6 = 2001:db8:1:5::1; hardware = n5; }
+}
+service:s1 = {
+ user = any:[network:n1, network:n2];
+ permit src = user;
+        dst = any:[network:n3],
+              any:[ip=0.0.0.0/0 & network:n4],
+              any:[ip6=::/0 & network:n5],
+              ;
+        prt = tcp 80;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[ip6=::/0 & network:n3]",
+     "any:[ip6=::/0 & network:n5]",
+     "any:[ip=0.0.0.0/0 & network:n3]",
+     "any:[ip=0.0.0.0/0 & network:n4]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
+   }
+  ]
+ }
+}
+--owner/o/users
+{
+ "s1": [
+  "any:[ip6=::/0 & network:n2]",
+  "any:[ip=0.0.0.0/0 & network:n2]",
   "any:n1"
  ]
 }

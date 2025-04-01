@@ -603,9 +603,7 @@ func (c *spoc) expandGroup1(
 
 				for _, obj := range subObjects {
 					o6 := obj.isIPv6()
-					if x.Net == "" {
-						ipp = c.getNetwork00(o6).ipp
-					} else if o6 != x.IPV6 {
+					if x.Net != "" && o6 != x.IPV6 {
 						if !hasCombined {
 							c.err("IPv4/v6 mismatch for %s in %s of %s",
 								obj, show(), ctx)

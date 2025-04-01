@@ -212,9 +212,32 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	}
 }
 
-func (c *spoc) getAny(
-	z *zone, ipp netip.Prefix, visible bool, ctx string) netList {
+func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
+) netList {
+	var unset netip.Prefix
+	if ipp == unset {
+		// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
+		if z0 := z.cluster[0]; z0.combined46 != nil {
+			z = z0
+		}
+		ipp = c.getNetwork00(z.ipV6).ipp
+		result := c.getAny1(z, ipp, visible, ctx)
+		// Add non matching aggregate to combined zone.
+		if z2 := z.combined46; z2 != nil {
+			ipp = c.getNetwork00(z2.ipV6).ipp
+			if z2.ipPrefix2aggregate[ipp] == nil {
+				c.checkDualStackZone(z2)
+			}
+			result = append(result, c.getAny1(z2, ipp, visible, ctx)...)
+		}
+		return result
+	} else {
+		return c.getAny1(z, ipp, visible, ctx)
+	}
+}
 
+func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
+) netList {
 	if z.ipPrefix2aggregate[ipp] == nil {
 
 		// Check, if there is a network with same IP as the requested
@@ -242,7 +265,7 @@ func (c *spoc) getAny(
 
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
-			if ipp.Bits() != 0 {
+			if z.combined46 != nil || ipp.Bits() != 0 {
 				attr := v6Attr("ip", z.ipV6)
 				name =
 					name[:len("any:[")] + attr + "=" + ipp.String() + " & " +
@@ -255,18 +278,6 @@ func (c *spoc) getAny(
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
 			c.linkImplicitAggregateToZone(agg, z)
-			// Add non matching aggregate to combined zone.
-			if z2 := z.combined46; z2 != nil && agg.ipp.Bits() == 0 {
-				c.checkDualStackZone(z)
-				agg2 := new(network)
-				agg2.name = name
-				agg2.isAggregate = true
-				agg2.ipV6 = z2.ipV6
-				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
-				agg.combined46 = agg2
-				agg2.combined46 = agg
-				c.linkImplicitAggregateToZone(agg2, z2)
-			}
 			c.duplicateAggregateToCluster(agg, true)
 		}
 	}
