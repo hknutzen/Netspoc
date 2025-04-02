@@ -84,6 +84,19 @@ area:a2
 =PARAM=group:g1
 
 ############################################################
+=TITLE=Networks of combined area
+=INPUT=
+area:all = { anchor = network:n1; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+}
+=OUTPUT=
+10.1.1.0/24	network:n1
+2001:db8:1:1::/64	network:n1
+=PARAM=network:[area:all]
+
+############################################################
 =TITLE=Hosts of combined area
 =INPUT=
 area:all = { anchor = network:n1; auto_ipv6_hosts = readable; }
