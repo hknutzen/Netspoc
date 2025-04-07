@@ -188,8 +188,9 @@ func (c *spoc) getZoneName(z *zone) string {
 		z = z.combined46
 	}
 	ipp := c.getNetwork00(z.ipV6).ipp
-	if any := z.ipPrefix2aggregate[ipp]; any != nil {
-		return any.name
+	agg := z.ipPrefix2aggregate[ipp]
+	if agg != nil && !strings.HasPrefix(agg.name, "any:[") {
+		return agg.name
 	} else {
 		// Zone with network 0/0 doesn't have an aggregate 0/0.
 		return z.name
@@ -1326,19 +1327,20 @@ func (c *spoc) exportMasterOwner(dir string, masterOwner string) {
 // Maps zone name to names of enclosing areas.
 // Currently used in project internal program "kmprep".
 func (c *spoc) exportZone2Areas(dir string) {
-	result := make(jsonMap)
+	result := make(map[string]stringList)
 	for _, z := range c.allZones {
-		if z.ipV6 && z.combined46 != nil {
-			continue
-		}
-		var l stringList
+		nm := c.getZoneName(z)
+		l := result[nm]
 		a := z.inArea
 		for a != nil {
-			l.push(a.name[len("area:"):])
+			id := strings.TrimPrefix(a.name, "area:")
+			if !slices.Contains(l, id) {
+				l.push(id)
+			}
 			a = a.inArea
 		}
 		if l != nil {
-			result[c.getZoneName(z)] = l
+			result[nm] = l
 		}
 	}
 	c.exportJson(dir, "zone2areas", result)

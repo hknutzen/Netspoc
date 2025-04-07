@@ -844,26 +844,6 @@ Error: Duplicate IPv6 area:a12 and IPv6 area:a2
 =END=
 
 ############################################################
-=TITLE=Disabled implicit v6 area
-=INPUT=
-area:a12 = { border = interface:r2.n2; ipv4_only; }
-area:a2 =  { inclusive_border = interface:r1.n1; border = interface:r2.n2; }
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
-router:r2 = {
- managed;
- model = ASA;
- interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; hardware = n2; }
-}
-=WARNING=NONE
-
-############################################################
 =TITLE=Implicit v4 area is duplicate
 =INPUT=
 area:a12 = { border = interface:r2.n2; }
@@ -883,63 +863,6 @@ router:r2 = {
 }
 =ERROR=
 Error: Duplicate IPv4 area:a12 and IPv4 area:a2
-=END=
-
-############################################################
-=TITLE=Disabled implicit v4 area
-=INPUT=
-area:a12 = { border = interface:r2.n2; ipv6_only; }
-area:a2 =  { inclusive_border = interface:r1.n1; border = interface:r2.n2; }
-network:n1 = { ip6 = 2001:db8:1:1::/64; }
-network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
-router:r2 = {
- managed;
- model = ASA;
- interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; hardware = n2; }
-}
-=WARNING=NONE
-
-############################################################
-=TITLE=Must use ipv6_only not with only v4 interfaces
-=INPUT=
-area:a1 = { border = interface:r1.n1; ipv4_only; }
-network:n1 = { ip6 = 2001:db8:1:1::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
-}
-=ERROR=
-Error: Must not use IPv6 interface:r1.n1 with 'ipv4_only' of 'border' of area:a1
-Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a1
-=END=
-
-############################################################
-=TITLE=Must not use ipv4_only and ipv6_only together at area
-=INPUT=
-area:a1 = { anchor = network:n1; ipv4_only; ipv6_only; }
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-=ERROR=
-Error: Must not use ipv4_only and ipv6_only together at area:a1
-=END=
-
-############################################################
-=TITLE=IPv4 policy_distribution_point at IPv6 area
-=INPUT=
-area:a1 = { anchor = network:n1; ipv6_only;
- router_attributes = { policy_distribution_point = host:h1; }
-}
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
- host:h1 = { ip = 10.1.1.10; }
-}
-=WARNING=
-Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 area:a1
 =END=
 
 ############################################################

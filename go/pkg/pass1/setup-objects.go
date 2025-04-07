@@ -1311,7 +1311,6 @@ func (c *spoc) setupArea(v *ast.Area) {
 	ar := &area{name: name}
 	arName := strings.TrimPrefix(name, "area:")
 	c.symTable.area[arName] = ar
-	var ipV4Only, ipV6Only bool
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "anchor":
@@ -1327,10 +1326,6 @@ func (c *spoc) setupArea(v *ast.Area) {
 			}
 		case "auto_ipv6_hosts":
 			ar.autoIPv6Hosts = c.getAutoIPv6Hosts(a, name)
-		case "ipv4_only":
-			ipV4Only = c.getFlag(a, name)
-		case "ipv6_only":
-			ipV6Only = c.getFlag(a, name)
 		default:
 			if c.addAttr(a, &ar.attr, name) {
 			} else if nat := c.addNetNat(a, ar.nat, name); nat != nil {
@@ -1341,16 +1336,12 @@ func (c *spoc) setupArea(v *ast.Area) {
 		}
 	}
 	c.checkDuplAttr(v.Attributes, name)
-	if ipV4Only && ipV6Only {
-		c.err("Must not use ipv4_only and ipv6_only together at %s", name)
-	}
 	expand := func(u *ast.NamedUnion, att string) (intfList, intfList) {
 		if u == nil {
 			return nil, nil
 		}
 		ctx := "'" + att + "' of " + name
 		l := c.expandGroup(u.Elements, ctx, false)
-		l = c.filterV46Only(l, ipV4Only, ipV6Only, ctx)
 		var v4, v6 intfList
 		for _, el := range l {
 			intf, ok := el.(*routerIntf)
@@ -1384,7 +1375,6 @@ func (c *spoc) setupArea(v *ast.Area) {
 		if n2 := n.combined46; n2 != nil {
 			l = append(l, n2)
 		}
-		l = c.filterV46Only(l, ipV4Only, ipV6Only, "anchor of "+ar.name)
 		if len(l) >= 1 {
 			n := l[0].(*network)
 			ar.anchor = n

@@ -783,24 +783,66 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Show v4 areas for combined zone
+=TITLE=Show v4 and v6 areas for combined zone
 =INPUT=
-area:all-v4 = { anchor = network:n1; ipv4_only; }
-area:all-v6 = { anchor = network:n1; ipv6_only; }
-area:a1-v4 = { border = interface:r1.n1; ipv4_only; }
+owner:o = { admins = a1@example.com; }
+area:all-v4 = { anchor = network:n1_4; owner = o; }
+area:all-v6 = { anchor = network:n1_6; owner = o; }
+area:a1-v4 = { border = interface:r1.n1_4; }
 
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-network:n2 = { ip6 = 2001:db8:1:2::/64; }
+network:n1_4 = { ip = 10.1.1.0/24; }
+network:n2_4 = { ip = 10.1.2.0/24; }
+network:n1_6 = { ip6 = 2001:db8:1:1::/64; }
+network:n2_6 = { ip6 = 2001:db8:1:2::/64; }
+network:n3_46 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n1_4 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2_4 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1_6 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2_6 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:u1 = {
+ interface:n1_4;
+ interface:n1_6;
+ interface:n3_46;
+}
+router:u2 = {
+ interface:n2_4;
+ interface:n2_6;
 }
 =OUTPUT=
 --zone2areas
 {
- "any:[network:n1]": [ "a1-v4", "all-v4" ],
- "any:[network:n2]": [ "all-v6" ]
+ "any:[network:n1_4]": [ "a1-v4", "all-v4", "all-v6" ],
+ "any:[network:n2_4]": [ "all-v4" ],
+ "any:[network:n2_6]": [ "all-v6" ]
+}
+--owner/o/assets
+{
+ "anys": {
+  "any:[network:n1_4]": {
+   "networks": {
+    "network:n1_4": [ "interface:r1.n1_4", "interface:u1.n1_4" ],
+    "network:n1_6": [ "interface:r2.n1_6", "interface:u1.n1_6" ],
+    "network:n3_46": [ "interface:u1.n3_46" ]
+   }
+  },
+  "any:[network:n2_4]": {
+   "networks": {
+    "network:n2_4": [ "interface:r1.n2_4", "interface:u2.n2_4" ]
+   }
+  },
+  "any:[network:n2_6]": {
+   "networks": {
+    "network:n2_6": [ "interface:r2.n2_6", "interface:u2.n2_6" ]
+   }
+  }
+ }
 }
 =END=
