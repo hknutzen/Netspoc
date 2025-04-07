@@ -188,6 +188,82 @@ Error: Must not use ipv4_only and ipv6_only together at service:s1
 =END=
 
 ############################################################
+=TITLE=Must not use only v6 part of dual stack network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2_4 = { ip = 10.1.2.0/24; }
+network:n2_6 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2_4 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n2_6 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[ip6 = ::/0 & network:n1]];
+ permit src = user; dst = network:n2_4, network:n2_6; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use only IPv6 part of dual stack object network:n1 in service:s1
+=END=
+
+############################################################
+=TITLE=Must not use only v4 part of dual stack network with v6 supernet
+=INPUT=
+network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:9:2::/64; }
+router:u = {
+ interface:sup;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:sup]] &! network:sup;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use only IPv4 part of dual stack object network:n1 in service:s1
+=END=
+
+############################################################
+=TITLE=Must not use only v4 part of dual stack aggregate in zone cluster
+=INPUT=
+any:n1 = { link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+pathrestriction:p1 = interface:u.n1, interface:u.n2, interface:r1.n1;
+service:s1 = {
+ user = any:[ip = 0.0.0.0/0 & any:n1] &! network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Warning: Useless delete of IPv4 network:n2 in user of service:s1
+Warning: Useless delete of IPv6 network:n2 in user of service:s1
+Error: Must not use only IPv4 part of dual stack object any:n1 in service:s1
+=END=
+
+############################################################
 =TITLE=All interfaces of router with v4/v6, v4 and v6
 =INPUT=
 network:n0 = { ip6 = 2001:db8:1:0::/64; }

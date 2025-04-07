@@ -184,7 +184,8 @@ func (c *spoc) expandIntersection(
 	}
 	for _, el := range compl {
 		if _, found := intersect[el]; !found {
-			c.warn("Useless delete of %s in %s", el, ctx)
+			c.warn("Useless delete of %s in %s",
+				vxName(el.String(), el.isIPv6(), el.isCombined46()), ctx)
 		} else {
 			delete(intersect, el)
 		}

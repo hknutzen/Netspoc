@@ -162,6 +162,37 @@ func splitCombined46(l groupObjList) (v4, v6 groupObjList, v46 bool) {
 	return
 }
 
+func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
+	m := make(map[string]bool)
+	isOtherAggInCluster := func(ob groupObj) bool {
+		if agg, ok := ob.(*network); ok && agg.isAggregate {
+			if z := agg.zone; z != z.cluster[0] {
+				return true
+			}
+		}
+		return false
+	}
+	for _, ob := range v6 {
+		if ob.isCombined46() {
+			m[ob.String()] = true
+		}
+	}
+	for _, ob := range v4 {
+		if ob.isCombined46() && !isOtherAggInCluster(ob) {
+			if m[ob.String()] {
+				delete(m, ob.String())
+			} else {
+				c.err(
+					"Must not use only IPv4 part of dual stack object %s in %s",
+					ob, s)
+			}
+		}
+	}
+	for nm := range m {
+		c.err("Must not use only IPv6 part of dual stack object %s in %s", nm, s)
+	}
+}
+
 func (c *spoc) normalizeSrcDstList(
 	r *unexpRule, l groupObjList, s *service) ([][2]srvObjList, bool) {
 
@@ -179,11 +210,17 @@ func (c *spoc) normalizeSrcDstList(
 			srcList6 = c.filterV46Only(srcList6, s.ipV4Only, s.ipV6Only, s.name)
 			dstList6 = c.filterV46Only(dstList6, s.ipV4Only, s.ipV6Only, s.name)
 			has46 = false
-		}
-		if s.ipV6Only {
+		} else if s.ipV6Only {
 			srcList4 = c.filterV46Only(srcList4, s.ipV4Only, s.ipV6Only, s.name)
 			dstList4 = c.filterV46Only(dstList4, s.ipV4Only, s.ipV6Only, s.name)
 			has46 = false
+		} else {
+			if srcHas46 && dstList4 != nil && dstList6 != nil {
+				c.checkCombined46(srcList4, srcList6, s)
+			}
+			if dstHas46 && srcList4 != nil && srcList6 != nil {
+				c.checkCombined46(dstList4, dstList6, s)
+			}
 		}
 	} else {
 		if s.ipV4Only {
