@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Processing error message for thousands of duplicate rules needed too
+  much time, resulting in a seemingly stalled run of program
+  'netspoc'. This has been fixed.
+
+
 ## [2025-03-18-1556]
 
 ### Added

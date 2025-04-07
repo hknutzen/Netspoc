@@ -217,12 +217,13 @@ func (c *spoc) showDuplicateRules(ri *redundInfo) {
 		key := twoSv{rule.rule.service, other.rule.service}
 		twoSv2Duplicate[key] = append(twoSv2Duplicate[key], rule)
 	}
-	for key, rules := range twoSv2Duplicate {
-		msg := "Duplicate rules in " + key[0].name + " and " + key[1].name + ":"
+	for k, rules := range twoSv2Duplicate {
+		var msg strings.Builder
+		fmt.Fprintf(&msg, "Duplicate rules in %s and %s:", k[0].name, k[1].name)
 		for _, rule := range rules {
-			msg += "\n  " + rule.print()
+			msg.WriteString("\n  " + rule.print())
 		}
-		c.warnOrErr(c.conf.CheckDuplicateRules, msg)
+		c.warnOrErr(c.conf.CheckDuplicateRules, msg.String())
 	}
 }
 
