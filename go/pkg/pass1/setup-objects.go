@@ -764,7 +764,7 @@ type attrDescr struct {
 }
 
 var isakmpAttr = map[string]attrDescr{
-	"nat_traversal": attrDescr{
+	"nat_traversal": {
 		values:   []string{"on", "additional", "off"},
 		mapEmpty: "off",
 	},
@@ -2770,7 +2770,7 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 }
 
 var routerInfo = map[string]*model{
-	"IOS": &model{
+	"IOS": {
 		routing:         "IOS",
 		filter:          "IOS",
 		stateless:       true,
@@ -2918,32 +2918,32 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 
 // Definition of dynamic routing protocols.
 var routingInfo = map[string]*mcastProto{
-	"EIGRP": &mcastProto{
+	"EIGRP": {
 		name: "EIGRP",
 		prt:  &proto{proto: "88", name: "proto 88"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.10"}},
 			v6: multicast{ips: []string{"ff02::a"}}},
 	},
-	"OSPF": &mcastProto{
+	"OSPF": {
 		name: "OSPF",
 		prt:  &proto{proto: "89", name: "proto 89"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.5", "224.0.0.6"}},
 			v6: multicast{ips: []string{"ff02::5", "ff02::6"}}},
 	},
-	"RIPv2": &mcastProto{
+	"RIPv2": {
 		name: "RIP",
 		prt:  &proto{proto: "udp", ports: [2]int{520, 520}, name: "udp 520"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.9"}},
 			v6: multicast{ips: []string{"ff02::9"}}},
 	},
-	"dynamic": &mcastProto{name: "dynamic"},
+	"dynamic": {name: "dynamic"},
 
 	// Identical to 'dynamic', but must only be applied to router, not
 	// to routerIntf.
-	"manual": &mcastProto{name: "manual"},
+	"manual": {name: "manual"},
 }
 
 func init() {
@@ -2961,13 +2961,13 @@ func (c *spoc) getRouting(a *ast.Attribute, ctx string) *mcastProto {
 
 // Definition of redundancy protocols.
 var xxrpInfo = map[string]*mcastProto{
-	"VRRP": &mcastProto{
+	"VRRP": {
 		prt: &proto{proto: "112", name: "proto 112"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.18"}},
 			v6: multicast{ips: []string{"ff02::12"}}},
 	},
-	"HSRP": &mcastProto{
+	"HSRP": {
 		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.2"}},
@@ -2976,7 +2976,7 @@ var xxrpInfo = map[string]*mcastProto{
 			// therefore using IPv4 equivalent.
 			v6: multicast{ips: []string{"::e000:2"}}},
 	},
-	"HSRPv2": &mcastProto{
+	"HSRPv2": {
 		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
 		mcast: mcast{
 			v4: multicast{ips: []string{"224.0.0.102"}},
@@ -2990,7 +2990,7 @@ func init() {
 
 func addMcastNetworks(info map[string]*mcastProto) {
 	for _, mp := range info {
-		process := func(m *multicast, v6 bool) {
+		process := func(m *multicast) {
 			l := make([]*network, len(m.ips))
 			for i, s := range m.ips {
 				ip := netip.MustParseAddr(s)
@@ -3002,8 +3002,8 @@ func addMcastNetworks(info map[string]*mcastProto) {
 			}
 			m.networks = l
 		}
-		process(&mp.v4, false)
-		process(&mp.v6, true)
+		process(&mp.v4)
+		process(&mp.v6)
 	}
 }
 
