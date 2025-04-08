@@ -866,6 +866,24 @@ Error: Duplicate IPv4 area:a12 and IPv4 area:a2
 =END=
 
 ############################################################
+=TITLE=IPv4 policy_distribution_point at pure IPv6 area
+=INPUT=
+area:a1 = { anchor = network:n2;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; }
+}
+network:n2 = {  ip6 = 2001:db8:1:2::/64; }
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=
+Warning: Ignoring IPv4 'policy_distribution_point' at IPv6 area:a1
+=END=
+
+############################################################
 =TITLE=Ignore IPv4 policy_distribution_point at IPv6 part of combined area
 =INPUT=
 area:a1 = { anchor = network:n1;
