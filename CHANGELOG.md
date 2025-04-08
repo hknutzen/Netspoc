@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- If owner is given at dual stack zone this owner is now correctly
+  applied to IPv6 part of this zone.
 - Processing error message for thousands of duplicate rules needed too
   much time, resulting in a seemingly stalled run of program
   'netspoc'. This has been fixed.

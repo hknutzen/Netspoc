@@ -720,18 +720,17 @@ func (c *spoc) processAggregates() {
 			process(agg, z)
 			// Add non matching aggregate to combined zone.
 			if z2 := z.combined46; z2 != nil {
-				agg2 := new(network)
-				agg2.name = agg.name
-				agg2.isAggregate = true
+				agg2 := *agg
 				agg2.ipV6 = z2.ipV6
 				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
-				if !agg2.ipV6 {
-					agg2.nat = agg.nat
+				if agg2.ipV6 {
+					agg2.nat = nil
+				} else {
 					agg.nat = nil
 				}
-				agg.combined46 = agg2
+				agg.combined46 = &agg2
 				agg2.combined46 = agg
-				process(agg2, z2)
+				process(&agg2, z2)
 			} else if agg.ipV6 && agg.nat != nil {
 				c.err("NAT not supported for IPv6 %s", agg)
 			}

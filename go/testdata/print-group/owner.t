@@ -107,3 +107,25 @@ router:r1 = {
 any:[ip=10.1.0.0/20 & network:n1]	owner:o1
 =OPTIONS=--owner --name
 =PARAM=any:[ip = 10.1.0.0/20 & network:n1]
+
+############################################################
+=TITLE=Inherit owner from dual stack aggregate to IPv4 and IPv6 part
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+any:n1 = { link = network:n1; owner = o1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:u1 = {
+ interface:n1;
+ interface:n2;
+ interface:lo = { ip = 10.1.9.9; ip6 = 2001:db8:1:9::9; loopback; }
+}
+=OUTPUT=
+10.1.1.0/24	network:n1	owner:o1
+10.1.2.0/24	network:n2	owner:o1
+10.1.9.9	interface:u1.lo	owner:o1
+2001:db8:1:1::/64	network:n1	owner:o1
+2001:db8:1:2::/64	network:n2	owner:o1
+2001:db8:1:9::9	interface:u1.lo	owner:o1
+=OPTIONS=--owner
+=PARAM=network:[any:n1]
