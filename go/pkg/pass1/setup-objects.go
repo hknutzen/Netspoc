@@ -3239,31 +3239,6 @@ func (c *spoc) combinedRouters(name string) []*router {
 	}
 }
 
-func (c *spoc) filterV46Only(l groupObjList, v4Only, v6Only bool, ctx string,
-) groupObjList {
-	if !v4Only && !v6Only {
-		return l
-	}
-	j := 0
-	for _, obj := range l {
-		if v6 := obj.isIPv6(); v6 == v6Only {
-			l[j] = obj
-			j++
-		} else if !obj.isCombined46() {
-			c.err("Must not use %s %s with '%s' of %s",
-				ipvx(v6), obj, vxOnly(v6Only), ctx)
-		}
-	}
-	return l[:j]
-}
-
-func vxOnly(v6 bool) string {
-	if v6 {
-		return "ipv6_only"
-	}
-	return "ipv4_only"
-}
-
 func (c *spoc) getManagementInstance(r *router) *router {
 	return c.symTable.router[r.deviceName]
 }

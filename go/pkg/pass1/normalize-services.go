@@ -148,10 +148,18 @@ func (c *spoc) substituteAutoIntf(
 	return convertedSrc, resultPairList
 }
 
-func splitCombined46(l groupObjList) (v4, v6 groupObjList, v46 bool) {
+func (c *spoc) splitCombined46(l groupObjList, s *service,
+) (v4, v6 groupObjList, v46 bool) {
+	check := s.ipV4Only || s.ipV6Only
 	for _, obj := range l {
 		if obj.isCombined46() {
+			if check && obj.isIPv6() != s.ipV6Only {
+				continue
+			}
 			v46 = true
+		} else if check && obj.isIPv6() != s.ipV6Only {
+			c.err("Must not use %s %s with 'ipv%s_only' of %s",
+				ipvx(obj.isIPv6()), obj, cond(s.ipV6Only, "6", "4"), s)
 		}
 		if obj.isIPv6() {
 			v6.push(obj)
@@ -163,7 +171,9 @@ func splitCombined46(l groupObjList) (v4, v6 groupObjList, v46 bool) {
 }
 
 func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
-	m := make(map[string]bool)
+	if s.ipV4Only || s.ipV6Only {
+		return
+	}
 	isOtherAggInCluster := func(ob groupObj) bool {
 		if agg, ok := ob.(*network); ok && agg.isAggregate {
 			if z := agg.zone; z != z.cluster[0] {
@@ -172,6 +182,7 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 		}
 		return false
 	}
+	m := make(map[string]bool)
 	for _, ob := range v6 {
 		if ob.isCombined46() {
 			m[ob.String()] = true
@@ -202,25 +213,15 @@ func (c *spoc) normalizeSrcDstList(
 	dstList := c.expandGroupInRule(r.dst, "dst of rule in "+ctx)
 	c.userObj.elements = nil
 
-	srcList4, srcList6, srcHas46 := splitCombined46(srcList)
-	dstList4, dstList6, dstHas46 := splitCombined46(dstList)
+	srcList4, srcList6, srcHas46 := c.splitCombined46(srcList, s)
+	dstList4, dstList6, dstHas46 := c.splitCombined46(dstList, s)
 	has46 := srcHas46 || dstHas46
 	if has46 {
-		if s.ipV4Only {
-			srcList6 = c.filterV46Only(srcList6, s.ipV4Only, s.ipV6Only, s.name)
-			dstList6 = c.filterV46Only(dstList6, s.ipV4Only, s.ipV6Only, s.name)
-			has46 = false
-		} else if s.ipV6Only {
-			srcList4 = c.filterV46Only(srcList4, s.ipV4Only, s.ipV6Only, s.name)
-			dstList4 = c.filterV46Only(dstList4, s.ipV4Only, s.ipV6Only, s.name)
-			has46 = false
-		} else {
-			if srcHas46 && dstList4 != nil && dstList6 != nil {
-				c.checkCombined46(srcList4, srcList6, s)
-			}
-			if dstHas46 && srcList4 != nil && srcList6 != nil {
-				c.checkCombined46(dstList4, dstList6, s)
-			}
+		if srcHas46 && dstList4 != nil && dstList6 != nil {
+			c.checkCombined46(srcList4, srcList6, s)
+		}
+		if dstHas46 && srcList4 != nil && srcList6 != nil {
+			c.checkCombined46(dstList4, dstList6, s)
 		}
 	} else {
 		if s.ipV4Only {
