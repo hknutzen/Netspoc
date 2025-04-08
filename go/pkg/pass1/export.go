@@ -84,13 +84,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			if n.hidden {
 				return "hidden"
 			}
-
-			// Don't print mask for loopback network. It needs to have
-			// exactly the same address as the corresponding loopback interface.
-			if n.loopback {
-				return n.ipp.Addr().String()
-			}
-
 			return n.ipp.String()
 		}
 		ip = getIp(x)
@@ -652,6 +645,13 @@ func (c *spoc) setupServiceInfo(
 
 		// Store referenced objects for later use during export.
 		for _, ob := range append(objects, users...) {
+			// Take loopback interface and not its network to always get
+			// IP without mask.
+			if n, ok := ob.(*network); ok && n.loopback {
+				if intf := n.interfaces[0]; !intf.redundant {
+					ob = intf
+				}
+			}
 			allObjects[ob] = true
 		}
 
