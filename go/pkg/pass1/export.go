@@ -186,7 +186,7 @@ func (c *spoc) getZoneName(z *zone) string {
 		return agg.name
 	} else {
 		// Zone with network 0/0 doesn't have an aggregate 0/0.
-		return z.name
+		return z.cluster[0].name
 	}
 }
 
