@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2025-04-09-1408]
+
 ### Changed
 
 - It is no longer allowed to use only IPv4 part or only IPv6 part of
