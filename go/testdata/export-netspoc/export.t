@@ -3096,6 +3096,106 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Network of managed loopback interface is ignored
+=INPUT=
+owner:all = { admins = all@example.com; }
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l1 = { ip = 10.9.9.1; loopback; hardware = l1; }
+}
+service:s1 = {
+ user = network:[interface:r1.l1];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--owner/all/users
+{
+ "s1": []
+}
+=END=
+
+############################################################
+=TITLE=Network of redundant unmanaged loopback interface
+=INPUT=
+owner:all = { admins = all@example.com; }
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:u1 = {
+ interface:n2;
+ interface:l1 = { virtual = { ip = 10.9.9.1; } loopback; hardware = l1; }
+}
+router:u2 = {
+ interface:n2;
+ interface:l1 = { virtual = { ip = 10.9.9.1; } loopback; hardware = l1; }
+}
+service:s1 = {
+ user = network:[interface:u2.l1.virtual];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--owner/all/users
+{
+ "s1": [
+  "network:virtual:l1"
+ ]
+}
+--objects
+{
+ "interface:r1.n1": {
+  "ip": "10.1.1.1"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1"
+ },
+ "interface:u1.l1.virtual": {
+  "ip": "10.9.9.1",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ },
+ "interface:u1.n2": {
+  "ip": "short",
+  "owner": "all"
+ },
+ "interface:u2.l1.virtual": {
+  "ip": "10.9.9.1",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ },
+ "interface:u2.n2": {
+  "ip": "short",
+  "owner": "all"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/24",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ },
+ "network:virtual:l1": {
+  "ip": "10.9.9.1/32",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ }
+}
+=END=
+
+############################################################
 =TITLE=Recognize unmanaged interface as part of aggregate
 =INPUT=
 owner:o0 = { admins = a0@example.com; }
