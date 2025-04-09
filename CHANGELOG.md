@@ -11,13 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - It is no longer allowed to use only IPv4 part or only IPv6 part of
   dual stack objects in rules. When displaying such a partial rule in
   Netspoc-Web, it can't be distinguished from a complete rule.
-- Attributes 'ipv4_only' and 'ipv6_only' are no longer valid at areas.
-  This is needed to prevent creating partial rules.
 - Attribute .cluster of a zone now has a dual stack zone as first element
   if this zone cluster has at least one dual stack zone.
 - It is no longer valid to connect IPv4 zone to multiple IPv6 zones
   or vice versa if a non matching aggregate is defined at this zone
   which would match both, IPv4 and IPv6 addresses.
+
+### Removed
+
+- Attributes 'ipv4_only' and 'ipv6_only' are no longer valid at areas.
+  This is needed to prevent creating partial rules.
 
 ### Fixed
 
