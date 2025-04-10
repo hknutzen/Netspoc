@@ -2249,16 +2249,18 @@ func (c *spoc) setupInterface(
 			}
 			other.combined46 = intf
 			intf.combined46 = other
-			intf.bindNat = nil
-			intf.nat = nil
-			intf.hub = nil
-			intf.spoke = nil
-			if !intf.ipV6 {
-				c.symTable.routerIntf[iName] = intf
+			if intf.ipV6 {
+				intf.bindNat = nil
+				intf.nat = nil
+				intf.hub = nil
+				intf.spoke = nil
+				continue
 			}
-		} else {
-			c.symTable.routerIntf[iName] = intf
+		} else if v6 && intf.bindNat != nil {
+			c.warn("Ignoring attribute 'bind_nat' at %s", intf.vxName())
+			intf.bindNat = nil
 		}
+		c.symTable.routerIntf[iName] = intf
 	}
 
 	// Automatically create a network for loopback interface.
