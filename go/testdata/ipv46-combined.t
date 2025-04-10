@@ -390,13 +390,11 @@ access-group n1_in in interface n1
 =TITLE=Unconnected v4 part of combined network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
+}
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n2]
