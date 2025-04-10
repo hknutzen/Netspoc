@@ -1486,3 +1486,27 @@ router:r1 = {
 =ERROR=
 Error: IPv4 network:n1 and IPv4 network:n2 have identical address in any:[network:n1]
 =END=
+
+############################################################
+=TITLE=Useless subnet_of at v6 network
+=INPUT=
+network:n1 = { ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=ERROR=
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
+=END=
+
+############################################################
+=TITLE=subnet_of at combined network ignored at v6 part
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
+network:n2 = { ip = 10.1.0.0/21; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=NONE

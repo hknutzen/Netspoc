@@ -2255,6 +2255,7 @@ func (c *spoc) setupInterface(
 				intf.nat = nil
 				intf.hub = nil
 				intf.spoke = nil
+				subnetOf = nil
 				continue
 			}
 		} else if v6 && intf.bindNat != nil {
