@@ -100,9 +100,10 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	}
 	if n.partition != "" {
 		if z.partition != "" {
-			c.err("Only one partition name allowed in zone %s, but found:\n"+
+			c.err("Only one partition name allowed in %s, but found:\n"+
 				" - %s\n - %s",
-				z, n.partition, z.partition)
+				vxName("zone "+z.name, z.ipV6, z.combined46 != nil),
+				n.partition, z.partition)
 		}
 		z.partition = n.partition
 	}

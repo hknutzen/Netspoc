@@ -257,7 +257,8 @@ func (c *spoc) warnAtNamedSingleUnconnectedPartition(
 	if len(unconnected) == 1 {
 		z := unconnected[0]
 		if tags := zone2tags[z]; tags != nil {
-			c.warn("Spare partition name for single partition %s: %s.", z, tags[0])
+			c.warn("Spare partition name for single %s: %s.",
+				vxName("partition "+z.name, z.ipV6, z.combined46 != nil), tags[0])
 		}
 	}
 }

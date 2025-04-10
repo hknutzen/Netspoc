@@ -403,6 +403,43 @@ Error: IPv4 topology has unconnected parts:
 =END=
 
 ############################################################
+=TITLE=Partion attribute for unconnected v4 part of combined network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; partition = p1; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; partition = p2; }
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
+}
+=ERROR=
+Error: Only one partition name allowed in IPv6 zone any:[network:n1], but found:
+ - p2
+ - p1
+Warning: Spare partition name for single IPv6 partition any:[network:n1]: p2.
+=END=
+
+############################################################
+=TITLE=V4 only partion attribute for unconnected part of combined network
+=INPUT=
+network:u1 = { unnumbered; partition = p1; }
+network:u2 = { unnumbered; partition = p2; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1 = { ip6 = 2001:db8:1:1::1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
+}
+router:u1 = {
+ interface:u1;
+ interface:n1;
+}
+router:u2 = {
+ interface:u2;
+ interface:n2;
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Unconnected v6 part in combined zone
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
