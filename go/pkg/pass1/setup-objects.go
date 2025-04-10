@@ -309,6 +309,7 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 	cp := *r
 	r6 := &cp
 	l3Name := c.getAndCheckLayer3(r, a)
+	c.checkDuplAttr(&a.Interfaces, a.Name)
 	for _, ai := range a.Interfaces {
 		v4Count, v6Count := c.checkIntf46(ai)
 		if v4Count != 0 && v6Count != 0 && v4Count != v6Count {
@@ -754,7 +755,7 @@ func (c *spoc) setupOwner(v *ast.TopStruct) {
 			}
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 	c.removeDupl(append(o.admins, o.watchers...), "admins/watchers of "+name)
 }
 
@@ -842,7 +843,7 @@ func (c *spoc) setupIsakmp(v *ast.TopStruct) {
 	if !hasLifetime {
 		c.err("Missing 'lifetime' for %s", name)
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 }
 
 func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string,
@@ -903,7 +904,7 @@ func (c *spoc) setupIpsec(v *ast.TopStruct) {
 			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 	if is.lifetime == nil {
 		c.err("Missing 'lifetime' for %s", name)
 	}
@@ -930,7 +931,7 @@ func (c *spoc) setupCrypto(v *ast.TopStruct) {
 			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 	if cr.ipsec == nil {
 		c.err("Missing 'type' for %s", name)
 	}
@@ -980,7 +981,7 @@ func (c *spoc) setupNetwork1(v *ast.Network, n *network) {
 			}
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 }
 
 func (c *spoc) setupNetwork2(n *network, a *ast.Attribute) {
@@ -1275,7 +1276,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 			}
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 	net := ag.link
 	if net == nil {
 		if !hasLink {
@@ -1335,7 +1336,7 @@ func (c *spoc) setupArea(v *ast.Area) {
 			}
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 	expand := func(u *ast.NamedUnion, att string) (intfList, intfList) {
 		if u == nil {
 			return nil, nil
@@ -1546,7 +1547,7 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router) {
 			}
 		}
 	}
-	c.checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(&v.Attributes, name)
 
 	if managed := r.managed; managed != "" {
 		if r.model == nil {
@@ -2547,15 +2548,19 @@ func (c *spoc) checkDuplicate(l []ast.Toplevel) {
 	}
 }
 
-func (c *spoc) checkDuplAttr(l []*ast.Attribute, ctx string) {
+func (c *spoc) checkDuplAttr(l *[]*ast.Attribute, ctx string) {
 	seen := make(map[string]bool)
-	for _, a := range l {
+	j := 0
+	for _, a := range *l {
 		if seen[a.Name] {
 			c.err("Duplicate attribute '%s' in %s", a.Name, ctx)
 		} else {
 			seen[a.Name] = true
+			(*l)[j] = a
+			j++
 		}
 	}
+	*l = (*l)[:j]
 }
 
 func emptyAttr(a *ast.Attribute) bool {
@@ -2600,7 +2605,7 @@ func (c *spoc) getComplexValue(
 	if l == nil || a.ValueList != nil {
 		c.err("Structured value expected in '%s'", aCtx)
 	}
-	c.checkDuplAttr(l, aCtx)
+	c.checkDuplAttr(&l, aCtx)
 	return l
 }
 

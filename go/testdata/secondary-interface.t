@@ -135,7 +135,6 @@ router:r1 = {
 }
 =ERROR=
 Error: Duplicate attribute 'secondary:5th' in interface:n1 of router:r1
-Error: Duplicate definition of interface:r1.n1.5th in router:r1
 =END=
 
 ############################################################
