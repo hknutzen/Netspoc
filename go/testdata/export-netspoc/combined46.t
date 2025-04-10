@@ -846,3 +846,92 @@ router:u2 = {
  }
 }
 =END=
+
+############################################################
+=TITLE=v4 network/0 in dual stack zone cluster with non matching aggregate
+=INPUT=
+owner:x = { admins = guest; }
+area:all = { owner = x; anchor = network:n1; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+ nat:inet = { ip = 1.1.1.0/24; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:inet = {
+ interface:n2;
+ interface:Internet = { bind_nat = inet; }
+}
+network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+
+service:s1 = {
+ user = any:[network:n2];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+
+=OUTPUT=
+-- owner/x/users
+{
+ "s1": [
+  "any:[ip6=::/0 & network:n2]",
+  "network:Internet"
+ ]
+}
+-- objects
+{
+ "any:[ip6=::/0 & network:n2]": {
+  "ip": "::/0",
+  "is_supernet": 1,
+  "owner": "x",
+  "zone": "network:Internet"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "ip6": "2001:db8:1:1::1",
+  "nat": {
+   "inet": "1.1.1.1"
+  }
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1",
+  "ip6": "2001:db8:1:2::1"
+ },
+ "interface:inet.n2": {
+  "ip": "short",
+  "ip6": "short",
+  "owner": "x"
+ },
+ "interface:inet.Internet": {
+  "ip": "short",
+  "owner": "x"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "ip6": "2001:db8:1:1::/64",
+  "nat": {
+   "inet": "1.1.1.0/24"
+  },
+  "owner": "x",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/24",
+  "ip6": "2001:db8:1:2::/64",
+  "owner": "x",
+  "zone": "network:Internet"
+ },
+ "network:Internet": {
+  "ip": "0.0.0.0/0",
+  "is_supernet": 1,
+  "owner": "x",
+  "zone": "network:Internet"
+ }
+}
+=END=
