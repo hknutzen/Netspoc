@@ -209,8 +209,6 @@ where `<object set>` must expand to networks.
            [ inclusive_border = <object set>; ]
          ) | anchor = network:<network name>;
          [ owner = <name>; ]
-         [ ipv4_only; ]
-         [ ipv6_only; ]
          [ auto_ipv6_hosts = ( readable | binary | none ); ]
          <control service attr>*
          <network NAT> *
