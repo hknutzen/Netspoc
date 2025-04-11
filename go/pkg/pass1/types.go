@@ -86,6 +86,8 @@ func (x *ownedObj) setOwner(o *owner) { x.owner = o }
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
+	isCombined46() bool
+	vxName() string
 }
 
 type withAttr interface {
@@ -223,6 +225,12 @@ type subnet struct {
 	neighbor         *subnet
 	ipp              netip.Prefix
 	radiusAttributes map[string]string
+}
+
+// Gives wrong result for pure v4/v6 host in dual stack network.
+func (x subnet) isCombined46() bool { return x.network.isCombined46() }
+func (x subnet) vxName() string {
+	return vxName(x.name, x.ipV6, x.isCombined46())
 }
 
 type host struct {

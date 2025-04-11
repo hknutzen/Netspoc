@@ -47,8 +47,10 @@ func (c *spoc) propagateOwners() {
 		o2, upper := inheritOwner(getUp(obj))
 		if o != nil {
 			if o2 == o {
-				c.warn("Useless %s at %s,\n it was already inherited from %s",
-					o, obj, upper)
+				if !obj.isCombined46() || upper.isCombined46() {
+					c.warn("Useless %s at %s,\n it was already inherited from %s",
+						o, obj.vxName(), upper)
+				}
 			}
 			inherited[obj] = obj
 			return o, obj
