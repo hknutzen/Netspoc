@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- No longer show warning on redundant owner at dual stack object
+  if owner is inherited from only IPv4 oder only IPv6 object.
+- Attribute 'subnet_of' is ignored at IPv6 part of dual stack object.
+- If attribute 'bind_nat' is given at pure IPv6 interface,
+  this attribute is ignored and a warning is shown.
+
 ## [2025-04-09-1408]
 
 ### Changed
