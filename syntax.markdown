@@ -408,23 +408,23 @@ with
 
 Crypto is supported for model 'ASA' and 'IOS'.
 
-Model `ASA,VPN` switches to VPN concentrator mode. Default is site-to-site mode.
+Model `ASA,VPN` switches to VPN gateway mode. Default is site-to-site mode.
 
 Model `IOS,EZVPN` generates EasyVPN configuration for
-IOS router connected to VPN concentrator.
+IOS router connected to VPN gateway.
 
 Additional attributes need to be defined for model `ASA,VPN` in
-attribute `radius_attributes`. These attributes are used at host
+attribute `vpn_attributes`. These attributes are used at host
 definitions of software clients, but are also inherited from
 correspondig network and VPN router definition.
 
-    host:id:<cert-name>  = { .. <radius-attributes> .. }
-    host:id:<cert-match> = { .. <radius-attributes> .. }
-    network:<name>       = { .. <radius-attributes> .. }
-    router:<name>        = { .. <radius-attributes> .. }
+    host:id:<cert-name>  = { .. <vpn-attributes> .. }
+    host:id:<cert-match> = { .. <vpn-attributes> .. }
+    network:<name>       = { .. <vpn-attributes> .. }
+    router:<name>        = { .. <vpn-attributes> .. }
 
-    <radius-attributes> ::=
-      radius_attributes = {
+    <vpn-attributes> ::=
+      vpn_attributes = {
         trust-point = <string>;
         [ anyconnect-custom_perapp = <string>;    ]
         [ banner = <string>;                      ]
@@ -470,13 +470,13 @@ certificate is used as name of host.
     <cert-match> ::=                 [@]<name>(.<name>)*
 
 Host definition of software client and correspondig network definition
-can have `<radius-attributes>`, which augment or overwrite attributes
-of correspondig VPN concentrator.
+can have `<vpn-attributes>`, which augment or overwrite attributes
+of correspondig VPN gateway.
 
 ### Software client with LDAP authentication
 
 Host is authenticated with its ldap_id at LDAP server.
-Additionally the network is authenticated at VPN concentrator with its cert_id.
+Additionally the network is authenticated at VPN gateway with its cert_id.
 
 If all hosts of a network use a common postfix string, this can be
 moved to attribute 'ldap_append' of that network.
@@ -491,7 +491,7 @@ moved to attribute 'ldap_append' of that network.
 
     <LDAP client> ::= <host definition> with additional attributes:
       ldap_id = <LDAP-attribute>
-      <radius-attributes>
+      <vpn-attributes>
 
     <domain-name> ::= <name>(.<name>)*
     <LDAP-attribute> ::= <string>
