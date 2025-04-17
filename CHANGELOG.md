@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Support for radius_attribute 'client-bypass-protocol' has been added.
+  Example:
+  "radius_attributes = { client-bypass-protocol = enable; }"
+  is added to group-policy as
+  "client-bypass-protocol enable"
+
 ## [2025-04-14-1136]
 
 ### Changed

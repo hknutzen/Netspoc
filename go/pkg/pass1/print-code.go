@@ -539,6 +539,7 @@ var asaVpnAttributes = map[string]int{
 	"anyconnect-custom_dynamic-split-exclude-domains": groupPolicy,
 	"anyconnect-custom_perapp":                        groupPolicy,
 	"banner":                                          groupPolicy,
+	"client-bypass-protocol":                          groupPolicy,
 	"dns-server":                                      groupPolicy,
 	"default-domain":                                  groupPolicy,
 	"group-lock":                                      groupPolicy,

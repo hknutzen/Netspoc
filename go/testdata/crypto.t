@@ -1168,7 +1168,8 @@ network:customers2 = {
   range = 10.99.2.128 - 10.99.2.191;
   radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2;
-                        check-subject-name = ou; }
+                        check-subject-name = ou;
+                        client-bypass-protocol = enable; }
  }
 }
 =END=
@@ -1382,6 +1383,7 @@ tunnel-group-map ca-map-zzz 10 VPN-tunnel-zzz
 group-policy VPN-group-zzz internal
 group-policy VPN-group-zzz attributes
  address-pools value pool-zzz
+ client-bypass-protocol enable
  split-tunnel-network-list value split-tunnel-1
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-zzz
