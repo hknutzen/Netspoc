@@ -410,9 +410,6 @@ Crypto is supported for model 'ASA' and 'IOS'.
 
 Model `ASA,VPN` switches to VPN gateway mode. Default is site-to-site mode.
 
-Model `IOS,EZVPN` generates EasyVPN configuration for
-IOS router connected to VPN gateway.
-
 Additional attributes need to be defined for model `ASA,VPN` in
 attribute `vpn_attributes`. These attributes are used at host
 definitions of software clients, but are also inherited from
