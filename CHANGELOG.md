@@ -6,11 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Attribute 'radius_attributes' in Netspoc syntax has been renamed to
+  'vpn_attributes'.
+  This version supports both attributes.
+  But support for 'radius_attributes' will be removed in next version.
+
 ### Added
 
-- Support for radius_attribute 'client-bypass-protocol' has been added.
+- Support for vpn_attribute 'client-bypass-protocol' has been added.
   Example:
-  "radius_attributes = { client-bypass-protocol = enable; }"
+  "vpn_attributes = { client-bypass-protocol = enable; }"
   is added to group-policy as
   "client-bypass-protocol enable"
 

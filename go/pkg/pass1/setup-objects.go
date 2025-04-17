@@ -966,8 +966,8 @@ func (c *spoc) setupNetwork1(v *ast.Network, n *network) {
 			n.certId = c.getSingleValue(a, name)
 		case "ldap_append":
 			n.ldapAppend = c.getSingleValue(a, name)
-		case "radius_attributes":
-			n.radiusAttributes = c.getRadiusAttributes(a, name)
+		case "radius_attributes", "vpn_attributes":
+			n.vpnAttributes = c.getVPNAttributes(a, name)
 		case "partition":
 			n.partition = c.getIdentifier(a, name)
 		case "auto_ipv6_hosts":
@@ -1109,8 +1109,8 @@ func (c *spoc) setupNetwork2(n *network, a *ast.Attribute) {
 			}
 		}
 
-		if !n.hasIdHosts && n.radiusAttributes != nil {
-			c.warn("Ignoring 'radius_attributes' at %s", name)
+		if !n.hasIdHosts && n.vpnAttributes != nil {
+			c.warn("Ignoring 'vpn_attributes' at %s", name)
 		}
 	}
 }
@@ -1141,8 +1141,8 @@ func (c *spoc) setupHost1(v *ast.Attribute, n *network) *host {
 			h.owner = c.getRealOwnerRef(a, name)
 		case "ldap_id":
 			h.ldapId = c.getSingleValue(a, name)
-		case "radius_attributes":
-			h.radiusAttributes = c.getRadiusAttributes(a, name)
+		case "radius_attributes", "vpn_attributes":
+			h.vpnAttributes = c.getVPNAttributes(a, name)
 		case "auto_ipv6_hosts":
 			h.autoIPv6Hosts = c.getAutoIPv6Hosts(a, name)
 		default:
@@ -1187,8 +1187,8 @@ func (c *spoc) setupHost2(h *host, a *ast.Attribute) {
 			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
-	} else if h.radiusAttributes != nil {
-		c.warn("Ignoring 'radius_attributes' at %s", name)
+	} else if h.vpnAttributes != nil {
+		c.warn("Ignoring 'vpn_attributes' at %s", name)
 	}
 	if h.nat != nil && h.ipRange.IsValid() {
 		// Before changing this,
@@ -1531,8 +1531,8 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router) {
 			r.routingDefault = c.getRouting(a, name)
 		case "owner":
 			r.owner = c.getRealOwnerRef(a, name)
-		case "radius_attributes":
-			r.radiusAttributes = c.getRadiusAttributes(a, name)
+		case "radius_attributes", "vpn_attributes":
+			r.vpnAttributes = c.getVPNAttributes(a, name)
 		case "policy_distribution_point":
 			r.policyDistributionPoint = c.tryHostRef(a, name)
 		case "general_permit":
@@ -1609,8 +1609,8 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router) {
 		}
 
 		if !r.model.doAuth {
-			if r.radiusAttributes != nil {
-				c.warn("Ignoring 'radius_attributes' at %s", name)
+			if r.vpnAttributes != nil {
+				c.warn("Ignoring 'vpn_attributes' at %s", name)
 			}
 			if r.mergeTunnelSpecified != nil {
 				c.warn("Ignoring 'merge_tunnelspecified' at %s", name)
@@ -3468,7 +3468,7 @@ func genProtocolName(p *proto) string {
 	}
 }
 
-func (c *spoc) getRadiusAttributes(a *ast.Attribute, ctx string) map[string]string {
+func (c *spoc) getVPNAttributes(a *ast.Attribute, ctx string) map[string]string {
 	result := make(map[string]string)
 	rCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
@@ -3933,9 +3933,9 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	// Don't check fragment for reachability.
 	cp.policyDistributionPoint = nil
 
-	// radiusAttributes are only needed at origRouter, where crypto
+	// vpnAttributes are only needed at origRouter, where crypto
 	// tunnels are attached.
-	cp.radiusAttributes = nil
+	cp.vpnAttributes = nil
 
 	// Remove interface from old router.
 	// Retain original interfaces.

@@ -681,9 +681,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				idName := genIdName(id)
 				src := idIntf.src
 				attributes := combineAttr(
-					r.radiusAttributes,
-					src.getNetwork().radiusAttributes,
-					src.radiusAttributes)
+					r.vpnAttributes,
+					src.getNetwork().vpnAttributes,
+					src.vpnAttributes)
 
 				// Define split tunnel ACL.
 				// Use default value if not defined.
@@ -815,8 +815,8 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					if ldapId := src.ldapId; ldapId != "" {
 						network := src.getNetwork()
 						netAttr := combineAttr(
-							r.radiusAttributes,
-							network.radiusAttributes,
+							r.vpnAttributes,
+							network.vpnAttributes,
 						)
 						authServer := netAttr["authentication-server-group"]
 						ldapMap[authServer] = append(
@@ -879,7 +879,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			r.aclList.push(info)
 			printAclPlaceholder(fh, r, filterName)
 
-			attributes := r.radiusAttributes
+			attributes := r.vpnAttributes
 
 			groupPolicyName := ""
 			if len(attributes) > 0 {

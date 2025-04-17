@@ -30,18 +30,18 @@ func (c *spoc) verifyAsaVpnAttributes(
 
 	for _, key := range slices.Sorted(maps.Keys(attributes)) {
 		if _, found := asaVpnAttributes[key]; !found {
-			c.err("Invalid radius_attribute '%s' at %s", key, name)
+			c.err("Invalid vpn_attribute '%s' at %s", key, name)
 		}
 		value := attributes[key]
 		switch key {
 		case "split-tunnel-policy":
 			if value != "tunnelall" && value != "tunnelspecified" {
-				c.err("Unsupported value in radius_attribute of %s '%s = %s'",
+				c.err("Unsupported value in vpn_attribute of %s '%s = %s'",
 					name, key, value)
 			}
 		case "group-lock":
 			if value != "" {
-				c.warn("Ignoring value at radius_attribute '%s' of %s"+
+				c.warn("Ignoring value at vpn_attribute '%s' of %s"+
 					" (will be set automatically)",
 					key, name)
 			}
@@ -49,7 +49,7 @@ func (c *spoc) verifyAsaVpnAttributes(
 	}
 }
 
-func getRadiusAttr0(attr string, l ...map[string]string) string {
+func getVPNAttr0(attr string, l ...map[string]string) string {
 	for _, m := range l {
 		if val, found := m[attr]; found {
 			return val
@@ -57,33 +57,33 @@ func getRadiusAttr0(attr string, l ...map[string]string) string {
 	}
 	return ""
 }
-func getRadiusAttr(attr string, s *subnet, r *router) string {
-	return getRadiusAttr0(
+func getVPNAttr(attr string, s *subnet, r *router) string {
+	return getVPNAttr0(
 		attr,
-		s.radiusAttributes,
-		s.network.radiusAttributes,
-		r.radiusAttributes)
+		s.vpnAttributes,
+		s.network.vpnAttributes,
+		r.vpnAttributes)
 }
 
 // Attribute 'authentication-server-group' must only be used
 // together with 'ldap_id' and must then be available at network.
 func (c *spoc) verifyAuthServer(s *subnet, r *router) {
 	attr := "authentication-server-group"
-	if _, found := s.radiusAttributes[attr]; found {
-		delete(s.radiusAttributes, attr)
+	if _, found := s.vpnAttributes[attr]; found {
+		delete(s.vpnAttributes, attr)
 		c.err("Attribute '%s' must not be used directly at %s", attr, s)
 	}
-	auth := getRadiusAttr(attr, s, r)
+	auth := getVPNAttr(attr, s, r)
 	n := s.network
 	if s.ldapId != "" {
 		if auth == "" {
 			c.err("Missing attribute '%s' at %s having host with 'ldap_id'",
 				attr, n)
-			n.radiusAttributes[attr] = "ERROR"
+			n.vpnAttributes[attr] = "ERROR"
 		}
 	} else if auth != "" {
 		var name string
-		if n.radiusAttributes[attr] != "" {
+		if n.vpnAttributes[attr] != "" {
 			name = n.name
 		} else {
 			name = r.name
@@ -100,21 +100,21 @@ func (c *spoc) verifySubjectNameForHost(s *subnet, r *router) {
 	if strings.Contains(id, "@") {
 		return
 	}
-	if getRadiusAttr("check-subject-name", s, r) != "" {
+	if getVPNAttr("check-subject-name", s, r) != "" {
 		return
 	}
-	c.err("Missing radius_attribute 'check-subject-name'\n for %s", s)
+	c.err("Missing vpn_attribute 'check-subject-name'\n for %s", s)
 }
 
 // Network with attribute 'cert_id' must use attribute
 // 'check-subject-name'.
 func (c *spoc) verifySubjectNameForNet(n *network, r *router) {
-	if getRadiusAttr0("check-subject-name",
-		n.radiusAttributes, r.radiusAttributes) != "" {
+	if getVPNAttr0("check-subject-name",
+		n.vpnAttributes, r.vpnAttributes) != "" {
 		return
 	}
-	c.err("Missing radius_attribute 'check-subject-name'\n for %s", n)
-	n.radiusAttributes["check-subject-name"] = "ERROR"
+	c.err("Missing vpn_attribute 'check-subject-name'\n for %s", n)
+	n.vpnAttributes["check-subject-name"] = "ERROR"
 }
 
 func (c *spoc) verifyExtendedKeyUsage(s *subnet, r *router) {
@@ -129,7 +129,7 @@ func (c *spoc) verifyExtendedKeyUsage(s *subnet, r *router) {
 		return
 	}
 	domain := id[idx:]
-	oid := getRadiusAttr("check-extended-key-usage", s, r)
+	oid := getVPNAttr("check-extended-key-usage", s, r)
 	if other, found := extKeys[domain]; found {
 		if oid != other {
 			c.err("All ID hosts having domain '%s'"+
@@ -247,7 +247,7 @@ func (c *spoc) expandCrypto() {
 							net, router)
 					}
 					if hubIsAsaVpn {
-						c.verifyAsaVpnAttributes(net.name, net.radiusAttributes)
+						c.verifyAsaVpnAttributes(net.name, net.vpnAttributes)
 					}
 
 					// Rules for single software clients are stored
@@ -256,13 +256,13 @@ func (c *spoc) expandCrypto() {
 					for _, s := range net.subnets {
 						id := s.id
 						if hubIsAsaVpn {
-							c.verifyAsaVpnAttributes(s.name, s.radiusAttributes)
+							c.verifyAsaVpnAttributes(s.name, s.vpnAttributes)
 							key := "trust-point"
-							if (net.radiusAttributes[key] != "" ||
-								s.radiusAttributes[key] != "") &&
+							if (net.vpnAttributes[key] != "" ||
+								s.vpnAttributes[key] != "") &&
 								s.ipp.IsSingleIP() {
 
-								c.err("Must not use radius_attribute '%s' at %s",
+								c.err("Must not use vpn_attribute '%s' at %s",
 									key, s)
 							}
 
@@ -420,14 +420,14 @@ func (c *spoc) expandCrypto() {
 
 		cryptoType := r.model.crypto
 		if cryptoType == "ASA_VPN" {
-			c.verifyAsaVpnAttributes(r.name, r.radiusAttributes)
+			c.verifyAsaVpnAttributes(r.name, r.vpnAttributes)
 
-			// Move 'trust-point' from radius_attributes to router attribute.
-			if trustPoint, found := r.radiusAttributes["trust-point"]; found {
-				delete(r.radiusAttributes, "trust-point")
+			// Move 'trust-point' from vpn_attributes to router attribute.
+			if trustPoint, found := r.vpnAttributes["trust-point"]; found {
+				delete(r.vpnAttributes, "trust-point")
 				r.trustPoint = trustPoint
 			} else {
-				c.err("Missing 'trust-point' in radiusAttributes of %s", r)
+				c.err("Missing 'trust-point' in vpnAttributes of %s", r)
 			}
 		} else if cryptoType == "ASA" {
 			for _, intf := range r.interfaces {

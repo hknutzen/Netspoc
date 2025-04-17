@@ -436,6 +436,7 @@ var specialTokenAttr = map[string]func(*parser){
 
 var specialSubTokenAttr = map[string]func(*parser){
 	"radius_attributes": (*parser).nextSingle,
+	"vpn_attributes":    (*parser).nextSingle,
 }
 
 var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{

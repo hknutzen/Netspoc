@@ -87,7 +87,7 @@ func (c *spoc) convertHosts() {
 					s.owner = host.owner
 					s.id = id
 					s.ldapId = host.ldapId
-					s.radiusAttributes = host.radiusAttributes
+					s.vpnAttributes = host.vpnAttributes
 
 					ip2subnet[ipp.Addr()] = s
 					host.subnets = append(host.subnets, s)
@@ -146,7 +146,7 @@ func (c *spoc) convertHosts() {
 					continue
 				}
 
-				// Don't combine subnets having radius-ID.
+				// Don't combine subnets having vpn-ID.
 				if s.id != "" {
 					continue
 				}

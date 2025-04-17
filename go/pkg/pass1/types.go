@@ -167,7 +167,7 @@ type network struct {
 	networks             netList
 	noCheckSupernetRules bool
 	partition            string
-	radiusAttributes     map[string]string
+	vpnAttributes        map[string]string
 	subnetOf             *network
 	subnetOfUsed         bool
 	subnets              []*subnet
@@ -219,24 +219,24 @@ func (x *netObj) getUp() someObj       { return x.up }
 type subnet struct {
 	netObj
 	withStdAddr
-	hasNeighbor      bool
-	id               string
-	ldapId           string
-	neighbor         *subnet
-	ipp              netip.Prefix
-	radiusAttributes map[string]string
+	hasNeighbor   bool
+	id            string
+	ldapId        string
+	neighbor      *subnet
+	ipp           netip.Prefix
+	vpnAttributes map[string]string
 }
 
 type host struct {
 	netObj
-	combined46       *host
-	id               string
-	ip               netip.Addr
-	ipRange          netipx.IPRange
-	ldapId           string
-	radiusAttributes map[string]string
-	subnets          []*subnet
-	autoIPv6Hosts    string
+	combined46    *host
+	id            string
+	ip            netip.Addr
+	ipRange       netipx.IPRange
+	ldapId        string
+	vpnAttributes map[string]string
+	subnets       []*subnet
+	autoIPv6Hosts string
 }
 
 func (x host) isCombined46() bool { return x.combined46 != nil }
@@ -331,7 +331,7 @@ type router struct {
 	hardware             []*hardware
 	origRouter           *router
 	combined46           *router
-	radiusAttributes     map[string]string
+	vpnAttributes        map[string]string
 	routingDefault       *mcastProto
 	routingOnly          bool
 	trustPoint           string

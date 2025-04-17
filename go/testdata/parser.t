@@ -951,39 +951,39 @@ Error: Missing IP address for network:n1
 =END=
 
 ############################################################
-=TITLE=Ignoring radius attribute at network
+=TITLE=Ignoring vpn attribute at network
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; radius_attributes = { a = b; } }
+network:n1 = { ip = 10.1.1.0/24; vpn_attributes = { a = b; } }
 =WARNING=
-Warning: Ignoring 'radius_attributes' at network:n1
+Warning: Ignoring 'vpn_attributes' at network:n1
 =END=
 
 ############################################################
-=TITLE=Ignoring radius attribute at host
+=TITLE=Ignoring vpn attribute at host
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24;
- host:h1 = { ip = 10.1.1.10; radius_attributes = { a = b; } }
+ host:h1 = { ip = 10.1.1.10; vpn_attributes = { a = b; } }
 }
 =WARNING=
-Warning: Ignoring 'radius_attributes' at host:h1
+Warning: Ignoring 'vpn_attributes' at host:h1
 =END=
 
 ############################################################
-=TITLE=Bad identifier in radius attribute
+=TITLE=Bad identifier in vpn attribute
 =INPUT=
 network:n1 = {
- ip = 10.1.1.0/24; radius_attributes = { a.1 = 1; }
+ ip = 10.1.1.0/24; vpn_attributes = { a.1 = 1; }
  host:id:a@b.c = { ip = 10.1.1.1; }
 }
 =ERROR=
-Error: Invalid identifier 'a.1' in radius_attributes of network:n1
+Error: Invalid identifier 'a.1' in vpn_attributes of network:n1
 =END=
 
 ############################################################
-=TITLE=Bad radius attribute with comment character
+=TITLE=Bad vpn attribute with comment character
 # No IPv6
 =INPUT=
-network:n1 = { radius_attributes = { banner = Welcome #two; } }
+network:n1 = { vpn_attributes = { banner = Welcome #two; } }
 =ERROR=
 Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted

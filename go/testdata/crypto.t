@@ -286,7 +286,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -309,7 +309,7 @@ network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -334,7 +334,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -356,7 +356,7 @@ network:n1 = { unnumbered; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -386,7 +386,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -417,7 +417,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -485,7 +485,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -520,7 +520,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -548,14 +548,14 @@ Error: Exactly one network must be located behind unmanaged interface:softclient
 =END=
 
 ############################################################
-=TITLE=Invalid radius attributes
+=TITLE=Invalid vpn attributes
 =INPUT=
 [[crypto_vpn]]
 network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
   unknown = unknown;
   split-tunnel-policy = whatever;
@@ -573,19 +573,19 @@ router:softclients = {
 }
 network:clients = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   invalid;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
-  radius_attributes = { trust-point = ASDM_TrustPoint1; }
+  vpn_attributes = { trust-point = ASDM_TrustPoint1; }
  }
 }
 =ERROR=
-Error: Invalid radius_attribute 'invalid' at network:clients
-Error: Must not use radius_attribute 'trust-point' at host:id:foo@domain.x.clients
-Error: Unsupported value in radius_attribute of router:asavpn 'split-tunnel-policy = whatever'
-Error: Invalid radius_attribute 'unknown' at router:asavpn
+Error: Invalid vpn_attribute 'invalid' at network:clients
+Error: Must not use vpn_attribute 'trust-point' at host:id:foo@domain.x.clients
+Error: Unsupported value in vpn_attribute of router:asavpn 'split-tunnel-policy = whatever'
+Error: Invalid vpn_attribute 'unknown' at router:asavpn
 =END=
 
 ############################################################
@@ -596,7 +596,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -612,7 +612,7 @@ router:softclients = {
 }
 network:clients = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   authentication-server-group = LDAP_1;
  }
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
@@ -629,7 +629,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
   authentication-server-group = LDAP_1;
  }
@@ -681,16 +681,16 @@ Warning: Ignoring 'cert_id' at network:clients
 =END=
 
 ############################################################
-=TITLE=Ignore radius_attributes without ID hosts
+=TITLE=Ignore vpn_attributes without ID hosts
 =INPUT=
 network:clients = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
 }
 =WARNING=
-Warning: Ignoring 'radius_attributes' at network:clients
+Warning: Ignoring 'vpn_attributes' at network:clients
 =END=
 
 ############################################################
@@ -701,7 +701,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -743,7 +743,7 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -757,7 +757,7 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -777,7 +777,7 @@ network:customers1 = {
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
-  radius_attributes = { banner = Willkommen zu Hause; }
+  vpn_attributes = { banner = Willkommen zu Hause; }
  }
 }
 =ERROR=
@@ -806,7 +806,7 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -826,7 +826,7 @@ network:customers1 = {
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
-  radius_attributes = { banner = Willkommen zu Hause; }
+  vpn_attributes = { banner = Willkommen zu Hause; }
  }
 }
 =ERROR=
@@ -847,17 +847,17 @@ Warning: Attribute 'hub' needs to be defined at some interface of router:r of mo
 =END=
 
 ############################################################
-=TITLE=Ignoring radius_attributes at non ASA, VPN
+=TITLE=Ignoring vpn_attributes at non ASA, VPN
 =INPUT=
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
  model = ASA;
- radius_attributes = { banner = Welcome; }
+ vpn_attributes = { banner = Welcome; }
  interface:n = { ip = 10.1.1.1; hardware = n; }
 }
 =WARNING=
-Warning: Ignoring 'radius_attributes' at router:r
+Warning: Ignoring 'vpn_attributes' at router:r
 =END=
 
 ############################################################
@@ -939,7 +939,7 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -961,7 +961,7 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint2;
  }
  interface:dmz = {
@@ -1002,7 +1002,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -1058,7 +1058,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -1092,7 +1092,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -1118,39 +1118,39 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:bar@domain.x = {
   ip = 10.99.1.11;
-  radius_attributes = { split-tunnel-policy = tunnelall;
+  vpn_attributes = { split-tunnel-policy = tunnelall;
                         banner = Willkommen zu Hause; }
  }
  host:id:baz@domain.x = {
   ip = 10.99.1.12;
-  radius_attributes = { anyconnect-custom_perapp = SomeName;
+  vpn_attributes = { anyconnect-custom_perapp = SomeName;
                         anyconnect-custom_dynamic-split-exclude-domains =
                         a.dom b.dom c.sub.dom;
   }
  }
  host:id:unused@domain.x = {
   ip = 10.99.1.254;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 network:customers2 = {
  ip = 10.99.2.0/24;
- radius_attributes = {
+ vpn_attributes = {
   vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
   }
  host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63;
-  radius_attributes = { split-tunnel-policy = tunnelspecified;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou;#
                         authorization-server-group = LDAP_1;
                         username-from-certificate = CN;
@@ -1160,13 +1160,13 @@ network:customers2 = {
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40;
+  vpn_attributes = { vpn-idle-timeout = 40;
                         trust-point = ASDM_TrustPoint3;
                         group-lock; }
  }
  host:id:zzz = {
   range = 10.99.2.128 - 10.99.2.191;
-  radius_attributes = { split-tunnel-policy = tunnelspecified;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified;
                         check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2;
                         check-subject-name = ou;
                         client-bypass-protocol = enable; }
@@ -1426,20 +1426,20 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=Missing radius_attribute check-subject-name at host
+=TITLE=Missing vpn_attribute check-subject-name at host
 =INPUT=[[input]]
 =SUBST=/check-subject-name = ou;#//
 =ERROR=
-Error: Missing radius_attribute 'check-subject-name'
+Error: Missing vpn_attribute 'check-subject-name'
  for host:id:domain.x.customers2
 =END=
 
 ############################################################
-=TITLE=Ignoring value of radius_attribute group-lock
+=TITLE=Ignoring value of vpn_attribute group-lock
 =INPUT=[[input]]
 =SUBST=/group-lock;#/group-lock = enabled;/
 =WARNING=
-Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.customers2 (will be set automatically)
+Warning: Ignoring value at vpn_attribute 'group-lock' of host:id:domain.x.customers2 (will be set automatically)
 =END=
 
 ############################################################
@@ -1447,7 +1447,7 @@ Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.cus
 =INPUT=[[input]]
 =SUBST=/trust-point = ASDM_TrustPoint1;//
 =ERROR=
-Error: Missing 'trust-point' in radiusAttributes of router:asavpn
+Error: Missing 'trust-point' in vpnAttributes of router:asavpn
 =END=
 
 ############################################################
@@ -1594,7 +1594,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  merge_tunnelspecified = 10.0.0.0/16;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -1619,24 +1619,24 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen;
  }
  host:id:u1@domain.x = {
   ip = 10.99.1.10;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u2@domain.x = {
   ip = 10.99.1.11;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u3@domain.x = {
   ip = 10.99.1.12;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:u4@domain.x = {
   ip = 10.99.1.254;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 service:s1 = {
@@ -1736,7 +1736,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -1762,13 +1762,13 @@ router:softclients = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  cert_id = cert1;
- radius_attributes = {
+ vpn_attributes = {
   check-subject-name = cn;
  }
  host:example1 = {
   ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
   range = 10.99.1.8 - 10.99.1.15;
-  radius_attributes = {
+  vpn_attributes = {
    authentication-server-group = LDAP_1;
   }
  }
@@ -1797,7 +1797,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -1824,7 +1824,7 @@ router:softclients = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  cert_id = cert1;
- radius_attributes = {
+ vpn_attributes = {
   check-subject-name = cn;
   authentication-server-group = LDAP_1;
  }
@@ -1837,7 +1837,7 @@ network:customers2 = {
  ip = 10.99.2.0/24;
  cert_id = cert2;
  ldap_append = ,OU=VPN,DC=example,DC=com;
- radius_attributes = {
+ vpn_attributes = {
   check-subject-name = ou;
   authentication-server-group = LDAP_2;
   group-lock;
@@ -1845,23 +1845,23 @@ network:customers2 = {
  host:example2a = {
   ldap_id = CN=example2a;
   range = 10.99.2.0 - 10.99.2.63;
-  radius_attributes = { username-from-certificate = CN;
+  vpn_attributes = { username-from-certificate = CN;
                         authorization-required; }
  }
  host:example2b = {
   ldap_id = CN=example2b;
   range = 10.99.2.128 - 10.99.2.191;
-  radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+  vpn_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
  }
 }
 =END=
 
 ############################################################
-=TITLE=Missing radius_attribute check-subject-name at network
+=TITLE=Missing vpn_attribute check-subject-name at network
 =INPUT=[[topo]]
 =SUBST=/check-subject-name = ou;//
 =ERROR=
-Error: Missing radius_attribute 'check-subject-name'
+Error: Missing vpn_attribute 'check-subject-name'
  for network:customers2
 =END=
 
@@ -1966,7 +1966,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -1985,24 +1985,24 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+ vpn_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:bar@domain.x = { ip = 10.99.1.11;
-  radius_attributes = { check-extended-key-usage = bar; }}
+  vpn_attributes = { check-extended-key-usage = bar; }}
  host:id:@domain.x = { range = 10.99.1.12-10.99.1.15; }
  host:id:@domain.y = { range = 10.99.1.16-10.99.1.31; }
 }
 network:customers2 = {
  ip = 10.99.2.0/24;
- radius_attributes = { check-extended-key-usage = foo; }
+ vpn_attributes = { check-extended-key-usage = foo; }
  host:id:foo@domain.y = { ip = 10.99.2.10; }
 }
 network:customers3 = {
  ip = 10.99.3.0/24;
  host:id:foo@domain.z = { ip = 10.99.3.10;
-  radius_attributes = { check-extended-key-usage = foo; }}
+  vpn_attributes = { check-extended-key-usage = foo; }}
  host:id:bar@domain.z = { ip = 10.99.3.11;
-  radius_attributes = { check-extended-key-usage = foo; }}
+  vpn_attributes = { check-extended-key-usage = foo; }}
 }
 =ERROR=
 Error: All ID hosts having domain '@domain.x' must use identical value from 'check-extended-key-usage'
@@ -2032,7 +2032,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -2049,11 +2049,11 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+ vpn_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
-  radius_attributes = { banner = Willkommen zu Hause; }
+  vpn_attributes = { banner = Willkommen zu Hause; }
  }
 }
 # Protocol modifiers src_net, dst_net must leave id-hosts unchanged.
@@ -2173,7 +2173,7 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ vpn_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
   hub = crypto:vpn;
@@ -2247,7 +2247,7 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -2274,7 +2274,7 @@ network:soft1 = {
  ip = 10.99.1.0/24;
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 router:Firewall = {
@@ -2356,7 +2356,7 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -2585,7 +2585,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
 # routing = manual;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {
@@ -2660,7 +2660,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed = secondary;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n2 = {
@@ -2709,7 +2709,7 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ vpn_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
   hub = crypto:vpn;
@@ -2741,7 +2741,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {
@@ -2780,7 +2780,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -3371,7 +3371,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint3;
   banner = Welcome at VPN service;
   dns-server = 10.1.1.10 10.1.1.11;
@@ -4106,7 +4106,7 @@ network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -4131,7 +4131,7 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
