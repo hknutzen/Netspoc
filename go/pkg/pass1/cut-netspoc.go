@@ -581,8 +581,30 @@ func (c *spoc) cutNetspoc(
 	// Mark NAT tags referenced in networks used in rules.
 	c.markUsedNatTags(isUsed)
 
+	// Mark management_instance of routers
+	for _, r := range c.managedRouters {
+		if isUsed[r.name] && r.model.needManagementInstance {
+			if mr := c.symTable.router[r.deviceName]; mr != nil {
+				if r.ipV6 != mr.ipV6 {
+					if mr.combined46 == nil || mr.ipV6 {
+						continue
+					}
+					mr = mr.combined46
+				}
+				for _, intf := range getIntf(mr) {
+					for _, intf2 := range getIntf(r) {
+						c.markPath(intf, intf2, isUsed)
+					}
+				}
+			}
+		}
+	}
+
 	// Mark bridge and bridged networks.
 	for _, n := range c.allNetworks {
+		if n.name == "network:INET_TR_STR_A_HH_1226_1227/1226" {
+			n.name += ""
+		}
 		if !isUsed[n.name] {
 			continue
 		}
@@ -602,25 +624,6 @@ func (c *spoc) cutNetspoc(
 				} else if out.ipType == bridgedIP {
 					isUsed[out.name] = true
 					isUsed[out.network.name] = true
-				}
-			}
-		}
-	}
-
-	// Mark management_instance of routers
-	for _, r := range c.managedRouters {
-		if isUsed[r.name] && r.model.needManagementInstance {
-			if mr := c.symTable.router[r.deviceName]; mr != nil {
-				if r.ipV6 != mr.ipV6 {
-					if mr.combined46 == nil || mr.ipV6 {
-						continue
-					}
-					mr = mr.combined46
-				}
-				for _, intf := range getIntf(mr) {
-					for _, intf2 := range getIntf(r) {
-						c.markPath(intf, intf2, isUsed)
-					}
 				}
 			}
 		}
