@@ -611,8 +611,16 @@ func (c *spoc) cutNetspoc(
 	for _, r := range c.managedRouters {
 		if isUsed[r.name] && r.model.needManagementInstance {
 			if mr := c.symTable.router[r.deviceName]; mr != nil {
+				if r.ipV6 != mr.ipV6 {
+					if mr.combined46 == nil || mr.ipV6 {
+						continue
+					}
+					mr = mr.combined46
+				}
 				for _, intf := range getIntf(mr) {
-					c.markPath(intf, r.interfaces[0], isUsed)
+					for _, intf2 := range getIntf(r) {
+						c.markPath(intf, intf2, isUsed)
+					}
 				}
 			}
 		}
