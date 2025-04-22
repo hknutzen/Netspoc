@@ -483,6 +483,38 @@ service:test = {
 =OPTIONS=--owner
 
 ############################################################
+=TITLE=Ignore area without owner if owner is kept
+=INPUT=
+[[topo]]
+area:n2 = { border = interface:asa1.n2; }
+service:test = {
+    user = interface:asa2.n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+=OUTPUT=
+owner:o2 = {
+ admins = a2@example.com;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; owner = o2; }
+}
+service:test = {
+ user = interface:asa2.n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp;
+}
+=OPTIONS=--owner
+
+############################################################
 =TITLE=Area with NAT
 =INPUT=
 [[topo]]

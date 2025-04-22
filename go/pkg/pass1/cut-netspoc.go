@@ -702,7 +702,8 @@ func (c *spoc) cutNetspoc(
 		}
 		if isUsed[name] || hasNat(&aTop.TopStruct) ||
 			keepOwner && (aTop.GetAttr("owner") != nil ||
-				aTop.GetAttr("router_attributes").GetAttr("owner") != nil) {
+				aTop.GetAttr("router_attributes") != nil &&
+					aTop.GetAttr("router_attributes").GetAttr("owner") != nil) {
 
 			isUsed[name] = true
 			name := name[len("area:"):]
