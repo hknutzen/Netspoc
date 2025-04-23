@@ -240,9 +240,10 @@ service:test2 = {
 =END=
 
 ############################################################
-=TITLE=Inversed inheritance for non matching aggregate
+=TITLE=Inversed inheritance for unnamed aggregate
 # any:[network:n3] inherits owner:a from enclosed networks n1, n2.
-# Unnumbered network is ignored.
+# - Unnumbered network is ignored.
+# - Enclosed unnamed aggregate is ignored.
 =INPUT=
 owner:a = { admins = a@example.com; }
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
@@ -260,13 +261,41 @@ router:r = {
  interface:n3 = { unnumbered; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
+service:s0 = {
+ user = any:[ip = 10.8.0.0/16 & network:n1];
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
 service:s1 = {
  user = any:[network:n3];
- permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s2 = {
+ user = any:[ip = 10.1.0.0/16 & network:n3];
+ permit src = user; dst = network:n4; prt = tcp 82;
+}
+service:s3 = {
+ user = any:[ip = 10.9.0.0/16 & network:n1];
+ permit src = user; dst = network:n4; prt = tcp 83;
 }
 =OUTPUT=
 -- objects
 {
+ "any:[ip=10.1.0.0/16 & network:n3]": {
+  "ip": "10.1.0.0/16",
+  "is_supernet": 1,
+  "owner": "a",
+  "zone": "any:[network:n3]"
+ },
+ "any:[ip=10.9.0.0/16 & network:n3]": {
+  "ip": "10.9.0.0/16",
+  "is_supernet": 1,
+  "zone": "any:[network:n3]"
+ },
+ "any:[ip=10.8.0.0/16 & network:n3]": {
+  "ip": "10.8.0.0/16",
+  "is_supernet": 1,
+  "zone": "any:[network:n3]"
+ },
  "any:[network:n3]": {
   "ip": "0.0.0.0/0",
   "is_supernet": 1,
@@ -290,7 +319,12 @@ service:s1 = {
   "ip": "10.1.2.0/24",
   "owner": "a",
   "zone": "any:[network:n3]"
+ },
+ "network:n4": {
+  "ip": "10.1.4.0/24",
+  "zone": "any:[network:n4]"
  }
+
 }
 =END=
 

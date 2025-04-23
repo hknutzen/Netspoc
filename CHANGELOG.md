@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Fixed inversed inheritance at unnamed aggregate:
+    - Contained unnamed aggregate is ignored.
+    - Unnamed aggregate no longer inherits from enclosing unnamed aggregate.
+
 ## [2025-04-17-1102]
 
 ### Changed

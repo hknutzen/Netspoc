@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"strings"
 )
 
 // #############################################################################
@@ -92,9 +93,10 @@ func (c *spoc) linkImplicitAggregateToZone(agg *network, z *zone) {
 	c.linkAggregateToZone(agg, z)
 }
 
-// Inversed inheritance: If an implicit aggregate has no direct owner
-// and if all directly contained networks have the same owner, then
-// set owner of this aggregate to found owner of networks.
+// Inversed inheritance: An unnamed aggregate has no direct owner.
+// If all directly contained networks and named aggregates have the
+// same owner, then set owner of this unnamed aggregate to found owner
+// of contained objects.
 func propagateOwnerToAggregates(agg *network) {
 	cluster := agg.zone.cluster
 	ipp := agg.ipp
@@ -118,16 +120,23 @@ func propagateOwnerToAggregates(agg *network) {
 		}
 		processWithSubnetworks(z.networks, inherit)
 		for _, agg3 := range z.ipPrefix2aggregate {
-			inherit(agg3)
-		}
-		// Take owner from smallest network or aggregate in cluster that
-		// encloses agg.
-		if up := agg.up; up != nil {
-			bits := int(up.ipp.Bits())
-			if bits > upBits {
-				upOwner = up.owner
-				upBits = bits
+			if !strings.HasPrefix(agg3.name, "any:[") {
+				inherit(agg3)
 			}
+		}
+		// Take owner from smallest network or named aggregate in
+		// cluster that encloses agg.
+		up := agg.up
+		for up != nil {
+			if !strings.HasPrefix(up.name, "any:[") {
+				bits := int(up.ipp.Bits())
+				if bits > upBits {
+					upOwner = up.owner
+					upBits = bits
+				}
+				break
+			}
+			up = up.up
 		}
 	}
 	if downOwner == nil {
