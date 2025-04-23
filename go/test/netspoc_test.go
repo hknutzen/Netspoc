@@ -478,7 +478,7 @@ func countEq(t *testing.T, expected, got string) {
 func jsonEq(t *testing.T, expected string, got []byte) {
 	normalize := func(d []byte) string {
 		// Leave POLICY file of export-netspoc unchanged
-		if d[0] == '#' {
+		if len(d) > 0 && d[0] == '#' {
 			return string(d)
 		}
 		var v any
