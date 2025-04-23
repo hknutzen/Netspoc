@@ -295,7 +295,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Must not inhert inversed inherited owner
+=TITLE=Must not inherit inversed inherited owner
 =INPUT=
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
