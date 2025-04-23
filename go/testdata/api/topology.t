@@ -978,7 +978,7 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz-int = {
@@ -1001,7 +1001,7 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.0.101; hardware = inside; }

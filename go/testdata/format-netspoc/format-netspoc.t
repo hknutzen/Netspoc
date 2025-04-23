@@ -881,11 +881,11 @@ network:n1 = { ip = 10.1.1.0/24;
   ip = 9.1.1.0/24;
   dynamic;
  }
- radius_attributes = { banner = hello again; }
+ vpn_attributes = { banner = hello again; }
  nat:n2 = { ip = 8.1.1.0/24; }
 # range
 host:range3-5 = { range = 10.1.1.3-10.1.1.5; } # range
-host:h2 = { ip = 10.1.1.2; radius_attributes={ banner= hello h2;}}
+host:h2 = { ip = 10.1.1.2; vpn_attributes={ banner= hello h2;}}
 host:h10 = { ip =10.1.1.10; owner = o1; }
 host:h9 = { ip =10.1.1.9; owner = o1; } # h9
 # long
@@ -897,13 +897,13 @@ host:nat = { ip = 10.1.1.11; nat:n = { ip = 9.1.1.11; } }
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:n = { ip = 9.1.1.0/24; dynamic; }
- radius_attributes = {
+ vpn_attributes = {
   banner = hello again;
  }
  nat:n2 = { ip = 8.1.1.0/24; }
  host:h2 = {
   ip = 10.1.1.2;
-  radius_attributes = {
+  vpn_attributes = {
    banner = hello h2;
   }
  }

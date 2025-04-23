@@ -2528,7 +2528,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.1.101; hardware = inside; }
@@ -2558,13 +2558,13 @@ router:softclients1 = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen zurück;
  }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:bar@domain.x = {
   ip = 10.99.1.11;
-  radius_attributes = {
+  vpn_attributes = {
    banner = Willkommen zu Hause;
   }
  }
@@ -2578,20 +2578,20 @@ router:softclients2 = {
 }
 network:customers2 = {
  ip = 10.99.2.0/24;
- radius_attributes = {
+ vpn_attributes = {
   vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
  }
  host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63;
-  radius_attributes = {
+  vpn_attributes = {
    split-tunnel-policy = tunnelspecified;
    check-subject-name = ou;
   }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = {
+  vpn_attributes = {
    vpn-idle-timeout = 40;
    trust-point = ASDM_TrustPoint3;
   }
@@ -2607,7 +2607,7 @@ router:softclients3 = {
 network:customers3 = {
  ip = 10.99.3.0/24;
  cert_id = cert.example.com;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint2;
   authentication-server-group = LDAPGROUP_3;
   authorization-server-group = LDAPGROUP_3;
@@ -2690,7 +2690,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.1.101; hardware = inside; }
@@ -2717,12 +2717,12 @@ router:softclients1 = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen zurück;
  }
  host:id:bar@domain.x = {
   ip = 10.99.1.11;
-  radius_attributes = {
+  vpn_attributes = {
    banner = Willkommen zu Hause;
   }
  }
@@ -2768,7 +2768,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.1.101; hardware = inside; }
@@ -2795,13 +2795,13 @@ router:softclients2 = {
 }
 network:customers2 = {
  ip = 10.99.2.0/24;
- radius_attributes = {
+ vpn_attributes = {
   vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = {
+  vpn_attributes = {
    vpn-idle-timeout = 40;
    trust-point = ASDM_TrustPoint3;
   }
@@ -2849,7 +2849,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.1.101; hardware = inside; }
@@ -2876,7 +2876,7 @@ router:softclients1 = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen zurück;
  }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
@@ -2914,7 +2914,7 @@ router:softclients1 = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen zurück;
  }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
@@ -2969,7 +2969,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = { ip = 10.1.1.101; hardware = inside; }
@@ -2997,7 +2997,7 @@ router:softclients3 = {
 network:customers3 = {
  ip = 10.99.3.0/24;
  cert_id = cert.example.com;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint2;
   authentication-server-group = LDAPGROUP_3;
   authorization-server-group = LDAPGROUP_3;

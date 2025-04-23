@@ -966,7 +966,7 @@ func (c *spoc) setupNetwork1(v *ast.Network, n *network) {
 			n.certId = c.getSingleValue(a, name)
 		case "ldap_append":
 			n.ldapAppend = c.getSingleValue(a, name)
-		case "radius_attributes", "vpn_attributes":
+		case "vpn_attributes":
 			n.vpnAttributes = c.getVPNAttributes(a, name)
 		case "partition":
 			n.partition = c.getIdentifier(a, name)
@@ -1141,7 +1141,7 @@ func (c *spoc) setupHost1(v *ast.Attribute, n *network) *host {
 			h.owner = c.getRealOwnerRef(a, name)
 		case "ldap_id":
 			h.ldapId = c.getSingleValue(a, name)
-		case "radius_attributes", "vpn_attributes":
+		case "vpn_attributes":
 			h.vpnAttributes = c.getVPNAttributes(a, name)
 		case "auto_ipv6_hosts":
 			h.autoIPv6Hosts = c.getAutoIPv6Hosts(a, name)
@@ -1531,7 +1531,7 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router) {
 			r.routingDefault = c.getRouting(a, name)
 		case "owner":
 			r.owner = c.getRealOwnerRef(a, name)
-		case "radius_attributes", "vpn_attributes":
+		case "vpn_attributes":
 			r.vpnAttributes = c.getVPNAttributes(a, name)
 		case "policy_distribution_point":
 			r.policyDistributionPoint = c.tryHostRef(a, name)

@@ -119,7 +119,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:dmz = {

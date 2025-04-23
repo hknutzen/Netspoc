@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- Attribute 'radius_attributes' is no longer valid.
+  Use 'vpn_attributes' instead.
+
 ### Changed
 
 - Fixed inversed inheritance at unnamed aggregate:

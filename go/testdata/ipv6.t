@@ -271,7 +271,7 @@ network:n1 = { ip6 = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:n1 = {

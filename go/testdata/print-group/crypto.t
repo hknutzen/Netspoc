@@ -50,7 +50,7 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- radius_attributes = {
+ vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
@@ -76,36 +76,36 @@ router:softclients = {
 }
 network:customers1 = {
  ip = 10.99.1.0/24;
- radius_attributes = {
+ vpn_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
  host:id:bar@domain.x = {
   ip = 10.99.1.11;
-  radius_attributes = { split-tunnel-policy = tunnelall;
+  vpn_attributes = { split-tunnel-policy = tunnelall;
                         banner = Willkommen zu Hause; }
  }
  host:id:baz@domain.x = {
   ip = 10.99.1.12;
-  radius_attributes = { anyconnect-custom_perapp = SomeName; }
+  vpn_attributes = { anyconnect-custom_perapp = SomeName; }
  }
  host:id:unused@domain.x = {
   ip = 10.99.1.254;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
  }
 }
 network:customers2 = {
  ip = 10.99.2.0/24;
- radius_attributes = {
+ vpn_attributes = {
   vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
   }
  host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63;
-  radius_attributes = { split-tunnel-policy = tunnelspecified;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou;#
                         authorization-server-group = LDAP_1;
                         username-from-certificate = CN;
@@ -114,12 +114,12 @@ network:customers2 = {
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40;
+  vpn_attributes = { vpn-idle-timeout = 40;
                         trust-point = ASDM_TrustPoint3; }
  }
  host:id:zzz = {
   range = 10.99.2.128 - 10.99.2.191;
-  radius_attributes = { split-tunnel-policy = tunnelspecified;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified;
                         check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2;
                         check-subject-name = ou; }
  }
