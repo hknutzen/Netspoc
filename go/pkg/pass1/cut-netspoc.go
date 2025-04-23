@@ -602,9 +602,6 @@ func (c *spoc) cutNetspoc(
 
 	// Mark bridge and bridged networks.
 	for _, n := range c.allNetworks {
-		if n.name == "network:INET_TR_STR_A_HH_1226_1227/1226" {
-			n.name += ""
-		}
 		if !isUsed[n.name] {
 			continue
 		}
