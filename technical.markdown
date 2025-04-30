@@ -602,7 +602,7 @@ Next hop information is generated then for zone interface pairs and
 single zone interfaces, using the zones general next hop information
 generated before.
 
-### Working on paths
+## Working on paths
 
 Throughout the Netspoc program workflow, paths from rule sources to
 destinations are processed several times, for example to generate ACL
@@ -631,7 +631,7 @@ Due to special cases like pathrestrictions and loops, the basic
 algorithm described above has several extensions, that are supposed to
 be explained in detail.
 
-#### Marking paths in cycles
+### Marking paths in cycles
 
 For paths leading through loops, path information that is attached to
 interfaces is not sufficient: within the loop, several paths to a
@@ -720,7 +720,7 @@ not within the set of purposeful loops, the node to enter can not lie
 on the searched path. It can therefore be excluded from the serach
 space.
 
-#### Dealing with path restrictions
+### Dealing with path restrictions
 
 As soon as pathrestrictions are added to the topology, lots of special
 cases and side effects have to be considered when marking paths.
@@ -754,7 +754,7 @@ Just some notes for now:
   be performed.
 
 
-#### PathWalk {#path_walk}
+### PathWalk {#path_walk}
 
 For a given rule, path walk applies a function that is specified
 within the arguments at every router or zone node of the path from
