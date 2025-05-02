@@ -964,13 +964,7 @@ func isRedundanyGroup(intfs intfList) bool {
 }
 
 func redundancyEq(l1, l2 intfList) bool {
-	if len(l1) != len(l2) {
-		return false
-	}
-	if l1[0] != l2[0] {
-		return false
-	}
-	return true
+	return len(l1) == len(l2) && l1[0] == l2[0]
 }
 
 func getMainInterface(intf *routerIntf) *routerIntf {
