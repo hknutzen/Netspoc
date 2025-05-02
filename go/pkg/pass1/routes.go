@@ -796,14 +796,9 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			c.singlePathWalk(realIntf, peerNet, walk, "Zone")
 
 			intfEq := func(l intfList) bool {
-				i0 := l[0]
-				rest := l[1:]
-				for _, i := range rest {
-					if i != i0 {
-						return false
-					}
-				}
-				return true
+				return !slices.ContainsFunc(l[1:], func(el *routerIntf) bool {
+					return el != l[0]
+				})
 			}
 			if !intfEq(hops) && !isRedundanyGroup(hops) {
 
