@@ -252,6 +252,44 @@ route n2 0.0.0.0 0.0.0.0 10.1.2.3
 =END=
 
 ############################################################
+=TITLE=No default route together with internet.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:inet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:inet = { ip = 0.0.0.1; hardware = inet; }
+}
+router:r3 = {
+ interface:n2 = { ip = 10.1.2.3; }
+ interface:n3;
+ interface:n4;
+}
+service:s1 = {
+ user = network:n2, network:n3, network:n4, network:inet;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 0.0.0.0 0.0.0.0 10.1.2.2
+route n2 10.1.3.0 255.255.255.0 10.1.2.3
+route n2 10.1.4.0 255.255.255.0 10.1.2.3
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =INPUT=
 network:N = { ip = 10.1.1.0/24; }

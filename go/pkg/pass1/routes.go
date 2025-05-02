@@ -94,7 +94,7 @@ A cluster is a maximal set of connected networks of the security
 zone surrounded by hop interfaces. Clusters can be empty.
 
 Optimization:
-A default route I.routeInZone[network00] = H is stored for those
+A default route I.routeInZone[nil] = H is stored for those
 border interfaces, that reach networks in zone via a single hop.
 */
 func (c *spoc) setRoutesInZone(z *zone) {
@@ -258,7 +258,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 				// Spare reachable network specification.
 				// debug("Default hop intf->{name} ",
 				//        join(',', map {$_->{name}} hop_intf));
-				intf.routeInZone[c.network00] = hopIntf[0]
+				intf.routeInZone[nil] = hopIntf[0]
 			}
 			// Proceed with next border network.
 			continue
@@ -316,7 +316,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 
 func (c *spoc) getHopInZone(in *routerIntf, n *network) *routerIntf {
 	routeInZone := in.routeInZone
-	h := routeInZone[c.network00]
+	h := routeInZone[nil]
 	if h == nil {
 		h = routeInZone[n]
 	}
