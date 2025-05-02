@@ -292,7 +292,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 							delete(singleVirtualHops, other)
 						} else {
 							c.err("Two static routes for %s\n at %s via %s and %s",
-								n, intf, h, other)
+								n.vxName(), intf, h, other)
 						}
 					} else {
 						intf.routeInZone[n] = h

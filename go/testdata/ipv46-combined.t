@@ -616,6 +616,35 @@ Error: Can't generate static routes for IPv6 interface:r1.n2 because IP address 
 =END=
 
 ############################################################
+=TITLE=Two static routes only for IPv6
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+router:r = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; ip6 = 2001:db8:9:1::1; hardware = t1; }
+}
+network:t1 = { ip = 10.9.1.0/29; ip6 = 2001:db8:9:1::/64; }
+router:h1 = {
+ interface:t1 = { ip = 10.9.1.2; ip6 = 2001:db8:9:1::2; hardware = t1; }
+ interface:n2;
+}
+router:h2 = {
+ interface:t1 = { ip6 = 2001:db8:9:1::3; hardware = t1; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: Two static routes for IPv6 network:n2
+ at interface:r.t1 via interface:h2.t1 and interface:h1.t1
+=END=
+
+############################################################
 =TITLE=Rule beween v4 and v6 network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
