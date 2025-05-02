@@ -580,7 +580,8 @@ func (c *spoc) linkPathrestrictions() {
 	j := 0
 	for _, p := range c.pathrestrictions {
 		if other := isRedundantTo(p); other != nil {
-			c.diag("Removed %s; is subset of %s", p.name, other.name)
+			c.diag("Removed %s; is subset of %s",
+				vxName(p.name, p.elements[0].ipV6, p.combined46 != nil), other.name)
 		} else {
 			addToIntf(p)
 			c.pathrestrictions[j] = p
