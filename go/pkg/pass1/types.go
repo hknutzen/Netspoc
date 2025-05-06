@@ -394,7 +394,6 @@ type routerIntf struct {
 	routes          map[*network]intfList
 	routing         *mcastProto
 	rules           ruleList
-	splitOther      *routerIntf
 	intfRules       ruleList
 	outRules        ruleList
 	idRules         map[string]*idIntf

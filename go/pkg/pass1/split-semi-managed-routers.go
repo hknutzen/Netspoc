@@ -85,13 +85,6 @@ func (c *spoc) splitSemiManagedRouters() {
 			n.interfaces = intfList{intf1, intf2}
 			nr.interfaces = intfList{intf2, intf}
 
-			// Add reference to other interface at original interface
-			// at newly created router. This is needed for post
-			// processing in checkPathrestrictions.
-			if intf.pathRestrict != nil {
-				intf.splitOther = intf2
-			}
-
 			// Replace original interface at current router.
 			r.interfaces[i] = intf1
 		}

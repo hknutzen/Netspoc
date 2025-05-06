@@ -420,12 +420,13 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 		loop := getIntfLoop(intf)
 
 		// If a pathrestricted interface is applied to an umanaged
-		// router, the router is split into an unmanaged and a managed
+		// router, the router has been split into an unmanaged and a managed
 		// router. The managed part has exactly two non secondary
 		// interfaces. Move pathrestriction to the interface that is
 		// located at border of loop.
-		if loop == nil && intf.splitOther != nil {
-			other := intf.splitOther
+		if loop == nil && intf.router.origRouter != nil {
+			// Take artificial interface created by splitSemiManagedRouters.
+			other := intf.router.interfaces[0]
 			if loop = other.zone.loop; loop != nil {
 				intf = other
 			}
