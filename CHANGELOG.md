@@ -11,11 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Attribute 'radius_attributes' is no longer valid.
   Use 'vpn_attributes' instead.
 
-### Changed
+### Fixed
 
 - Fixed inversed inheritance at unnamed aggregate:
     - Contained unnamed aggregate is ignored.
     - Unnamed aggregate no longer inherits from enclosing unnamed aggregate.
+
+- Fixed static route with sole virtual interface as next hop.
+  Use IP of virtual interface instead of physical interface.
 
 ## [2025-04-17-1102]
 

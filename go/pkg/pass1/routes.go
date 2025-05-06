@@ -271,7 +271,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 		for _, h := range hopIntf {
 			setNetworksBehind(h, border)
 			group := h.redundancyIntfs
-			if group != nil {
+			if len(group) > 1 {
 				singleVirtualHops[h] = true
 			}
 
