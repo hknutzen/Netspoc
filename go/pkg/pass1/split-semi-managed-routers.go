@@ -7,7 +7,7 @@ package pass1
 // one or a few pathrestrictions or bind_nat attached, we would get a
 // large number of useless zones.
 // To reduce the number of newly created zones, we split an unmanaged
-// router with pathrestrictions or bind_nat, if it has more than two
+// router with pathrestrictions or bind_nat, if it has two or more
 // interfaces without any pathrestriction or bind_nat:
 // - original part having only interfaces without pathrestriction or bind_nat,
 // - one split part for each interface with pathrestriction or bind_nat.
