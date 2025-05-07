@@ -46,8 +46,7 @@ func (c *spoc) splitSemiManagedRouters() {
 		}
 
 		// Split router into two or more parts.
-		// Move each interface with pathrestriction or bind_nat and
-		// corresponding secondary interface to new router.
+		// Move each interface with pathrestriction or bind_nat to new router.
 		for i, intf := range r.interfaces {
 			if intf.pathRestrict == nil && intf.bindNat == nil {
 				continue
