@@ -252,6 +252,44 @@ ipv6 route n2 ::/0 ::a01:203
 =END=
 
 ############################################################
+=TITLE=No default route together with internet.
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:inet = { ip6 = ::/0; has_subnets; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:inet = { ip6 = ::1; hardware = inet; }
+}
+router:r3 = {
+ interface:n2 = { ip6 = ::a01:203; }
+ interface:n3;
+ interface:n4;
+}
+service:s1 = {
+ user = network:n2, network:n3, network:n4, network:inet;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::/0 ::a01:202
+ipv6 route n2 ::a01:300/120 ::a01:203
+ipv6 route n2 ::a01:400/120 ::a01:203
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =INPUT=
 network:N = { ip6 = ::a01:100/120; }
@@ -285,6 +323,41 @@ service:test = {
 =OUTPUT=
 --ipv6/asa
 ipv6 route outside ::a01:100/120 ::a09:902
+=END=
+
+############################################################
+=TITLE=Route to unmanged single virtual interface
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip6 = ::a01:203; virtual = { ip6 = ::a01:201; } }
+ interface:n3;
+}
+# Need a second route to prevent optimization
+# which would generate a default route.
+router:r3 = {
+ interface:n2 = { ip6 = ::a01:204; }
+ interface:n4;
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:300/120 ::a01:201
 =END=
 
 ############################################################

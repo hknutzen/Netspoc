@@ -1125,7 +1125,7 @@ router:r2 = {
 }
 router:r3 = {
  interface:n4 = { ip6 = ::a01:403; hardware = n4; }
- interface:n5= { ip6 = ::a01:501; hardware = n1; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
 }
 service:s1 = {
  user = network:n1;
