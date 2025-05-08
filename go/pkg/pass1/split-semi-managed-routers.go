@@ -45,13 +45,7 @@ func (c *spoc) splitSemiManagedRouters() {
 			r.origIntfs = append(r.origIntfs, r.interfaces...)
 		}
 
-		// Split router into two or more parts.
-		// Move each interface with pathrestriction or bind_nat to new router.
-		for i, intf := range r.interfaces {
-			if intf.pathRestrict == nil && intf.bindNat == nil {
-				continue
-			}
-
+		split := func(intf *routerIntf, i int) *router {
 			// Create new semiManged router with identical name.
 			// Add reference to original router having 'origIntfs'.
 			nr := new(router)
@@ -86,7 +80,29 @@ func (c *spoc) splitSemiManagedRouters() {
 
 			// Replace original interface at current router.
 			r.interfaces[i] = intf1
+			return nr
 		}
+		// Split router into two or more parts.
+		// Move each interface with pathrestriction or bind_nat to new router,
+		// - at most one pathrestriction per new router,
+		// - try to combine all bind_nat at single new router.
+		var natRouter *router
+		j := 0
+		for _, intf := range r.interfaces {
+			if intf.pathRestrict == nil && intf.bindNat == nil {
+				r.interfaces[j] = intf
+			} else if natRouter == nil {
+				natRouter = split(intf, j)
+			} else if intf.pathRestrict != nil {
+				split(intf, j)
+			} else {
+				natRouter.interfaces.push(intf)
+				intf.router = natRouter
+				continue
+			}
+			j++
+		}
+		r.interfaces = r.interfaces[:j]
 
 		// Original router is no longer semiManged.
 		r.semiManaged = false

@@ -4681,3 +4681,94 @@ Warning: network:n4 is subnet of network:n1
 =END=
 
 ############################################################
+=TITLE=Must not split NAT domain on split semi managed router
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.8.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { bind_nat = n1; }
+ interface:n4 = { bind_nat = n1; }
+ interface:n5 = { bind_nat = n1; }
+}
+
+=SHOW_DIAG=
+=WARNING=
+DIAG: Found 2 NAT domains
+=END=
+
+############################################################
+=TITLE=Must not split NAT domain with pathrestriction
+# Need at least 2 interfaces without bind_nat and pathrestriction
+# to get splitSemiManagedRouters activated.
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.8.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1; }
+ interface:n5 = { bind_nat = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+pathrestriction:p = interface:r1.n2, interface:r2.n2;
+=SHOW_DIAG=
+=WARNING=
+DIAG: Found 2 NAT domains
+=END=
+
+############################################################
+=TITLE=NAT domain is split on mixed bind_nat and pathrestriction
+# This could be optimized, if interface:r1.n2 is split separately.
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.8.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = n1; }
+ interface:n5 = { bind_nat = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+pathrestriction:p1 = interface:r1.n2, interface:r2.n2;
+pathrestriction:p2 = interface:r1.n5, interface:r2.n2;
+=SHOW_DIAG=
+=WARNING=
+DIAG: Found 3 NAT domains
+=END=

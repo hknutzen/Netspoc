@@ -342,6 +342,9 @@ func (c *spoc) findNatDomains() []*natDomain {
 	if len(errSeen) > 0 {
 		return nil
 	}
+	if count := len(result); count > 1 {
+		c.diag("Found %d NAT domains", count)
+	}
 	return result
 }
 
