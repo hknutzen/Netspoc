@@ -608,6 +608,7 @@ router:u1 = {
  interface:n2;
  interface:n3;
 }
+
 =ERROR=
 Error: Can't generate static routes for IPv4 interface:r1.n2 because IP address is unknown for:
  - interface:u1.n2
@@ -1328,7 +1329,7 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
- interface:n2-v4 = { ip = 10.1.2.1; bind_nat = n1; hardware = n2; }
+ interface:n2-v4 = { ip = 10.1.2.1; nat_out = n1; hardware = n2; }
 }
 service:s1 = {
  user = network:n2-v4;
@@ -1343,7 +1344,7 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
-=TITLE=bind_nat at v6 interface
+=TITLE=nat_out at v6 interface
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -1355,10 +1356,10 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; bind_nat = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; nat_out = n1; }
 }
 =WARNING=
-Warning: Ignoring attribute 'bind_nat' at interface:r1.n2
+Warning: Ignoring attribute 'nat_out' at interface:r1.n2
 Warning: nat:n1 is defined, but not bound to any interface
 =END=
 

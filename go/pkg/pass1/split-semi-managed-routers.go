@@ -32,7 +32,7 @@ func (c *spoc) splitSemiManagedRouters() {
 		// Count interfaces without pathrestriction or bind_nat.
 		count := 0
 		for _, intf := range r.interfaces {
-			if intf.pathRestrict == nil && intf.bindNat == nil {
+			if intf.pathRestrict == nil && intf.natOutgoing == nil {
 				count++
 			}
 		}
@@ -89,7 +89,7 @@ func (c *spoc) splitSemiManagedRouters() {
 		var natRouter *router
 		j := 0
 		for _, intf := range r.interfaces {
-			if intf.pathRestrict == nil && intf.bindNat == nil {
+			if intf.pathRestrict == nil && intf.natOutgoing == nil {
 				r.interfaces[j] = intf
 			} else if natRouter == nil {
 				natRouter = split(intf, j)

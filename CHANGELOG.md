@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Attribute 'radius_attributes' is no longer valid.
   Use 'vpn_attributes' instead.
 
+### Changed
+
+- Changed name of attribute 'bind_nat' to 'nat_out'.
+
+### Added
+
+- Introduced new attribute 'nat_in' at interface of router.
+  "nat_in = t1;" at an interface means:
+  If packets enter this interface, then NAT defined by "nat:t1"
+  is applied at each outgoing interface without "nat_in = t1;".
+  See #23 for details.
+
 ### Fixed
 
 - Fixed inversed inheritance at unnamed aggregate:
@@ -20,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Use IP of virtual interface instead of physical interface.
 - No longer accidently split NAT domain at unmanaged router
   with attribute 'bind_nat'.
+- No longer accidently split NAT domains. This fixes #22.
 
 ## [2025-04-17-1102]
 

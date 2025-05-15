@@ -77,7 +77,7 @@ INTF:
 			if ipp.Contains(intf.ip) {
 
 				// NAT to an interface address (masquerading) is allowed.
-				if tags := intf.bindNat; tags != nil {
+				if tags := intf.natOutgoing; tags != nil {
 					if tag2 := subnet.natTag; tag2 != "" {
 						for _, tag := range tags {
 							if tag == tag2 &&
@@ -248,7 +248,7 @@ func natToLoopbackOk(loopbackNetwork, natNetwork *network) bool {
 		// Check all interfaces of attached device.
 	INTF:
 		for _, allIntf := range loopIntf.router.interfaces {
-			for _, tag := range allIntf.bindNat {
+			for _, tag := range allIntf.natOutgoing {
 				if tag == natTag1 {
 					allDeviceOk++
 					break INTF

@@ -359,7 +359,8 @@ type routerIntf struct {
 	pathStoreData
 	withStdAddr
 	router          *router
-	bindNat         []string
+	natOutgoing     []string
+	natIncoming     []string
 	combined46      *routerIntf
 	dhcpClient      bool
 	dhcpServer      bool

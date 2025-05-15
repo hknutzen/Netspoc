@@ -30,7 +30,7 @@ router:r = {
   nat:n = { ip = 10.9.9.1; }
   nat:n = { ip = 10.8.8.1; }
  }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -67,7 +67,7 @@ network:n1 = {
 }
 router:r = {
  interface:n1;
- interface:n2 = { bind_nat = n; }
+ interface:n2 = { nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -83,7 +83,7 @@ network:n1 = {
 }
 router:r = {
  interface:n1 = { nat:n = { ip = 10.9.9.1; } }
- interface:n2 = { bind_nat = n; }
+ interface:n2 = { nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -98,13 +98,13 @@ network:n1a = {
  nat:t1 = { ip = 10.9.1.0/24; }
 }
 router:r1 = {
- interface:n1a = { bind_nat = t2; }
+ interface:n1a = { nat_out = t2; }
  interface:u;
 }
 network:u = { ip = 10.2.2.0/24; }
 router:r2 = {
  interface:u;
- interface:n1b = { bind_nat = t1; }
+ interface:n1b = { nat_out = t1; }
 }
 network:n1b = {
  ip = 10.1.1.0/24;
@@ -119,7 +119,7 @@ Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:x = { hidden; } }
 router:r = {
- interface:n1 = { bind_nat = x; }
+ interface:n1 = { nat_out = x; }
  interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -145,7 +145,7 @@ router:filter = {
   ip = 10.9.1.1;
   hardware = inside;
  }
- interface:X = { ip = 10.9.3.1; hardware = outside; bind_nat = C;}
+ interface:X = { ip = 10.9.3.1; hardware = outside; nat_out = C;}
 }
 network:X = { ip = 10.9.3.0/24; }
 service:test = {
@@ -177,7 +177,7 @@ network:n1 = {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1;}
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = m; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
@@ -208,7 +208,7 @@ network:n1 = {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1;}
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = m; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
@@ -235,7 +235,7 @@ network:n1 = {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1;}
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = m; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
@@ -273,7 +273,7 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = m; }
 }
 router:r2 = {
  managed;
@@ -324,7 +324,7 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = h1; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 router:r3 = {
@@ -375,7 +375,7 @@ router:r1 = {
 network:t1 = { ip = 10.0.2.0/24; }
 router:u = {
  interface:t1 = { ip = 10.0.2.2; }
- interface:X = { ip = 10.8.3.1; bind_nat = C; }
+ interface:X = { ip = 10.8.3.1; nat_out = C; }
 }
 network:X = { ip = 10.8.3.0/24; }
 router:r2 = {
@@ -421,7 +421,7 @@ router:r1 = {
  managed = routing_only; # Kill mutation test.
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n1; }
 }
 router:r2 = {
  managed;
@@ -430,7 +430,7 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r3 = {
- interface:n3 = { ip = 10.1.3.2; bind_nat = n4; }
+ interface:n3 = { ip = 10.1.3.2; nat_out = n4; }
  interface:n4;
  interface:n5;
 }
@@ -474,9 +474,9 @@ network:n1sub = {
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; bind_nat = n1sub; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; nat_out = n1sub; hardware = n1; }
  interface:l = { ip = 10.1.9.9; loopback; hardware = l; }
- interface:n1sub = { ip = 10.1.1.126; bind_nat = n1;  hardware = n1sub; }
+ interface:n1sub = { ip = 10.1.1.126; nat_out = n1;  hardware = n1sub; }
 }
 =WARNING=
 Warning: IP of host:h65 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
@@ -494,7 +494,7 @@ router:filter = {
  managed;
  model = ASA;
  interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; nat_out = C; }
 }
 network:X = { ip = 10.8.3.0/24; }
 =INPUT=[[input {ip: "10.8.3.240/28", sub: ""}]]
@@ -536,8 +536,8 @@ router:fw =  {
  managed;
  model = ASA;
  routing = manual;
- interface:t1 = { ip = 10.2.1.1; hardware = t1; bind_nat = h2; }
- interface:t2 = { ip = 10.2.2.1; hardware = t2; bind_nat = h1; }
+ interface:t1 = { ip = 10.2.1.1; hardware = t1; nat_out = h2; }
+ interface:t2 = { ip = 10.2.2.1; hardware = t2; nat_out = h1; }
 }
 network:t2 = { ip = 10.2.2.0/24; }
 router:r2 = {
@@ -580,7 +580,7 @@ router:asa1 = {
  model = ASA;
  routing = manual;
  interface:n1_sub = { ip = 10.1.1.65; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = N; }
 }
 service:s1 = {
     user = network:n1_sub;
@@ -617,19 +617,19 @@ router:filter = {
  model = ASA;
  interface:n1 = { ip = 10.0.1.2; hardware = n1; }
  interface:n2 = { ip = 10.0.2.2; hardware = n2; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D, E; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; nat_out = C, D, E; }
 }
 network:X = { ip = 10.8.3.0/24; }
 =END=
 # Only first error is shown.
 =ERROR=
-Warning: Ignoring useless nat:E bound at interface:filter.X
+Warning: Ignoring useless 'nat_out = E' at interface:filter.X
 Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
  - interface:filter.X
 =END=
 
 ############################################################
-=TITLE=Check bind_nat at hardware interface
+=TITLE=Check nat_out at hardware interface
 =INPUT=
 network:n1a =  { ip = 10.0.1.0/26; }
 network:n1b =  { ip = 10.0.1.64/26; }
@@ -638,7 +638,7 @@ network:n2 =  { ip = 10.0.2.0/24; nat:n2 = { ip = 10.8.2.0/24; } }
 router:r = {
  managed;
  model = ASA;
- interface:n1a = { ip = 10.0.1.1; hardware = n1; bind_nat = n2; }
+ interface:n1a = { ip = 10.0.1.1; hardware = n1; nat_out = n2; }
  interface:n1b = { ip = 10.0.1.65; hardware = n1; }
  interface:n1c = { ip = 10.0.1.129; hardware = n1; }
  interface:n2 = { ip = 10.0.2.1; hardware = n2; }
@@ -661,13 +661,13 @@ router:filter = {
  managed;
  model = ASA;
  interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D, E/F, D; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; nat_out = D, E/F, D; }
 }
 network:X = { ip = 10.8.3.0/24; }
 =WARNING=
-Warning: Ignoring duplicate element in 'bind_nat' of interface:filter.X
-Warning: Ignoring useless nat:D bound at interface:filter.X
-Warning: Ignoring useless nat:E/F bound at interface:filter.X
+Warning: Ignoring duplicate element in 'nat_out' of interface:filter.X
+Warning: Ignoring useless 'nat_out = D' at interface:filter.X
+Warning: Ignoring useless 'nat_out = E/F' at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
 =END=
 
@@ -679,20 +679,20 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = i; }
+ interface:n2 = { nat_out = i; }
 }
 router:r2 = {
  interface:n2;
- interface:n3 = { bind_nat = h; }
+ interface:n3 = { nat_out = h; }
 }
 router:r3 = {
- interface:n3 = { bind_nat = h; }
+ interface:n3 = { nat_out = h; }
  interface:n1;
 }
 =WARNING=
-Warning: Ignoring useless nat:i bound at interface:r1.n2
-Warning: Ignoring useless nat:h bound at interface:r2.n3
-Warning: Ignoring useless nat:h bound at interface:r3.n3
+Warning: Ignoring useless 'nat_out = i' at interface:r1.n2
+Warning: Ignoring useless 'nat_out = h' at interface:r2.n3
+Warning: Ignoring useless 'nat_out = h' at interface:r3.n3
 =END=
 
 ############################################################
@@ -707,8 +707,8 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:n4 = { bind_nat = n1, n2, n3; }
- interface:n5 = { bind_nat = n1, n2, n3; }
+ interface:n4 = { nat_out = n1, n2, n3; }
+ interface:n5 = { nat_out = n1, n2, n3; }
 }
 =WARNING=
 Warning: nat:n1 and nat:n2 are bound to same interfaces
@@ -732,9 +732,9 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:n4 = { bind_nat = n1, n2; }
- interface:n5 = { bind_nat = n2, n3; }
- interface:n6 = { bind_nat = n1, n3; }
+ interface:n4 = { nat_out = n1, n2; }
+ interface:n5 = { nat_out = n2, n3; }
+ interface:n6 = { nat_out = n1, n3; }
 }
 =WARNING=NONE
 
@@ -750,8 +750,8 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:n4 = { bind_nat = n1, n2; }
- interface:n5 = { bind_nat = n1, n3; }
+ interface:n4 = { nat_out = n1, n2; }
+ interface:n5 = { nat_out = n1, n3; }
 }
 =WARNING=NONE
 
@@ -761,7 +761,7 @@ router:r1 = {
 network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.8.8.0/23; } }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -778,7 +778,7 @@ network:n1 =  {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
- interface:n2 = { bind_nat = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -796,7 +796,7 @@ network:n1 =  {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
- interface:n2 = { bind_nat = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =WARNING=
@@ -814,7 +814,7 @@ network:n1 =  {
 }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -831,7 +831,7 @@ network:n1 =  {
 }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=
@@ -850,7 +850,7 @@ network:n1 = {
 }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = d; }
+ interface:n2 = { nat_out = d; }
 }
 network:n2 = { ip = 10.2.2.0/24; }
 =ERROR=
@@ -867,7 +867,7 @@ network:n1 =  {
 }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1, 10.1.1.2; nat:x = { ip = 10.8.8.1; } }
- interface:t1 = { ip = 10.1.9.1; bind_nat = x; }
+ interface:t1 = { ip = 10.1.9.1; nat_out = x; }
 }
 network:t1 = { ip = 10.1.9.0/24; }
 router:filter = {
@@ -891,12 +891,12 @@ Error: interface:r1.n1.2 needs static translation for nat:x at router:filter to 
 =INPUT=
 network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = x; }
- interface:n2 = { bind_nat = x; }
+ interface:n1 = { nat_out = x; }
+ interface:n2 = { nat_out = x; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =WARNING=
-Warning: Ignoring nat:x without effect, bound at every interface of router:r1
+Warning: Ignoring 'nat_out = x' without effect, applied at every interface of router:r1
 =END=
 
 ############################################################
@@ -905,16 +905,16 @@ Warning: Ignoring nat:x without effect, bound at every interface of router:r1
 network:n1 =  { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 router:u = {
  interface:n1;
- interface:n2 = { bind_nat = n1; }
+ interface:n2 = { nat_out = n1; }
 }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
 router:r1 = {
- interface:n2 = { bind_nat = n1; }
- interface:n3 = { bind_nat = n1, n2; }
+ interface:n2 = { nat_out = n1; }
+ interface:n3 = { nat_out = n1, n2; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
 =WARNING=
-Warning: Ignoring nat:n1 without effect, bound at every interface of router:r1
+Warning: Ignoring 'nat_out = n1' without effect, applied at every interface of router:r1
 =END=
 
 ############################################################
@@ -925,17 +925,17 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  interface:n1;
- interface:n3 = { bind_nat = x; }
- interface:n2 = { bind_nat = x; }
+ interface:n3 = { nat_out = x; }
+ interface:n2 = { nat_out = x; }
 }
 router:r2 = {
  interface:n2;
- interface:n3 = { bind_nat = x; }
+ interface:n3 = { nat_out = x; }
 }
 =ERROR=
-Error: Inconsistent bind_nat in loop
+Error: Inconsistent NAT in loop
  - interface:r2.n2: (none)
- - interface:r2.n3: bind_nat = x
+ - interface:r2.n3: nat_out = x
 =END=
 
 ############################################################
@@ -952,7 +952,7 @@ router:C = {
  {{.}}
  model = IOS;
  interface:Test = { ip = 10.9.1.1; hardware = inside; nat:C = { ip = 1.9.2.11; }}
- interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; nat_out = C;}
 }
 network:Trans = { ip = 10.0.0.0/24; }
 router:filter = {
@@ -1003,13 +1003,13 @@ router:S = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1;}
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = S; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = S; }
 }
 router:C = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n1;}
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = D; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = D; }
 }
 router:filter = {
  managed;
@@ -1039,7 +1039,7 @@ router:S = {
  managed = secondary;
  model = ASA;
  interface:Test = { ip = 10.9.1.1; hardware = inside;}
- interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; nat_out = C;}
 }
 network:Trans = { ip = 10.0.0.0/24; }
 router:R = {
@@ -1081,7 +1081,7 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:a = {ip = 10.1.1.1; hardware = a; bind_nat = b;}
+ interface:a = {ip = 10.1.1.1; hardware = a; nat_out = b;}
  interface:t = {ip = 10.4.4.1; hardware = t;}
 }
 network:t = { ip = 10.4.4.0/30; }
@@ -1134,7 +1134,7 @@ router:r3 = {
  managed;
  model = IOS;
  routing = manual;
- interface:c = {ip = 10.3.3.1; hardware = c; bind_nat = b; }
+ interface:c = {ip = 10.3.3.1; hardware = c; nat_out = b; }
  interface:t = {ip = 10.4.4.3; hardware = t;}
 }
 network:t = { ip = 10.4.4.0/24; }
@@ -1214,7 +1214,7 @@ router:r3 = {
  model = ASA;
  routing = manual;
  interface:c = {ip = 10.3.3.2; hardware = c; }
- interface:d = {ip = 10.5.5.1; hardware = d; bind_nat = b; }
+ interface:d = {ip = 10.5.5.1; hardware = d; nat_out = b; }
 }
 network:d = { ip = 10.5.5.0/24; }
 service:s1 = {
@@ -1267,7 +1267,7 @@ router:r2 = {
  model = IOS, FW;
  managed;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = n1; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
 service:n1 = {
@@ -1310,7 +1310,7 @@ router:r2 = {
  model = IOS, FW;
  managed;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = n1; }
 }
 router:r3 = {
  model = ASA;
@@ -1361,13 +1361,13 @@ router:r2 = {
  model = IOS, FW;
  managed;
  interface:n2 = { ip = 10.1.2.2; virtual = { ip = 10.1.2.9; } hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = n1; }
 }
 router:r3 = {
  model = IOS, FW;
  managed;
  interface:n2 = { ip = 10.1.2.3; virtual = { ip = 10.1.2.9; } hardware = n2; }
- interface:n3 = { ip = 10.1.3.3; hardware = n3; bind_nat = n1; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; nat_out = n1; }
 }
 service:n1 = {
  user = host:h1;
@@ -1411,13 +1411,13 @@ router:r3 = {
  model = ASA;
  managed = primary;
  interface:n3 = { ip = 10.1.3.3; hardware = n3; }
- interface:n4 = { ip = 10.1.4.3; hardware = n4; bind_nat = n1; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; nat_out = n1; }
 }
 router:r4 = {
  model = ASA;
  managed;
  interface:n3 = { ip = 10.1.3.4; hardware = n3; }
- interface:n4 = { ip = 10.1.4.4; hardware = n4; bind_nat = n1; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n4; nat_out = n1; }
 }
 service:n1 = {
  user = host:h1;
@@ -1460,7 +1460,7 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n1sub = { ip = 10.1.1.129; hardware = outside; }
- interface:n2    = { ip = 10.1.2.1;   hardware = inside; bind_nat = N; }
+ interface:n2    = { ip = 10.1.2.1;   hardware = inside; nat_out = N; }
 }
 network:n2 = { ip = 10.1.2.0/24;}
 router:r3 = {
@@ -1518,7 +1518,7 @@ router:r2 = {
  model = IOS,FW;
  routing = manual;
  interface:b1 = { ip = 10.2.2.2; hardware = b1; }
- interface:X = { ip = 10.1.1.2; hardware = X; bind_nat = d; }
+ interface:X = { ip = 10.1.1.2; hardware = X; nat_out = d; }
 }
 network:X = { ip = 10.1.1.0/24; }
 service:test = {
@@ -1592,7 +1592,7 @@ router:r1 = {
  model = IOS,FW;
  routing = manual;
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
- interface:X = { ip = 10.2.1.2; hardware = X; bind_nat = d; }
+ interface:X = { ip = 10.2.1.2; hardware = X; nat_out = d; }
 }
 network:X = { ip = 10.2.1.0/24; subnet_of = network:n; }
 service:s1 = {
@@ -1648,7 +1648,7 @@ router:r1 = {
  model = IOS,FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.65; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:n1 = {
@@ -1685,7 +1685,7 @@ router:filter = {
  managed;
  model = ASA;
  interface:x = { ip = 10.0.0.2; hardware = inside; }
- interface:y = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+ interface:y = { ip = 10.8.3.1; hardware = outside; nat_out = C; }
 }
 network:y = { ip = 10.8.3.0/24; }
 =WARNING=
@@ -1731,7 +1731,7 @@ router:r2 = {
  model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
 =WARNING=
@@ -1774,7 +1774,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = n; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = n; }
 }
 =WARNING=
 Warning: Useless nat:n of any:n1,
@@ -1801,15 +1801,15 @@ network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:u = {
  interface:n1;
- interface:n2 = { bind_nat = n; }
+ interface:n2 = { nat_out = n; }
 }
 router:r1 = {
  model = ASA;
  managed;
  routing = manual;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h2; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = h2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = h1; }
 }
 =WARNING=NONE
 
@@ -1828,7 +1828,7 @@ router:r1 = {
 }
 router:r2 = {
  interface:n2= { ip = 10.2.2.2; }
- interface:n3 = { bind_nat = h; }
+ interface:n3 = { nat_out = h; }
 }
 =WARNING=
 Warning: Useless nat:h of network:n1,
@@ -1849,7 +1849,7 @@ router:r1 = {
 }
 router:r2 = {
  interface:n2= { ip = 10.1.1.2; }
- interface:n3 = { bind_nat = h; }
+ interface:n3 = { nat_out = h; }
 }
 =WARNING=
 Warning: Useless nat:h of network:n2,
@@ -1870,7 +1870,7 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =WARNING=
@@ -1888,8 +1888,8 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n0 = { ip = 192.0.0.1; hardware = n0; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
- interface:n2 = { ip = 172.17.2.1; hardware = n2; bind_nat = a1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = a2; }
+ interface:n2 = { ip = 172.17.2.1; hardware = n2; nat_out = a1; }
 }
 network:n2 = { ip = 172.17.2.0/24; }
 router:r2 = {
@@ -1931,7 +1931,7 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = a2; }
  interface:n0 = { ip = 192.168.0.1; hardware = n0; }
 }
 router:r2 = {
@@ -1978,7 +1978,7 @@ router:r1 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = a2; }
  interface:n2 = { ip = 172.17.2.1; hardware = n2; }
 }
 network:n2 = { ip = 172.17.2.0/24; }
@@ -2000,7 +2000,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = a2; }
  interface:n2 = { ip = 172.17.2.1; hardware = n2; }
 }
 network:n2 = { ip = 172.17.2.0/24; }
@@ -2027,7 +2027,7 @@ router:r2 = {
  managed;
  model = Linux;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = dyn; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = dyn; }
 }
 service:s = {
  user = interface:asa1.n2;
@@ -2045,7 +2045,7 @@ network:a = { ip = 10.1.1.0/24;}
 router:r1 = {
  managed;
  model = IOS;
- interface:a = {ip = 10.1.1.1; hardware = E1; bind_nat = b;}
+ interface:a = {ip = 10.1.1.1; hardware = E1; nat_out = b;}
  interface:t = {ip = 10.4.4.1; hardware = E2;}
 }
 network:t = { ip = 10.4.4.0/30; }
@@ -2077,7 +2077,7 @@ network:n6 = { ip = 10.1.6.0/24; }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = d1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = d1; }
 }
 router:r2 = {
  managed;
@@ -2087,8 +2087,8 @@ router:r2 = {
 }
 router:r3 = {
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h2; }
- interface:n6 = { ip = 10.1.6.1; hardware = n6; bind_nat = h3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = h2; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; nat_out = h3; }
 }
 service:s1 = {
  user = host:h1, network:n2, network:n3;
@@ -2131,7 +2131,7 @@ network:n4 = {
 
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
- interface:n2 = { ip = 10.1.2.1; bind_nat = n1;
+ interface:n2 = { ip = 10.1.2.1; nat_out = n1;
  }
 }
 router:r2 = {
@@ -2141,7 +2141,7 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r3 = {
- interface:n3 = { ip = 10.1.3.2; bind_nat = n4; }
+ interface:n3 = { ip = 10.1.3.2; nat_out = n4; }
  interface:n4 = { ip = 10.1.4.1; nat:n4 = { ip = 1.9.4.21; } }
 }
 service:s1 = {
@@ -2187,7 +2187,7 @@ router:r2 = {
  managed;
  model = Linux;
  routing = manual;
- interface:t = {ip = 10.4.4.2; hardware = t; bind_nat = b;}
+ interface:t = {ip = 10.4.4.2; hardware = t; nat_out = b;}
  interface:b = {ip = 10.2.2.1; hardware = b;}
 }
 network:b  = { ip = 10.2.2.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
@@ -2212,7 +2212,7 @@ router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:t1 = { ip = 10.1.9.1; hardware = t1; bind_nat = x; }
+ interface:t1 = { ip = 10.1.9.1; hardware = t1; nat_out = x; }
 }
 network:t1 = { ip = 10.1.9.0/24; }
 router:filter = {
@@ -2243,14 +2243,14 @@ router:r1 =  {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:t  = { ip = 10.2.3.1; hardware = t; bind_nat = t1; }
+ interface:t  = { ip = 10.2.3.1; hardware = t; nat_out = t1; }
 }
 network:t = { ip = 10.2.3.0/24; }
 router:r2 =  {
  managed;
  model = ASA;
  interface:t  = { ip = 10.2.3.2; hardware = t; }
- interface:k = { ip = 10.2.2.2; hardware = k; bind_nat = t2; }
+ interface:k = { ip = 10.2.2.2; hardware = k; nat_out = t2; }
 }
 network:k = { ip = 10.2.2.0/24; }
 =INPUT=[[input nat:t1]]
@@ -2297,19 +2297,19 @@ network:n4 = {
 router:r1 =  {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = t4a; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = t4b; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = t4a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = t4b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = h3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
- interface:t  = { ip = 10.2.3.1; hardware = t; bind_nat = t1, t3; }
+ interface:t  = { ip = 10.2.3.1; hardware = t; nat_out = t1, t3; }
 }
 network:t = { ip = 10.2.3.0/24; }
 router:r2 =  {
  managed;
  model = ASA;
- interface:t  = { ip = 10.2.3.2; hardware = t; bind_nat = t1; }
- interface:k1 = { ip = 10.2.1.2; hardware = k1; bind_nat = h1; }
- interface:k2 = { ip = 10.2.2.2; hardware = k2; bind_nat = h2; }
+ interface:t  = { ip = 10.2.3.2; hardware = t; nat_out = t1; }
+ interface:k1 = { ip = 10.2.1.2; hardware = k1; nat_out = h1; }
+ interface:k2 = { ip = 10.2.2.2; hardware = k2; nat_out = h2; }
 }
 network:k1 = { ip = 10.2.1.0/24; }
 network:k2 = { ip = 10.2.2.0/24; }
@@ -2337,16 +2337,16 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = t3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = t3; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t  = { ip = 10.2.0.1; hardware = t; bind_nat = t1, t3; }
+ interface:t  = { ip = 10.2.0.1; hardware = t; nat_out = t1, t3; }
 }
 network:t = { ip = 10.2.0.0/24; }
 router:r2 =  {
  interface:t;
- interface:k1 = { bind_nat = h1; }
- interface:k2 = { bind_nat = h2; }
+ interface:k1 = { nat_out = h1; }
+ interface:k2 = { nat_out = h2; }
 }
 network:k1 = { ip = 10.2.1.0/24; }
 network:k2 = { ip = 10.2.2.0/24; }
@@ -2376,14 +2376,14 @@ router:r1 =  {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t1 = { ip = 10.2.1.1; hardware = t; bind_nat = t1; }
+ interface:t1 = { ip = 10.2.1.1; hardware = t; nat_out = t1; }
 }
 network:t1 = { ip = 10.2.1.0/24; }
 # t1 active
 router:r2 = {
  interface:t1;
- interface:k1 = { bind_nat = h1; }
- interface:k2 = { bind_nat = h2; }
+ interface:k1 = { nat_out = h1; }
+ interface:k2 = { nat_out = h2; }
 }
 # h1 active
 # t1 ambiguous: still active for n2, no longer active for n1
@@ -2426,20 +2426,20 @@ router:r1 =  {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t1 = { ip = 10.2.1.1; hardware = t; bind_nat = t1; }
+ interface:t1 = { ip = 10.2.1.1; hardware = t; nat_out = t1; }
 }
 # t1 active
 network:t1 = { ip = 10.2.1.0/24; }
 router:r2 = {
  interface:t1;
- interface:t2 = { bind_nat = t2; }
+ interface:t2 = { nat_out = t2; }
 }
 # t2 active
 # t1 ambiguous: still active for n1, but no longer active for n3
 network:t2 = { ip = 10.2.2.0/24; }
 router:r3 = {
  interface:t2;
- interface:k = { bind_nat = h; }
+ interface:k = { nat_out = h; }
 }
 network:k = { ip = 10.2.3.0/24; }
 =ERROR=
@@ -2458,21 +2458,21 @@ network:a = {
 }
 router:r11 = {
  interface:a;
- interface:t1 = { bind_nat = a1; }
+ interface:t1 = { nat_out = a1; }
 }
 network:t1 = {ip = 10.3.3.0/30;}
 router:r12 = {
  interface:t1;
- interface:b = { bind_nat = a2; }
+ interface:b = { nat_out = a2; }
 }
 router:r21 = {
  interface:a;
- interface:t2 = { bind_nat = a2; }
+ interface:t2 = { nat_out = a2; }
 }
 network:t2 = {ip = 10.3.3.4/30;}
 router:r22 = {
  interface:t2;
- interface:b = { bind_nat = a1; }
+ interface:b = { nat_out = a1; }
 }
 network:b = {ip = 10.9.9.0/24;}
 =ERROR=
@@ -2486,7 +2486,7 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =INPUT=
 network:n0 = { ip = 10.1.0.0/24; }
 router:r1 = {
- interface:n0 = { bind_nat = a1, a2; }
+ interface:n0 = { nat_out = a1, a2; }
  interface:a;
 }
 network:a = {
@@ -2496,21 +2496,21 @@ network:a = {
 }
 router:r11 = {
  interface:a;
- interface:t1 = { bind_nat = a1; }
+ interface:t1 = { nat_out = a1; }
 }
 network:t1 = {ip = 10.3.3.0/30;}
 router:r12 = {
  interface:t1;
- interface:b = { bind_nat = a2; }
+ interface:b = { nat_out = a2; }
 }
 router:r21 = {
  interface:a;
- interface:t2 = { bind_nat = a2; }
+ interface:t2 = { nat_out = a2; }
 }
 network:t2 = {ip = 10.3.3.4/30;}
 router:r22 = {
  interface:t2;
- interface:b = { bind_nat = a1; }
+ interface:b = { nat_out = a1; }
 }
 network:b = {ip = 10.9.9.0/24;}
 =ERROR=
@@ -2537,35 +2537,35 @@ network:n8 = { ip = 10.1.8.0/24;
  nat:n1b = { ip = 10.9.8.0/24; }
 }
 router:r1 = {
- interface:n1 = { bind_nat = n4; }
- interface:n2 = { bind_nat = n1a; }
+ interface:n1 = { nat_out = n4; }
+ interface:n2 = { nat_out = n1a; }
 }
 router:r2 = {
- interface:n1 = { bind_nat = n4; }
- interface:n3 = { bind_nat = n1b; }
+ interface:n1 = { nat_out = n4; }
+ interface:n3 = { nat_out = n1b; }
 }
 router:r3 = {
  interface:n2;
- interface:n4 = { bind_nat = n1b; }
+ interface:n4 = { nat_out = n1b; }
 }
 router:r4 = {
  interface:n3;
- interface:n5 = { bind_nat = n1a; }
+ interface:n5 = { nat_out = n1a; }
 }
 router:r5 = {
  interface:n4;
- interface:n6 = { bind_nat = n4, n5; }
+ interface:n6 = { nat_out = n4, n5; }
 }
 router:r6 = {
  interface:n5;
- interface:n6 = { bind_nat = n4, n5; }
+ interface:n6 = { nat_out = n4, n5; }
 }
 router:r7 = {
- interface:n6 = { bind_nat = n1a; }
+ interface:n6 = { nat_out = n1a; }
  interface:n7;
 }
 router:r8 = {
- interface:n7 = { bind_nat = n1b; }
+ interface:n7 = { nat_out = n1b; }
  interface:n8;
 }
 =ERROR=
@@ -2581,18 +2581,18 @@ Error: Grouped NAT tags 'n1a, n1b' of network:n1 must not both be active at
 network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/24; } }
 router:r1 = {
  interface:n1;
- interface:tr = { bind_nat = n; }
+ interface:tr = { nat_out = n; }
 }
 network:tr = { ip = 10.7.7.0/24; }
 router:r2 = {
  interface:tr;
- interface:n2 = { bind_nat = n; }
+ interface:n2 = { nat_out = n; }
 }
 network:n2 = { ip = 10.2.2.0/24; }
 =ERROR=
-Error: Incomplete 'bind_nat = n' at
+Error: Incomplete 'nat_out = n' at
  - interface:r1.tr
- Possibly 'bind_nat = n' is missing at these interfaces:
+ Possibly 'nat_out = n' is missing at these interfaces:
  - interface:r2.tr
 =END=
 
@@ -2606,14 +2606,14 @@ network:U1 = {
 }
 router:R0 = {
  interface:U1;
- interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+ interface:T = { ip = 10.3.3.17; nat_out = t1;}
 }
 network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
  interface:T = { ip = 10.3.3.18; hardware = T;}
- interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
+ interface:K = { ip = 10.2.2.1; hardware = K; nat_out = t2; }
 }
 network:K = { ip = 10.2.2.0/24; }
 =ERROR=
@@ -2644,18 +2644,18 @@ router:r1 = {
 }
 router:r2 = {
  interface:n3;
- interface:n4 = { bind_nat = h1; }
- interface:n5 = { bind_nat = h3; }
+ interface:n4 = { nat_out = h1; }
+ interface:n5 = { nat_out = h3; }
 }
 router:r3 = {
  interface:n4;
  interface:n5;
- interface:n6 = { bind_nat = h2; }
+ interface:n6 = { nat_out = h2; }
 }
 =ERROR=
-Error: Inconsistent bind_nat in loop
- - interface:r2.n4: bind_nat = h1
- - interface:r2.n5: bind_nat = h3
+Error: Inconsistent NAT in loop
+ - interface:r2.n4: nat_out = h1
+ - interface:r2.n5: nat_out = h3
 =END=
 
 ############################################################
@@ -2679,15 +2679,15 @@ router:r1 = {
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = h1; }
 }
 router:r2 = {
  interface:n3;
- interface:n4 = { bind_nat = h2; }
+ interface:n4 = { nat_out = h2; }
 }
 router:r3 = {
  interface:n4;
- interface:n5 = { bind_nat = h3; }
+ interface:n5 = { nat_out = h3; }
 }
 service:s1 = {
  user = network:n1, network:n2;
@@ -2716,14 +2716,14 @@ network:U1 = {
 }
 router:R0 = {
  interface:U1;
- interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+ interface:T = { ip = 10.3.3.17; nat_out = t1;}
 }
 network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
  interface:T = { ip = 10.3.3.18; hardware = T;}
- interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
+ interface:K = { ip = 10.2.2.1; hardware = K; nat_out = t2; }
 }
 network:K = { ip = 10.2.2.0/24; }
 =WARNING=NONE
@@ -2738,14 +2738,14 @@ network:U1 = {
 }
 router:R0 = {
  interface:U1;
- interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+ interface:T = { ip = 10.3.3.17; nat_out = t1;}
 }
 network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
  interface:T = { ip = 10.3.3.18; hardware = T;}
- interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
+ interface:K = { ip = 10.2.2.1; hardware = K; nat_out = t2; }
 }
 network:K = { ip = 10.2.2.0/24; }
 =ERROR=
@@ -2760,15 +2760,15 @@ network:n0 = { ip = 10.1.0.0/24; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
- interface:n0 = { bind_nat = F; }
+ interface:n0 = { nat_out = F; }
  interface:n1;
 }
 router:asa = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = P; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = h; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = P; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r2 = {
@@ -2799,11 +2799,11 @@ router:r1 = {
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = outside; }
- interface:t1 = { ip = 10.5.5.164; hardware = inside; bind_nat = h; }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; nat_out = h; }
 }
 network:t1 = { ip = 10.5.5.160/28; }
 router:u1 = {
- interface:t1 = { bind_nat = h; }
+ interface:t1 = { nat_out = h; }
  interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2836,7 +2836,7 @@ router:r1 = {
 }
 network:t1 = { ip = 10.5.5.160/28; }
 router:u1 = {
- interface:t1 = { ip = 10.5.5.161;  bind_nat = h; }
+ interface:t1 = { ip = 10.5.5.161;  nat_out = h; }
  interface:n2;
  interface:n3;
 }
@@ -2864,7 +2864,7 @@ router:r1 = {
   ip = 10.1.1.1;
   routing = OSPF;
   hardware = outside;
-  bind_nat = h;
+  nat_out = h;
  }
  interface:t1 = { ip = 10.5.5.164; hardware = inside; }
 }
@@ -2902,20 +2902,20 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = i; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = i; }
 }
 router:r2 = {
  managed;
  routing = manual;
  model = IOS;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = h; }
 }
 router:r3 = {
  managed;
  routing = manual;
  model = IOS;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = h; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
 }
 pathrestriction:p = interface:r3.n3, interface:r2.n3;
@@ -2947,7 +2947,7 @@ router:r1 = {
  {{.r1}}
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:t1 = { ip = 10.5.5.1; hardware = t1; bind_nat = h; }
+ interface:t1 = { ip = 10.5.5.1; hardware = t1; nat_out = h; }
 }
 network:t1 = { ip = 10.5.5.0/24; }
 router:r2 = {
@@ -2962,7 +2962,7 @@ router:r3 = {
  model = ASA;
  {{.r3}}
  routing = manual;
- interface:t2 = { ip = 10.4.4.2; hardware = t2; bind_nat = h; }
+ interface:t2 = { ip = 10.4.4.2; hardware = t2; nat_out = h; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 network:n2 = { ip = 10.2.2.0/24; }
@@ -2990,7 +2990,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 =END=
 
 ############################################################
-=TITLE=Traverse hidden NAT domain in loop, 1x unmanaged bind_nat
+=TITLE=Traverse hidden NAT domain in loop, 1x unmanaged nat_out
 =INPUT=[[input {h: hidden;, r1: "", r3: managed;}]]
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
@@ -3004,7 +3004,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 =END=
 
 ############################################################
-=TITLE=Traverse hidden NAT domain in loop, 2x unmanaged bind_nat
+=TITLE=Traverse hidden NAT domain in loop, 2x unmanaged nat_out
 =INPUT=[[input {h: hidden;, r1: "", r3: ""}]]
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
@@ -3045,7 +3045,7 @@ router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = d; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = d; }
 }
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
@@ -3054,11 +3054,11 @@ router:r2 = {
 router:r3 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = d; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = d; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = h; }
 }
 router:r4 = {
- interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = h; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; nat_out = h; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
 }
 pathrestriction:p = interface:r2.n3, interface:r4.n1;
@@ -3103,10 +3103,10 @@ router:r3 = {
  managed;
  model = ASA;
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = d; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = d; }
 }
 router:r4 = {
- interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; nat_out = d; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; nat:d = { ip = 10.9.9.2; } }
 }
 pathrestriction:p = interface:r2.n3, interface:r4.n1;
@@ -3154,10 +3154,10 @@ router:r3 = {
  managed;
  model = ASA;
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = d; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = d; }
 }
 router:r4 = {
- interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; nat_out = d; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
 pathrestriction:p = interface:r2.n3, interface:r4.n2;
@@ -3180,7 +3180,7 @@ Error: Must not apply dynamic NAT 'd' to src of rule
 =INPUT=
 network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
 router:r1 = {
- interface:b = { bind_nat = h; }
+ interface:b = { nat_out = h; }
  interface:a;
  interface:t;
 }
@@ -3192,8 +3192,8 @@ router:r2 = {
 }
 network:b = {ip = 10.156.5.160/28;}
 =ERROR=
-Error: Inconsistent bind_nat in loop
- - interface:r1.b: bind_nat = h
+Error: Inconsistent NAT in loop
+ - interface:r1.b: nat_out = h
  - interface:r1.a: (none)
 =END=
 
@@ -3209,25 +3209,25 @@ router:r1 = {
  interface:n4;
 }
 router:r2 = {
- interface:n1 = { bind_nat = x; }
+ interface:n1 = { nat_out = x; }
  interface:n3;
  interface:n2;
 }
 router:r3 = {
- interface:n1 = { bind_nat = x; }
+ interface:n1 = { nat_out = x; }
  interface:n3;
- interface:n4 = { bind_nat = x; }
+ interface:n4 = { nat_out = x; }
 }
 =ERROR=
-Error: Inconsistent bind_nat in loop
- - interface:r2.n1: bind_nat = x
+Error: Inconsistent NAT in loop
+ - interface:r2.n1: nat_out = x
  - interface:r2.n3: (none)
-Error: Inconsistent bind_nat in loop
- - interface:r3.n4: bind_nat = x
+Error: Inconsistent NAT in loop
+ - interface:r3.n4: nat_out = x
  - interface:r3.n3: (none)
-Error: Inconsistent bind_nat in loop
+Error: Inconsistent NAT in loop
  - interface:r3.n3: (none)
- - interface:r3.n1: bind_nat = x
+ - interface:r3.n1: nat_out = x
 =END=
 
 ############################################################
@@ -3236,21 +3236,21 @@ Error: Inconsistent bind_nat in loop
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 router:r1 = {
  interface:n1;
- interface:t1 = { bind_nat = n1; }
- interface:t2 = { bind_nat = n2; }
+ interface:t1 = { nat_out = n1; }
+ interface:t2 = { nat_out = n2; }
 }
 network:t1 = { ip = 10.7.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
 router:r2 = {
  interface:n2;
  interface:t1;
- interface:t2 = { bind_nat = n2; }
+ interface:t2 = { nat_out = n2; }
 }
 network:t2 = { ip = 10.7.2.0/24; }
 =ERROR=
-Error: Incomplete 'bind_nat = n1' at
+Error: Incomplete 'nat_out = n1' at
  - interface:r1.t1
- Possibly 'bind_nat = n1' is missing at these interfaces:
+ Possibly 'nat_out = n1' is missing at these interfaces:
  - interface:r2.n2
  - interface:r2.t1
 =END=
@@ -3261,7 +3261,7 @@ Error: Incomplete 'bind_nat = n1' at
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 router:r1 = {
  interface:n1;
- interface:t1 = { bind_nat = n1; }
+ interface:t1 = { nat_out = n1; }
 }
 network:t1 = { ip = 10.7.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
@@ -3269,12 +3269,12 @@ router:r2 = {
  interface:n2;
  interface:t1;
  interface:t2;
- interface:t3 = { bind_nat = n2; }
+ interface:t3 = { nat_out = n2; }
 }
 network:t2 = { ip = 10.7.2.0/24; }
 router:r3 = {
  interface:t2;
- interface:t3 = { bind_nat = n2; }
+ interface:t3 = { nat_out = n2; }
 }
 network:t3 = { ip = 10.7.3.0/24; }
 =WARNING=NONE
@@ -3288,70 +3288,70 @@ network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
 network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n5; }
+ interface:n1 = { nat_out = n5; }
  interface:n5;
 }
 router:r2 = {
  interface:n1 = {
   {{.b}}
  }
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r3 = {
  interface:n1;
- interface:n2 = { bind_nat = n4; }
- interface:n3 = { bind_nat = n1; }
+ interface:n2 = { nat_out = n4; }
+ interface:n3 = { nat_out = n1; }
 }
 router:r4 = {
  interface:n2 = {
-  bind_nat =
+  nat_out =
    n4,
    n5,
   ;
  }
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r5 = {
  interface:n3 = {
-  bind_nat =
+  nat_out =
    n1,
    {{.n}}
   ;
  }
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r6 = {
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
  interface:n5;
 }
 router:r7 = {
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
  interface:n5;
 }
-=INPUT=[[input {b: "bind_nat = n5;", n: n5}]]
+=INPUT=[[input {b: "nat_out = n5;", n: n5}]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Complex loop with 1 missing NAT behind domain
 =INPUT=[[input {b: "", n: n5}]]
 =ERROR=
-Error: Incomplete 'bind_nat = n5' at
+Error: Incomplete 'nat_out = n5' at
  - interface:r1.n1
  - interface:r4.n2
  - interface:r5.n3
- Possibly 'bind_nat = n5' is missing at these interfaces:
+ Possibly 'nat_out = n5' is missing at these interfaces:
  - interface:r2.n1
 =END=
 
 ############################################################
 =TITLE=Complex loop with 1 missing NAT behind router
-=INPUT=[[input {b: "bind_nat = n5;", n: ""}]]
+=INPUT=[[input {b: "nat_out = n5;", n: ""}]]
 =ERROR=
-Error: Incomplete 'bind_nat = n5' at
+Error: Incomplete 'nat_out = n5' at
  - interface:r1.n1
  - interface:r2.n1
  - interface:r4.n2
- Possibly 'bind_nat = n5' is missing at these interfaces:
+ Possibly 'nat_out = n5' is missing at these interfaces:
  - interface:r3.n1
  - interface:r3.n2
 =END=
@@ -3360,10 +3360,10 @@ Error: Incomplete 'bind_nat = n5' at
 =TITLE=Complex loop with 2 missing NAT
 =INPUT=[[input {b: "", n: ""}]]
 =ERROR=
-Error: Incomplete 'bind_nat = n5' at
+Error: Incomplete 'nat_out = n5' at
  - interface:r1.n1
  - interface:r4.n2
- Possibly 'bind_nat = n5' is missing at these interfaces:
+ Possibly 'nat_out = n5' is missing at these interfaces:
  - interface:r4.n4
  - interface:r6.n4
  - interface:r7.n4
@@ -3378,36 +3378,36 @@ network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n5; }
+ interface:n1 = { nat_out = n5; }
  interface:n5;
 }
 router:r2 = {
- interface:n1 = { bind_nat = n5; }
- interface:n2 = { bind_nat = n5; }
- interface:n4 = { bind_nat = n2; }
+ interface:n1 = { nat_out = n5; }
+ interface:n2 = { nat_out = n5; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r3 = {
- interface:n2; # = { bind_nat = n5; }
- interface:n3 = { bind_nat = n1; }
+ interface:n2; # = { nat_out = n5; }
+ interface:n3 = { nat_out = n1; }
 }
 router:r4 = {
- interface:n2; # = { bind_nat = n5; }
- interface:n3 = { bind_nat = n1; }
+ interface:n2; # = { nat_out = n5; }
+ interface:n3 = { nat_out = n1; }
 }
 router:r5 = {
- interface:n3 = { bind_nat = n1; }
- interface:n4 = { bind_nat = n2; }
+ interface:n3 = { nat_out = n1; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r6 = {
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
  interface:n5;
 }
 =ERROR=
-Error: Incomplete 'bind_nat = n5' at
+Error: Incomplete 'nat_out = n5' at
  - interface:r1.n1
  - interface:r2.n1
  - interface:r2.n2
- Possibly 'bind_nat = n5' is missing at these interfaces:
+ Possibly 'nat_out = n5' is missing at these interfaces:
  - interface:r5.n3
 =END=
 
@@ -3427,40 +3427,40 @@ network:n5 = { ip = 10.1.5.0/24; }
 network:n6 = { ip = 10.1.6.0/24; }
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = n1a, n3; }
+ interface:n2 = { nat_out = n1a, n3; }
 }
 router:r2 = {
- interface:n2 = { bind_nat = n3; }
+ interface:n2 = { nat_out = n3; }
  interface:n3;
 }
 router:r3 = {
  interface:n1;
- interface:n3 = { bind_nat = n1a; }
+ interface:n3 = { nat_out = n1a; }
 }
 router:r4 = {
  interface:n1;
- interface:n2 = { bind_nat = n3; }
- interface:n4 = { bind_nat = n2; }
+ interface:n2 = { nat_out = n3; }
+ interface:n4 = { nat_out = n2; }
 }
 router:r5 = {
- interface:n4 = { bind_nat = n2; }
+ interface:n4 = { nat_out = n2; }
  interface:n5;
- interface:n6 = { bind_nat = n1b; }
+ interface:n6 = { nat_out = n1b; }
 }
 router:r6 = {
  interface:n1;
- interface:n5 = { bind_nat = n1a; }
+ interface:n5 = { nat_out = n1a; }
 }
 router:r7 = {
  interface:n1;
- interface:n6 = { bind_nat = n1b; }
+ interface:n6 = { nat_out = n1b; }
 }
 =ERROR=
-Error: Incomplete 'bind_nat = n1a' at
+Error: Incomplete 'nat_out = n1a' at
  - interface:r1.n2
  - interface:r3.n3
  - interface:r6.n5
- Possibly 'bind_nat = n1a' is missing at these interfaces:
+ Possibly 'nat_out = n1a' is missing at these interfaces:
  - interface:r4.n2
  - interface:r4.n4
 =END=
@@ -3480,43 +3480,43 @@ network:n7 = { ip = 10.1.7.0/24; nat:n7 = { ip = 10.9.7.0/24; } }
 network:n8 = { ip = 10.1.8.0/24; }
 router:r1 = {
  interface:n0;
- interface:n1 = { bind_nat = n0; }
- interface:n2 = { bind_nat = n0, n1; }
+ interface:n1 = { nat_out = n0; }
+ interface:n2 = { nat_out = n0, n1; }
 }
 router:r2 = {
  interface:n1;
- interface:n3 = { bind_nat = n2; }
+ interface:n3 = { nat_out = n2; }
 }
 router:r3 = {
- interface:n2 = { bind_nat = n1; }
- interface:n3 = { bind_nat = n2; }
- interface:n4 = { bind_nat = n3; }
- interface:n5 = { bind_nat = n4; }
+ interface:n2 = { nat_out = n1; }
+ interface:n3 = { nat_out = n2; }
+ interface:n4 = { nat_out = n3; }
+ interface:n5 = { nat_out = n4; }
 }
 router:r4 = {
- interface:n4 = { bind_nat = n3; }
- interface:n6 = { bind_nat = n5; }
- interface:n7 = { bind_nat = n6; }
+ interface:n4 = { nat_out = n3; }
+ interface:n6 = { nat_out = n5; }
+ interface:n7 = { nat_out = n6; }
 }
 router:r5 = {
- interface:n5 = { bind_nat = n0, n4; }
- interface:n6 = { bind_nat = n5; }
- interface:n8 = { bind_nat = n7; }
+ interface:n5 = { nat_out = n0, n4; }
+ interface:n6 = { nat_out = n5; }
+ interface:n8 = { nat_out = n7; }
 }
 router:r6 = {
- interface:n6 = { bind_nat = n5; }
- interface:n7 = { bind_nat = n6; }
+ interface:n6 = { nat_out = n5; }
+ interface:n7 = { nat_out = n6; }
 }
 router:r7 = {
- interface:n6 = { bind_nat = n5; }
- interface:n8 = { bind_nat = n7; }
+ interface:n6 = { nat_out = n5; }
+ interface:n8 = { nat_out = n7; }
 }
 =ERROR=
-Error: Incomplete 'bind_nat = n0' at
+Error: Incomplete 'nat_out = n0' at
  - interface:r1.n1
  - interface:r1.n2
  - interface:r5.n5
- Possibly 'bind_nat = n0' is missing at these interfaces:
+ Possibly 'nat_out = n0' is missing at these interfaces:
  - interface:r3.n2
  - interface:r3.n3
  - interface:r3.n5
@@ -3538,7 +3538,7 @@ router:r1 = {
 }
 # Router will internally be split into 3 parts (n1)(n2)(n4,n5)
 router:r2 = {
- interface:n1 = { bind_nat = hx; }
+ interface:n1 = { nat_out = hx; }
  interface:n2;
  interface:n4;
  interface:n5;
@@ -3547,14 +3547,14 @@ router:r3 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; bind_nat = h; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; nat_out = h; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 pathrestriction:p1 = interface:r2.n2, interface:r3.n3;
 =ERROR=
-Error: Incomplete 'bind_nat = hx' at
+Error: Incomplete 'nat_out = hx' at
  - interface:r2.n1
- Possibly 'bind_nat = hx' is missing at these interfaces:
+ Possibly 'nat_out = hx' is missing at these interfaces:
  - interface:r3.n1
 =END=
 
@@ -3568,12 +3568,12 @@ router:filter = {
  interface:intern = {
   ip = 10.1.1.1;
   hardware = inside;
-  bind_nat = extern;
+  nat_out = extern;
  }
  interface:extern = {
   ip = 2.2.2.1;
   hardware = outside;
-  bind_nat = intern;
+  nat_out = intern;
  }
 }
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.1.2.0/24; } }
@@ -3607,7 +3607,7 @@ router:C = {
  managed;
  model = ASA;
  interface:Test = { ip = 10.9.1.1; hardware = inside; }
- interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; nat_out = C;}
 }
 network:Trans = { ip = 10.0.0.0/24; }
 router:filter = {
@@ -3641,9 +3641,9 @@ network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n1, n2; }
 }
 
 service:test = {
@@ -3687,17 +3687,17 @@ network:n4 = {
 
 router:r1 = {
  interface:n1;
- interface:n2 = { bind_nat = n1a; }
+ interface:n2 = { nat_out = n1a; }
 }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n4b; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1b; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n4b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n1b; }
 }
 router:r3 = {
- interface:n3 = { bind_nat = n4a; }
+ interface:n3 = { nat_out = n4a; }
  interface:n4;
 }
 service:test = {
@@ -3728,15 +3728,15 @@ router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n1; }
 }
 router:r2 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; bind_nat = n2; }
- interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n1; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; nat_out = n2; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; nat_out = n1; }
 }
 service:test = {
  user = network:n1;
@@ -3777,8 +3777,8 @@ router:r1 = {
  routing = manual;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = intern; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = intern; no_in_acl; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = intern; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = intern; no_in_acl; }
 }
 service:s1 = {
  user = network:n1;
@@ -3825,9 +3825,9 @@ router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = extern; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = extern, hide_n3; }
- interface:t = { ip = 10.9.1.1; hardware = t; bind_nat = intern; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = extern; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = extern, hide_n3; }
+ interface:t = { ip = 10.9.1.1; hardware = t; nat_out = intern; }
 }
 network:t = { ip = 10.9.1.0/24; }
 router:r2 = {
@@ -3888,15 +3888,15 @@ router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = extern, h2; }
- interface:n2 = { ip = 10.1.1.1; hardware = n2; bind_nat = extern, h1; }
- interface:t = { ip = 10.9.1.1; hardware = t; bind_nat = intern1, intern2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = extern, h2; }
+ interface:n2 = { ip = 10.1.1.1; hardware = n2; nat_out = extern, h1; }
+ interface:t = { ip = 10.9.1.1; hardware = t; nat_out = intern1, intern2; }
 }
 network:t = { ip = 10.9.1.0/24; }
 router:r2 = {
  managed;
  model = ASA;
- interface:t = { ip = 10.9.1.2; hardware = t; bind_nat = intern1; }
+ interface:t = { ip = 10.9.1.2; hardware = t; nat_out = intern1; }
  interface:extern = { ip = 2.2.2.2; hardware = outside; }
 }
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
@@ -3944,8 +3944,8 @@ router:r1 = {
  managed = secondary;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
- interface:t1 = { ip = 10.9.1.1; hardware = t1; bind_nat = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = n2; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; nat_out = n1; }
 }
 network:t1 = { ip = 10.9.1.0/24; }
 router:r2 = {
@@ -3988,7 +3988,7 @@ router:r1 = {
   nat:N = { identity; }
   nat:N2 = { ip = {{.}}; }
  }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = N, N2; }
 }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 service:s1 = {
@@ -4027,7 +4027,7 @@ router:r1 = {
   loopback;
   nat:N = { hidden; }
  }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = N; }
 }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 service:s1 = {
@@ -4052,7 +4052,7 @@ router:r1 = {
   nat:N = { hidden; }
   nat:N2 = { ip = 10.1.99.99; }
  }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = N, N2; }
 }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 =ERROR=
@@ -4097,7 +4097,7 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4135,7 +4135,7 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4169,7 +4169,7 @@ router:r1 = {
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = t2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = t2; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4201,7 +4201,7 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4232,7 +4232,7 @@ router:r1 = {
  model = IOS,FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = d; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = d; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4279,12 +4279,12 @@ router:r2 = {
 }
 router:r3 = {
  interface:t2;
- interface:t3 = { bind_nat = n1; }
+ interface:t3 = { nat_out = n1; }
 }
 # Use name 'r0' to get network:t3(split Network) get processed first.
 # Check if name of zone and nat_domain is changed to network:n3 later.
 router:r0 = {
- interface:t3 = { bind_nat = n3; }
+ interface:t3 = { nat_out = n3; }
  interface:n3;
  interface:n4;
 }
@@ -4323,7 +4323,7 @@ router:r1 = {
  model = IOS,FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.2.2.1; hardware = n2; bind_nat = d; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; nat_out = d; }
 }
 network:n2 = { ip = 10.2.2.0/24; }
 service:s1 = {
@@ -4357,7 +4357,7 @@ router:r1 = {
  routing = manual;
  model = IOS;
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = a; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = a; }
 }
 network:n4 = { ip = 10.1.4.0/24; }
 service:s1 = {
@@ -4382,7 +4382,7 @@ router:r1 = {
  routing = manual;
  model = IOS;
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n4 = { ip = 10.127.0.1; hardware = n4; bind_nat = a; }
+ interface:n4 = { ip = 10.127.0.1; hardware = n4; nat_out = a; }
 }
 network:n4 = { ip = 10.127.0.0/16; }
 =WARNING=
@@ -4402,11 +4402,11 @@ network:n2 = { ip = 10.1.2.0/24; nat:y = { ip = 10.9.2.2/31; dynamic; } }
 network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
- interface:n1 = { bind_nat = y; }
+ interface:n1 = { nat_out = y; }
  interface:n2;
  interface:n3;
  interface:lo = { ip = 10.1.5.0; loopback; nat:y = { hidden; } }
- interface:n4 = { bind_nat = x; }
+ interface:n4 = { nat_out = x; }
 }
 =ERROR=
 Error: Must not mix hidden and real NAT at nat:y.
@@ -4434,7 +4434,7 @@ router:r2 = {
  model = ASA;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2;}
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = extern, hidden; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = extern, hidden; }
 }
 service:s1 = {
  user = network:n1;
@@ -4458,7 +4458,7 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = a; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4477,7 +4477,7 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = a; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4498,7 +4498,7 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = a; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
@@ -4537,7 +4537,7 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = a; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = a; }
 }
 
 service:s1 = {
@@ -4568,7 +4568,7 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = a; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = a; }
 }
 
 service:s1 = {
@@ -4594,8 +4594,8 @@ network:n1b = { ip = 10.1.1.0/24;
 router:r1 = {
  managed;
  model = ASA;
- interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = h1b; }
- interface:n1b = { ip = 10.1.1.1; hardware = n1b; bind_nat = h1a; }
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; nat_out = h1b; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1b; nat_out = h1a; }
 }
 network:n3 = { ip = 10.1.3.0/24; partition = part2; }
 router:r2 = {
@@ -4617,8 +4617,8 @@ network:n2 = {
  nat:h2 = { hidden; }
 }
 router:r1 = {
- interface:n1 = { bind_nat = h2; }
- interface:n2 = { bind_nat = h1; }
+ interface:n1 = { nat_out = h2; }
+ interface:n2 = { nat_out = h1; }
 }
 =WARNING=
 Warning: Useless 'subnet_of = network:n2' at network:n1
@@ -4639,9 +4639,9 @@ network:n2 = {
 }
 network:inet = { ip = 0.0.0.0/0; has_subnets; }
 router:r1 = {
- interface:n1 = { bind_nat = h2; }
- interface:n2 = { bind_nat = h1; }
- interface:inet = { bind_nat = h2; }
+ interface:n1 = { nat_out = h2; }
+ interface:n2 = { nat_out = h1; }
+ interface:inet = { nat_out = h2; }
 }
 =WARNING=
 Warning: Useless 'subnet_of = network:n2' at network:n1
@@ -4657,7 +4657,7 @@ any:n1 = { ip = 10.1.0.0/22; link = network:n1; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n0 = { ip = 10.0.0.1; hardware = n0; bind_nat = h2; }
+ interface:n0 = { ip = 10.0.0.1; hardware = n0; nat_out = h2; }
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.0.1; hardware = n2; }
 }
@@ -4687,10 +4687,10 @@ network:n4 = {
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.0.1; bind_nat = h2; hardware = n1; }
+ interface:n1 = { ip = 10.1.0.1; nat_out = h2; hardware = n1; }
  interface:n2 = { ip = 10.1.1.1; hardware = n2; }
- interface:n3 = { ip = 10.1.1.17; bind_nat = h2; hardware = n3; }
- interface:n4 = { ip = 10.1.1.33; bind_nat = h2; hardware = n4; }
+ interface:n3 = { ip = 10.1.1.17; nat_out = h2; hardware = n3; }
+ interface:n4 = { ip = 10.1.1.33; nat_out = h2; hardware = n4; }
 }
 =WARNING=
 Warning: network:n3 is subnet of network:n2
@@ -4716,9 +4716,9 @@ network:n5 = { ip = 10.1.5.0/24; }
 router:r1 = {
  interface:n1;
  interface:n2;
- interface:n3 = { bind_nat = n1; }
- interface:n4 = { bind_nat = n1; }
- interface:n5 = { bind_nat = n1; }
+ interface:n3 = { nat_out = n1; }
+ interface:n4 = { nat_out = n1; }
+ interface:n5 = { nat_out = n1; }
 }
 
 =SHOW_DIAG=
@@ -4728,7 +4728,7 @@ DIAG: Found 2 NAT domains
 
 ############################################################
 =TITLE=Must not split NAT domain with pathrestriction
-# Need at least 2 interfaces without bind_nat and pathrestriction
+# Need at least 2 interfaces without nat_out and pathrestriction
 # to get splitSemiManagedRouters activated.
 =INPUT=
 network:n1 = {
@@ -4744,8 +4744,8 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:n4 = { bind_nat = n1; }
- interface:n5 = { bind_nat = n1; }
+ interface:n4 = { nat_out = n1; }
+ interface:n5 = { nat_out = n1; }
 }
 router:r2 = {
  managed;
@@ -4761,7 +4761,7 @@ DIAG: Found 2 NAT domains
 =END=
 
 ############################################################
-=TITLE=NAT domain is split on mixed bind_nat and pathrestriction
+=TITLE=NAT domain is split on mixed nat_out and pathrestriction
 # This could be optimized, if interface:r1.n2 is split separately.
 =INPUT=
 network:n1 = {
@@ -4777,8 +4777,8 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
- interface:n4 = { bind_nat = n1; }
- interface:n5 = { bind_nat = n1; }
+ interface:n4 = { nat_out = n1; }
+ interface:n5 = { nat_out = n1; }
 }
 router:r2 = {
  managed;
@@ -4792,4 +4792,114 @@ pathrestriction:p2 = interface:r1.n5, interface:r2.n2;
 =SHOW_DIAG=
 =WARNING=
 DIAG: Found 3 NAT domains
+=END=
+
+############################################################
+=TITLE=NAT tag at nat_in and nat_out of same interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ interface:n1 = { nat_in = n1; nat_out = n1; }
+ interface:n2;
+}
+=ERROR=
+Error: Must not use NAT tag "n1" at both 'nat_in' and 'nat_out' of interface:r1.n1
+=END=
+
+############################################################
+=TITLE=NAT tag used in nat_in and nat_out at interfaces of same router
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1 = { nat_in = n1; }
+ interface:n2 = { nat_in = n1; }
+ interface:n3 = { nat_out = n1; }
+ interface:n4;
+}
+=ERROR=
+Error: Must not use NAT tag "n1" at both
+ - 'nat_in' of interface:r1.n1 and
+ - 'nat_out' of interface:r1.n3
+=END=
+
+############################################################
+=TITLE=Useless nat_in
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ interface:n1 = { nat_in = n1; }
+ interface:n2;
+}
+=WARNING=
+Warning: Ignoring useless 'nat_out = n1(from nat_in)' at interface:r1.n2
+=END=
+
+############################################################
+=TITLE=nat_in at every interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ interface:n1 = { nat_in = n1; }
+ interface:n2 = { nat_in = n1; }
+}
+=WARNING=
+Warning: Ignoring 'nat_in = n1' without effect, applied at every interface of router:r1
+=END=
+
+############################################################
+=TITLE=Inconsistent NAT in loop from nat_in at split router
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ interface:n1 = { nat_in = x; }
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+router:r2 = {
+ interface:n3 = { nat_in = x; }
+ interface:n4;
+ interface:n5 = { nat_in = x; }
+ interface:n6;
+}
+=ERROR=
+Error: Inconsistent NAT in loop
+ - interface:r2.n3: (none)
+ - interface:r2.n4: nat_out = x(from nat_in)
+=END=
+
+############################################################
+=TITLE=Missing nat_out from nat_in
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+router:r1 = {
+ interface:n1 = { nat_in = n1; }
+ interface:t1;
+ interface:t2 = { nat_in = n1; nat_out = n2; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+router:r2 = {
+ interface:n2;
+ interface:t1;
+ interface:t2 = { nat_out = n2; }
+}
+network:t2 = { ip = 10.7.2.0/24; }
+=ERROR=
+Error: Incomplete 'nat_out = n1' at
+ - interface:r1.t1(from nat_in)
+ Possibly 'nat_out = n1' is missing at these interfaces:
+ - interface:r2.n2
+ - interface:r2.t1
 =END=

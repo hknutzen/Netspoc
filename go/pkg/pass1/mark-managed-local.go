@@ -59,7 +59,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 				seen[z] = true
 				localZones = append(localZones, z)
 
-				if in.bindNat != nil {
+				if in.natOutgoing != nil {
 					var reason string
 					if r.managed == "local" {
 						reason = "with 'managed = local'"

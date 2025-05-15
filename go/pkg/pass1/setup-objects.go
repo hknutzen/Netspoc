@@ -922,7 +922,7 @@ func (c *spoc) setupCrypto(v *ast.TopStruct) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "bind_nat":
-			cr.bindNat = c.getBindNat(a, name)
+			cr.bindNat = c.getNATTags(a, "'bind_nat' of "+name)
 		case "detailed_crypto_acl":
 			cr.detailedCryptoAcl = c.getFlag(a, name)
 		case "type":
@@ -1727,7 +1727,7 @@ func (c *spoc) setupRouter2(r *router) {
 			// hardware, not on logic.
 			intf := l[0]
 			for _, other := range l[1:] {
-				if !slices.Equal(intf.bindNat, other.bindNat) {
+				if !slices.Equal(intf.natOutgoing, other.natOutgoing) {
 					c.err("%s and %s using identical 'hardware = %s'\n"+
 						" must also use identical NAT binding", intf, other, hw.name)
 				}
@@ -1824,6 +1824,8 @@ func (c *spoc) setupRouter2(r *router) {
 		}
 	}
 
+	c.moveNatIn2Out(r)
+
 	var otherSpoke *routerIntf
 	rName := strings.TrimPrefix(r.name, "router:")
 	for _, intf := range r.interfaces {
@@ -1855,7 +1857,7 @@ func (c *spoc) setupRouter2(r *router) {
 			tIntf.network = tNet
 			tIntf.realIntf = intf
 			tIntf.routing = intf.routing
-			tIntf.bindNat = intf.bindNat
+			tIntf.natOutgoing = intf.natOutgoing
 			tIntf.id = intf.id
 			if r.managed != "" {
 				hw := intf.hardware
@@ -1867,6 +1869,53 @@ func (c *spoc) setupRouter2(r *router) {
 		}
 		if (intf.spoke != nil || intf.hub != nil) && !intf.noCheck {
 			c.moveLockedIntf(intf)
+		}
+	}
+}
+
+// moveNatIn2Out moves NAT tags of attribute natIncoming to
+// attribute natOutgoing of other interfaces of the same router.
+func (c *spoc) moveNatIn2Out(r *router) {
+	added := make(map[string]bool)
+	for _, intf := range r.interfaces {
+		for _, t := range intf.natIncoming {
+			if _, found := added[t]; !found {
+				added[t] = false
+			}
+			if slices.Contains(intf.natOutgoing, t) {
+				c.err(
+					"Must not use NAT tag %q at both 'nat_in' and 'nat_out' of %s",
+					t, intf)
+			}
+			for _, other := range intf.router.interfaces {
+				if other == intf || slices.Contains(other.natIncoming, t) {
+					continue
+				}
+				if other.hub != nil {
+					c.err("Must not apply NAT tag %q (from 'nat_in')"+
+						" to crypto hub %s\n"+
+						" Move it as 'bind_nat' to crypto definition instead",
+						t, other)
+				} else if !added[t] {
+					if slices.Contains(other.natOutgoing, t) {
+						c.err(
+							"Must not use NAT tag %q at both\n"+
+								" - 'nat_in' of %s and\n"+
+								" - 'nat_out' of %s", t, intf, other)
+					} else {
+						other.natOutgoing = append(other.natOutgoing, t)
+						slices.Sort(other.natOutgoing)
+					}
+				}
+				added[t] = true
+			}
+		}
+	}
+	for t, seen := range added {
+		if !seen {
+			c.warn(
+				"Ignoring 'nat_in = %s' without effect,"+
+					" applied at every interface of %s", t, r)
 		}
 	}
 }
@@ -1965,8 +2014,10 @@ func (c *spoc) setupInterface(
 			intf.id = c.getSingleValue(a, name)
 		case "virtual":
 			virtual = c.getVirtual(a, v6, name)
-		case "bind_nat":
-			intf.bindNat = c.getBindNat(a, name)
+		case "nat_out", "bind_nat":
+			intf.natOutgoing = c.getNATTags(a, "'nat_out' of "+name)
+		case "nat_in":
+			intf.natIncoming = c.getNATTags(a, "'nat_in' of "+name)
 		case "routing":
 			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
@@ -2202,9 +2253,9 @@ func (c *spoc) setupInterface(
 			if intf.ipType != hasIP {
 				c.err("Crypto hub %s must have IP address", intf)
 			}
-			if intf.bindNat != nil {
-				c.err("Must not use 'bind_nat' at crypto hub %s\n"+
-					" Move 'bind_nat' to crypto definition instead", intf)
+			if intf.natOutgoing != nil {
+				c.err("Must not use 'nat_out' at crypto hub %s\n"+
+					" Move it as 'bind_nat' to crypto definition instead", intf)
 			}
 			for _, cr := range l {
 				if cr.hub != nil {
@@ -2218,7 +2269,7 @@ func (c *spoc) setupInterface(
 		}
 	} else {
 		// Unmanaged device.
-		if intf.bindNat != nil {
+		if intf.natOutgoing != nil || intf.natIncoming != nil {
 			r.semiManaged = true
 		}
 		if intf.reroutePermit != nil {
@@ -2234,7 +2285,7 @@ func (c *spoc) setupInterface(
 	intf.secondaryIntfs = secondaryList
 	for _, s := range secondaryList {
 		s.mainIntf = intf
-		s.bindNat = intf.bindNat
+		s.natOutgoing = intf.natOutgoing
 		s.routing = intf.routing
 	}
 
@@ -2251,16 +2302,16 @@ func (c *spoc) setupInterface(
 			other.combined46 = intf
 			intf.combined46 = other
 			if intf.ipV6 {
-				intf.bindNat = nil
+				intf.natOutgoing = nil
 				intf.nat = nil
 				intf.hub = nil
 				intf.spoke = nil
 				subnetOf = nil
 				continue
 			}
-		} else if v6 && intf.bindNat != nil {
-			c.warn("Ignoring attribute 'bind_nat' at %s", intf.vxName())
-			intf.bindNat = nil
+		} else if v6 && intf.natOutgoing != nil {
+			c.warn("Ignoring attribute 'nat_out' at %s", intf.vxName())
+			intf.natOutgoing = nil
 		}
 		c.symTable.routerIntf[iName] = intf
 	}
@@ -2610,13 +2661,13 @@ func (c *spoc) getComplexValue(
 	return l
 }
 
-func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
+func (c *spoc) getNATTags(a *ast.Attribute, ctx string) []string {
 	l := c.getValueList(a, ctx)
 	slices.Sort(l)
 	// Remove duplicates.
 	l2 := slices.Compact(l)
 	if len(l) != len(l2) {
-		c.warn("Ignoring duplicate element in 'bind_nat' of %s", ctx)
+		c.warn("Ignoring duplicate element in %s", ctx)
 	}
 	return l2
 }
@@ -4012,7 +4063,7 @@ func (c *spoc) linkTunnels() {
 			hub.realIntf = realHub
 			hub.router = r
 			hub.network = spokeNet
-			hub.bindNat = cr.bindNat
+			hub.natOutgoing = cr.bindNat
 			hub.routing = realHub.routing
 			hub.peer = spoke
 			spoke.peer = hub

@@ -220,7 +220,7 @@ func (c *spoc) checkDynamicNatRules() {
 							return
 						}
 						if r.model.aclUseRealIP {
-							if slices.Contains(natIntf.bindNat, natTag) {
+							if slices.Contains(natIntf.natOutgoing, natTag) {
 								return
 							}
 						}
