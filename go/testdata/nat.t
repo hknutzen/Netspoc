@@ -918,6 +918,27 @@ Warning: Ignoring nat:n1 without effect, bound at every interface of router:r1
 =END=
 
 ############################################################
+=TITLE=No message 'NAT without effect' on inconsistent NAT in loop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n3 = { bind_nat = x; }
+ interface:n2 = { bind_nat = x; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3 = { bind_nat = x; }
+}
+=ERROR=
+Error: Inconsistent bind_nat in loop
+ - interface:r2.n2: (none)
+ - interface:r2.n3: bind_nat = x
+=END=
+
+############################################################
 =TITLE=Check rule with host and dynamic NAT (managed)
 =TEMPL=input
 network:Test =  {

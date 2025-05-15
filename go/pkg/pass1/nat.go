@@ -308,7 +308,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 				if r.model != nil && r.model.aclUseRealIP && r.natSet == nil {
 					r.natSet = make(natSet)
 				}
-			} else if len(tags) != 0 {
+			} else if r.domInterfaces == nil && len(tags) != 0 {
 				// Routers with same NAT tag at every interface may occur with VPN.
 				if !slices.ContainsFunc(r.interfaces, func(intf *routerIntf) bool {
 					return intf.hub != nil || intf.spoke != nil
