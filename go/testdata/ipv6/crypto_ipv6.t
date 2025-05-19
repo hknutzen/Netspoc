@@ -300,7 +300,7 @@ Warning: No spokes have been defined for crypto:vpn
 =END=
 
 ############################################################
-=TITLE=No bind_nat allowed at hub
+=TITLE=No nat_out allowed at hub
 =TODO= No IPv6
 =INPUT=
 [[crypto_vpn]]
@@ -315,13 +315,43 @@ router:asavpn = {
  interface:n1 = {
   ip6 = ::a01:101;
   hub = crypto:vpn;
-  bind_nat = n1;
+  nat_out = n1;
   hardware = n1;
  }
 }
 =ERROR=
-Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
- Move 'bind_nat' to crypto definition instead
+Error: Must not use 'nat_out' at crypto hub interface:asavpn.n1
+ Move it as 'bind_nat' to crypto definition instead
+=END=
+
+############################################################
+=TITLE=Must not apply nat_in to hub
+=TODO= No IPv6
+=INPUT=
+[[crypto_vpn]]
+network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::a02:200/120; } }
+network:n2 = { ip6 = ::a01:200/120; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ vpn_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip6 = ::a01:101;
+  nat_in = n1;
+  hardware = n1;
+ }
+ interface:n2 = {
+  ip6 = ::a01:201;
+  hub = crypto:vpn;
+  hardware = n2;
+ }
+}
+=ERROR=
+Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavpn.n2
+ Move it as 'bind_nat' to crypto definition instead
 =END=
 
 ############################################################
@@ -2183,7 +2213,7 @@ router:asavpn = {
  interface:extern = {
   ip6 = f000::c0a8:101;
   hardware = extern;
-  bind_nat = E;
+  nat_out = E;
  }
 }
 network:dmz = { ip6 = f000::c0a8:0/120; }
@@ -2280,13 +2310,13 @@ network:soft1 = {
 router:Firewall = {
  managed;
  model = Linux;
- interface:internet = { negotiated6; hardware = internet; bind_nat = h; }
+ interface:internet = { negotiated6; hardware = internet; nat_out = h; }
  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
 }
 network:n3 = { ip6 = ::a01:300/120;}
 router:r1 = {
- interface:n1 = { ip6 = ::a01:102; bind_nat = n2; }
- interface:n3 = { ip6 = ::a01:302; bind_nat = x; }
+ interface:n1 = { ip6 = ::a01:102; nat_out = n2; }
+ interface:n3 = { ip6 = ::a01:302; nat_out = x; }
  interface:n2 = { ip6 = f000::ac11:1; }
 }
 network:n2 = {
@@ -2371,7 +2401,7 @@ router:asavpn = {
 }
 network:dmz = { ip6 = f000::c0a8:0/120; }
 router:extern = {
- interface:dmz = { ip6 = f000::c0a8:1; bind_nat = n; }
+ interface:dmz = { ip6 = f000::c0a8:1; nat_out = n; }
  interface:internet;
 }
 network:internet = { ip6 = ::/0; has_subnets; }
@@ -2380,7 +2410,7 @@ router:fw-extern = {
  model = ASA;
  interface:internet = {
   ip6 = ::101:101;
-  bind_nat = x;
+  nat_out = x;
   routing = dynamic;
   hardware = outside;
  }
@@ -2397,7 +2427,7 @@ router:vpn1 = {
   ip6 = ::afe:fe06;
   id = cert@example.com;
   spoke = crypto:sts;
-  bind_nat = lan1;
+  nat_out = lan1;
  }
  interface:lan1;
 }
@@ -2408,16 +2438,16 @@ network:lan1 = {
 router:Firewall = {
  managed;
  model = Linux;
- interface:internet = { negotiated6; hardware = internet; bind_nat = x; }
+ interface:internet = { negotiated6; hardware = internet; nat_out = x; }
  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
- interface:n4 = { ip6 = ::a01:401; hardware = n4; bind_nat = h; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; nat_out = h; }
 }
 network:n3 = { ip6 = ::a01:300/120;}
 network:n4 = { ip6 = ::a01:400/120;}
 router:r1 = {
- interface:n1 = { ip6 = ::a01:102; bind_nat = h; }
+ interface:n1 = { ip6 = ::a01:102; nat_out = h; }
  interface:n2 = { ip6 = f000::ac11:1; }
- interface:n3 = { ip6 = ::a01:302; bind_nat = n; }
+ interface:n3 = { ip6 = ::a01:302; nat_out = n; }
 }
 network:n2 = {
  ip6 = f000::ac11:0/112;
@@ -2895,7 +2925,7 @@ router:asavpn = {
  managed;
  interface:intern = {
   ip6 = ::a01:165;
-  bind_nat = lan2a;
+  nat_out = lan2a;
   hardware = inside;
  }
  interface:dmz = {
@@ -3126,7 +3156,7 @@ router:asavpn = {
  managed;
  interface:intern = {
   ip6 = ::a01:165;
-  bind_nat = lan2a;
+  nat_out = lan2a;
   hardware = inside;
  }
  interface:dmz = {
@@ -3601,7 +3631,7 @@ router:firewall = {
  model = ASA;
  interface:internet = {
   ip6 = ::101:101;
-  bind_nat = vpn1;
+  nat_out = vpn1;
   routing = dynamic;
   hardware = outside;
  }
@@ -3619,7 +3649,7 @@ router:vpn1 = {
 id = cert@example.com;#
   nat:vpn1 = { ip6 = ::102:381; }
   spoke = crypto:sts;
-  bind_nat = lan1;
+  nat_out = lan1;
   hardware = GigabitEthernet0;
  }
  interface:lan1 = {
@@ -3774,7 +3804,7 @@ network:lan2 = {
  nat:h = { hidden; }
 }
 =SUBST=/interface:lan1/interface:lan2={ip6=::a63:201;hardware=lan2;}interface:lan1/
-=SUBST=/bind_nat = lan1;/bind_nat = h, lan1; /
+=SUBST=/nat_out = lan1;/nat_out = h, lan1; /
 =OUTPUT=
 --ipv6/asavpn
 ! crypto-::102:381

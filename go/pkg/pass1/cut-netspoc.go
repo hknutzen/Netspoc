@@ -960,7 +960,7 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
-	selectBindNat := func(l []*ast.Value) []*ast.Value {
+	selectNatTags := func(l []*ast.Value) []*ast.Value {
 		var result []*ast.Value
 		for _, v := range l {
 			if isUsed["nat:"+v.Value] {
@@ -1010,8 +1010,8 @@ func (c *spoc) cutNetspoc(
 					l2 := a2.ValueList
 					changed := false
 					switch a2.Name {
-					case "bind_nat":
-						l2 = selectBindNat(l2)
+					case "nat_out", "bind_nat":
+						l2 = selectNatTags(l2)
 						changed = true
 					case "reroute_permit":
 						l2 = selectReroutePermit(l2)

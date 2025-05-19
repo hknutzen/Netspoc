@@ -774,7 +774,7 @@ func (c *spoc) checkMultinatErrors(
 ) {
 	// Collect pairs of multi NAT tags and interfaces
 	// - at border of NAT domain where both tags are active and
-	// - interface has at least one of those tags active in bind_nat.
+	// - interface has at least one of those tags active in nat_out.
 	type key struct {
 		tag1   string
 		tag2   string
@@ -812,7 +812,7 @@ func (c *spoc) checkMultinatErrors(
 	for p, l := range pair2errors {
 		tag1, tag2 := p.tag1, p.tag2
 
-		// If some interfaces use both NAT tags in bind_nat,
+		// If some interfaces use both NAT tags in nat_out,
 		// show only those interfaces for more concise error message.
 		var hasBoth intfList
 		for _, intf := range l {

@@ -321,7 +321,7 @@ router:asavpn = {
 }
 =ERROR=
 Error: Must not use 'nat_out' at crypto hub interface:asavpn.n1
- Move it as 'bind_nat' to crypto definition instead
+ Move it as 'nat_out' to crypto definition instead
 =END=
 
 ############################################################
@@ -351,7 +351,7 @@ router:asavpn = {
 }
 =ERROR=
 Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavpn.n2
- Move it as 'bind_nat' to crypto definition instead
+ Move it as 'nat_out' to crypto definition instead
 =END=
 
 ############################################################

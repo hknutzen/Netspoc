@@ -1,16 +1,16 @@
 package pass1
 
-// If a pathrestriction or a bind_nat is added to an unmanged router,
+// If a pathrestriction or attribute nat_out is added to an unmanged router,
 // it is marked as semiManaged. As a consequence, a new zone would be
 // created at each interface of this router.
 // If an unmanaged router has a large number of interfaces, but only
-// one or a few pathrestrictions or bind_nat attached, we would get a
+// one or a few pathrestrictions or nat_out attached, we would get a
 // large number of useless zones.
 // To reduce the number of newly created zones, we split an unmanaged
-// router with pathrestrictions or bind_nat, if it has two or more
-// interfaces without any pathrestriction or bind_nat:
-// - original part having only interfaces without pathrestriction or bind_nat,
-// - one split part for each interface with pathrestriction or bind_nat.
+// router with pathrestrictions or nat_out, if it has two or more
+// interfaces without any pathrestriction or nat_out:
+// - original part having only interfaces without pathrestriction or nat_out,
+// - one split part for each interface with pathrestriction or nat_out.
 // All parts are connected by a freshly created unnumbered network.
 func (c *spoc) splitSemiManagedRouters() {
 	var splitRouters []*router
@@ -18,7 +18,7 @@ func (c *spoc) splitSemiManagedRouters() {
 
 		// Unmanaged router is marked as semi_managed, if
 		// - it has pathrestriction,
-		// - it has interface with bind_nat or
+		// - it has interface with nat_out or
 		// - is managed=routing_only.
 		if !r.semiManaged {
 			continue
@@ -29,7 +29,7 @@ func (c *spoc) splitSemiManagedRouters() {
 			continue
 		}
 
-		// Count interfaces without pathrestriction or bind_nat.
+		// Count interfaces without pathrestriction or nat_out.
 		count := 0
 		for _, intf := range r.interfaces {
 			if intf.pathRestrict == nil && intf.natOutgoing == nil {
@@ -83,9 +83,9 @@ func (c *spoc) splitSemiManagedRouters() {
 			return nr
 		}
 		// Split router into two or more parts.
-		// Move each interface with pathrestriction or bind_nat to new router,
+		// Move each interface with pathrestriction or nat_out to new router,
 		// - at most one pathrestriction per new router,
-		// - try to combine all bind_nat at single new router.
+		// - try to combine all nat_out at single new router.
 		var natRouter *router
 		j := 0
 		for _, intf := range r.interfaces {

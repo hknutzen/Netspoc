@@ -7,7 +7,7 @@ import (
 )
 
 // Collect interfaces on path:
-// managed, with pathrestriction or with bind_nat.
+// managed, with pathrestriction or with nat_out.
 func (c *spoc) getPathPairs(r *groupedRule, s, d *zone) intfPairs {
 	rule := *r
 	rule.srcPath = s

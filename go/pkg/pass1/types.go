@@ -477,7 +477,7 @@ type pathRestriction struct {
 }
 
 type crypto struct {
-	bindNat           []string
+	natOutgoing       []string
 	detailedCryptoAcl bool
 	ipsec             *ipsec
 	name              string

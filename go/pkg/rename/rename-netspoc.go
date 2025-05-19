@@ -30,10 +30,8 @@ var globalType = map[string]bool{
 	"crypto":          true,
 }
 
-// NAT is applied with bind_nat.
 // Interface definition uses network name.
 var alias = map[string]string{
-	"nat":     "bind_nat",
 	"network": "interface",
 }
 
@@ -180,7 +178,14 @@ func process(s *astset.State, subst map[string]map[string]string) {
 
 		var attributeList func(l []*ast.Attribute)
 		attribute := func(n *ast.Attribute) {
-			if m := subst[n.Name]; m != nil {
+			var m map[string]string
+			switch n.Name {
+			case "nat_in", "nat_out", "bind_nat":
+				m = subst["nat"]
+			case "owner":
+				m = subst["owner"]
+			}
+			if m != nil {
 				for _, v := range n.ValueList {
 					if replace, ok := m[v.Value]; ok {
 						v.Value = replace

@@ -109,15 +109,15 @@ router:d32 = {
  routing = manual;
  filter_only =  10.62.0.0/19;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
- interface:n2 = { ip = 10.62.2.1; hardware = n2; bind_nat = n1;}
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; nat_out = n1;}
 }
 router:u = {
  interface:n2;
- interface:n3 = { bind_nat = n2; }
+ interface:n3 = { nat_out = n2; }
 }
 =ERROR=
-Error: Attribute 'bind_nat' is not allowed at interface:d32.n2 with 'managed = local'
-Error: Attribute 'bind_nat' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
+Error: Attribute 'nat_out' is not allowed at interface:d32.n2 with 'managed = local'
+Error: Attribute 'nat_out' is not allowed at interface:u.n3 in zone beside router with 'managed = local'
 =END=
 
 ############################################################
@@ -207,7 +207,7 @@ access-group n2_in in interface n2
 network:n0 = { ip = 10.0.0.0/24; nat:n0 = { ip = 10.62.0.0/24; } }
 router:r0 = {
  interface:n0;
- interface:n1 = { ip = 10.62.1.34; bind_nat = n0; }
+ interface:n1 = { ip = 10.62.1.34; nat_out = n0; }
 }
 [[topo]]
 =OUTPUT=
@@ -540,7 +540,7 @@ network:intern = { ip = 10.2.1.0/24; }
 router:d31 = {
  model = ASA;
  managed;
- interface:intern = { ip = 10.2.1.2; hardware = inside; bind_nat = h; }
+ interface:intern = { ip = 10.2.1.2; hardware = inside; nat_out = h; }
  interface:extern = { ip = 10.4.0.1; hardware = outside; }
  interface:ex-hid = { ip = 10.2.2.129; hardware = ex-hid; }
 }

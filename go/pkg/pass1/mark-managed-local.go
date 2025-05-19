@@ -36,7 +36,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		matched := make(map[netip.Prefix]bool)
 
 		// natMap is known to be identical inside 'local' cluster,
-		// because attribute 'bind_nat' is not allowed inside this cluster.
+		// because attribute 'nat_out' is not allowed inside this cluster.
 		nm := r0.interfaces[0].natMap
 
 		info := clusterInfo{natMap: nm, mark: mark, filterOnly: filterOnly}
@@ -66,7 +66,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					} else {
 						reason = "in zone beside router with 'managed = local'"
 					}
-					c.err("Attribute 'bind_nat' is not allowed"+
+					c.err("Attribute 'nat_out' is not allowed"+
 						" at %s %s", in, reason)
 				}
 				// All networks in local zone must match filterOnly.

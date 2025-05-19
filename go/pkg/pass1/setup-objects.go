@@ -921,8 +921,8 @@ func (c *spoc) setupCrypto(v *ast.TopStruct) {
 	c.symTable.crypto[crName] = cr
 	for _, a := range v.Attributes {
 		switch a.Name {
-		case "bind_nat":
-			cr.bindNat = c.getNATTags(a, "'bind_nat' of "+name)
+		case "nat_out", "bind_nat":
+			cr.natOutgoing = c.getNATTags(a, "'nat_out' of "+name)
 		case "detailed_crypto_acl":
 			cr.detailedCryptoAcl = c.getFlag(a, name)
 		case "type":
@@ -1894,7 +1894,7 @@ func (c *spoc) moveNatIn2Out(r *router) {
 				if other.hub != nil {
 					c.err("Must not apply NAT tag %q (from 'nat_in')"+
 						" to crypto hub %s\n"+
-						" Move it as 'bind_nat' to crypto definition instead",
+						" Move it as 'nat_out' to crypto definition instead",
 						t, other)
 				} else if !added[t] {
 					if slices.Contains(other.natOutgoing, t) {
@@ -2255,7 +2255,7 @@ func (c *spoc) setupInterface(
 			}
 			if intf.natOutgoing != nil {
 				c.err("Must not use 'nat_out' at crypto hub %s\n"+
-					" Move it as 'bind_nat' to crypto definition instead", intf)
+					" Move it as 'nat_out' to crypto definition instead", intf)
 			}
 			for _, cr := range l {
 				if cr.hub != nil {
@@ -4063,7 +4063,7 @@ func (c *spoc) linkTunnels() {
 			hub.realIntf = realHub
 			hub.router = r
 			hub.network = spokeNet
-			hub.natOutgoing = cr.bindNat
+			hub.natOutgoing = cr.natOutgoing
 			hub.routing = realHub.routing
 			hub.peer = spoke
 			spoke.peer = hub
