@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2024 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2025 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -1398,16 +1398,13 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	// all emails 'user@domain' matching that wildcard.
 	domain2owners := make(map[string]map[string]bool)
 	for email, oMap := range email2owners {
-		l := strings.SplitN(email, "@", 2)
-		if len(l) == 2 && l[0] == "[all]" {
-			domain := l[1]
-			domain2owners[domain] = oMap
+		if user, dom, ok := strings.Cut(email, "@"); ok && user == "[all]" {
+			domain2owners[dom] = oMap
 		}
 	}
 	for email, oMap := range email2owners {
-		l := strings.SplitN(email, "@", 2)
-		if len(l) == 2 && l[0] != "[all]" {
-			for ow := range domain2owners[l[1]] {
+		if user, dom, ok := strings.Cut(email, "@"); ok && user != "[all]" {
+			for ow := range domain2owners[dom] {
 				delete(oMap, ow)
 			}
 		}

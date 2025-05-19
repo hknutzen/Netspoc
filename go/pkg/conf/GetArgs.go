@@ -5,7 +5,7 @@ Get arguments and options from command line and config file.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2023 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2025 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -185,12 +185,7 @@ func readConfig(filename string) (map[string]string, error) {
 		if line == "" || line[0] == '#' {
 			continue
 		}
-		parts := strings.SplitN(line, "=", 2)
-		key := parts[0]
-		val := ""
-		if len(parts) == 2 {
-			val = parts[1]
-		}
+		key, val, _ := strings.Cut(line, "=")
 		key = strings.TrimSpace(key)
 		val = strings.TrimSpace(val)
 		result[key] = val

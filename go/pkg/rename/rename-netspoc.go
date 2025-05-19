@@ -36,11 +36,11 @@ var alias = map[string]string{
 }
 
 func getTypeAndName(objName string) (string, string, error) {
-	pair := strings.SplitN(objName, ":", 2)
-	if len(pair) != 2 {
+	typ, name, ok := strings.Cut(objName, ":")
+	if !ok {
 		return "", "", fmt.Errorf("Missing type in '%s'", objName)
 	}
-	return pair[0], pair[1], nil
+	return typ, name, nil
 }
 
 // Fill subst with mapping from search to replace for given type.
@@ -93,11 +93,11 @@ func process(s *astset.State, subst map[string]map[string]string) {
 			}
 			if typ == "network" || typ == "interface" {
 				// Ignore right part of bridged network.
-				parts := strings.SplitN(name, "/", 2)
-				if len(parts) == 2 {
-					if replace, ok := subst[typ][parts[0]]; ok {
+				name, bridged, ok := strings.Cut(name, "/")
+				if ok {
+					if replace, ok := subst[typ][name]; ok {
 						changed = true
-						return replace + "/" + parts[1]
+						return replace + "/" + bridged
 					}
 				}
 			}
@@ -157,9 +157,7 @@ func process(s *astset.State, subst map[string]map[string]string) {
 		}
 
 		substTypedName := func(v string) string {
-			parts := strings.SplitN(v, ":", 2)
-			if len(parts) == 2 {
-				typ, name := parts[0], parts[1]
+			if typ, name, ok := strings.Cut(v, ":"); ok {
 				replace := substitute(typ, name)
 				return typ + ":" + replace
 			}
