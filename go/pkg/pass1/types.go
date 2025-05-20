@@ -54,6 +54,7 @@ type srvObj interface {
 	String() string
 	isIPv6() bool
 	isCombined46() bool
+	vxName() string
 }
 
 type srvObjList []srvObj

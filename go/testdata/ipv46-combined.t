@@ -1540,3 +1540,37 @@ router:r1 = {
  interface:n2;
 }
 =WARNING=NONE
+
+############################################################
+=TITLE=Missing owner for v6 part
+=INPUT=
+area:v4 = {
+ owner = o1;
+ router_attributes = { owner = o1; }
+ inclusive_border = interface:r1.n3;
+}
+owner:o1 = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = {
+ ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
+ host:h2 = { ip = 10.1.2.10; ip6 = 2001:db8:1:2::10; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = host:h2; prt = tcp 81;
+ permit src = user; dst = interface:r1.n2; prt = tcp 82;
+}
+=WARNING=
+Warning: Unknown owner for IPv6 host:h2 in service:s1
+Warning: Unknown owner for IPv6 interface:r1.n2 in service:s1
+Warning: Unknown owner for IPv6 network:n2 in service:s1
+=OPTIONS=--check_service_unknown_owner=warn

@@ -369,7 +369,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			slices.Sort(names)
 			c.warnOrErr(c.conf.CheckServiceUnknownOwner,
 				"Unknown owner for %s in %s",
-				obj, strings.Join(names, ", "))
+				obj.vxName(), strings.Join(names, ", "))
 		}
 	})
 }
