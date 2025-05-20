@@ -32,8 +32,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     - Unnamed aggregate no longer inherits from enclosing unnamed aggregate.
 - Fixed static route with sole virtual interface as next hop.
   Use IP of virtual interface instead of physical interface.
-- No longer accidently split NAT domain at unmanaged router
-  with attribute 'bind_nat'.
 - No longer accidently split NAT domains. This fixes #22.
 
 ## [2025-04-17-1102]
