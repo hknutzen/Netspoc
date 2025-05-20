@@ -335,15 +335,10 @@ func (c *spoc) findNatDomains() []*natDomain {
 					r.natSet = make(natSet)
 				}
 			} else if r.domInterfaces == nil && len(tags) != 0 {
-				// Routers with same NAT tag at every interface may occur with VPN.
-				if !slices.ContainsFunc(r.interfaces, func(intf *routerIntf) bool {
-					return intf.hub != nil || intf.spoke != nil
-				}) {
-					c.warn(
-						"Ignoring 'nat_out = %s' without effect,"+
-							" applied at every interface of %s",
-						strings.Join(tags, ","), r)
-				}
+				c.warn(
+					"Ignoring 'nat_out = %s' without effect,"+
+						" applied at every interface of %s",
+					strings.Join(tags, ","), r)
 			}
 		}
 	}
