@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Changed name of attribute 'bind_nat' to 'nat_out'.
+  This version supports both attributes.
+  But support for 'bind_nat' will be removed in next version.
 
 ### Added
 
