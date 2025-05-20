@@ -48,7 +48,7 @@ func (c *spoc) distributeNatInfo() ([]*natDomain, map[string][]natTagMap) {
 	c.checkMultinatErrors(multi, tag2hidden, natdomains)
 	if !natErrors {
 		c.checkNatNetworkLocation(natdomains)
-		c.CheckUselessBindNat(natdomains)
+		c.CheckUselessNatOutside(natdomains)
 	}
 	c.checkNatCompatibility()
 	c.checkInterfacesWithDynamicNat()
@@ -395,8 +395,8 @@ func isNatIncoming(t string, intf *routerIntf) bool {
 	return false
 }
 
-// errMissingBindNat shows interfaces, where nat_out for NAT tag is missing.
-func (c *spoc) errMissingBindNat(
+// errMissinNatOutside shows interfaces, where nat_out for NAT tag is missing.
+func (c *spoc) errMissinNatOutside(
 	inIntf *routerIntf, d *natDomain, tag string, multinatMaps []natTagMap,
 ) {
 	// Collect interfaces where nat_out for natTag is applied correctly.
@@ -737,7 +737,7 @@ func (c *spoc) distributeNat(
 	multinatMaps []natTagMap, invalid invalidNAT,
 ) bool {
 	if c.distributeNat1(in, d, tag, multinatMaps, invalid) {
-		c.errMissingBindNat(in, d, tag, multinatMaps)
+		c.errMissinNatOutside(in, d, tag, multinatMaps)
 		return true
 	}
 	return false
@@ -875,10 +875,10 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 	}
 }
 
-// CheckUselessBindNat checks if a single NAT tag is bound to all
+// CheckUselessNatOutside checks if a single NAT tag is bound to all
 // interfaces of a router. A similar check for equalty of all tags
 // has already been performed in findNatDomains.
-func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
+func (c *spoc) CheckUselessNatOutside(doms []*natDomain) {
 	seen := make(map[*router]bool)
 	for _, d := range doms {
 		for _, intf := range d.interfaces {
