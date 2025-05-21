@@ -1877,6 +1877,9 @@ func (c *spoc) setupRouter2(r *router) {
 // moveNatIn2Out moves NAT tags of attribute natIncoming to
 // attribute natOutgoing of other interfaces of the same router.
 func (c *spoc) moveNatIn2Out(r *router) {
+	if r.name == "router:d31-asa-2-030-intr-ni" {
+		r.name += ""
+	}
 	added := make(map[string]bool)
 	for _, intf := range r.interfaces {
 		for _, t := range intf.natIncoming {
@@ -1908,8 +1911,8 @@ func (c *spoc) moveNatIn2Out(r *router) {
 						slices.Sort(other.natOutgoing)
 					}
 				}
-				added[t] = true
 			}
+			added[t] = true
 		}
 	}
 	for t, seen := range added {

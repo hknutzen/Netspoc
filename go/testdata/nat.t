@@ -4795,6 +4795,53 @@ DIAG: Found 3 NAT domains
 =END=
 
 ############################################################
+=TITLE=nat_in works correctly
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n1 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_in = n1, n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_in = n1, n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_in = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = n4; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; nat_in = n2; }
+}
+service:s1 = {
+ user = network:n1, network:n2, network:n3, network:n4;
+ permit src = network:n5, network:n6; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+ip access-list extended n5_in
+ deny ip any host 10.9.1.1
+ deny ip any host 10.9.2.1
+ deny ip any host 10.9.3.1
+ deny ip any host 10.9.4.1
+ permit tcp 10.1.5.0 0.0.0.255 10.9.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.5.0 0.0.0.255 10.9.2.0 0.0.1.255 eq 80
+ permit tcp 10.1.5.0 0.0.0.255 10.9.4.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended n6_in
+ deny ip any host 10.9.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.9.3.1
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.6.0 0.0.0.255 10.9.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.6.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.6.0 0.0.0.255 10.9.3.0 0.0.0.255 eq 80
+ permit tcp 10.1.6.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=NAT tag at nat_in and nat_out of same interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
