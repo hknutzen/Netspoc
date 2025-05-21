@@ -1364,6 +1364,26 @@ Warning: nat:n1 is defined, but not bound to any interface
 =END=
 
 ############################################################
+=TITLE=nat_in at v6 interface
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+ nat:n1 = { ip = 10.9.9.0/24; }
+}
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; nat_in = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+=WARNING=
+Warning: Ignoring attribute 'nat_in' at interface:r1.n1
+Warning: nat:n1 is defined, but not bound to any interface
+=END=
+
+############################################################
 =TEMPL=INPUT
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }

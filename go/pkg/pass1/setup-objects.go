@@ -1877,6 +1877,16 @@ func (c *spoc) setupRouter2(r *router) {
 // moveNatIn2Out moves NAT tags of attribute natIncoming to
 // attribute natOutgoing of other interfaces of the same router.
 func (c *spoc) moveNatIn2Out(r *router) {
+	if r.ipV6 {
+		if r.combined46 == nil {
+			for _, intf := range r.interfaces {
+				if intf.natIncoming != nil {
+					c.warn("Ignoring attribute 'nat_in' at %s", intf)
+				}
+			}
+		}
+		return
+	}
 	added := make(map[string]bool)
 	for _, intf := range r.interfaces {
 		for _, t := range intf.natIncoming {
