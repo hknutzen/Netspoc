@@ -4922,8 +4922,8 @@ router:r2 = {
 }
 =ERROR=
 Error: Inconsistent NAT in loop
- - interface:r2.n3: (none)
  - interface:r2.n4: nat_out = x(from nat_in)
+ - interface:r2.n3: (none)
 =END=
 
 ############################################################

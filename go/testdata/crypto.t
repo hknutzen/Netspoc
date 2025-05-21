@@ -331,6 +331,7 @@ Error: Must not use 'nat_out' at crypto hub interface:asavpn.n1
 [[crypto_vpn]]
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 
 router:asavpn = {
  model = ASA, VPN;
@@ -345,12 +346,17 @@ router:asavpn = {
  }
  interface:n2 = {
   ip = 10.1.2.1;
-  hub = crypto:vpn;
+  nat_in = n1;
   hardware = n2;
+ }
+ interface:n3 = {
+  ip = 10.1.3.1;
+  hub = crypto:vpn;
+  hardware = n3;
  }
 }
 =ERROR=
-Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavpn.n2
+Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavpn.n3
  Move it as 'nat_out' to crypto definition instead
 =END=
 

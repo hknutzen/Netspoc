@@ -1877,20 +1877,18 @@ func (c *spoc) setupRouter2(r *router) {
 // moveNatIn2Out moves NAT tags of attribute natIncoming to
 // attribute natOutgoing of other interfaces of the same router.
 func (c *spoc) moveNatIn2Out(r *router) {
-	if r.name == "router:d31-asa-2-030-intr-ni" {
-		r.name += ""
-	}
 	added := make(map[string]bool)
 	for _, intf := range r.interfaces {
 		for _, t := range intf.natIncoming {
-			if _, found := added[t]; !found {
-				added[t] = false
-			}
 			if slices.Contains(intf.natOutgoing, t) {
 				c.err(
 					"Must not use NAT tag %q at both 'nat_in' and 'nat_out' of %s",
 					t, intf)
 			}
+			if added[t] {
+				continue
+			}
+			added[t] = false
 			for _, other := range intf.router.interfaces {
 				if other == intf || slices.Contains(other.natIncoming, t) {
 					continue
@@ -1900,19 +1898,17 @@ func (c *spoc) moveNatIn2Out(r *router) {
 						" to crypto hub %s\n"+
 						" Move it as 'nat_out' to crypto definition instead",
 						t, other)
-				} else if !added[t] {
-					if slices.Contains(other.natOutgoing, t) {
-						c.err(
-							"Must not use NAT tag %q at both\n"+
-								" - 'nat_in' of %s and\n"+
-								" - 'nat_out' of %s", t, intf, other)
-					} else {
-						other.natOutgoing = append(other.natOutgoing, t)
-						slices.Sort(other.natOutgoing)
-					}
+				} else if slices.Contains(other.natOutgoing, t) {
+					c.err(
+						"Must not use NAT tag %q at both\n"+
+							" - 'nat_in' of %s and\n"+
+							" - 'nat_out' of %s", t, intf, other)
+				} else {
+					other.natOutgoing = append(other.natOutgoing, t)
+					slices.Sort(other.natOutgoing)
 				}
+				added[t] = true
 			}
-			added[t] = true
 		}
 	}
 	for t, seen := range added {
