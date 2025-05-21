@@ -363,6 +363,7 @@ where `<object set>` must expand to interfaces.
       crypto:<name> = {
         [ <description> ]
         type = ipsec:<name>;
+        [ nat_out = <name>(, <name>)*; ]
         [ detailed_crypto_acl; ]
       }
 
