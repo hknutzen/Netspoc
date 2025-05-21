@@ -155,7 +155,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          <secondary interface definition> *
          [ <virtual interface definition>       ]
          (<host NAT> | <network NAT>)*
-         [ bind_nat = <name>(, <name>)*;        ]
+         [ nat_in = <name>(, <name>)*;          ]
+         [ nat_out = <name>(, <name>)*;         ]
          [ dhcp_client;                         ]
          [ dhcp_server;                         ]
          [ hardware = <external name>;          ]

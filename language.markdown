@@ -478,7 +478,7 @@ Other changes resulting from use of dual stack objects:
    This will enable only IPv4 or IPv6 part of dual stack objects.
  - The following attributes are applied only to IPv4 part
    if used in dual stack objects:
-   `nat`, `bind_nat`, `subnet_of, `hub`, `spoke`.
+   `nat`, `nat_in`, `nat_out`, `subnet_of, `hub`, `spoke`.
 
 ## Automatic dual stack hosts from pure IPv4 hosts
 
@@ -557,7 +557,7 @@ host:extern_www and host:extern_mail are visible with addresses
      interface:intern = {
       ip = 10.1.1.1;
       # NAT binding
-      bind_nat = bad128;
+      nat_out = bad128;
      }
     }
 
