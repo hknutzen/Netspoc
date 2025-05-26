@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed attribute 'nat_in'.
+  Previously it was only applied to the first suitable interface
+  and hence only usable at router with two interfaces.
+
 ## [2025-05-20-1401]
 
 ### Removed
