@@ -555,7 +555,7 @@ func setMaxSecondaryNet(networks []*network) {
 			continue
 		}
 
-		// Disable maxRoutingnet if it has unstable NAT relation with
+		// Disable maxRoutingNet if it has unstable NAT relation with
 		// current subnet.
 		// This test is only a rough estimation and should be refined
 		// if too many valid optimizations would be disabled.
