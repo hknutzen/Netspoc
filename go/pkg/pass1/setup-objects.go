@@ -72,6 +72,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.linkVirtualInterfaces()
 	c.splitSemiManagedRouters()
 	c.collectRoutersAndNetworks()
+	c.stopOnErr()
 }
 
 type symbolTable struct {
@@ -1824,8 +1825,10 @@ func (c *spoc) setupRouter2(r *router) {
 		}
 	}
 
-	c.moveNatIn2Out(r)
-
+	if r.managed != "" || r.routingOnly {
+		// Unmanaged router is handled in splitSemiManagedRouters.
+		c.moveNatIn2Out(r)
+	}
 	var otherSpoke *routerIntf
 	rName := strings.TrimPrefix(r.name, "router:")
 	for _, intf := range r.interfaces {
@@ -2277,11 +2280,7 @@ func (c *spoc) setupInterface(
 				}
 			}
 		}
-	} else {
-		// Unmanaged device.
-		if intf.natOutgoing != nil || intf.natIncoming != nil {
-			r.semiManaged = true
-		}
+	} else { // Unmanaged device.
 		if intf.reroutePermit != nil {
 			intf.reroutePermit = nil
 			c.warn("Ignoring attribute 'reroute_permit' at unmanaged %s", intf)
@@ -2312,6 +2311,7 @@ func (c *spoc) setupInterface(
 			other.combined46 = intf
 			intf.combined46 = other
 			if intf.ipV6 {
+				intf.natIncoming = nil
 				intf.natOutgoing = nil
 				intf.nat = nil
 				intf.hub = nil
@@ -2319,11 +2319,25 @@ func (c *spoc) setupInterface(
 				subnetOf = nil
 				continue
 			}
-		} else if v6 && intf.natOutgoing != nil {
-			c.warn("Ignoring attribute 'nat_out' at %s", intf.vxName())
-			intf.natOutgoing = nil
+		} else if v6 {
+			if intf.natIncoming != nil {
+				c.warn("Ignoring attribute 'nat_in' at %s", intf.vxName())
+				intf.natIncoming = nil
+			}
+			if intf.natOutgoing != nil {
+				c.warn("Ignoring attribute 'nat_out' at %s", intf.vxName())
+				intf.natOutgoing = nil
+			}
 		}
 		c.symTable.routerIntf[iName] = intf
+
+		// Check NAT after attributes have been removed from combined
+		// IPv6 interface.
+		if r.managed == "" {
+			if intf.natOutgoing != nil || intf.natIncoming != nil {
+				r.semiManaged = true
+			}
+		}
 	}
 
 	// Automatically create a network for loopback interface.

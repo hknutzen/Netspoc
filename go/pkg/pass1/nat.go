@@ -287,6 +287,16 @@ func (c *spoc) findNatDomains() []*natDomain {
 						// Found other interface to same domain.
 						// Perform consistency check.
 						natInfo := func(intf *routerIntf) string {
+							var list string
+							if tags := intf.natOutgoing; tags != nil {
+								inTags := make(stringList, len(tags))
+								for i, t := range tags {
+									inTags[i] = showNatIncoming(t, intf)
+								}
+								list = "nat_out = " + strings.Join(inTags, ", ")
+							} else {
+								list = "(none)"
+							}
 							if strings.HasSuffix(intf.name, "(split2)") {
 								l := intf.router.origRouter.interfaces
 								i := slices.IndexFunc(l, func(intf *routerIntf) bool {
@@ -294,20 +304,10 @@ func (c *spoc) findNatDomains() []*natDomain {
 								})
 								intf = l[i]
 							}
-							result := intf.name + ": "
-							tags := intf.natOutgoing
-							if tags != nil {
-								inTags := make(stringList, len(tags))
-								for i, t := range tags {
-									inTags[i] = showNatIncoming(t, intf)
-								}
-								result += "nat_out = " + strings.Join(inTags, ", ")
-							} else {
-								result += "(none)"
-							}
-							return result
+							return intf.name + ": " + list
 						}
-						if !slices.Equal(intf.natOutgoing, outIntf.natOutgoing) &&
+						if outIntf.network.zone.loop != nil &&
+							!slices.Equal(intf.natOutgoing, outIntf.natOutgoing) &&
 							!errSeen[[2]*routerIntf{outIntf, intf}] {
 							c.err("Inconsistent NAT in loop\n - %s\n - %s",
 								natInfo(intf), natInfo(outIntf))
