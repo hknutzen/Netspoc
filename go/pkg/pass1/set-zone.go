@@ -467,7 +467,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 
 			// Check whether area is empty (= consist of a single router)
 			if len(a.zones) == 0 {
-				c.warn("%s is empty", a)
+				c.warn("%s is empty", a.vxName())
 			}
 		}
 

@@ -931,6 +931,22 @@ Error: Duplicate IPv4 area:a12 and IPv4 area:a2
 =END=
 
 ############################################################
+=TITLE=Implicit v6 area is empty
+=INPUT=
+area:a1 =  { inclusive_border = interface:r1.n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=WARNING=
+Warning: IPv6 area:a1 is empty
+=END=
+
+############################################################
 =TITLE=IPv4 policy_distribution_point at pure IPv6 area
 =INPUT=
 area:a1 = { anchor = network:n2;

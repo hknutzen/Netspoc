@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Better warn message for empty IPv6 area from dual stack area.
+
 ## [2025-05-26-1321]
 
 ### Fixed
