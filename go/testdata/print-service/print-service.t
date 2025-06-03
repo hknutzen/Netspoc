@@ -78,7 +78,7 @@ router:asa2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = N; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; nat_out = N; }
 }
 =END=
 

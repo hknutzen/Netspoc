@@ -99,7 +99,7 @@ router:bridge = {
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside; }
- interface:n1/right = { hardware = outside; bind_nat = x; }
+ interface:n1/right = { hardware = outside; nat_out = x; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =ERROR=

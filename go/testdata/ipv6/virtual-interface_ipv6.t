@@ -58,7 +58,7 @@ router:r1 = {
   virtual = { ip6 = ::a01:10b; }
   hardware = n1;
  }
- interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; nat_out = n; }
 }
 router:r2 = {
  managed;
@@ -69,7 +69,7 @@ router:r2 = {
   virtual = { ip6 = ::a01:10b; }
   hardware = n1;
  }
- interface:n2 = { ip6 = ::a01:202; hardware = n2; bind_nat = n; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; nat_out = n; }
 }
 =ERROR=
 Error: interface:r1.n1 with virtual interface must not use attribute 'nat'

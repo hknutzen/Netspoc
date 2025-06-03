@@ -225,9 +225,9 @@ any:n1-20 = { ip = 10.1.0.0/20; link = network:n1; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip = 10.1.0.1; hardware = n2; bind_nat = h3; }
- interface:n3 = { ip = 10.1.0.1; hardware = n3; bind_nat = h2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = h2; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; nat_out = h3; }
+ interface:n3 = { ip = 10.1.0.1; hardware = n3; nat_out = h2; }
 }
 =WARNING=
 Warning: network:n1 is subnet of network:n2
@@ -326,7 +326,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; nat_out = h; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
@@ -360,7 +360,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; nat_out = h; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.3.129; hardware = n4; }
 }
@@ -2452,7 +2452,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; nat_out = n3; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 service:s1 = {

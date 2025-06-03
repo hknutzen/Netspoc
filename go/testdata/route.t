@@ -711,7 +711,7 @@ network:t1 = { ip = 10.9.1.0/30; }
 router:hop = {
  model = IOS;
  managed;
- interface:t1 = { ip = 10.9.1.2; hardware = inside; bind_nat = h; }
+ interface:t1 = { ip = 10.9.1.2; hardware = inside; nat_out = h; }
  interface:t2 = { ip = 10.9.2.1; hardware = outside; }
 }
 network:t2 = { ip = 10.9.2.0/30; }

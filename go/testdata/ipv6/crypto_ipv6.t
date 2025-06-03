@@ -2244,7 +2244,7 @@ service:test2 = {
  permit src = user; dst = network:customers1; prt = tcp 83;
  permit src = network:intern; dst = user; prt = tcp 84;
 }
-=SUBST=/type = ipsec:/bind_nat = I;type = ipsec:/
+=SUBST=/type = ipsec:/nat_out = I;type = ipsec:/
 =OUTPUT=
 -- ipv6/asavpn
 ! vpn-filter-foo@domain.x
@@ -2552,7 +2552,7 @@ isakmp:aes256SHA = {
 crypto:sts = {
  type = ipsec:aes256SHA;
  detailed_crypto_acl;
- bind_nat = intern;
+ nat_out = intern;
 }
 network:intern = {
  ip6 = ::a01:100/120;

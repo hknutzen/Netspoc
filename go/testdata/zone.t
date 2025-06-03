@@ -96,7 +96,7 @@ network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 router:ras = {
  interface:A = { ip = 10.3.3.121; }
  interface:B = { ip = 10.3.3.129; }
- interface:Trans = { ip = 10.1.1.2; bind_nat = C; }
+ interface:Trans = { ip = 10.1.1.2; nat_out = C; }
 }
 network:Trans = { ip = 10.1.1.0/24;}
 router:filter1 = {
@@ -204,7 +204,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:secondary = {
  model = IOS, FW;
  managed = secondary;
- interface:n1 = {ip = 10.1.1.1; hardware = n1; bind_nat = nat; }
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; nat_out = nat; }
  interface:n2 = {ip = 10.1.2.1; hardware = n2; }
  interface:t1 = { ip = 10.1.8.1; hardware = t1; }
 }

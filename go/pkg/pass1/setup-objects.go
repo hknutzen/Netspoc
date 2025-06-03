@@ -922,7 +922,7 @@ func (c *spoc) setupCrypto(v *ast.TopStruct) {
 	c.symTable.crypto[crName] = cr
 	for _, a := range v.Attributes {
 		switch a.Name {
-		case "nat_out", "bind_nat":
+		case "nat_out":
 			cr.natOutgoing = c.getNATTags(a, "'nat_out' of "+name)
 		case "detailed_crypto_acl":
 			cr.detailedCryptoAcl = c.getFlag(a, name)
@@ -2017,7 +2017,7 @@ func (c *spoc) setupInterface(
 			intf.id = c.getSingleValue(a, name)
 		case "virtual":
 			virtual = c.getVirtual(a, v6, name)
-		case "nat_out", "bind_nat":
+		case "nat_out":
 			intf.natOutgoing = c.getNATTags(a, "'nat_out' of "+name)
 		case "nat_in":
 			intf.natIncoming = c.getNATTags(a, "'nat_in' of "+name)

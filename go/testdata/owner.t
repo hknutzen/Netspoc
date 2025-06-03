@@ -725,7 +725,7 @@ owner:o1 = { admins = a1@b.c; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 network:n2 = { ip = 10.1.2.0/24; owner = o1; nat:n2 = { ip = 10.1.12.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n2; }
+ interface:n1 = { nat_out = n2; }
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r2 = {
@@ -749,7 +749,7 @@ owner:o2 = { admins = a2@b.c; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 network:n2 = { ip = 10.1.2.0/24; owner = o2; nat:n2 = { ip = 10.1.12.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n2; }
+ interface:n1 = { nat_out = n2; }
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r2 = {

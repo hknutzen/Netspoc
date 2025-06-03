@@ -63,7 +63,7 @@ router:ras = {
  model = Linux;
  interface:A = { ip6 = ::a03:379; hardware = Fe0; }
  interface:B = { ip6 = ::a03:381; hardware = Fe1; }
- interface:Trans = { ip6 = ::a01:102; bind_nat = C; hardware = Fe2; }
+ interface:Trans = { ip6 = ::a01:102; nat_out = C; hardware = Fe2; }
 }
 network:Trans = { ip6 = ::a01:100/120;}
 router:nak = {
@@ -187,7 +187,7 @@ network:Trans = { ip6 = ::a01:100/120; }
 router:r2 = {
  managed;
  model = ASA;
- interface:Trans = { ip6 = ::a01:101; hardware = VLAN1; bind_nat = dyn; }
+ interface:Trans = { ip6 = ::a01:101; hardware = VLAN1; nat_out = dyn; }
  interface:Customer1 = { ip6 = ::a08:801; hardware = VLAN8; }
  interface:Customer2 = { ip6 = ::a09:901; hardware = VLAN9; }
 }

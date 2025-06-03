@@ -50,7 +50,7 @@ network:n1 = {
 }
 router:r = {
  interface:n1;
- interface:n2 = { bind_nat = n; }
+ interface:n2 = { nat_out = n; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =ERROR=

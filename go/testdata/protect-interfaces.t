@@ -267,7 +267,7 @@ network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = 10.1.1.1; hardware = e0; bind_nat = N; }
+ interface:U = { ip = 10.1.1.1; hardware = e0; nat_out = N; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
 }
 network:N = { ip = 10.2.2.0/24; nat:N = { ip = 10.9.9.0/24; } }
@@ -292,7 +292,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = d; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = d; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 network:n2 = {
@@ -326,7 +326,7 @@ router:r2 = {
  model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n2; }
 }
 service:s = {
     user = network:n1, network:n3;

@@ -1103,10 +1103,10 @@ network:b = {
 
 router:r1 = {
  interface:a = {
-  bind_nat = b;
+  nat_out = b;
  }
  interface:b = {
-  bind_nat = a;
+  nat_out = a;
  }
 }
 =JOB=

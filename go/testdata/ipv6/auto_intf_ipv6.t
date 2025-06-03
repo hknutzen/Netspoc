@@ -48,7 +48,7 @@ ipv6 access-list n1_in
 =TODO= No IPv6
 #
 # Must not add
-# - interface of unmanaged router with bind_nat,
+# - interface of unmanaged router with nat_out,
 # - managed interface of unnumbered network.
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::a09:900/120; } }
@@ -64,8 +64,8 @@ router:r1 = {
 }
 router:r2 = {
  interface:n2 = { ip6 = ::a01:202; }
- interface:n3 = { bind_nat = n1; }
- interface:un = { bind_nat = n1; }
+ interface:n3 = { nat_out = n1; }
+ interface:un = { nat_out = n1; }
 }
 router:r3 = {
  model = IOS;
@@ -1238,7 +1238,7 @@ router:r1 = {
  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
- interface:n6 = { ip6 = ::a01:601; hardware = n6; bind_nat = h; }
+ interface:n6 = { ip6 = ::a01:601; hardware = n6; nat_out = h; }
 }
 router:r2 = {
  model = IOS;

@@ -1068,7 +1068,7 @@ router:asa = {
 network:DMZ = { ip = 10.9.9.0/24; }
 router:inet = {
  interface:DMZ;
- interface:Internet = { bind_nat = inet; }
+ interface:Internet = { nat_out = inet; }
 }
 network:Internet = { ip = 0.0.0.0/0; has_subnets; }
 =OUTPUT=
@@ -2442,10 +2442,10 @@ router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; nat:D1 = { ip = 10.9.9.1; } }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = D1; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = D2; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = H; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = S; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = D1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = D2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = H; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = S; }
 }
 service:s1 = {
  user = host:h1, host:h2;
@@ -2521,7 +2521,7 @@ router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 192.168.1.1, 192.168.1.2; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n1; }
 }
 
 service:s1 = {
@@ -3900,10 +3900,10 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n0 = { ip = 10.1.0.1; hardware = n0; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2a; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n2, n2a; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n3, n3a; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = n4; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = n2a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n2, n2a; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n3, n3a; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = n4; }
 }
 =OUTPUT=
 --owner/all/nat_set
@@ -3929,8 +3929,8 @@ router:r1 = {
  routing = manual;
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = h1; }
 }
 =OUTPUT=
 --owner/all/nat_set
@@ -3959,9 +3959,9 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h1, h2; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; nat_out = h1, h2; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = h2; }
 }
 =OUTPUT=
 --owner/o/nat_set
@@ -3993,9 +3993,9 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = t1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = h1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; nat_out = t1; }
 }
 =OUTPUT=
 --owner/o1/nat_set
@@ -4015,7 +4015,7 @@ router:r1  = {
  managed = secondary;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; nat_out = n1; }
  interface:n1_v6 = { ip6 = 1::1; hardware = n1; }
 }
 network:n1_v6 = { ip6 = 1::/64; owner = o; }
@@ -4037,8 +4037,8 @@ router:r1 = {
  managed;
  routing = manual;
  model = ASA;
- interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = hide_b; }
- interface:n1b = { ip = 10.1.1.2; hardware = n1b; bind_nat = hide_a; }
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; nat_out = hide_b; }
+ interface:n1b = { ip = 10.1.1.2; hardware = n1b; nat_out = hide_a; }
 }
 network:n1b = {
  ip = 10.1.1.0/24;

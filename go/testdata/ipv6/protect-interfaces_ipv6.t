@@ -267,7 +267,7 @@ network:U = { ip6 = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip6 = ::a01:101; hardware = e0; bind_nat = N; }
+ interface:U = { ip6 = ::a01:101; hardware = e0; nat_out = N; }
  interface:N = { ip6 = ::a02:201; hardware = e1; }
 }
 network:N = { ip6 = ::a02:200/120; nat:N = { ip6 = ::a09:900/120; } }
@@ -292,7 +292,7 @@ network:n1 = { ip6 = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip6 = ::a01:101; hardware = n1; bind_nat = d; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; nat_out = d; }
  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
 }
 network:n2 = {
@@ -326,7 +326,7 @@ router:r2 = {
  model = IOS;
  routing = manual;
  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
- interface:n3 = { ip6 = ::a01:301; hardware = n3; bind_nat = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; nat_out = n2; }
 }
 service:s = {
     user = network:n1, network:n3;

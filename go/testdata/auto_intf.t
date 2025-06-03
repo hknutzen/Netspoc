@@ -48,7 +48,7 @@ ip access-list extended n1_in
 # No IPv6 NAT
 #
 # Must not add
-# - interface of unmanaged router with bind_nat,
+# - interface of unmanaged router with nat_out,
 # - managed interface of unnumbered network.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.9.0/24; } }
@@ -64,8 +64,8 @@ router:r1 = {
 }
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
- interface:n3 = { bind_nat = n1; }
- interface:un = { bind_nat = n1; }
+ interface:n3 = { nat_out = n1; }
+ interface:un = { nat_out = n1; }
 }
 router:r3 = {
  model = IOS;
@@ -1238,7 +1238,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n6 = { ip = 10.1.6.1; hardware = n6; bind_nat = h; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; nat_out = h; }
 }
 router:r2 = {
  model = IOS;

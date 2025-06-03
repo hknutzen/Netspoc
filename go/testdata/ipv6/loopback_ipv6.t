@@ -227,7 +227,7 @@ router:b1 = {
  interface:trans = {
   ip6 = ::a01:303;
   virtual = { ip6 = ::a01:302; type = VRRP; }
-  bind_nat = extern;
+  nat_out = extern;
   hardware = eth0;
  }
  interface:extern = {
@@ -246,7 +246,7 @@ router:b2 = {
  interface:trans = {
   ip6 = ::a01:304;
   virtual = { ip6 = ::a01:302; type = VRRP; }
-  bind_nat = extern;
+  nat_out = extern;
   hardware = eth0;
  }
  interface:extern = {
@@ -307,7 +307,7 @@ router:r1 = {
  model = Linux;
  interface:lo = { ip6 = f000::c101:102; hardware = lo; loopback; }
  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
- interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = extern; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; nat_out = extern; }
 }
 router:r2 = {
  managed;
@@ -338,7 +338,7 @@ router:{{.}} = {
  managed;
  model = Linux;
  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
- interface:n2 = { ip6 = ::a01:201; hardware = n2; bind_nat = extern; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; nat_out = extern; }
 }
 router:r2 = {
  managed;

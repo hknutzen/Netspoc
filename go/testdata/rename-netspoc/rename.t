@@ -308,13 +308,13 @@ group:g =
 =INPUT=
 network:N = { ip = 1.2.3.0/24; nat:NAT-1 = {ip = 7.8.9.0; } }
 router:r = {
-interface:n1 = { bind_nat = NAT-1; }
-interface:n2 = { bind_nat = x,
+interface:n1 = { nat_out = NAT-1; }
+interface:n2 = { nat_out = x,
     y,NAT-1, z;
 }
-interface:n3 = { bind_nat =NAT-1
+interface:n3 = { nat_out =NAT-1
     ;}
-interface:n4 = {bind_nat
+interface:n4 = {nat_out
 = NAT-1;
 }
 }
@@ -325,20 +325,20 @@ network:N = {
 }
 router:r = {
  interface:n1 = {
-  bind_nat = NAT-2;
+  nat_out = NAT-2;
  }
  interface:n2 = {
-  bind_nat = x,
-             y,
-             NAT-2,
-             z,
-             ;
+  nat_out = x,
+            y,
+            NAT-2,
+            z,
+            ;
  }
  interface:n3 = {
-  bind_nat = NAT-2;
+  nat_out = NAT-2;
  }
  interface:n4 = {
-  bind_nat = NAT-2;
+  nat_out = NAT-2;
  }
 }
 =PARAMS=nat:NAT-1 nat:NAT-2
@@ -439,7 +439,7 @@ network:n1 = { owner = Maass, Wittmüß; }
 =TITLE=Read substitutions from file
 =INPUT=
 router:r = {
-interface:net = { bind_nat = ick,
+interface:net = { nat_out = ick,
  ticks, tick;}
 }
 network:net = { owner = foo; ip = 10.1.1.0/24;
@@ -455,10 +455,10 @@ group:g =
 =OUTPUT=
 router:r = {
  interface:xxxx = {
-  bind_nat = _,
-             t2,
-             t1,
-             ;
+  nat_out = _,
+            t2,
+            t1,
+            ;
  }
 }
 network:xxxx = {

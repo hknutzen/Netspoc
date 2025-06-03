@@ -277,7 +277,7 @@ router:r2 = {
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; nat_out = h; }
 }
 router:r3 = {
  interface:n3 = { ip = 10.1.3.2; }

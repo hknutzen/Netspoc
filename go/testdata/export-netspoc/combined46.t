@@ -867,7 +867,7 @@ router:r1 = {
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
 router:inet = {
  interface:n2;
- interface:Internet = { bind_nat = inet; }
+ interface:Internet = { nat_out = inet; }
 }
 network:Internet = { ip = 0.0.0.0/0; has_subnets; }
 

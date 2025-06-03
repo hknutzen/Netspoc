@@ -37,7 +37,7 @@ any:a16 = { ip = 10.1.0.0/16; link = network:n1; owner = o2; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 network:n2 = { ip = 10.1.2.0/24; owner = o1; nat:n2 = { ip = 10.1.12.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n2; }
+ interface:n1 = { nat_out = n2; }
  interface:n2 = { ip = 10.1.2.1; }
 }
 =OUTPUT=
@@ -55,7 +55,7 @@ any:a20 = { ip = 10.1.0.0/20; link = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 network:n2 = { ip = 10.1.2.0/24; owner = o1; nat:n2 = { ip = 10.1.12.0/24; } }
 router:r1 = {
- interface:n1 = { bind_nat = n2; }
+ interface:n1 = { nat_out = n2; }
  interface:n2 = { ip = 10.1.2.1; }
 }
 =OUTPUT=

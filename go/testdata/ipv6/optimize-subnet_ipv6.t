@@ -121,8 +121,8 @@ network:customer = {
  has_subnets;
 }
 router:r = {
- interface:customer = { bind_nat = SUB; }
- interface:sub = { ip6 = ::a01:722; bind_nat = N; }
+ interface:customer = { nat_out = SUB; }
+ interface:sub = { ip6 = ::a01:722; nat_out = N; }
 }
 network:sub = { ip6 = ::a01:720/123; nat:SUB = { ip6 = ::a09:920/123; }}
 router:gw = {

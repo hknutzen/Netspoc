@@ -178,7 +178,7 @@ func process(s *astset.State, subst map[string]map[string]string) {
 		attribute := func(n *ast.Attribute) {
 			var m map[string]string
 			switch n.Name {
-			case "nat_in", "nat_out", "bind_nat":
+			case "nat_in", "nat_out":
 				m = subst["nat"]
 			case "owner":
 				m = subst["owner"]

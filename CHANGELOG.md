@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- Attribute 'bind_nat' is no longer valid.
+  Use 'nat_out' instead.
+
 ### Fixed
 
 - Better warn message for empty IPv6 area from dual stack area.

@@ -1010,7 +1010,7 @@ func (c *spoc) cutNetspoc(
 					l2 := a2.ValueList
 					changed := false
 					switch a2.Name {
-					case "nat_in", "nat_out", "bind_nat":
+					case "nat_in", "nat_out":
 						l2 = selectNatTags(l2)
 						changed = true
 					case "reroute_permit":

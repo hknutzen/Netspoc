@@ -225,9 +225,9 @@ any:n1-20 = { ip6 = ::a01:0/116; link = network:n1; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip6 = ::a01:101; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip6 = ::a01:1; hardware = n2; bind_nat = h3; }
- interface:n3 = { ip6 = ::a01:1; hardware = n3; bind_nat = h2; }
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; nat_out = h2; }
+ interface:n2 = { ip6 = ::a01:1; hardware = n2; nat_out = h3; }
+ interface:n3 = { ip6 = ::a01:1; hardware = n3; nat_out = h2; }
 }
 =WARNING=
 Warning: network:n1 is subnet of network:n2
@@ -326,7 +326,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip6 = ::a01:202; hardware = n2; bind_nat = h; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; nat_out = h; }
  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
  interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
@@ -360,7 +360,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip6 = ::a01:202; hardware = n2; bind_nat = h; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; nat_out = h; }
  interface:n3 = { ip6 = ::a01:301; hardware = n3; }
  interface:n4 = { ip6 = ::a01:381; hardware = n4; }
 }
@@ -2452,7 +2452,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:n2 = { ip6 = ::a01:202; hardware = n2; bind_nat = n3; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; nat_out = n3; }
  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
 service:s1 = {

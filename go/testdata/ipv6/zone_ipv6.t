@@ -96,7 +96,7 @@ network:B = { ip6 = ::a03:380/125; nat:C = { ip6 = ::a02:200/120; dynamic; }}
 router:ras = {
  interface:A = { ip6 = ::a03:379; }
  interface:B = { ip6 = ::a03:381; }
- interface:Trans = { ip6 = ::a01:102; bind_nat = C; }
+ interface:Trans = { ip6 = ::a01:102; nat_out = C; }
 }
 network:Trans = { ip6 = ::a01:100/120;}
 router:filter1 = {
@@ -204,7 +204,7 @@ network:n2 = { ip6 = ::a01:200/120; }
 router:secondary = {
  model = IOS, FW;
  managed = secondary;
- interface:n1 = {ip6 = ::a01:101; hardware = n1; bind_nat = nat; }
+ interface:n1 = {ip6 = ::a01:101; hardware = n1; nat_out = nat; }
  interface:n2 = {ip6 = ::a01:201; hardware = n2; }
  interface:t1 = { ip6 = ::a01:801; hardware = t1; }
 }

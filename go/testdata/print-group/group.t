@@ -403,7 +403,7 @@ router:r1 =  {
  interface:n1 = { ip = 10.1.1.1; nat:t1 = { ip = 10.9.1.1; } hardware = n1; }
  interface:n2 = { negotiated; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t3; }
+ interface:t1 = { unnumbered; hardware = t; nat_out = t1, t3; }
 }
 network:t1 = { unnumbered; }
 router:r2 = {
@@ -588,7 +588,7 @@ network:n5 = { ip = 10.1.5.0/32;
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = nat1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat_out = nat1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  }
 router:r2 = {

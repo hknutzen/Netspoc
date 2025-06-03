@@ -711,7 +711,7 @@ network:t1 = { ip6 = ::a09:100/126; }
 router:hop = {
  model = IOS;
  managed;
- interface:t1 = { ip6 = ::a09:102; hardware = inside; bind_nat = h; }
+ interface:t1 = { ip6 = ::a09:102; hardware = inside; nat_out = h; }
  interface:t2 = { ip6 = ::a09:201; hardware = outside; }
 }
 network:t2 = { ip6 = ::a09:200/126; }
