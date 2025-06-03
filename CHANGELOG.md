@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Attribute 'bind_nat' is no longer valid.
   Use 'nat_out' instead.
 
+### Changed
+
+- No longer superflously create zones from nat_in.
+
 ### Fixed
 
 - Better warn message for empty IPv6 area from dual stack area.
