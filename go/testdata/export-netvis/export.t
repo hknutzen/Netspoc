@@ -298,3 +298,35 @@ network:n1 = { ip = 10.1.1.0/24; }
   }
 }
 =END=
+
+############################################################
+=TITLE=One Dualstack Network One Managed Router
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:0db8:1::/64;
+ host:h1 = { ip = 10.1.1.5; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=OUTPUT=
+{
+ "network": {
+  "network:n1":  {
+   "address": "10.1.1.0/24",
+   "address2": "2001:db8:1::/64",
+   "hosts": ["host:h1"],
+   "id": "network:n1", "neighbors": [{"id":"router:r1","neighbor_count":1}],
+   "type": "network"
+  }
+ },
+ "router": {
+  "router:r1": {
+   "id":"router:r1", "neighbors": [{"id":"network:n1","neighbor_count":1}],
+   "type": "router: standard"
+  }
+ }
+}

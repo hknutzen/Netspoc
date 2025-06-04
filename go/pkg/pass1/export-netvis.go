@@ -54,6 +54,7 @@ type visBase struct {
 	Type      string        `json:"type"`
 	InArea    string        `json:"in_area,omitempty"`
 	Address   string        `json:"address,omitempty"`
+	Address2  string        `json:"address2,omitempty"`
 	Neighbors []visNeighbor `json:"neighbors"`
 }
 
@@ -98,6 +99,9 @@ func getVisNetwork(net *network, networks map[string]visNetwork) {
 	node.Type = "network"
 	if net.ipType != unnumberedIP {
 		node.Address = net.ipp.String()
+		if net2 := net.combined46; net2 != nil {
+			node.Address2 = net2.ipp.String()
+		}
 	}
 
 	if a := net.zone.inArea; a != nil {
