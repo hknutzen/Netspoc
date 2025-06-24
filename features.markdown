@@ -4,11 +4,15 @@ layout: default
 
 # Features
 
-- Supports Cisco and Linux devices
-  - Chains for iptables.
-  - Access lists for ASA, NX-OS
+- Supports different devices
+  - Linux chains for iptables.
+  - Access lists for ASA.
   - Access lists for IOS with and without Firewall Feature Set.
+  - Palo-Alto PAN-OS.
+  - VMWare NSX Tier-0 & Tier-1 gateways.
 - Supports IPv4 and IPv6
+  - Allows to define dual stack objects, having both an IPv4 and IPv6 address.
+  - Rules between dual stack objects generate ACLs for IPv4 and IPv6.
 - Rules are optimized globally
   - Adjacent IP ranges and port ranges are joined.
   - Redundant rules are removed and optionally warned about.
