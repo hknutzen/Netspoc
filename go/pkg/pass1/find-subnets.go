@@ -15,6 +15,12 @@ func natName(n *network) string {
 	if name == "" {
 		name = n.name
 	}
+	if n.combined46 != nil {
+		if n.ipV6 {
+			return "IPv6 " + name
+		}
+		return "IPv4 " + name
+	}
 	return name
 }
 

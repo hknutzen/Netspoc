@@ -15,10 +15,7 @@ func (c *spoc) checkIPAddresses() {
 func (c *spoc) checkSubnetOf() {
 	check := func(n *network) {
 		if sn := n.subnetOf; sn != nil {
-			ctx := n.descr
-			if ctx == "" {
-				ctx = n.name
-			}
+			ctx := natName(n)
 			if sn.ipType == unnumberedIP {
 				c.err("Unnumbered %s must not be referenced from"+
 					" attribute 'subnet_of'\n of %s", sn, ctx)

@@ -1578,6 +1578,21 @@ router:r1 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Warning with subnet_of at combined network ignored at v6 part
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
+network:n2 = { ip = 10.1.0.0/21; ip6 = 2001:db8:1:0::/48; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=
+Warning: IPv6 network:n1 is subnet of IPv6 network:n2
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Missing owner for v6 part
 =INPUT=
 area:v4 = {
