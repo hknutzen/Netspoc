@@ -1594,6 +1594,33 @@ Warning: IPv6 network:n1 is subnet of IPv6 network:n2
 =END=
 
 ############################################################
+=TITLE=Warning at combined network with has_subnets ignored at v6 part
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 0.0.0.0/0; ip6 = 2001:db8:1:0::/48; has_subnets; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=
+Warning: IPv6 network:n1 is subnet of IPv6 network:n2
+ in nat_domain:[network:n1].
+ If desired, split subnet into IPv4 and IPv6 part
+ and at IPv6 part declare attribute 'subnet_of'
+=END=
+
+############################################################
+=TITLE=Attribute has_subnets at combined network is not ignored with /0
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 0.0.0.0/0; ip6 = ::/0; has_subnets; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Missing owner for v6 part
 =INPUT=
 area:v4 = {

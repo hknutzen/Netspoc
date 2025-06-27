@@ -269,6 +269,11 @@ func (c *spoc) setupNetwork46(a *ast.Network) {
 		n6.nat = nil
 		c.setupNetwork2(n, na4)
 		c.setupNetwork2(n6, na6)
+		// Attribute 'has_subnets' is only applied to IPv6 part,
+		// if both parts have prefix length 0 (the internet).
+		if !(n.ipp.Bits() == 0 && n6.ipp.Bits() == 0) {
+			n6.hasSubnets = false
+		}
 	} else if needV6 {
 		n.ipV6 = true
 		n.hosts = hosts6
