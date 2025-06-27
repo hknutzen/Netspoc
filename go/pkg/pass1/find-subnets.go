@@ -507,11 +507,16 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 						natSubnet.subnetOf = bignet
 						natSubnet.subnetOfUsed = true
 					}
+					extra := ""
+					if bignet.ipV6 && bignet.combined46 != nil {
+						extra = "split subnet into IPv4 and IPv6 part\n" +
+							" and at IPv6 part "
+					}
 					c.warnOrErr(printType,
 						"%s is subnet of %s\n"+
 							" in %s.\n"+
-							" If desired, declare attribute 'subnet_of'",
-						natName(natSubnet), natName(natBignet), domain.name)
+							" If desired, %sdeclare attribute 'subnet_of'",
+						natName(natSubnet), natName(natBignet), domain.name, extra)
 				}
 			}
 
