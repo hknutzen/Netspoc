@@ -187,6 +187,7 @@ router:r2 = {
 Warning: interface:r2.lo is subnet of network:n1
  in nat_domain:[network:n1].
  If desired, declare attribute 'subnet_of'
+Warning: Useless 'has_subnets' at network:n1
 =END=
 
 ############################################################

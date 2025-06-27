@@ -3266,6 +3266,8 @@ crypto map crypto-outside interface outside
 =SUBST=,::/0,::100:0/8,
 # Use individual routes to VPN peers, even if all have same next hop
 # and even if no route to ::/0 is added.
+=WARNING=
+Warning: Useless 'has_subnets' at network:internet
 =OUTPUT=
 --ipv6/asavpn
 ! [ Routing ]

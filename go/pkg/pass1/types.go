@@ -151,6 +151,7 @@ type network struct {
 	hasIdHosts           bool
 	hasOtherSubnet       bool
 	hasSubnets           bool
+	hasSubnetsUsed       bool
 	hidden               bool
 	hosts                []*host
 	identity             bool

@@ -495,24 +495,23 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				// as value of subnet_of.
 				if natSubnet.subnetOf == bignet {
 					subnet.subnetOfUsed = true
-				} else if !(bignet.hasSubnets &&
+				} else if bignet.hasSubnets &&
 					(bignet.ipp.Bits() == 0 ||
 						zoneEq(bignet.zone, subnet.zone) ||
-						isLoopbackAtZoneBorder(subnet, bignet))) {
-
-					if printType := c.conf.CheckSubnets; printType != "" {
-						// Prevent multiple error messages in
-						// different NAT domains.
-						if natSubnet.subnetOf == nil {
-							natSubnet.subnetOf = bignet
-							natSubnet.subnetOfUsed = true
-						}
-						c.warnOrErr(printType,
-							"%s is subnet of %s\n"+
-								" in %s.\n"+
-								" If desired, declare attribute 'subnet_of'",
-							natName(natSubnet), natName(natBignet), domain.name)
+						isLoopbackAtZoneBorder(subnet, bignet)) {
+					bignet.hasSubnetsUsed = true
+				} else if printType := c.conf.CheckSubnets; printType != "" {
+					// Prevent multiple error messages in
+					// different NAT domains.
+					if natSubnet.subnetOf == nil {
+						natSubnet.subnetOf = bignet
+						natSubnet.subnetOfUsed = true
 					}
+					c.warnOrErr(printType,
+						"%s is subnet of %s\n"+
+							" in %s.\n"+
+							" If desired, declare attribute 'subnet_of'",
+						natName(natSubnet), natName(natBignet), domain.name)
 				}
 			}
 
@@ -624,10 +623,13 @@ func isLoopbackAtZoneBorder(sub, big *network) bool {
 	return false
 }
 
-func (c *spoc) findUselessSubnetOf() {
+func (c *spoc) findUselessSubnetAttr() {
 	for _, n := range c.allNetworks {
 		if bignet := n.subnetOf; bignet != nil && !n.subnetOfUsed {
-			c.warn("Useless 'subnet_of = %s' at %s", bignet, n)
+			c.warn("Useless 'subnet_of = %s' at %s", bignet, n.vxName())
+		}
+		if n.hasSubnets && !n.hasSubnetsUsed {
+			c.warn("Useless 'has_subnets' at %s", n.vxName())
 		}
 	}
 }
@@ -753,5 +755,5 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 			setMaxSecondaryNet(networks)
 		}
 	})
-	c.findUselessSubnetOf()
+	c.findUselessSubnetAttr()
 }
