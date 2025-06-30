@@ -14,10 +14,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - No longer superflously create zones from nat_in.
+- Attribute 'has_subnets' is ignored at IPv6 part of dual stack object.
+  But 'has_subnets' is still applied to both parts of network
+  if both addresses have /0 address.
+- A warn message is shown on useless attribute 'has_subnets'.
 
 ### Fixed
 
 - Better warn message for empty IPv6 area from dual stack area.
+- Better warn message for IPv6 subnet of dual stack object.
+  It is no longer proposed to add 'subnet_of',
+  but to split the network into separate IPv4 and IPv6 objects.
+
 
 ## [2025-05-26-1321]
 
