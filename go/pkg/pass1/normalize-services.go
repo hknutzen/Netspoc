@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"net/netip"
+	"slices"
 )
 
 //#############################################################################
@@ -188,19 +189,45 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 			m[ob.String()] = true
 		}
 	}
+
+	// Check if supernet of dual stack network is used in service
+	// because the network might be deleted by optimization.
+	checkSup := func(l, ol groupObjList, nm string) bool {
+		i := slices.IndexFunc(l, func(o groupObj) bool {
+			return o.String() == nm
+		})
+		ob := l[i]
+		if net, ok := ob.(*network); ok {
+			otherPart := net.combined46
+			up := otherPart.up
+			for up != nil {
+				if slices.ContainsFunc(ol, func(o groupObj) bool {
+					return o == up
+				}) {
+					return true
+				}
+				up = up.up
+			}
+		}
+		return false
+	}
+
 	for _, ob := range v4 {
 		if ob.isCombined46() && !isOtherAggInCluster(ob) {
 			if m[ob.String()] {
 				delete(m, ob.String())
-			} else {
+			} else if !checkSup(v4, v6, ob.String()) {
 				c.err(
 					"Must not use only IPv4 part of dual stack object %s in %s",
 					ob, s)
 			}
 		}
 	}
+
 	for nm := range m {
-		c.err("Must not use only IPv6 part of dual stack object %s in %s", nm, s)
+		if !checkSup(v6, v4, nm) {
+			c.err("Must not use only IPv6 part of dual stack object %s in %s", nm, s)
+		}
 	}
 }
 

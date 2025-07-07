@@ -234,6 +234,56 @@ Error: Must not use only IPv4 part of dual stack object network:n1 in service:s1
 =END=
 
 ############################################################
+=TITLE=Ignore optimized deletion of v4 subnet in rule if supernet is present
+=INPUT=
+network:sup0 = { ip = 10.1.0.0/16; }
+network:sup1 = { ip = 10.1.1.0/24; subnet_of = network:sup0; }
+network:n1 = { ip = 10.1.1.0/28; ip6 = 2001:db8:1::/64; subnet_of = network:sup1;}
+network:n2 = { ip = 10.2.2.0/24; ip6 = 2001:db8:2::/64; host:h2 = { ip = 10.2.2.2; ip6 = 2001:db8:2::2; }}
+
+router:u1 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:sup0;
+ interface:sup1;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; ip6 = 2001:db8:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:sup0]];
+ permit src = user; dst = host:h2; prt = tcp 80;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Ignore optimized deletion of v6 subnet in rule if supernet is present
+=INPUT=
+network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:9:2::/64; }
+router:u = {
+ interface:sup;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:sup]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=WARNING=NONE
+
+
+############################################################
 =TITLE=Must not use only v4 part of dual stack aggregate in zone cluster
 =INPUT=
 any:n1 = { link = network:n1; }
