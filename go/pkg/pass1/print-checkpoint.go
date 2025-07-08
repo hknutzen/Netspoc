@@ -1,23 +1,27 @@
 package pass1
 
 import (
+	"cmp"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 type chkpConfig struct {
 	Rules    []*chkpRule
 	Networks []*chkpNetwork
 	Hosts    []*chkpHost
-	//Groups        []*chkpGroup
-	//TCP           []*chkpTCP
-	//UDP           []*chkpUDP
-	//ICMP          []*chkpICMP
-	//ICMP6         []*chkpICMP6
+	Groups   []*chkpGroup
+	TCP      []*chkpTCPUDP
+	UDP      []*chkpTCPUDP
+	//ICMP  []*chkpICMP
+	//ICMP6 []*chkpICMP
 	//SvOther       []*chkpSvOther
 	GatewayRoutes map[string][]*chkpRoute
-	//GatewayIP     map[string]string
 }
 
 // Default value of attribute 'enabled' is true.
@@ -81,14 +85,7 @@ type chkpGroup struct {
 	Members []chkpName `json:"members"`
 }
 
-type chkpTCP struct {
-	chkpObject
-	Port       string `json:"port"`
-	SourcePort string `json:"source-port,omitempty"`
-	Protocol   string `json:"protocol,omitempty"`
-}
-
-type chkpUDP struct {
+type chkpTCPUDP struct {
 	chkpObject
 	Port       string `json:"port"`
 	SourcePort string `json:"source-port,omitempty"`
@@ -96,12 +93,6 @@ type chkpUDP struct {
 }
 
 type chkpICMP struct {
-	chkpObject
-	IcmpType *int `json:"icmp-type"`
-	IcmpCode *int `json:"icmp-code,omitempty"`
-}
-
-type chkpICMP6 struct {
 	chkpObject
 	IcmpType *int `json:"icmp-type"`
 	IcmpCode *int `json:"icmp-code,omitempty"`
@@ -149,16 +140,23 @@ func collectCheckpointRoutes(vrfMembers []*router, config *chkpConfig) {
 				routes = append(routes, r)
 			}
 		}
+		slices.SortFunc(routes, func(a, b *chkpRoute) int {
+			if ret := cmp.Compare(a.Address, b.Address); ret != 0 {
+				return ret
+			}
+			return cmp.Compare(a.MaskLength, b.MaskLength)
+		})
 		m[r.vrf] = routes
 	}
 	config.GatewayRoutes = m
 }
 
 func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
-	var rules []*chkpRule
 	hosts := make(map[string]*chkpHost)
 	networks := make(map[string]*chkpNetwork)
+	tcpudp := make(map[*proto]*chkpTCPUDP)
 	for _, r := range vrfMembers {
+		rules := make(map[string]*chkpRule)
 		for _, hw := range r.hardware {
 
 			// Ignore if all logical interfaces are loopback interfaces.
@@ -167,43 +165,180 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 			}
 
 			for _, rule := range hw.rules {
-				var action chkpName
+				srv := rule.rule.service
+
+				var action string
 				if rule.deny {
 					action = "Drop"
 				} else {
 					action = "Allow"
 				}
+				srvName, _ := strings.CutPrefix(srv.name, "service:")
+				name := srvName
 
-				var source, destination []chkpName
-				for _, src := range rule.src {
-					//name := rule.rule.service.name
-					addr := src.address(hw.natMap)
+				//Generate unique name for rule for each "install-on" instance
+				for i := 2; rules[name] != nil; i++ {
+					name = srvName + "-" + strconv.Itoa(i)
+				}
+
+				rules[name] = &chkpRule{
+					Name:      name,
+					Comments:  srv.description,
+					Action:    chkpName(action),
+					InstallOn: []chkpName{chkpName(r.vrf)},
+				}
+
+				handleRuleObject := func(obj someObj) string {
+					addr := obj.address(hw.natMap)
+					name := strings.Replace(obj.String(), ":", "_", -1)
+					objName := name
 					if addr.IsSingleIP() {
-						if _, ok := hosts[src.String()]; !ok {
-							hosts[addr.String()] = &chkpHost{}
+						for i := 2; hosts[objName] != nil || networks[objName] != nil; i++ {
+							if hosts[objName] != nil &&
+								(addr.Addr().String() == hosts[objName].IPv4Address ||
+									addr.Addr().String() == hosts[objName].IPv6Address) {
+								break
+							}
+							objName = name + "_part-" + strconv.Itoa(i)
+						}
+
+						if _, found := hosts[objName]; !found {
+							ruleHost := &chkpHost{}
+							ruleHost.Name = objName
+							if addr.Addr().Is6() {
+								ruleHost.IPv6Address = addr.Addr().String()
+							} else {
+								ruleHost.IPv4Address = addr.Addr().String()
+							}
+							hosts[objName] = ruleHost
 						}
 					} else {
-						if _, ok := networks[src.String()]; !ok {
-							networks[src.String()] = &chkpNetwork{}
+						for i := 2; networks[objName] != nil || hosts[objName] != nil; i++ {
+							if networks[objName] != nil &&
+								(addr.Addr().String() == networks[objName].Subnet4 && addr.Bits() == networks[objName].MaskLength4 ||
+									addr.Addr().String() == networks[objName].Subnet6 && addr.Bits() == networks[objName].MaskLength6) {
+								break
+							}
+							objName = name + "_part-" + strconv.Itoa(i)
+						}
+						if _, found := networks[objName]; !found {
+							ruleNet := &chkpNetwork{}
+							ruleNet.Name = objName
+							if addr.Addr().Is6() {
+								ruleNet.Subnet6 = addr.Addr().String()
+								ruleNet.MaskLength6 = addr.Bits()
+							} else {
+								ruleNet.Subnet4 = addr.Addr().String()
+								ruleNet.MaskLength4 = addr.Bits()
+							}
+							networks[objName] = ruleNet
 						}
 					}
-					source = append(source)
+					return objName
 				}
-				for _, d := range rule.dst {
-					destination = append(destination, chkpName(d.String()))
+				for _, src := range rule.src {
+					objName := handleRuleObject(src)
+					rules[name].Source = append(rules[name].Source, chkpName(objName))
 				}
-				rules = append(rules, &chkpRule{
-					Name:        rule.rule.service.name,
-					Comments:    rule.rule.service.description,
-					Action:      action,
-					Source:      source,
-					Destination: destination,
-					InstallOn:   []chkpName{chkpName(r.vrf)},
-				})
+				for _, dst := range rule.dst {
+					objName := handleRuleObject(dst)
+					rules[name].Destination = append(rules[name].Destination, chkpName(objName))
+				}
+				for _, prt := range rule.prt {
+					prtName := prt.name
+					if prt.proto == "icmp" {
+						switch prt.icmpType {
+						case 0:
+							prtName = "echo-reply"
+						case 3:
+							prtName = "dest-unreach"
+						case 4:
+							prtName = "source-quench"
+						case 5:
+							prtName = "redirect"
+						case 8:
+							prtName = "echo-request"
+						case 11:
+							prtName = "time-exceeded"
+						case 12:
+							prtName = "param-prblm"
+						case 13:
+							prtName = "timestamp"
+						case 14:
+							prtName = "timestamp-reply"
+						case 15:
+							prtName = "info-req"
+						case 16:
+							prtName = "info-reply"
+						case 17:
+							prtName = "mask-request"
+						case 18:
+							prtName = "mask-reply"
+						}
+					} else if _, found := tcpudp[prt]; !found {
+						rulePrt := &chkpTCPUDP{}
+						rulePrt.Name = prtName
+						rulePrt.Port = strconv.Itoa(prt.ports[0])
+						if prt.ports[0] != prt.ports[1] {
+							rulePrt.Port += "-" + strconv.Itoa(prt.ports[1])
+						}
+						tcpudp[prt] = rulePrt
+					}
+					rules[name].Service = append(rules[name].Service, chkpName(prtName))
+				}
 			}
 		}
+		// Add rules for each vrf / install-on
+		for _, k := range slices.Sorted(maps.Keys(rules)) {
+			rule := rules[k]
+			// Check for possible group creation, if at least 100 elements present.
+			checkGroup := func(l *[]chkpName, name string) {
+				if len(*l) >= 100 {
+					//To avoid same Groupname for source and destination of same rule
+					groupName := name + rule.Name
+					ruleGroup := &chkpGroup{
+						chkpObject: chkpObject{
+							Name: groupName,
+						},
+						Members: make([]chkpName, len(*l)),
+					}
+					for i, m := range *l {
+						ruleGroup.Members[i] = m
+					}
+					config.Groups = append(config.Groups, ruleGroup)
+					*l = []chkpName{chkpName(groupName)}
+				}
+			}
+
+			slices.Sort(rule.Source)
+			rule.Source = slices.Compact(rule.Source)
+			checkGroup(&rule.Source, "SrcGrp_")
+
+			slices.Sort(rule.Destination)
+			rule.Destination = slices.Compact(rule.Destination)
+			checkGroup(&rule.Destination, "DstGrp_")
+			config.Rules = append(config.Rules, rules[k])
+		}
 	}
-	config.Rules = rules
+	for _, k := range slices.Sorted(maps.Keys(hosts)) {
+		config.Hosts = append(config.Hosts, hosts[k])
+	}
+	for _, k := range slices.Sorted(maps.Keys(networks)) {
+		config.Networks = append(config.Networks, networks[k])
+	}
+	for _, k := range slices.SortedFunc(maps.Keys(tcpudp), func(a, b *proto) int {
+		if cm := cmp.Compare(a.ports[1], b.ports[1]); cm != 0 {
+			return cm
+		}
+		return cmp.Compare(a.ports[0], b.ports[0])
+	}) {
+		switch k.proto {
+		case "tcp":
+			config.TCP = append(config.TCP, tcpudp[k])
+		case "udp":
+			config.UDP = append(config.UDP, tcpudp[k])
+		}
+	}
 }
 
 func (c *spoc) printCheckpoint(r *router, dir string) {
@@ -233,12 +368,7 @@ func (c *spoc) printCheckpoint(r *router, dir string) {
 		c.abort("Can't %v", err)
 	}
 	defer fd.Close()
-
-	//result, err := json.Marshal(config)
-	if err != nil {
-		c.err("Can't: %v", err)
-	}
-
+	
 	enc := json.NewEncoder(fd)
 	enc.SetIndent("", " ")
 	enc.SetEscapeHTML(false)
