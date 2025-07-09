@@ -1068,7 +1068,7 @@ router:r1@v1 = {
 }
 
 router:r2 = {
- interface:n2 = { ip = 10.1.2.4; bind_nat = h; }
+ interface:n2 = { ip = 10.1.2.4; nat_out = h; }
  interface:n3 = { ip = 10.1.3.2; }
 }
 
