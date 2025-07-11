@@ -1004,7 +1004,10 @@ func (c *spoc) inheritNAT0() {
 		return m1, from1
 	}
 	for _, n := range c.allNetworks {
-		inherit(n)
+		switch n.ipType {
+		case hasIP, bridgedIP:
+			inherit(n)
+		}
 	}
 }
 
@@ -1021,11 +1024,12 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 	subNat.name = n.name
 	subNat.descr = "nat:" + tag + " of " + n.name
 
-	// Always keep attribute subnetOf of inherited NAT with dynmic NAT,
-	// because it would override existing subnet relation of networks.
-	// Otherwies take attribute subnetOf of original network if available.
+	// Always keep attribute subnetOf of inherited NAT with dynamic or
+	// hidden NAT, because it would override existing subnet relation
+	// of networks.
+	// Otherwise take attribute subnetOf of original network if available.
 	// Else keep attribute subnetOf of inherited NAT.
-	if s := n.subnetOf; s != nil && !(subNat.subnetOf != nil && subNat.dynamic) {
+	if s := n.subnetOf; s != nil && !subNat.dynamic {
 		subNat.subnetOf = s
 	}
 

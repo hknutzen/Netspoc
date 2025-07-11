@@ -4627,6 +4627,57 @@ Warning: Useless 'subnet_of = network:n2' at network:n1
 =END=
 
 ############################################################
+=TITLE=Useless subnet_of at NAT network
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.1.7.0/24; subnet_of = network:n2; }
+ nat:h1 = { hidden; }
+ nat:n2 = { identity; }
+}
+network:n2 = {
+ ip = 10.1.0.0/21;
+ nat:n2 = { hidden; }
+}
+network:n3 = {
+ ip = 10.1.3.0/24;
+ subnet_of = network:n2;
+ nat:n2 = { identity; }
+}
+router:r1 = {
+ interface:n1 = { nat_out = n2; }
+ interface:n2 = { nat_out = h1; }
+ interface:n3 = { nat_out = n1, n2; }
+}
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at nat:n1 of network:n1
+=END=
+
+############################################################
+=TITLE=Show useless subnet_of at network even if subnet_of at NAT is used
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ subnet_of = network:n2;
+ nat:n1 = { ip = 10.7.7.0/24; subnet_of = network:n3; }
+ nat:h1 = { hidden; }
+ nat:n2 = { identity; }
+}
+network:n2 = {
+ ip = 10.1.0.0/21;
+ nat:n2 = { hidden; }
+}
+network:n3 = { ip = 10.7.0.0/16; }
+router:r1 = {
+ interface:n1 = { nat_out = n2; }
+ interface:n2 = { nat_out = h1; }
+ interface:n3 = { nat_out = n1, n2; }
+}
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
 =TITLE=Useless subnet_of with network 0/0 present
 =INPUT=
 network:n1 = {

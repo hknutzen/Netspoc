@@ -494,7 +494,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				// there's no method to specify a natted network
 				// as value of subnet_of.
 				if natSubnet.subnetOf == bignet {
-					subnet.subnetOfUsed = true
+					natSubnet.subnetOfUsed = true
 				} else if bignet.hasSubnets &&
 					(bignet.ipp.Bits() == 0 ||
 						zoneEq(bignet.zone, subnet.zone) ||
@@ -629,12 +629,18 @@ func isLoopbackAtZoneBorder(sub, big *network) bool {
 }
 
 func (c *spoc) findUselessSubnetAttr() {
-	for _, n := range c.allNetworks {
+	check := func(n *network) {
 		if bignet := n.subnetOf; bignet != nil && !n.subnetOfUsed {
-			c.warn("Useless 'subnet_of = %s' at %s", bignet, n.vxName())
+			c.warn("Useless 'subnet_of = %s' at %s", bignet, natName(n))
 		}
 		if n.hasSubnets && !n.hasSubnetsUsed {
-			c.warn("Useless 'has_subnets' at %s", n.vxName())
+			c.warn("Useless 'has_subnets' at %s", natName(n))
+		}
+	}
+	for _, n := range c.allNetworks {
+		check(n)
+		for _, nn := range n.nat {
+			check(nn)
 		}
 	}
 }
