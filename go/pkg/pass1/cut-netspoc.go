@@ -971,7 +971,7 @@ func (c *spoc) cutNetspoc(
 
 	}
 
-	selectReroutePermit := func(l []*ast.Value) []*ast.Value {
+	selectAttrValues := func(l []*ast.Value) []*ast.Value {
 		var result []*ast.Value
 		for _, v := range l {
 			if isUsed[v.Value] {
@@ -1008,36 +1008,24 @@ func (c *spoc) cutNetspoc(
 				j := 0
 				for _, a2 := range attrList {
 					l2 := a2.ValueList
-					changed := false
+					changed := true
 					switch a2.Name {
 					case "nat_in", "nat_out":
 						l2 = selectNatTags(l2)
-						changed = true
 					case "reroute_permit":
-						l2 = selectReroutePermit(l2)
-						changed = true
+						l2 = selectAttrValues(l2)
 					case "owner":
 						if !keepOwner {
 							l2 = nil
-							changed = true
 						}
 					case "hub":
-						j2 := 0
-						for _, v := range l2 {
-							if isUsed[v.Value] {
-								l2[j2] = v
-								j2++
-							} else {
-								changed = true
-							}
-						}
-						l2 = l2[:j2]
+						l2 = selectAttrValues(l2)
 					case "spoke":
-						if len(l2) == 1 && !isUsed[l2[0].Value] {
-							l2 = nil
-							changed = true
+						if l2 = selectAttrValues(l2); l2 == nil {
 							delSpoke = true
 						}
+					default:
+						changed = false
 					}
 					if !changed || l2 != nil {
 						a2.ValueList = l2

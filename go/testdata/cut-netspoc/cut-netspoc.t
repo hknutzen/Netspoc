@@ -3013,7 +3013,7 @@ network:customers3 = {
 
 ############################################################
 =TITLE=VPN spoke with unused hub
-=INPUT=
+=TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -3067,11 +3067,13 @@ router:vpn1 = {
 }
 network:lan1 = { ip = 10.99.1.0/24; }
 service:ntp = {
- user = interface:vpn1.dmz;
+ user = {{.}};
  permit src = user;
         dst = host:ntp;
         prt = udp 123;
 }
+=INPUT=
+[[input interface:vpn1.dmz]]
 =OUTPUT=
 network:dmz = {
  ip = 192.168.1.0/24;
@@ -3084,6 +3086,28 @@ router:vpn1 = {
 }
 service:ntp = {
  user = interface:vpn1.dmz;
+ permit src = user;
+        dst = host:ntp;
+        prt = udp 123;
+}
+=END=
+
+############################################################
+=TITLE=VPN hub with unused spoke
+=INPUT=
+[[input interface:asavpn.dmz]]
+=OUTPUT=
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:dmz = { ip = 192.168.1.1; hardware = outside; }
+}
+network:dmz = {
+ ip = 192.168.1.0/24;
+ host:ntp = { ip = 192.168.1.123; }
+}
+service:ntp = {
+ user = interface:asavpn.dmz;
  permit src = user;
         dst = host:ntp;
         prt = udp 123;
