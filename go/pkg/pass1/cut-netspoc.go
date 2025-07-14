@@ -843,7 +843,6 @@ func (c *spoc) cutNetspoc(
 	for crypto := range spokeUsed {
 		if hubUsed[crypto] {
 			isUsed[crypto.name] = true
-			isUsed[crypto.name] = true
 			typ := crypto.ipsec
 			isUsed[typ.name] = true
 			isUsed[typ.isakmp.name] = true
@@ -1050,8 +1049,7 @@ func (c *spoc) cutNetspoc(
 
 	for _, top := range toplevel {
 		typedName := top.GetName()
-		lookup := typedName
-		if !isUsed[lookup] {
+		if !isUsed[typedName] {
 			continue
 		}
 		typ, _ := splitTypedName(typedName)
