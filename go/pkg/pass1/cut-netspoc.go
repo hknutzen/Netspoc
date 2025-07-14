@@ -656,35 +656,46 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
-	zone2areas := make(map[*zone][]*area)
-	for _, z := range c.allZones {
-		a := z.inArea
-		for a != nil {
-			zone2areas[z] = append(zone2areas[z], a)
-			a = a.inArea
+	// Collect used zones.
+	zoneUsed := make(map[*zone]bool)
+	for _, n := range c.allNetworks {
+		if isUsed[n.name] {
+			z := n.zone
+			zoneUsed[z] = true
+		}
+	}
+
+	// Mark network as used if it has attribute "partition" and
+	// is located inside used partition.
+	for _, n := range c.allNetworks {
+		if n.partition != "" && !isUsed[n.name] {
+			partition := make(map[*zone]bool)
+			markPartitionGetTags(n.zone, partition)
+			for z := range partition {
+				if zoneUsed[z] {
+					markUnconnectedObj(n, isUsed)
+					break
+				}
+			}
 		}
 	}
 
 	// Collect areas of used networks.
-	zoneCheck := make(map[*zone]bool)
-	for _, n := range c.allNetworks {
-		if isUsed[n.name] {
-			zoneCheck[n.zone] = true
-		}
-	}
-	areaCheck := make(map[string]bool)
-	for z := range zoneCheck {
-		for _, a := range zone2areas[z] {
-			areaCheck[a.name] = true
+	areaUsed := make(map[string]bool)
+	for z := range zoneUsed {
+		a := z.inArea
+		for a != nil {
+			areaUsed[a.name] = true
+			a = a.inArea
 		}
 	}
 	for _, top := range toplevel {
-		aTop, ok := top.(*ast.Area)
+		ar, ok := top.(*ast.Area)
 		if !ok {
 			continue
 		}
-		name := aTop.Name
-		if !areaCheck[name] {
+		name := ar.Name
+		if !areaUsed[name] {
 			continue
 		}
 		// Check areas having attributes that influence their networks.
@@ -697,10 +708,10 @@ func (c *spoc) cutNetspoc(
 			}
 			return false
 		}
-		if isUsed[name] || hasNat(&aTop.TopStruct) ||
-			keepOwner && (aTop.GetAttr("owner") != nil ||
-				aTop.GetAttr("router_attributes") != nil &&
-					aTop.GetAttr("router_attributes").GetAttr("owner") != nil) {
+		if isUsed[name] || hasNat(&ar.TopStruct) ||
+			keepOwner && (ar.GetAttr("owner") != nil ||
+				ar.GetAttr("router_attributes") != nil &&
+					ar.GetAttr("router_attributes").GetAttr("owner") != nil) {
 
 			isUsed[name] = true
 			name := name[len("area:"):]
@@ -712,7 +723,7 @@ func (c *spoc) cutNetspoc(
 					for _, z := range a.zones {
 						processWithSubnetworks(z.networks, func(n *network) {
 							if !found && isUsed[n.name] {
-								aTop.GetAttr("anchor").ValueList =
+								ar.GetAttr("anchor").ValueList =
 									[]*ast.Value{{Value: n.name}}
 								found = true
 							}
@@ -746,15 +757,15 @@ func (c *spoc) cutNetspoc(
 						(*u).Elements = l
 					}
 				}
-				cleanup(&aTop.Border)
-				cleanup(&aTop.InclusiveBorder)
+				cleanup(&ar.Border)
+				cleanup(&ar.InclusiveBorder)
 				// Add anchor, if all interfaces have been removed.
-				if aTop.Border == nil && aTop.InclusiveBorder == nil {
+				if ar.Border == nil && ar.InclusiveBorder == nil {
 					found := false
 					for _, z := range a.zones {
 						processWithSubnetworks(z.networks, func(n *network) {
 							if !found && isUsed[n.name] {
-								aTop.Attributes = append(aTop.Attributes,
+								ar.Attributes = append(ar.Attributes,
 									&ast.Attribute{
 										Name:      "anchor",
 										ValueList: []*ast.Value{{Value: n.name}},
