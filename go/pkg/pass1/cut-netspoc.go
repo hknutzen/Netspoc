@@ -929,8 +929,8 @@ func (c *spoc) cutNetspoc(
 				n.Type = "interface"
 				n.Router = intf.router.name[len("router:"):]
 				n.Network = intf.network.name[len("network:"):]
-				if l := strings.Split(intf.name, "."); len(l) == 3 {
-					n.Extension = l[2]
+				if parts := strings.Split(intf.name, "."); len(parts) == 3 {
+					n.Extension = parts[2]
 				}
 				l = append(l, n)
 			}
