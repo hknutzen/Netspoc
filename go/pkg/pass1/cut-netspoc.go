@@ -578,9 +578,6 @@ func (c *spoc) cutNetspoc(
 	group2def := c.collectGroups(toplevel)
 	c.markElements(toplevel, group2def, isUsed)
 
-	// Mark NAT tags referenced in networks used in rules.
-	c.markUsedNatTags(isUsed)
-
 	// Mark management_instance of routers
 	for _, r := range c.managedRouters {
 		if isUsed[r.name] && r.model.needManagementInstance {
@@ -679,6 +676,9 @@ func (c *spoc) cutNetspoc(
 			}
 		}
 	}
+
+	// Mark NAT tags referenced in used networks.
+	c.markUsedNatTags(isUsed)
 
 	// Collect areas of used networks.
 	areaUsed := make(map[string]bool)
