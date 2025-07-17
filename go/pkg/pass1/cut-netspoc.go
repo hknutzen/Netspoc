@@ -227,8 +227,13 @@ func markUnconnectedObj(n *network, isUsed map[string]bool) {
 			return false
 		}
 		seen[obj] = true
-		if isUsed[obj.String()] {
-			//debug("Found %s", obj)
+		// If we connect an IPv6 network, it isn't sufficient to find a
+		// used IPv4 part of a dual stack network. The corresponding
+		// IPv6 part may still be unconnected. Hence check the
+		// interfaces.
+		if slices.ContainsFunc(obj.intfList(), func(intf *routerIntf) bool {
+			return isUsed[intf.name]
+		}) {
 			return true
 		}
 		r, isRouter := obj.(*router)
@@ -249,7 +254,6 @@ func markUnconnectedObj(n *network, isUsed map[string]bool) {
 			if mark(next, intf) {
 				isUsed[obj.String()] = true
 				isUsed[intf.name] = true
-				//debug("Marked %s + %s", obj, intf)
 				result = true
 				break
 			}
@@ -257,7 +261,6 @@ func markUnconnectedObj(n *network, isUsed map[string]bool) {
 		return result
 	}
 
-	//debug("\nConnecting %s", n)
 	seen = make(map[netPathObj]bool)
 	if n.isAggregate {
 		isUsed[n.name] = true
