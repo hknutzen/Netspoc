@@ -499,6 +499,32 @@ bridged	interface:bridge.n1/right
 =PARAM=interface:[network:n1/right].[all]
 
 ############################################################
+=TITLE=Show crosslink network that otherwise suppressed
+=INPUT=
+area:all = { anchor = network:n1; }
+network:n1 = { ip = 10.1.1.0/27; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.2.2.0/27; }
+=OUTPUT=
+10.1.1.0/27	network:n1
+10.3.3.0/29	network:cr
+10.2.2.0/27	network:n2
+=PARAM=network:[area:all]
+
+
+############################################################
 =TITLE=Show owner
 =TEMPL=topo
 owner:o = { admins = o@b.c; }
