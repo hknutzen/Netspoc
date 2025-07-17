@@ -1868,21 +1868,21 @@ network:u = { ip = 10.9.9.0/24; }
 router:g = {
  managed;
  model = IOS, FW;
- interface:u = {ip = 10.9.9.1; hardware = F0;}
- interface:a = {ip = 10.1.1.9; hardware = F1;}
+ interface:u = {ip = 10.9.9.1; hardware = u;}
+ interface:a = {ip = 10.1.1.9; hardware = a;}
 }
 network:a = { ip = 10.1.1.0/24;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = 10.1.1.1; hardware = E1;}
- interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+ interface:a = {ip = 10.1.1.1; hardware = a;}
+ interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = b;}
 }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = 10.1.1.2; hardware = E4;}
- interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+ interface:a = {ip = 10.1.1.2; hardware = a;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = b;}
 }
 network:b  = { ip = 10.2.2.0/24; }
 pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
@@ -1895,18 +1895,18 @@ network:u = { ip = 10.9.9.0/24; }
 router:g = {
  managed;
  model = IOS, FW;
- interface:u = { ip = 10.9.9.1; hardware = F0; }
- interface:a = { ip = 10.1.1.9; hardware = F1; }
+ interface:u = { ip = 10.9.9.1; hardware = u; }
+ interface:a = { ip = 10.1.1.9; hardware = a; }
 }
 network:a = { ip = 10.1.1.0/24; }
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = { ip = 10.1.1.2; hardware = E4; }
+ interface:a = { ip = 10.1.1.2; hardware = a; }
  interface:b = {
   ip = 10.2.2.2;
   virtual = { ip = 10.2.2.9; }
-  hardware = E5;
+  hardware = b;
  }
 }
 network:b = { ip = 10.2.2.0/24; }
@@ -1916,6 +1916,50 @@ service:test = {
         dst = network:b;
         prt = ip;
 }
+=END=
+
+############################################################
+=TITLE=Mark pathrestriction with virtual interface
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  virtual = { ip = 10.1.2.9; }
+  hardware = n2;
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.2;
+  virtual = { ip = 10.1.2.9; }
+  hardware = n2;
+ }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+pathrestriction:p =
+ interface:r1.n1,
+ interface:r1.n2.virtual,
+;
+service:s2 = {
+ user = interface:r1.n1,
+        interface:r1.n2.virtual,
+        interface:r2.n2.virtual,
+        ;
+ permit src = user;
+        dst = network:n1;
+        prt = ip;
+}
+=INPUT=
+[[input]]
+=OUTPUT=
+[[input]]
 =END=
 
 ############################################################

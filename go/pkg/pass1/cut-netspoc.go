@@ -918,32 +918,58 @@ func (c *spoc) cutNetspoc(
 	}
 
 	// Source of pathrestrictions can't be used literally,
-	// but must be reconstructed from internal data structure.
+	// because automatic groups may be used.
+	// Hence it must be reconstructed from internal data structure.
 	name2pathrestriction := make(map[string]*ast.TopList)
+	seen := make(map[string]bool)
 	for _, pr := range c.pathrestrictions {
-		elemList := pr.elements
-		var l []ast.Element
-		for _, intf := range elemList {
-			if isUsed[intf.name] {
-				n := new(ast.IntfRef)
-				n.Type = "interface"
-				n.Router = intf.router.name[len("router:"):]
-				n.Network = intf.network.name[len("network:"):]
-				if parts := strings.Split(intf.name, "."); len(parts) == 3 {
-					n.Extension = parts[2]
-				}
-				l = append(l, n)
-			}
-		}
-		if len(l) < 2 {
+		// Other part of dual stack pathrestriction has already been
+		// processed or pathrestriction was automatically created.
+		if seen[pr.name] || strings.HasPrefix(pr.name, "auto-virtual:") {
 			continue
 		}
+		seen[pr.name] = true
+		getUsedInterfaces := func(pr *pathRestriction) []string {
+			var result []string
+			for _, intf := range pr.elements {
+				if isUsed[intf.name] {
+					result = append(result, intf.name)
+				}
+			}
+			if len(result) < 2 {
+				result = nil
+			}
+			return result
+		}
+		names := getUsedInterfaces(pr)
+		if pr6 := pr.combined46; pr6 != nil {
+			for _, nm := range getUsedInterfaces(pr6) {
+				if !slices.Contains(names, nm) {
+					names = append(names, nm)
+				}
+			}
+		}
+		if len(names) < 2 {
+			continue
+		}
+		var l []ast.Element
+		for _, nm := range names {
+			typ, rest := splitTypedName(nm)
+			parts := strings.Split(rest, ".")
+			n := new(ast.IntfRef)
+			n.Type = typ
+			n.Router = parts[0]
+			n.Network = parts[1]
+			if len(parts) == 3 {
+				n.Extension = parts[2]
+			}
+			l = append(l, n)
+		}
 		n := new(ast.TopList)
-		name := pr.name
-		n.Name = name
+		n.Name = pr.name
 		n.Elements = l
-		isUsed[name] = true
-		name2pathrestriction[name] = n
+		isUsed[pr.name] = true
+		name2pathrestriction[pr.name] = n
 	}
 
 	removeOwner := func(ref *[]*ast.Attribute) {
