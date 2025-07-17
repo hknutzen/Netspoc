@@ -2965,9 +2965,9 @@ network:customers1 = {
 }
 [[clients2]]
 service:s1 = {
- user = host:id:foo@domain.x.customers1,
+ user = host:id:@domain.y.customers2,
         host:id:domain.x.customers2,
-        host:id:@domain.y.customers2,
+        host:id:foo@domain.x.customers1,
         ;
  permit src = user;
         dst = network:intern;
@@ -3442,8 +3442,8 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s1 = {
- user = interface:u1.n1,
-        interface:r1.n1,
+ user = interface:r1.n1,
+        interface:u1.n1,
         interface:u1.n1.2,
         ;
  permit src = user;

@@ -298,7 +298,14 @@ func (c *spoc) markAndSubstElements(
 	isUsed map[string]bool) {
 
 	expand := func(el ast.Element) groupObjList {
-		return c.expandGroup1([]ast.Element{el}, ctx, false, false)
+		l := c.expandGroup1([]ast.Element{el}, ctx, false, false)
+		// Remove duplicates from dual stack objects.
+		slices.SortFunc(l, func(e1, e2 groupObj) int {
+			return strings.Compare(e1.String(), e2.String())
+		})
+		return slices.CompactFunc(l, func(e1, e2 groupObj) bool {
+			return e1.String() == e2.String()
+		})
 	}
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
