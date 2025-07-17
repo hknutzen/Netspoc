@@ -300,8 +300,8 @@ func (c *spoc) markAndSubstElements(
 	elemList *[]ast.Element, ctx string, m map[string]*ast.TopList,
 	isUsed map[string]bool) {
 
-	expand := func(el ast.Element) groupObjList {
-		l := c.expandGroup1([]ast.Element{el}, ctx, false, false)
+	expand := func(el ast.Element, visible bool) groupObjList {
+		l := c.expandGroup1([]ast.Element{el}, ctx, visible, false)
 		// Remove duplicates from dual stack objects.
 		slices.SortFunc(l, func(e1, e2 groupObj) int {
 			return strings.Compare(e1.String(), e2.String())
@@ -395,8 +395,8 @@ func (c *spoc) markAndSubstElements(
 		}
 		return result
 	}
-	var traverse func(l []ast.Element) []ast.Element
-	traverse = func(l []ast.Element) []ast.Element {
+	var traverse func(l []ast.Element, visible bool) []ast.Element
+	traverse = func(l []ast.Element, visible bool) []ast.Element {
 		var expanded groupObjList
 		j := 0
 		for _, el := range l {
@@ -408,7 +408,7 @@ func (c *spoc) markAndSubstElements(
 				}
 				switch x.Type {
 				case "any", "network":
-					for _, obj := range expand(el) {
+					for _, obj := range expand(el, visible) {
 						markUnconnectedObj(obj.(*network), isUsed)
 					}
 				case "group":
@@ -419,21 +419,21 @@ func (c *spoc) markAndSubstElements(
 				isUsed[typedName] = true
 			case ast.AutoElem:
 				// Ignore empty automatic group
-				if len(expand(el)) == 0 {
+				if len(expand(el, false)) == 0 {
 					continue
 				}
 				// Remove sub elements that would evaluate to empty list.
-				l2 := traverse(x.GetElements())
+				l2 := traverse(x.GetElements(), false)
 				j2 := 0
 				for _, el2 := range l2 {
-					if len(expand(el2)) != 0 {
+					if len(expand(el2, false)) != 0 {
 						l2[j2] = el2
 						j2++
 					}
 				}
 				x.SetElements(l2[:j2])
 			case *ast.IntfRef:
-				for _, obj := range expand(el) {
+				for _, obj := range expand(el, visible) {
 					switch x := obj.(type) {
 					case *routerIntf:
 						setIntfUsed(x, isUsed)
@@ -441,7 +441,7 @@ func (c *spoc) markAndSubstElements(
 					}
 				}
 			case *ast.Intersection:
-				expanded = append(expanded, expand(el)...)
+				expanded = append(expanded, expand(el, visible)...)
 				continue // Ignore original intersection.
 			}
 			l[j] = el
@@ -453,7 +453,7 @@ func (c *spoc) markAndSubstElements(
 		}
 		return result
 	}
-	*elemList = traverse(*elemList)
+	*elemList = traverse(*elemList, true)
 }
 
 func (c *spoc) markElements(
