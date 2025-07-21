@@ -643,6 +643,87 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 
+	// Call this after topology has been marked.
+	c.expandCrypto()
+
+	mark1 := func(r *router) {
+
+		// Mark split router, if some split part is marked.
+		for _, intf := range getIntf(r) {
+			if frag := intf.router; frag != r && isRouterUsed(frag, isUsed) {
+				// debug("From split: %s", r)
+				setRouterUsed(r, isUsed)
+			}
+		}
+
+		if !isRouterUsed(r, isUsed) {
+			return
+		}
+
+		// Mark fragments of marked crypto routers.
+		for _, intf := range getIntf(r) {
+			if frag := intf.router; frag != r {
+				// debug("Fragment: %s", fragment)
+				setRouterUsed(frag, isUsed)
+			}
+		}
+
+		// Mark path of crypto tunnel.
+		for _, intf := range getIntf(r) {
+			if isUsed[intf.name] && intf.ipType == tunnelIP {
+				c.markPath(intf.realIntf, intf.peer.realIntf, isUsed)
+			}
+		}
+	}
+	for _, r := range c.allRouters {
+		mark1(r)
+	}
+
+	hubUsed := make(map[*crypto]bool)
+	spokeUsed := make(map[*crypto]bool)
+	mark2 := func(r *router) {
+		if !isRouterUsed(r, isUsed) {
+			return
+		}
+		for _, intf := range withSecondary(getIntf(r)) {
+			if !isUsed[intf.name] {
+				continue
+			}
+
+			// Mark main interface of secondary or virtual interface.
+			if main := intf.mainIntf; main != nil {
+				isUsed[main.name] = true
+			}
+			if main := intf.origMain; main != nil {
+				isUsed[main.name] = true
+			}
+
+			// Mark crypto definitions which are referenced by
+			// already marked interfaces.
+			for _, crypto := range intf.hub {
+				hubUsed[crypto] = true
+			}
+			if crypto := intf.spoke; crypto != nil {
+				spokeUsed[crypto] = true
+			}
+
+			// Mark networks referenced by interfaces
+			// marked by markAndSubstElements.
+			isUsed[intf.network.name] = true
+		}
+	}
+	for _, r := range c.allRouters {
+		mark2(r)
+	}
+	for crypto := range spokeUsed {
+		if hubUsed[crypto] {
+			isUsed[crypto.name] = true
+			typ := crypto.ipsec
+			isUsed[typ.name] = true
+			isUsed[typ.isakmp.name] = true
+		}
+	}
+
 	// Mark networks and aggregates having NAT attributes that
 	// influence their subnets.
 	for _, n := range c.allNetworks {
@@ -786,87 +867,6 @@ func (c *spoc) cutNetspoc(
 					}
 				}
 			}
-		}
-	}
-
-	// Call this after topology has been marked.
-	c.expandCrypto()
-
-	mark1 := func(r *router) {
-
-		// Mark split router, if some split part is marked.
-		for _, intf := range getIntf(r) {
-			if frag := intf.router; frag != r && isRouterUsed(frag, isUsed) {
-				// debug("From split: %s", r)
-				setRouterUsed(r, isUsed)
-			}
-		}
-
-		if !isRouterUsed(r, isUsed) {
-			return
-		}
-
-		// Mark fragments of marked crypto routers.
-		for _, intf := range getIntf(r) {
-			if frag := intf.router; frag != r {
-				// debug("Fragment: %s", fragment)
-				setRouterUsed(frag, isUsed)
-			}
-		}
-
-		// Mark path of crypto tunnel.
-		for _, intf := range getIntf(r) {
-			if isUsed[intf.name] && intf.ipType == tunnelIP {
-				c.markPath(intf.realIntf, intf.peer.realIntf, isUsed)
-			}
-		}
-	}
-	for _, r := range c.allRouters {
-		mark1(r)
-	}
-
-	hubUsed := make(map[*crypto]bool)
-	spokeUsed := make(map[*crypto]bool)
-	mark2 := func(r *router) {
-		if !isRouterUsed(r, isUsed) {
-			return
-		}
-		for _, intf := range withSecondary(getIntf(r)) {
-			if !isUsed[intf.name] {
-				continue
-			}
-
-			// Mark main interface of secondary or virtual interface.
-			if main := intf.mainIntf; main != nil {
-				isUsed[main.name] = true
-			}
-			if main := intf.origMain; main != nil {
-				isUsed[main.name] = true
-			}
-
-			// Mark crypto definitions which are referenced by
-			// already marked interfaces.
-			for _, crypto := range intf.hub {
-				hubUsed[crypto] = true
-			}
-			if crypto := intf.spoke; crypto != nil {
-				spokeUsed[crypto] = true
-			}
-
-			// Mark networks referenced by interfaces
-			// marked by markAndSubstElements.
-			isUsed[intf.network.name] = true
-		}
-	}
-	for _, r := range c.allRouters {
-		mark2(r)
-	}
-	for crypto := range spokeUsed {
-		if hubUsed[crypto] {
-			isUsed[crypto.name] = true
-			typ := crypto.ipsec
-			isUsed[typ.name] = true
-			isUsed[typ.isakmp.name] = true
 		}
 	}
 
