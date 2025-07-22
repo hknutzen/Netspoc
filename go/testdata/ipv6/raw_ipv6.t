@@ -86,8 +86,8 @@ Aborted
 =TITLE=Can't read raw directory
 =TODO= No IPv6
 =SETUP=
-mkdir -p netspoc/raw
-chmod u-rx netspoc/raw
+mkdir -p INPUT/raw
+chmod u-rx INPUT/raw
 =INPUT=
 --ipv6/topo
 network:n1 = { ip6 = ::a01:100/120; }
