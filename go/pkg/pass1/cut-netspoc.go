@@ -738,7 +738,7 @@ func (c *spoc) cutNetspoc(
 			if up == nil {
 				break
 			}
-			if origNat[up] != nil {
+			if origNat[up] != nil || up.noCheckSupernetRules {
 				markUnconnectedObj(up, isUsed)
 			}
 		}
