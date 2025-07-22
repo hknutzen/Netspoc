@@ -1127,6 +1127,10 @@ func (c *spoc) cutNetspoc(
 			if !keepOwner {
 				removeSubAttr(&x.Attributes, "router_attributes", "owner")
 			}
+		case *ast.Service:
+			if !keepOwner {
+				removeAttr(&x.Attributes, "multi_owner")
+			}
 		case *ast.TopStruct:
 			if typ == "any" {
 				removeOwner(&x.Attributes)

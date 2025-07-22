@@ -260,6 +260,49 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Remove owner and attribute multi_owner
+=INPUT=
+owner:o1 = { admins = a1@example.com; }
+owner:o2 = { admins = a2@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ multi_owner;
+ user = network:n3;
+ permit src = user;
+        dst = network:n1, network:n2;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n1,
+              network:n2,
+              ;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
 =TITLE=Remove unused protocolgroup
 =INPUT=
 [[topo]]
