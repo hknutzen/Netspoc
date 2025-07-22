@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   But 'has_subnets' is still applied to both parts of network
   if both addresses have /0 address.
 - A warn message is shown on useless attribute 'has_subnets'.
+- A warn message is shown on useless attribute 'subnet_of'
+  at NAT definition of network.
 
 ### Fixed
 
@@ -25,7 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Better warn message for IPv6 subnet of dual stack object.
   It is no longer proposed to add 'subnet_of',
   but to split the network into separate IPv4 and IPv6 objects.
-
+- No longer show error message
+  'Must not use only IPv6 / IPv4 part of dual stack object',
+  if supernet of missing network is still applied.
+- Program "cut-netspoc" now works with dual-stack topology.
 
 ## [2025-05-26-1321]
 
