@@ -86,8 +86,8 @@ Aborted
 =TITLE=Can't read raw directory
 # No IPv6 test
 =SETUP=
-mkdir -p netspoc/raw
-chmod u-rx netspoc/raw
+mkdir -p INPUT/raw
+chmod u-rx INPUT/raw
 =INPUT=
 --topo
 network:n1 = { ip = 10.1.1.0/24; }

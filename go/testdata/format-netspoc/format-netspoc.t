@@ -1542,7 +1542,7 @@ xxx
 --f1
 group:g1=;
 =SETUP=
-chmod u-w netspoc/f1
+chmod u-w INPUT/f1
 =ERROR=
 Error: Can't open f1: permission denied
 =END=

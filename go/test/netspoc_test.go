@@ -170,9 +170,10 @@ func runTest(t *testing.T, tc test, d descr) {
 		var inDir string
 		if input != "NONE" || outDir != "" {
 			// Prepare input file or directory.
-			src := path.Join(workDir, "netspoc")
-			inDir = testtxt.PrepareInDir(t, src, "INPUT", input)
-			args = append(args, inDir)
+			src := path.Join(workDir, "INPUT")
+			testtxt.PrepareFileOrDir(t, src, input)
+			inDir = src
+			args = append(args, src)
 
 			// Add location of output directory.
 			if outDir != "" {

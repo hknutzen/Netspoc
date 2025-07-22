@@ -7,8 +7,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
-github.com/hknutzen/testtxt v0.0.0-20240408182449-0168fe18ebfb h1:DKOCMip8pLpo0mcOeFZ+4Rnni55rjwUwto+txvHhgtw=
-github.com/hknutzen/testtxt v0.0.0-20240408182449-0168fe18ebfb/go.mod h1:cP6u9fjtswHj4D+xw+M+WTP6McR0ad10s6w+Hxv0U6Y=
+github.com/hknutzen/testtxt v0.0.0-20250721083956-5de181450733 h1:2RXmiLOPj+8tUe4tWc2mD1iuKyuL1UMAY1RmM9E3cYw=
+github.com/hknutzen/testtxt v0.0.0-20250721083956-5de181450733/go.mod h1:cP6u9fjtswHj4D+xw+M+WTP6McR0ad10s6w+Hxv0U6Y=
 github.com/octago/sflags v0.2.0/go.mod h1:G0bjdxh4qPRycF74a2B8pU36iTp9QHGx0w0dFZXPt80=
 github.com/octago/sflags v0.3.1-0.20210726012706-20f2a9c31dfc h1:oefEVXZ7lMGxuiONrGMbSVQzibx0bdRQ/2yNQhyGOyQ=
 github.com/octago/sflags v0.3.1-0.20210726012706-20f2a9c31dfc/go.mod h1:5bNo1x+1VBz+aQErCB82nPISPQWNiO4QWlasZKS0mFc=

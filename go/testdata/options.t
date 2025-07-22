@@ -267,9 +267,9 @@ panic: Can't open out/r1: is a directory
 -- topo
 network:n1 = { ip = 10.1.1.0/24; }
 =SETUP=
-chmod u-rx netspoc
+chmod u-rx INPUT
 =ERROR=
-panic: open netspoc: permission denied
+panic: open INPUT: permission denied
 =END=
 
 ############################################################

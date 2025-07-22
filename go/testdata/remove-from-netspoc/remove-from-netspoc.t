@@ -58,7 +58,7 @@ Changed INPUT
 --f1
 group:g1 = host:a;
 =SETUP=
-chmod u-w netspoc/f1
+chmod u-w INPUT/f1
 =PARAMS=host:a
 =ERROR=
 panic: Can't open f1: permission denied
