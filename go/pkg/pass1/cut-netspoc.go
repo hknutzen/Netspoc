@@ -31,7 +31,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2024 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2025 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -790,23 +790,32 @@ func (c *spoc) cutNetspoc(
 			continue
 		}
 		// Check areas having attributes that influence their networks.
-		// Remove unused anchor and border from used areas.
-		hasNat := func(n *ast.TopStruct) bool {
+		hasAttr := func(n *ast.Area) bool {
 			for _, a := range n.Attributes {
-				if strings.HasPrefix(a.Name, "nat:") {
+				switch a.Name {
+				case "has_unenforceable", "overlaps":
 					return true
+				case "owner":
+					if keepOwner {
+						return true
+					}
+				case "router_attributes":
+					if keepOwner && a.GetAttr("owner") != nil {
+						return true
+					}
+				default:
+					if strings.HasPrefix(a.Name, "nat:") {
+						return true
+					}
 				}
 			}
 			return false
 		}
-		if isUsed[name] || hasNat(&ar.TopStruct) ||
-			keepOwner && (ar.GetAttr("owner") != nil ||
-				ar.GetAttr("router_attributes") != nil &&
-					ar.GetAttr("router_attributes").GetAttr("owner") != nil) {
-
+		if isUsed[name] || hasAttr(ar) {
 			isUsed[name] = true
 			name := name[len("area:"):]
 			a := c.symTable.area[name]
+			// Remove unused anchor and border from used areas.
 			if anchor := a.anchor; anchor != nil {
 				// Change anchor to some used network
 				if !isUsed[anchor.name] {
