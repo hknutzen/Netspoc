@@ -245,7 +245,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 					rules[name].Destination = append(rules[name].Destination, chkpName(objName))
 				}
 				for _, prt := range rule.prt {
-					prtName := prt.name
+					prtName := strings.ReplaceAll(prt.name, " ", "_")
 					if prt.proto == "icmp" {
 						switch prt.icmpType {
 						case 0:
@@ -368,7 +368,7 @@ func (c *spoc) printCheckpoint(r *router, dir string) {
 		c.abort("Can't %v", err)
 	}
 	defer fd.Close()
-	
+
 	enc := json.NewEncoder(fd)
 	enc.SetIndent("", " ")
 	enc.SetEscapeHTML(false)
