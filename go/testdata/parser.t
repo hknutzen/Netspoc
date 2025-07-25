@@ -289,6 +289,19 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Unknown attribute at interface of dual stack router
+# Duplicate error message can't be avoided.
+=INPUT=
+router:R = {
+ interface:N = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; foo; }
+}
+network:N = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+=ERROR=
+Error: Unexpected attribute in interface:R.N: foo
+Error: Unexpected attribute in interface:R.N: foo
+=END=
+
+############################################################
 =TITLE=Bad typed name as attribute of interface
 =INPUT=
 router:R = {
