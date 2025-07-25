@@ -329,11 +329,12 @@ Error: Short definition of interface:R.N not allowed
 =TITLE=Empty list of IP addresses
 =INPUT=
 router:R = {
- interface:N = { ip = ; }
+ interface:N = { ip = ; ip6 = ; }
 }
-network:N = { ip = 10.1.1.0/24; }
+network:N = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 =ERROR=
 Error: List of values expected in 'ip' of interface:R.N
+Error: List of values expected in 'ip6' of interface:R.N
 =END=
 
 ############################################################

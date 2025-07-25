@@ -434,9 +434,9 @@ func (c *spoc) checkIntf46(ai *ast.Attribute) (int, int) {
 	for _, a := range ai.ComplexValue {
 		switch a.Name {
 		case "ip":
-			v4Count += len(a.ValueList)
+			v4Count += max(1, len(a.ValueList))
 		case "ip6":
-			v6Count += len(a.ValueList)
+			v6Count += max(1, len(a.ValueList))
 		case "unnumbered":
 			v4Count++
 		case "unnumbered6":
