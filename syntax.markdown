@@ -133,7 +133,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary | local |
                        routing_only
-    <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS | PAN-OS
+    <model>        ::= Linux | ASA | IOS | IOS,FW | NSX, (T0|T1) | PAN-OS
     <modifiers>    ::= <ASA-modifier> |
                        <IOS-modifier> |
                        <NSX-modifier> |

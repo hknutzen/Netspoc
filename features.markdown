@@ -17,7 +17,7 @@ layout: default
   - Adjacent IP ranges and port ranges are joined.
   - Redundant rules are removed and optionally warned about.
 - Highly optimized chains for iptables are generated.
-- Object-groups for ASA and NX-OS are generated.
+- Object-groups for ASA are generated.
 - IPSec configuration for Cisco ASA and IOS is generated.
 - Commands for static routing are generated (optionally).
 - Network address translation (NAT) is supported.

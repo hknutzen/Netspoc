@@ -203,13 +203,11 @@ Currently these router models are supported:
 - `Linux` for Linux with iptables,
 - `ASA` for Cisco ASA,
 - `ASA, VPN` for Cisco ASA with VPN tunnels authenticated by certificates,
-- `NX-OS` for Cisco Nexus devices,
 - `IOS` for Cisco IOS routers,
 - `IOS, FW` for Cisco IOS routers with stateful inspection,
-- `IOS, EZVPN` for Cisco IOS routers with easy VPN,
-
-For ASA devices the attribute `, 8.4` can be added to the model definition.
-This changes generated IPSec commands.
+- `PAN-OS` for Palo-Alto firewalls,
+- `NSX, T0` for VMWare NSX tier 0 gateways,
+- `NSX, T1` for VMWare NSX tier 1 gateways.
 
 ## Interfaces
 
@@ -717,7 +715,7 @@ These restrictions apply:
   connected by a [crosslink network](#crosslink_network) must be
   border of the same security zone.
 
-Outgoing ACLs are supported for model NX-OS, IOS and ASA.
+Outgoing ACLs are supported for model IOS and ASA.
 
 ## Logging
 
@@ -937,7 +935,7 @@ reach the device when deploying the configuration by Netspoc-Approve.
 ## Disable generation of object-groups
 
 Netspoc generates optimized code using object-groups for devices of
-type ASA and NX-OS.  Use router attribute `no_group_code` to
+type ASA.  Use router attribute `no_group_code` to
 disable this optimization.
 
 ## Defining crypto tunnels
