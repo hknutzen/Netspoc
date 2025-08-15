@@ -247,7 +247,7 @@ func runTest(t *testing.T, tc test, d descr) {
 	}
 
 	// Normalize stderr.
-	re := regexp.MustCompile(workDir + `/code\.tmp\d{6,12}`)
+	re := regexp.MustCompile(regexp.QuoteMeta(workDir) + `/code\.tmp\d{6,12}`)
 	if inDir != "" {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 		stderr = strings.ReplaceAll(stderr, inDir, path.Base(inDir))
