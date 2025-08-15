@@ -290,6 +290,7 @@ Aborted
 
 ############################################################
 =TITLE=Unknown attribute at interface of dual stack router
+# No IPv6
 # Duplicate error message can't be avoided.
 =INPUT=
 router:R = {
@@ -327,6 +328,7 @@ Error: Short definition of interface:R.N not allowed
 
 ############################################################
 =TITLE=Empty list of IP addresses
+# No IPv6
 =INPUT=
 router:R = {
  interface:N = { ip = ; ip6 = ; }

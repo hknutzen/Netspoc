@@ -289,6 +289,20 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Unknown attribute at interface of dual stack router
+=TODO= No IPv6
+# Duplicate error message can't be avoided.
+=INPUT=
+router:R = {
+ interface:N = { ip6 = ::a01:101; ip6 = 2001:db8:1:1::1; foo; }
+}
+network:N = { ip6 = ::a01:100/120; ip6 = 2001:db8:1:1::/64; }
+=ERROR=
+Error: Unexpected attribute in interface:R.N: foo
+Error: Unexpected attribute in interface:R.N: foo
+=END=
+
+############################################################
 =TITLE=Bad typed name as attribute of interface
 =INPUT=
 router:R = {
@@ -314,12 +328,14 @@ Error: Short definition of interface:R.N not allowed
 
 ############################################################
 =TITLE=Empty list of IP addresses
+=TODO= No IPv6
 =INPUT=
 router:R = {
- interface:N = { ip6 = ; }
+ interface:N = { ip6 = ; ip6 = ; }
 }
-network:N = { ip6 = ::a01:100/120; }
+network:N = { ip6 = ::a01:100/120; ip6 = 2001:db8:1:1::/64; }
 =ERROR=
+Error: List of values expected in 'ip6' of interface:R.N
 Error: List of values expected in 'ip6' of interface:R.N
 =END=
 
