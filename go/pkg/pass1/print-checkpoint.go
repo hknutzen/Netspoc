@@ -171,7 +171,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 				if rule.deny {
 					action = "Drop"
 				} else {
-					action = "Allow"
+					action = "Accept"
 				}
 				srvName, _ := strings.CutPrefix(srv.name, "service:")
 				name := srvName

@@ -108,7 +108,7 @@ service:test = {
     "interface_u1.n1"
    ],
    "service": [
-    "tcp 81"
+    "tcp_81"
    ],
    "install-on": [
     "v1"
@@ -124,7 +124,7 @@ service:test = {
     "interface_u1.n1"
    ],
    "service": [
-    "tcp 81"
+    "tcp_81"
    ],
    "install-on": [
     "v2"
@@ -132,7 +132,7 @@ service:test = {
   },
   {
    "name": "test-2",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -140,7 +140,7 @@ service:test = {
     "interface_r1@v1.n1"
    ],
    "service": [
-    "tcp 22-24"
+    "tcp_22-24"
    ],
    "install-on": [
     "v2"
@@ -165,11 +165,11 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22-24",
+   "name": "tcp_22-24",
    "port": "22-24"
   },
   {
-   "name": "tcp 81",
+   "name": "tcp_81",
    "port": "81"
   }
  ],
@@ -250,7 +250,7 @@ service:s2 = {
 =OUTPUT=
 --r1
 {
- "Rules":[{"name":"s1","action":"Allow","source":["network_n4"],"destination":["network_n1"],"service":["tcp 22"],"install-on":["v1"]},{"name":"s2","action":"Allow","source":["network_n4"],"destination":["network_n2"],"service":["tcp 23"],"install-on":["v1"]}],
+ "Rules":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["v1"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["v1"]}],
  "Networks": [
    {
      "name": "network_n1",
@@ -270,7 +270,7 @@ service:s2 = {
  ],
  "Hosts":null,
  "Groups":null,
- "TCP":[{"name":"tcp 22","port":"22"},{"name":"tcp 23","port":"23"}],
+ "TCP":[{"name":"tcp_22","port":"22"},{"name":"tcp_23","port":"23"}],
  "UDP":null,
  "GatewayRoutes": {
     "v1": [
@@ -357,8 +357,8 @@ service:test = {
       "host_h1"
     ],
     "service": [
-      "tcp 23",
-      "tcp 24"
+      "tcp_23",
+      "tcp_24"
     ],
     "install-on": [
       "v1"
@@ -366,7 +366,7 @@ service:test = {
   },
   {
    "name": "test-2",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -374,8 +374,8 @@ service:test = {
     "network_n1"
    ],
    "service": [
-    "udp 22",
-    "tcp 22"
+    "udp_22",
+    "tcp_22"
    ],
    "install-on": [
     "v1"
@@ -402,21 +402,21 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22",
+   "name": "tcp_22",
    "port": "22"
   },
   {
-   "name": "tcp 23",
+   "name": "tcp_23",
    "port": "23"
   },
   {
-   "name": "tcp 24",
+   "name": "tcp_24",
    "port": "24"
   }
  ],
  "UDP": [
   {
-   "name": "udp 22",
+   "name": "udp_22",
    "port": "22"
   }
  ],
@@ -455,7 +455,7 @@ service:test2 = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -463,7 +463,7 @@ service:test2 = {
     "network_n1"
    ],
    "service": [
-    "tcp 22"
+    "tcp_22"
    ],
    "install-on": [
     "v1"
@@ -479,7 +479,7 @@ service:test2 = {
     "host_h1"
    ],
    "service": [
-    "tcp 23"
+    "tcp_23"
    ],
    "install-on": [
     "v1"
@@ -506,11 +506,11 @@ service:test2 = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22",
+   "name": "tcp_22",
    "port": "22"
   },
   {
-   "name": "tcp 23",
+   "name": "tcp_23",
    "port": "23"
   }
  ],
@@ -560,7 +560,7 @@ service:test = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -585,7 +585,7 @@ service:test = {
   },
   {
    "name": "test-2",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -601,7 +601,7 @@ service:test = {
   },
   {
    "name": "test-3",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -617,7 +617,7 @@ service:test = {
   },
   {
    "name": "test-4",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -700,7 +700,7 @@ service:test = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "SrcGrp_test"
    ],
@@ -708,7 +708,7 @@ service:test = {
     "network_n1"
    ],
    "service": [
-    "tcp 80"
+    "tcp_80"
    ],
    "install-on": [
     "v1"
@@ -731,7 +731,7 @@ service:test = {
  ],
  "TCP": [
   {
-   "name": "tcp 80",
+   "name": "tcp_80",
    "port": "80"
   }
  ],
@@ -779,7 +779,7 @@ service:test = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h1",
     "host_h1_part-2",
@@ -792,7 +792,7 @@ service:test = {
     "host_h2"
    ],
    "service": [
-    "tcp 22"
+    "tcp_22"
    ],
    "install-on": [
     "v1"
@@ -839,7 +839,7 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22",
+   "name": "tcp_22",
    "port": "22"
   }
  ],
@@ -896,7 +896,7 @@ service:b = {
  "Rules": [
   {
    "name": "a",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h1"
    ],
@@ -904,7 +904,7 @@ service:b = {
     "host_h2"
    ],
    "service": [
-    "tcp 22-30"
+    "tcp_22-30"
    ],
    "install-on": [
     "v1"
@@ -912,7 +912,7 @@ service:b = {
   },
   {
    "name": "b",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h1"
    ],
@@ -920,8 +920,8 @@ service:b = {
     "host_h3"
    ],
    "service": [
-    "tcp 28-30",
-    "tcp 31-36"
+    "tcp_28-30",
+    "tcp_31-36"
    ],
    "install-on": [
     "v1"
@@ -946,15 +946,15 @@ service:b = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22-30",
+   "name": "tcp_22-30",
    "port": "22-30"
   },
   {
-   "name": "tcp 28-30",
+   "name": "tcp_28-30",
    "port": "28-30"
   },
   {
-   "name": "tcp 31-36",
+   "name": "tcp_31-36",
    "port": "31-36"
   }
  ],
@@ -997,7 +997,7 @@ service:test = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "network_n3"
    ],
@@ -1005,7 +1005,7 @@ service:test = {
     "network_n1"
    ],
    "service": [
-    "tcp 22"
+    "tcp_22"
    ],
    "install-on": [
     "v1"
@@ -1028,7 +1028,7 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22",
+   "name": "tcp_22",
    "port": "22"
   }
  ],
@@ -1084,7 +1084,7 @@ service:test = {
  "Rules": [
   {
    "name": "test",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "network_n1"
    ],
@@ -1092,7 +1092,7 @@ service:test = {
     "any_10_1"
    ],
    "service": [
-    "tcp 80"
+    "tcp_80"
    ],
    "install-on": [
     "v1"
@@ -1100,7 +1100,7 @@ service:test = {
   },
   {
    "name": "test-2",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "network_n1"
    ],
@@ -1108,7 +1108,7 @@ service:test = {
     "any_10_1"
    ],
    "service": [
-    "tcp 80"
+    "tcp_80"
    ],
    "install-on": [
     "v1"
@@ -1131,7 +1131,7 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 80",
+   "name": "tcp_80",
    "port": "80"
   }
  ],
