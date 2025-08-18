@@ -37,8 +37,8 @@ service:test = {
       "host_h1"
     ],
     "service": [
-      "tcp 23",
-      "tcp 24"
+      "tcp_23",
+      "tcp_24"
     ],
     "install-on": [
       "v1"
@@ -46,7 +46,7 @@ service:test = {
   },
   {
    "name": "test-2",
-   "action": "Allow",
+   "action": "Accept",
    "source": [
     "host_h3"
    ],
@@ -54,8 +54,8 @@ service:test = {
     "network_n1"
    ],
    "service": [
-    "udp 22",
-    "tcp 22"
+    "udp_22",
+    "tcp_22"
    ],
    "install-on": [
     "v1"
@@ -82,21 +82,21 @@ service:test = {
  "Groups": null,
  "TCP": [
   {
-   "name": "tcp 22",
+   "name": "tcp_22",
    "port": "22"
   },
   {
-   "name": "tcp 23",
+   "name": "tcp_23",
    "port": "23"
   },
   {
-   "name": "tcp 24",
+   "name": "tcp_24",
    "port": "24"
   }
  ],
  "UDP": [
   {
-   "name": "udp 22",
+   "name": "udp_22",
    "port": "22"
   }
  ],
