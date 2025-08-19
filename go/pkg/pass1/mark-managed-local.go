@@ -151,8 +151,6 @@ func (c *spoc) markManagedLocal() {
 								break
 							}
 							m[mark] = true
-
-							// debug("Filter %s at mark", obj);
 							obj = obj.up
 						}
 					}
@@ -311,10 +309,9 @@ func (c *spoc) checkFilterOnlyAccess(
 			}
 		}
 	}
-	if missing == nil {
-		return
+	if missing != nil {
+		c.showManagedLocalWarning(rule, where, r, missing)
 	}
-	c.showManagedLocalWarning(rule, where, r, missing)
 }
 
 func (c *spoc) showManagedLocalWarning(
