@@ -45,12 +45,10 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 	// Apply only matching rules to 'managed=local' router.
 	// Filter out non matching elements from srcList and dstList.
 	if mark := r.localMark; mark != 0 {
-		filter := func(list []someObj) []someObj {
+		filter := func(l []someObj) []someObj {
 			var result []someObj
-			for _, obj := range list {
-				net := obj.getNetwork()
-				filterAt := net.filterAt
-				if filterAt[mark] {
+			for _, obj := range l {
+				if obj.getNetwork().filterAt[mark] {
 					result = append(result, obj)
 				}
 			}
@@ -58,13 +56,11 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 		}
 
 		// Filter srcList and dstList. Ignore rule if no matching element.
-		srcList := ru.src
-		matchingSrc := filter(srcList)
+		matchingSrc := filter(ru.src)
 		if matchingSrc == nil {
 			return
 		}
-		dstList := ru.dst
-		matchingDst := filter(dstList)
+		matchingDst := filter(ru.dst)
 		if matchingDst == nil {
 			return
 		}
@@ -74,10 +70,10 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 		ru = &cp
 
 		// Overwrite only if list has changed.
-		if len(srcList) != len(matchingSrc) {
+		if len(ru.src) != len(matchingSrc) {
 			ru.src = matchingSrc
 		}
-		if len(dstList) != len(matchingDst) {
+		if len(ru.dst) != len(matchingDst) {
 			ru.dst = matchingDst
 		}
 	}
