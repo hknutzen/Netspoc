@@ -269,10 +269,8 @@ func PrintServiceMain(d oslink.Data) int {
 	path := args[0]
 	names := args[1:]
 
-	dummyArgs := []string{
-		fmt.Sprintf("--quiet=%v", *quiet),
-	}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromFile(path)
+	cnf.Quiet = *quiet
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.printService(d.Stdout, path, names, *nat, *name, *ip)
 	})

@@ -1492,11 +1492,9 @@ func ExportMain(d oslink.Data) int {
 	}
 	path := args[0]
 	out := args[1]
-	dummyArgs := []string{
-		fmt.Sprintf("--quiet=%v", *quiet),
-		"--max_errors=9999",
-	}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromFile(path)
+	cnf.Quiet = *quiet
+	cnf.MaxErrors = 9999
 
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.exportNetspoc(path, out)
