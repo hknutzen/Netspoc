@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -264,7 +264,7 @@ func SpocMain(d oslink.Data) int {
 }
 
 func getArgs(d oslink.Data) (string, string, *conf.Config, bool) {
-	fs := flag.NewFlagSet(d.Args[0], flag.ContinueOnError)
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
@@ -275,7 +275,7 @@ func getArgs(d oslink.Data) (string, string, *conf.Config, bool) {
 
 	cnf := conf.DefaultOptions(fs)
 	if err := fs.Parse(d.Args[1:]); err != nil {
-		if err == flag.ErrHelp {
+		if err == pflag.ErrHelp {
 			return "", "", nil, true
 		}
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)

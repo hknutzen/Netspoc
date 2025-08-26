@@ -31,7 +31,7 @@ import (
 
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 )
 
 // Type for command line flag with value 0|1|warn
@@ -83,7 +83,7 @@ type Config struct {
 	DebugPass2                   string
 }
 
-func DefaultOptions(fs *flag.FlagSet) *Config {
+func DefaultOptions(fs *pflag.FlagSet) *Config {
 	cfg := &Config{
 
 		// Check for unused groups and protocolgroups.
@@ -195,21 +195,21 @@ func readConfig(filename string) (map[string]string, error) {
 // parseFile parses the specified configuration file and populates unset flags
 // in fs based on the contents of the file.
 // Hidden flags are not set from file.
-func parseFile(filename string, fs *flag.FlagSet) error {
-	isSet := make(map[*flag.Flag]bool)
+func parseFile(filename string, fs *pflag.FlagSet) error {
+	isSet := make(map[*pflag.Flag]bool)
 	config, err := readConfig(filename)
 	if err != nil {
 		return err
 	}
 
-	fs.Visit(func(f *flag.Flag) {
+	fs.Visit(func(f *pflag.Flag) {
 		isSet[f] = true
 	})
 	var errList []string
 	addErr := func(format string, args ...any) {
 		errList = append(errList, fmt.Sprintf(format, args...))
 	}
-	fs.VisitAll(func(f *flag.Flag) {
+	fs.VisitAll(func(f *pflag.Flag) {
 		val, found := config[f.Name]
 		if !found {
 			return
@@ -233,7 +233,7 @@ func parseFile(filename string, fs *flag.FlagSet) error {
 	return nil
 }
 
-func AddConfigFromFile(inDir string, fs *flag.FlagSet) error {
+func AddConfigFromFile(inDir string, fs *pflag.FlagSet) error {
 	path := inDir + "/config"
 	if _, err := os.Stat(path); err != nil {
 		return nil
@@ -242,7 +242,7 @@ func AddConfigFromFile(inDir string, fs *flag.FlagSet) error {
 }
 
 func ConfigFromFile(path string) *Config {
-	fs := flag.NewFlagSet("", flag.ExitOnError)
+	fs := pflag.NewFlagSet("", pflag.ExitOnError)
 	cnf := DefaultOptions(fs)
 	// Ignore errors in config file, only pass1 needs to check them.
 	AddConfigFromFile(path, fs)
