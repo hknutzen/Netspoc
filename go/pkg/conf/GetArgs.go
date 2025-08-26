@@ -29,7 +29,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
 	flag "github.com/spf13/pflag"
@@ -84,7 +83,7 @@ type Config struct {
 	DebugPass2                   string
 }
 
-func defaultOptions(fs *flag.FlagSet) *Config {
+func DefaultOptions(fs *flag.FlagSet) *Config {
 	cfg := &Config{
 
 		// Check for unused groups and protocolgroups.
@@ -234,7 +233,7 @@ func parseFile(filename string, fs *flag.FlagSet) error {
 	return nil
 }
 
-func addConfigFromFile(inDir string, fs *flag.FlagSet) error {
+func AddConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	path := inDir + "/config"
 	if _, err := os.Stat(path); err != nil {
 		return nil
@@ -242,53 +241,12 @@ func addConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	return parseFile(path, fs)
 }
 
-func GetArgs(d oslink.Data) (string, string, *Config, bool) {
-	fs := flag.NewFlagSet(d.Args[0], flag.ContinueOnError)
-
-	// Setup custom usage function.
-	fs.Usage = func() {
-		fmt.Fprintf(d.Stderr,
-			"Usage: %s [options] IN-DIR|IN-FILE [CODE-DIR]\n%s",
-			d.Args[0], fs.FlagUsages())
-	}
-
-	cnf := defaultOptions(fs)
-	if err := fs.Parse(d.Args[1:]); err != nil {
-		if err == flag.ErrHelp {
-			return "", "", nil, true
-		}
-		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-		fs.Usage()
-		return "", "", nil, true
-	}
-	// Read names of input file/directory and output directory from
-	// passed command line arguments.
-	inPath := fs.Arg(0)
-	if inPath == "" || fs.Arg(2) != "" {
-		fmt.Fprintf(d.Stderr, "Error: Expected 1 or 2 args, but got %d\n",
-			fs.NArg())
-		fs.Usage()
-		return "", "", nil, true
-	}
-	// outDir is used to store compilation results.
-	// For each managed router with name X a corresponding file X
-	// is created in outDir.
-	// If outDir is missing, no code is generated.
-	outDir := fs.Arg(1)
-
-	if err := addConfigFromFile(inPath, fs); err != nil {
-		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-		return "", "", nil, true
-	}
-	return inPath, outDir, cnf, false
-}
-
 func ConfigFromArgsAndFile(args []string, path string) *Config {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
-	cnf := defaultOptions(fs)
+	cnf := DefaultOptions(fs)
 	// No check for error needed, because arguments are fixed.
 	fs.Parse(args)
 	// Ignore errors, only pass1 needs to check them.
-	addConfigFromFile(path, fs)
+	AddConfigFromFile(path, fs)
 	return cnf
 }
