@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
-	"io"
 )
 
 func ExportNetvisMain(d oslink.Data) int {
@@ -39,10 +40,8 @@ func ExportNetvisMain(d oslink.Data) int {
 	}
 	path := args[0]
 
-	dummyArgs := []string{
-		fmt.Sprintf("--quiet=%v", *quiet),
-	}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromFile(path)
+	cnf.Quiet = *quiet
 
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.exportNetvis(d.Stdout, path)

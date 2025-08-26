@@ -241,12 +241,10 @@ func AddConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	return parseFile(path, fs)
 }
 
-func ConfigFromArgsAndFile(args []string, path string) *Config {
+func ConfigFromFile(path string) *Config {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	cnf := DefaultOptions(fs)
-	// No check for error needed, because arguments are fixed.
-	fs.Parse(args)
-	// Ignore errors, only pass1 needs to check them.
+	// Ignore errors in config file, only pass1 needs to check them.
 	AddConfigFromFile(path, fs)
 	return cnf
 }

@@ -44,11 +44,8 @@ func PrintPathMain(d oslink.Data) int {
 	path := args[0]
 	params := args[1:]
 
-	dummyArgs := []string{
-		fmt.Sprintf("--quiet=%v", *quiet),
-	}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
-
+	cnf := conf.ConfigFromFile(path)
+	cnf.Quiet = *quiet
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.printPath(d.Stdout, path, params)
 	})
