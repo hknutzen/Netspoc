@@ -7,6 +7,8 @@ import (
 	"slices"
 	"time"
 
+	flag "github.com/spf13/pflag"
+
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
@@ -206,7 +208,7 @@ func toplevelSpoc(
 }
 
 func SpocMain(d oslink.Data) int {
-	inDir, outDir, cnf, abort := conf.GetArgs(d)
+	inDir, outDir, cnf, abort := getArgs(d)
 	if abort {
 		fmt.Fprintln(d.Stderr, "Aborted")
 		return 1
@@ -259,4 +261,45 @@ func SpocMain(d oslink.Data) int {
 		c.stopOnErr()
 		c.progress("Finished")
 	})
+}
+
+func getArgs(d oslink.Data) (string, string, *conf.Config, bool) {
+	fs := flag.NewFlagSet(d.Args[0], flag.ContinueOnError)
+
+	// Setup custom usage function.
+	fs.Usage = func() {
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] IN-DIR|IN-FILE [CODE-DIR]\n%s",
+			d.Args[0], fs.FlagUsages())
+	}
+
+	cnf := conf.DefaultOptions(fs)
+	if err := fs.Parse(d.Args[1:]); err != nil {
+		if err == flag.ErrHelp {
+			return "", "", nil, true
+		}
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return "", "", nil, true
+	}
+	// Read names of input file/directory and output directory from
+	// passed command line arguments.
+	inPath := fs.Arg(0)
+	if inPath == "" || fs.Arg(2) != "" {
+		fmt.Fprintf(d.Stderr, "Error: Expected 1 or 2 args, but got %d\n",
+			fs.NArg())
+		fs.Usage()
+		return "", "", nil, true
+	}
+	// outDir is used to store compilation results.
+	// For each managed router with name X a corresponding file X
+	// is created in outDir.
+	// If outDir is missing, no code is generated.
+	outDir := fs.Arg(1)
+
+	if err := conf.AddConfigFromFile(inPath, fs); err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+		return "", "", nil, true
+	}
+	return inPath, outDir, cnf, false
 }
