@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -40,12 +39,9 @@ func Main(d oslink.Data) int {
 		fs.Usage()
 		return 1
 	}
-	path := args[0]
-	// Initialize config.
-	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Process each file.
+	path := args[0]
 	err := filetree.Walk(path, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
@@ -61,7 +57,7 @@ func Main(d oslink.Data) int {
 		if bytes.Equal(source, copy) {
 			return nil
 		}
-		if !cnf.Quiet {
+		if !*quiet {
 			fmt.Fprintf(d.Stderr, "Changed %s\n", path)
 		}
 		return fileop.Overwrite(path, copy)

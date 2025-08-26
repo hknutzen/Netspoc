@@ -7,7 +7,6 @@ import (
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
 )
@@ -315,9 +314,6 @@ func Main(d oslink.Data) int {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	// Initialize config.
-	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	s, err := astset.Read(path)
 	if err != nil {
@@ -325,7 +321,7 @@ func Main(d oslink.Data) int {
 		return 1
 	}
 	process(s, subst)
-	s.ShowChanged(d.Stderr, cnf.Quiet)
+	s.ShowChanged(d.Stderr, *quiet)
 	s.Print()
 	return 0
 }
