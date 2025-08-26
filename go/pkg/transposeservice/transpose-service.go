@@ -65,7 +65,6 @@ import (
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
 )
@@ -202,14 +201,9 @@ func Main(d oslink.Data) int {
 		fs.Usage()
 		return 1
 	}
-	path := args[0]
 	services = append(services, args[1:]...)
 
-	dummyArgs := []string{
-		fmt.Sprintf("--quiet=%v", *quiet),
-	}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
-
+	path := args[0]
 	var err error
 	s.State, err = astset.Read(path)
 	if err != nil {
@@ -228,7 +222,7 @@ func Main(d oslink.Data) int {
 			return 1
 		}
 	}
-	s.ShowChanged(d.Stderr, cnf.Quiet)
+	s.ShowChanged(d.Stderr, *quiet)
 	s.Print()
 	return 0
 }

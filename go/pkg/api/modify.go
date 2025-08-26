@@ -29,7 +29,6 @@ import (
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
 )
@@ -68,10 +67,6 @@ func Main(d oslink.Data) int {
 	netspocPath := args[0]
 	jobPath := args[1]
 
-	// Initialize config.
-	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	cnf := conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
-
 	showErr := func(format string, args ...any) {
 		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
 	}
@@ -88,7 +83,7 @@ func Main(d oslink.Data) int {
 		showErr("%s", err)
 		return 1
 	}
-	s.ShowChanged(d.Stderr, cnf.Quiet)
+	s.ShowChanged(d.Stderr, *quiet)
 	s.Print()
 	return 0
 }
