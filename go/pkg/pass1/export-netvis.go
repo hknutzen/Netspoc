@@ -34,7 +34,7 @@ func ExportNetvisMain(d oslink.Data) int {
 
 	// Argument processing
 	args := fs.Args()
-	if len(args) <= 0 || len(args) > 1 {
+	if len(args) != 1 {
 		fs.Usage()
 		return 1
 	}
