@@ -1,4 +1,4 @@
-# Input for pass1
+# Input for Netspoc pass1
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -226,4 +226,26 @@ service:s1 = {
 1000::abcd:0001:11 1000::abcd:0002:12 tcp 85
 =OUTPUT=
 permit 1000::abcd:1:11 1000::abcd:2:12 tcp 85
+=END=
+
+############################################################
+=TITLE=Model IOS
+=INPUT=
+[[input]]
+=SUBST=/ASA/IOS/
+=PARAMS= r1 n1_in
+=PARAM= 10.1.1.11 10.1.2.12 tcp   85
+=OUTPUT=
+permit 10.1.1.11 10.1.2.12 tcp 85
+=END=
+
+############################################################
+=TITLE=Model Linux
+=INPUT=
+[[input]]
+=SUBST=/ASA/Linux/
+=PARAMS= r1 n1_n2
+=PARAM= 10.1.1.11 10.1.2.12 tcp   85
+=OUTPUT=
+permit 10.1.1.11 10.1.2.12 tcp 85
 =END=
