@@ -227,14 +227,14 @@ func (a *Service) Order() {
 func sortByIP(l []*Attribute) {
 	getIP := func(host *Attribute) netip.Addr {
 		for _, a := range host.ComplexValue {
-			if a.Name == "ip" || a.Name == "range" {
-				list := a.ValueList
-				if len(list) >= 1 {
-					v := list[0].Value
-					if a.Name == "range" {
-						v, _, _ = strings.Cut(v, "-")
-					}
+			if vl := a.ValueList; len(vl) >= 1 {
+				v := vl[0].Value
+				switch a.Name {
+				case "range", "range6":
+					v, _, _ = strings.Cut(v, "-")
 					v = strings.TrimSpace(v)
+					fallthrough
+				case "ip", "ip6":
 					ip, _ := netip.ParseAddr(v)
 					return ip
 				}

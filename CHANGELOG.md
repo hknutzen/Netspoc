@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Program "format-netspoc" now sorts IPv6 hosts by address.
+
 ## [2025-07-22-1444]
 
 ### Removed
