@@ -1141,36 +1141,34 @@ network:n1 = {
 =END=
 
 ############################################################
-=TITLE=Sort hosts by IPv6 or range
+=TITLE=Sort hosts by ip6 or range6
 =INPUT=
 network:n1 = {
- ip = fc00:12:345:6789:10:1:1:0/120;
- host:h99 = { ip = fc00:12:345:6789:10:1:1:99; }
+ ip6 = fc00:12:345:6789:10:1:1:0/120;
+ host:h99 = { ip6 = fc00:12:345:6789:10:1:1:99; }
  host:r98-102 = {
-  range = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:102;
+  range6 = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:102;
  }
  host:invalid = {}
- host:h10 = { ip = fc00:12:345:6789:10:1:1:10; }
+ host:h10 = { ip6 = fc00:12:345:6789:10:1:1:10; }
  host:r98-100 = {
-  range = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:100;
+  range6 = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:100;
  }
- host:h11 = {
-  ip = fc00:12:345:6789:10:1:1:11;
-  nat:n = { ip = fc00:12:345:6789:10:9:9:99; }
- }
+ host:h11 = { ip6 = fc00:12:345:6789:10:1:1:11; }
 }
 =OUTPUT=
 network:n1 = {
- ip = fc00:12:345:6789:10:1:1:0/120;
+ ip6 = fc00:12:345:6789:10:1:1:0/120;
  host:invalid = { }
- host:h10     = { ip = fc00:12:345:6789:10:1:1:10; }
- host:h11 = {
-  ip = fc00:12:345:6789:10:1:1:11;
-  nat:n = { ip = fc00:12:345:6789:10:9:9:99; }
+ host:h10     = { ip6 = fc00:12:345:6789:10:1:1:10; }
+ host:h11     = { ip6 = fc00:12:345:6789:10:1:1:11; }
+ host:r98-102 = {
+  range6 = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:102;
  }
- host:r98-102 = { range = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:102; }
- host:r98-100 = { range = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:100; }
- host:h99     = { ip = fc00:12:345:6789:10:1:1:99; }
+ host:r98-100 = {
+  range6 = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:100;
+ }
+ host:h99     = { ip6 = fc00:12:345:6789:10:1:1:99; }
 }
 =END=
 
@@ -1311,39 +1309,39 @@ router:u2 = {
 =INPUT=
 router:u1 = {
  # i1
- interface:n7 = { owner = o1; ip = fc00:12:345:6789:10:1:1:7; }
+ interface:n7 = { owner = o1; ip6 = fc00:12:345:6789:10:1:1:7; }
  # i2
- interface:lo = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
- interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:lo = { ip6 = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:n1 = { ip6 = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
 }
 router:u2 = {
- interface:v2 = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
- interface:v1 = { ip = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
- interface:n7 = { ip = fc00:12:345:6789:10:1:1:7; owner = o1; }
- interface:lo = { ip = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
- interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
- interface:n9 = { ip = fc00::10:1:1:9; owner = o1; vip; }
+ interface:v2 = { ip6 = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:v1 = { ip6 = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
+ interface:n7 = { ip6 = fc00:12:345:6789:10:1:1:7; owner = o1; }
+ interface:lo = { ip6 = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
+ interface:n1 = { ip6 = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:n9 = { ip6 = fc00::10:1:1:9; owner = o1; vip; }
 }
 =OUTPUT=
 router:u1 = {
  # i1
- interface:n7    = { owner = o1; ip = fc00:12:345:6789:10:1:1:7; }
- interface:n1    = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:n7    = { owner = o1; ip6 = fc00:12:345:6789:10:1:1:7; }
+ interface:n1    = { ip6 = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
  # i2
- interface:lo    = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:lo    = { ip6 = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
 }
 
 router:u2 = {
- interface:v1 = { ip = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
- interface:v2 = { ip = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
- interface:n7 = { ip = fc00:12:345:6789:10:1:1:7; owner = o1; }
- interface:n9 = { ip = fc00::10:1:1:9; owner = o1; vip; }
- interface:n1 = { ip = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
- interface:lo = { ip = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
+ interface:v1 = { ip6 = fc00:12:345:6789:10:1:1:4:127; owner = o2; vip; }
+ interface:v2 = { ip6 = fc00:12:345:6789:10:1:4:128; owner = o2; vip; }
+ interface:n7 = { ip6 = fc00:12:345:6789:10:1:1:7; owner = o1; }
+ interface:n9 = { ip6 = fc00::10:1:1:9; owner = o1; vip; }
+ interface:n1 = { ip6 = fc00:12:345:6789:10:1:1:1; owner = o1; vip; }
+ interface:lo = { ip6 = fc00:12:345:6789:10:1:1:4; owner = o2; vip; }
 }
 =END=
 
