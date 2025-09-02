@@ -66,11 +66,10 @@ func sortElem(l []Element) {
 }
 
 func getType(v string) string {
-	typ, _, found := strings.Cut(v, ":")
-	if !found {
-		return ""
+	if typ, _, found := strings.Cut(v, ":"); found {
+		return typ
 	}
-	return typ
+	return ""
 }
 
 func getName(v string) string {
@@ -96,17 +95,15 @@ func sortProto(l []*Value) {
 			return strings.Compare(getName(v1), getName(v2))
 		}
 		// Simple protocol
-		d1 := strings.Split(v1, " ")
-		d2 := strings.Split(v2, " ")
+		p1, d1, _ := strings.Cut(v1, " ")
+		p2, d2, _ := strings.Cut(v2, " ")
 		// icmp < ip < proto < tcp < udp
-		p1 := d1[0]
-		p2 := d2[0]
 		if cmp := strings.Compare(p1, p2); cmp != 0 {
 			return cmp
 		}
 		var n1, n2 []int
 		if p1 == "tcp" || p1 == "udp" {
-			conv := func(l []string) []int {
+			conv := func(d string) []int {
 				getPorts := func(s string) (int, int) {
 					if s == "" {
 						return 1, 65535
@@ -122,31 +119,27 @@ func sortProto(l []*Value) {
 						return n1, n2
 					}
 				}
-				s := strings.Join(l, "")
-				sp := strings.Split(s, ":")
-				var s1, s2, p1, p2 int
-				switch len(sp) {
-				case 1:
-					s1, s2 = getPorts("")
-					p1, p2 = getPorts(sp[0])
-				default:
-					s1, s2 = getPorts(sp[0])
-					p1, p2 = getPorts(sp[1])
+				sp, dp, found := strings.Cut(d, ":")
+				if !found {
+					sp, dp = "", sp
 				}
+				s1, s2 := getPorts(sp)
+				p1, p2 := getPorts(dp)
 				return []int{p1, p2, s1, s2}
 			}
-			n1 = conv(d1[1:])
-			n2 = conv(d2[1:])
+			n1 = conv(d1)
+			n2 = conv(d2)
 		} else {
-			conv := func(l []string) []int {
+			conv := func(d string) []int {
+				l := strings.Split(d, "/")
 				r := make([]int, len(l))
 				for i, d1 := range l {
 					r[i], _ = strconv.Atoi(d1)
 				}
 				return r
 			}
-			n1 = conv(d1[1:])
-			n2 = conv(d2[1:])
+			n1 = conv(d1)
+			n2 = conv(d2)
 		}
 		return slices.Compare(n1, n2)
 	})

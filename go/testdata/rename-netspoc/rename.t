@@ -360,7 +360,7 @@ group:G1 =
 protocolgroup:g1 = tcp 20 - 21;
 =OUTPUT=
 protocolgroup:G1 =
- tcp 20 - 21,
+ tcp 20-21,
 ;
 =PARAMS=protocolgroup:g1 protocolgroup:G1
 
@@ -369,7 +369,7 @@ protocolgroup:G1 =
 =INPUT=
 protocol:p1 = tcp 20 - 21;
 =OUTPUT=
-protocol:p11 = tcp 20 - 21;
+protocol:p11 = tcp 20-21;
 =PARAMS=protocol:p1 protocol:p11
 
 ############################################################

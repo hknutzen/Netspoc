@@ -112,18 +112,18 @@ service:s1 = {
 =INPUT=
 protocol:NTP =
  description =With source port
- udp 123:123;
+ udp 123 : 123;
 protocol:HTTP = tcp 80;
 protocol:Ping = icmp 8;
 protocolgroup:g1 =
  description =Look, a description
- protocol:HTTP, tcp 81-85, protocol:NTP;
+ protocol:HTTP, tcp 81 - 85, protocol:NTP;
 =OUTPUT=
 {
  "protocol":[
  {"name": "protocol:NTP",
   "description": "With source port",
-  "value": "udp 123 : 123" },
+  "value": "udp 123:123" },
  {"name": "protocol:HTTP", "value": "tcp 80" },
  {"name": "protocol:Ping", "value": "icmp 8" }
  ],
@@ -131,7 +131,7 @@ protocolgroup:g1 =
  {
   "name": "protocolgroup:g1",
   "description": "Look, a description",
-  "value_list": [ "protocol:HTTP", "tcp 81 - 85", "protocol:NTP" ]
+  "value_list": [ "protocol:HTTP", "tcp 81-85", "protocol:NTP" ]
  }]
 }
 =END=
@@ -163,7 +163,7 @@ any:ALL_10 = {
 network:n1 = {
  ip = 10.1.1.0/24;
  host:h1 = { ip = 10.1.1.11; owner = o1; }
- host:h2 = { range = 10.1.1.12-10.1.1.23; }
+ host:h2 = { range = 10.1.1.12 - 10.1.1.23; }
 }
 router:r1 = {
  managed;
@@ -189,7 +189,7 @@ service:s1 = {
     "owner": [ "o1" ]
    },
    "host:h2": {
-    "range": [ "10.1.1.12 - 10.1.1.23" ]
+    "range": [ "10.1.1.12-10.1.1.23" ]
    }
   }
  }],

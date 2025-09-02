@@ -30,7 +30,7 @@ Aborted
 protocol:test = xyz;
 network:n1 = { ip6 = ::a01:100/120; }
 =ERROR=
-Error: Unknown protocol in protocol:test
+Error: Unknown protocol in protocol:test: xyz
 =END=
 
 ############################################################
@@ -74,18 +74,18 @@ Error: Expected port number < 65536 in protocol:p3
 Error: Invalid port range in protocol:p4
 Error: Expected port number > 0 in protocol:p5
 Error: Expected port number > 0 in protocol:p5
-Error: Invalid port range in protocol:p6
-Error: Invalid port range in protocol:p7
-Error: Invalid port range in protocol:p8
-Error: Invalid port range in protocol:p9
-Error: Invalid port range in protocol:p10
-Error: Expected number in protocol:p11: -
+Error: Unknown protocol in protocol:p6: tcp-2-
+Error: Expected number in protocol:p7: 2-
+Error: Expected number in protocol:p8: 2-3
+Error: Expected number in protocol:p9: 3:4
+Error: Expected number in protocol:p10: 1 . 2 . 3
+Error: Unknown protocol in protocol:p11: tcp-
 =OPTIONS=--max_errors=20
 
 ############################################################
 =TITLE=Invalid ports and port ranges (2)
 =INPUT=
-protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmpv6 -3;
+protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmpv6 3 13;
 network:n1 = { ip6 = ::a01:100/120; }
 service:s1 = {
  user = network:n1;
@@ -93,9 +93,9 @@ service:s1 = {
 }
 =ERROR=
 Error: Expected port number < 65536 in 'tcp 77777' of protocolgroup:g1
-Error: Invalid port range in 'udp - 1' of protocolgroup:g1
+Error: Unknown protocol in 'udp-1' of protocolgroup:g1
 Error: Expected port number > 0 in 'udp 0' of protocolgroup:g1
-Error: Expected [TYPE [ / CODE]] in 'icmpv6 - 3' of protocolgroup:g1
+Error: Expected single number in 'icmpv6 3 13' of protocolgroup:g1: 3 13
 =END=
 
 ############################################################
@@ -127,9 +127,9 @@ service:test = {
         prt = tcp 20:1024-48000, udp 2000-2050 : 2020;
 }
 =ERROR=
-Error: Must not use source port in 'tcp 20 : 1024 - 48000' of service:test.
+Error: Must not use source port in 'tcp 20:1024-48000' of service:test.
  Source port is only valid in named protocol
-Error: Must not use source port in 'udp 2000 - 2050 : 2020' of service:test.
+Error: Must not use source port in 'udp 2000-2050:2020' of service:test.
  Source port is only valid in named protocol
 =END=
 
@@ -265,7 +265,7 @@ protocol:p1 = icmpv6 3 - 4;
 protocol:p2 = icmpv6 3@4;
 protocol:p3 = icmpv6 3.4;
 =ERROR=
-Error: Expected [TYPE [ / CODE]] in protocol:p1
+Error: Expected number in protocol:p1: 3-4
 Error: Expected number in protocol:p2: 3@4
 Error: Expected number in protocol:p3: 3.4
 =END=
@@ -314,9 +314,9 @@ Aborted
 ############################################################
 =TITLE=Single number for protocol 'proto'
 =INPUT=
-protocol:test = proto -1;
+protocol:test = proto 1 2;
 =ERROR=
-Error: Expected single protocol number in protocol:test
+Error: Expected single number in protocol:test: 1 2
 =END=
 
 ############################################################

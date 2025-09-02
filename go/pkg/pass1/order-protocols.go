@@ -37,8 +37,8 @@ func (c *spoc) initStdProtocols() {
 	prt.IP = define("ip")
 	prtTCP := define("tcp")
 	prt.UDP = define("udp")
-	prt.Ike = defineX("udp 500 : 500")
-	prt.Natt = defineX("udp 4500 : 4500")
+	prt.Ike = defineX("udp 500:500")
+	prt.Natt = defineX("udp 4500:4500")
 	prt.Esp = define("proto 50")
 	prt.Ah = define("proto 51")
 	cp := *prtTCP
