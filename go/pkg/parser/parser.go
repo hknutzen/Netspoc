@@ -384,8 +384,13 @@ func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
 }
 
 func (p *parser) addMulti(a *ast.Value, nextSpecial func(*parser)) {
+	wasSep := false
 	for !(p.tok == "," || p.tok == ";" || p.tok == "") {
-		a.Value += " " + p.tok
+		if !(wasSep || p.isSep) {
+			a.Value += " "
+		}
+		a.Value += p.tok
+		wasSep = p.isSep
 		nextSpecial(p)
 	}
 	a.SetPostComment(p.readPostCmtAfter(",;}"))
@@ -514,11 +519,13 @@ func (p *parser) protocolgroup() ast.Toplevel {
 func (p *parser) protocol() ast.Toplevel {
 	a := new(ast.Protocol)
 	a.TopBase = p.topListHead()
+	wasSep := false
 	for p.tok != ";" && p.tok != "" {
-		if a.Value != "" && p.tok != "," {
+		if a.Value != "" && !(wasSep || p.isSep) {
 			a.Value += " "
 		}
 		a.Value += p.tok
+		wasSep = p.isSep
 		p.nextProto()
 	}
 	p.expect(";")

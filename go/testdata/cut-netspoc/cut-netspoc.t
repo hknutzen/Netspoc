@@ -2744,14 +2744,14 @@ network:customers2 = {
   trust-point = ASDM_TrustPoint2;
  }
  host:id:domain.x = {
-  range = 10.99.2.0 - 10.99.2.63;
+  range = 10.99.2.0-10.99.2.63;
   vpn_attributes = {
    split-tunnel-policy = tunnelspecified;
    check-subject-name = ou;
   }
  }
  host:id:@domain.y = {
-  range = 10.99.2.64 - 10.99.2.127;
+  range = 10.99.2.64-10.99.2.127;
   vpn_attributes = {
    vpn-idle-timeout = 40;
    trust-point = ASDM_TrustPoint3;
@@ -2775,11 +2775,11 @@ network:customers3 = {
   check-subject-name = cn;
  }
  host:VPN_Org1 = {
-  range = 10.99.3.0 - 10.99.3.63;
+  range = 10.99.3.0-10.99.3.63;
   ldap_id = CN=ROL-Org1;
  }
  host:VPN_Org2 = {
-  range = 10.99.3.64 - 10.99.3.95;
+  range = 10.99.3.64-10.99.3.95;
   ldap_id = CN=ROL-Org2;
  }
 }
@@ -2961,7 +2961,7 @@ network:customers2 = {
   trust-point = ASDM_TrustPoint2;
  }
  host:id:@domain.y = {
-  range = 10.99.2.64 - 10.99.2.127;
+  range = 10.99.2.64-10.99.2.127;
   vpn_attributes = {
    vpn-idle-timeout = 40;
    trust-point = ASDM_TrustPoint3;
@@ -3165,7 +3165,7 @@ network:customers3 = {
   check-subject-name = cn;
  }
  host:VPN_Org1 = {
-  range = 10.99.3.0 - 10.99.3.63;
+  range = 10.99.3.0-10.99.3.63;
   ldap_id = CN=ROL-Org1;
  }
 }
@@ -3296,7 +3296,7 @@ router:asa1 = {
 service:s = {
  description = this is really important
  user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80-90;
+ permit src = user; dst = network:n2; prt = tcp 80 - 90;
 }
 =OUTPUT=
 network:n1 = {
@@ -3316,7 +3316,7 @@ service:s = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = tcp 80 - 90;
+        prt = tcp 80-90;
 }
 =END=
 

@@ -158,7 +158,8 @@ func (p *printer) topElementList(n *ast.TopList) {
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	proto := n.Value + ";"
+	// Add whitespace before printing protocol modifier.
+	proto := strings.ReplaceAll(n.Value, ",", ", ") + ";"
 	// Print name and value on different lines, if protocol has
 	// description or trailing comment.
 	if n.GetDescription() != nil {

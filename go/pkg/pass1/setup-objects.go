@@ -503,7 +503,7 @@ func (c *spoc) setAscendingServices() {
 func (c *spoc) setupProtocol(a *ast.Protocol) {
 	name := a.Name
 	v := a.Value
-	l := strings.Split(v, ", ")
+	l := strings.Split(v, ",")
 	def := l[0]
 	mod := l[1:]
 	pSimp, pSrc := c.getSimpleProtocolAndSrcPort(def, name)
@@ -532,91 +532,61 @@ func (c *spoc) getSimpleProtocolAndSrcPort(def string, ctx string,
 
 	p := new(proto)
 	p.name = def
-	l := strings.Split(def, " ")
-	proto := l[0]
-	nums := l[1:]
+	proto, details, _ := strings.Cut(def, " ")
 	p.proto = proto
 	switch proto {
 	case "ip":
-		if len(nums) != 0 {
+		if details != "" {
 			c.err("Unexpected details after %s", ctx)
 		}
 	case "tcp", "udp":
-		src, dst := c.getSrcDstRange(nums, ctx)
+		src, dst := c.getSrcDstRange(details, ctx)
 		p.ports = dst
-		if src[0] != 0 {
+		if src != [2]int{1, 65535} {
 			cp := *p
 			srcP = &cp
 			srcP.ports = src
 			srcP = c.cacheUnnamedProtocol(srcP)
 		}
 	case "icmp":
-		c.addICMPTypeCode(nums, p, false, ctx)
+		c.addICMPTypeCode(details, p, false, ctx)
 	case "icmpv6":
-		c.addICMPTypeCode(nums, p, true, ctx)
+		c.addICMPTypeCode(details, p, true, ctx)
 	case "proto":
-		c.addProtoNr(nums, p, ctx)
+		c.addProtoNr(details, p, ctx)
 	default:
-		c.err("Unknown protocol in %s", ctx)
+		if strings.Contains(ctx, " ") {
+			c.err("Unknown protocol in %s", ctx)
+		} else {
+			c.err("Unknown protocol in %s: %s", ctx, proto)
+		}
 		p.proto = "ip"
 	}
 	p = c.cacheUnnamedProtocol(p)
 	return p, srcP
 }
 
-func (c *spoc) getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
-	var src, dst [2]int
-	switch len(nums) {
-	case 0:
-		dst = [2]int{1, 65535}
-	case 1:
-		dst = c.getRange1(nums[0], ctx)
-	case 3:
-		if nums[1] == "-" {
-			dst = c.getRange(nums[0], nums[2], ctx)
-		} else if nums[1] == ":" {
-			src = c.getRange1(nums[0], ctx)
-			dst = c.getRange1(nums[2], ctx)
-		} else {
-			c.err("Invalid port range in %s", ctx)
-		}
-	case 5:
-		if nums[1] == ":" && nums[3] == "-" {
-			src = c.getRange1(nums[0], ctx)
-			dst = c.getRange(nums[2], nums[4], ctx)
-		} else if nums[1] == "-" && nums[3] == ":" {
-			src = c.getRange(nums[0], nums[2], ctx)
-			dst = c.getRange1(nums[4], ctx)
-		} else {
-			c.err("Invalid port range in %s", ctx)
-		}
-	case 7:
-		if nums[1] == "-" && nums[3] == ":" && nums[5] == "-" {
-			src = c.getRange(nums[0], nums[2], ctx)
-			dst = c.getRange(nums[4], nums[6], ctx)
-		} else {
-			c.err("Invalid port range in %s", ctx)
-		}
-	default:
-		c.err("Invalid port range in %s", ctx)
+func (c *spoc) getSrcDstRange(details string, ctx string) ([2]int, [2]int) {
+	s1, s2, found := strings.Cut(details, ":")
+	if !found {
+		s1, s2 = "", s1
 	}
-	if src == [2]int{1, 65535} {
-		src = [2]int{0, 0}
-	}
-	return src, dst
+	return c.getRange(s1, ctx), c.getRange(s2, ctx)
 }
 
-func (c *spoc) getRange(s1, s2 string, ctx string) [2]int {
-	n1 := c.getPort(s1, ctx)
-	n2 := c.getPort(s2, ctx)
-	if n1 > n2 {
-		c.err("Invalid port range in %s", ctx)
+func (c *spoc) getRange(s string, ctx string) [2]int {
+	if s == "" {
+		return [2]int{1, 65535}
 	}
-	return [2]int{n1, n2}
-}
-
-func (c *spoc) getRange1(s1 string, ctx string) [2]int {
-	n1 := c.getPort(s1, ctx)
+	if s1, s2, found := strings.Cut(s, "-"); found {
+		n1 := c.getPort(s1, ctx)
+		n2 := c.getPort(s2, ctx)
+		if n1 >= 0 && n2 >= 0 && n1 > n2 {
+			c.err("Invalid port range in %s", ctx)
+		}
+		return [2]int{n1, n2}
+	}
+	n1 := c.getPort(s, ctx)
 	return [2]int{n1, n1}
 }
 
@@ -635,45 +605,33 @@ func (c *spoc) getPort(s, ctx string) int {
 	return num
 }
 
-func (c *spoc) addICMPTypeCode(nums []string, p *proto, v6 bool, ctx string) {
+func (c *spoc) addICMPTypeCode(details string, p *proto, v6 bool, ctx string) {
 	p.icmpType = -1
 	p.icmpCode = -1
-	switch len(nums) {
-	case 0:
+	if details == "" {
 		return
-	case 3:
-		if nums[1] != "/" {
-			c.err("Expected [TYPE [ / CODE]] in %s", ctx)
-			break
+	}
+	s1, s2, found := strings.Cut(details, "/")
+	typ := c.getNum256(s1, ctx)
+	p.icmpType = typ
+	if v6 {
+		switch typ {
+		case 1, 2, 3, 4, 129:
+			p.statelessICMP = true
 		}
-		p.icmpCode = c.getNum256(nums[2], ctx)
-		fallthrough
-	case 1:
-		typ := c.getNum256(nums[0], ctx)
-		p.icmpType = typ
-		if v6 {
-			switch typ {
-			case 1, 2, 3, 4, 129:
-				p.statelessICMP = true
-			}
-		} else {
-			switch typ {
-			case 0, 3, 11:
-				p.statelessICMP = true
-			}
+	} else {
+		switch typ {
+		case 0, 3, 11:
+			p.statelessICMP = true
 		}
-	default:
-		c.err("Expected [TYPE [ / CODE]] in %s", ctx)
+	}
+	if found {
+		p.icmpCode = c.getNum256(s2, ctx)
 	}
 }
 
-func (c *spoc) addProtoNr(nums []string, p *proto, ctx string) {
-	if len(nums) != 1 {
-		c.err("Expected single protocol number in %s", ctx)
-		return
-	}
-	s := nums[0]
-	switch c.getNum256(s, ctx) {
+func (c *spoc) addProtoNr(details string, p *proto, ctx string) {
+	switch c.getNum256(details, ctx) {
 	case 0:
 		c.err("Invalid protocol number '0' in %s", ctx)
 	case 4:
@@ -683,13 +641,17 @@ func (c *spoc) addProtoNr(nums []string, p *proto, ctx string) {
 		c.err("Must not use 'proto 17', use 'udp' instead in %s", ctx)
 		return
 	}
-	p.proto = s
+	p.proto = details
 }
 
 func (c *spoc) getNum256(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
-		c.err("Expected number in %s: %s", ctx, s)
+		if strings.Contains(s, " ") {
+			c.err("Expected single number in %s: %s", ctx, s)
+		} else {
+			c.err("Expected number in %s: %s", ctx, s)
+		}
 		return -1
 	}
 	if num >= 256 {
@@ -3162,7 +3124,6 @@ func (c *spoc) getIpList(a *ast.Attribute, ctx string) []netip.Addr {
 
 func (c *spoc) getIpRange(a *ast.Attribute, ctx string) netipx.IPRange {
 	v := c.getSingleValue(a, ctx)
-	v = strings.Replace(v, " - ", "-", 1)
 	rg, err := netipx.ParseIPRange(v)
 	if err != nil {
 		c.err("Invalid IP range in %s", ctx)

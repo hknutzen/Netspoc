@@ -837,22 +837,22 @@ service:s1 = {
               protocol:ftp,
               protocol:smtp,
               icmp 3,
-              icmp 3 / 3,
-              icmp 3 / 4,
+              icmp 3/3,
+              icmp 3/4,
               icmp 4,
-              icmp 4 / 3,
-              icmp 4 / 4,
+              icmp 4/3,
+              icmp 4/4,
               icmp 8,
-              icmp 8 / 9,
+              icmp 8/9,
               proto 43,
               proto 54,
-              tcp 55 - 59,
-              tcp 20 : 64 - 74,
-              tcp 20 - 21 : 64 - 74,
-              tcp 54 : 64 - 74,
+              tcp 55-59,
+              tcp 20:64-74,
+              tcp 20-21:64-74,
+              tcp 54:64-74,
               tcp 80,
               tcp 700,
-              tcp 20 : 1024 - 65535,
+              tcp 20:1024-65535,
               udp 70,
               udp 123,
               ;
@@ -867,9 +867,9 @@ protocolgroup:g1 =udp 70,tcp 700, tcp 80, udp, udp : 0;
 protocolgroup:g1 =
  tcp 80,
  tcp 700,
- udp : 0,
  udp,
  udp 70,
+ udp:0,
 ;
 =END=
 
@@ -908,7 +908,7 @@ network:n1 = {
   }
  }
  # range
- host:range3-5  = { range = 10.1.1.3 - 10.1.1.5; } # range
+ host:range3-5  = { range = 10.1.1.3-10.1.1.5; } # range
  host:h9        = { ip = 10.1.1.9; owner = o1; } # h9
  host:h10       = { ip = 10.1.1.10; owner = o1; }
  # nat
@@ -1134,8 +1134,8 @@ network:n1 = {
   ip = 10.1.1.11;
   nat:n = { ip = 10.9.9.99; }
  }
- host:r98-102 = { range = 10.1.1.98 - 10.1.1.102; }
- host:r98-100 = { range = 10.1.1.98 - 10.1.1.100; }
+ host:r98-102 = { range = 10.1.1.98-10.1.1.102; }
+ host:r98-100 = { range = 10.1.1.98-10.1.1.100; }
  host:h99     = { ip = 10.1.1.99; }
 }
 =END=
@@ -1163,10 +1163,10 @@ network:n1 = {
  host:h10     = { ip6 = fc00:12:345:6789:10:1:1:10; }
  host:h11     = { ip6 = fc00:12:345:6789:10:1:1:11; }
  host:r98-102 = {
-  range6 = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:102;
+  range6 = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:102;
  }
  host:r98-100 = {
-  range6 = fc00:12:345:6789:10:1:1:98 - fc00:12:345:6789:10:1:1:100;
+  range6 = fc00:12:345:6789:10:1:1:98-fc00:12:345:6789:10:1:1:100;
  }
  host:h99     = { ip6 = fc00:12:345:6789:10:1:1:99; }
 }

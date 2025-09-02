@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Program "format-netspoc" no longer inserts white space at
+  delimiter -,:,/ of
+  - IP range of host (IPv4 and IPv6)
+  - port range of protocol tcp and udp
+  - source and destination port of protocol tcp and udp
+  - type/code of protocol icmp
 - Program "format-netspoc" now sorts IPv6 hosts by address.
 
 ## [2025-07-22-1444]
