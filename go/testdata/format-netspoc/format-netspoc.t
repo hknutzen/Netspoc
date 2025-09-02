@@ -822,8 +822,8 @@ service:s1 = {
               icmp 3,
               icmp 4 ,
               icmp 4 / 4,
-              proto 43,
               proto 54,
+              proto 43,
               protocol:smtp, protocol:ftp,
               protocolgroup:ftp-active,
         ;
