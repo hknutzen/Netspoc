@@ -51,19 +51,18 @@ func (c *spoc) convertHosts() {
 				}
 			} else {
 				// Convert range.
-				l := host.ipRange.Prefixes()
+				nets = host.ipRange.Prefixes()
 				if id != "" {
-					if len(l) > 1 {
+					if len(nets) > 1 {
 						c.err("Range of %s with ID must expand to exactly one subnet",
 							name)
-					} else if l[0].IsSingleIP() {
+					} else if nets[0].IsSingleIP() {
 						c.err("%s with ID must not have single IP", name)
 					} else if strings.Index(id, "@") > 0 {
 						c.err("ID of %s must start with character '@'"+
 							" or have no '@' at all", name)
 					}
 				}
-				nets = l
 			}
 
 			for _, ipp := range nets {
