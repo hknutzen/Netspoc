@@ -1069,11 +1069,6 @@ func (c *spoc) exportAssets(
 
 	for _, z := range c.allZones {
 
-		// All aggregates can be used in rules.
-		for _, agg := range z.ipPrefix2aggregate {
-			allObjects[agg] = true
-		}
-
 		// Ignore empty zone with only tunnel or unnumbered networks.
 		if len(z.networks) == 0 {
 			continue

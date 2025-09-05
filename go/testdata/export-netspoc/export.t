@@ -344,7 +344,7 @@ router:r = {
 }
 service:s1 = {
  user = network:n2;
- permit src = any:[ip = 10.1.0.0/23 & network:n1]; dst = user; prt = tcp 80;
+ permit src = any:[ip = 10.1.0.0/22 & network:n1]; dst = user; prt = tcp 80;
  permit src = any:[ip = 10.2.0.0/23 & network:n1]; dst = user; prt = tcp 81;
  permit src = any:[ip = 10.0.0.0/14 & network:n1]; dst = user; prt = tcp 82;
 }
@@ -357,20 +357,14 @@ service:s1 = {
   "owner": "b",
   "zone": "any:[network:n1]"
  },
- "any:[ip=10.1.0.0/23 & network:n1]": {
-  "ip": "10.1.0.0/23",
+ "any:[ip=10.1.0.0/22 & network:n1]": {
+  "ip": "10.1.0.0/22",
   "is_supernet": 1,
   "owner": "a",
   "zone": "any:[network:n1]"
  },
  "any:[ip=10.2.0.0/23 & network:n1]": {
   "ip": "10.2.0.0/23",
-  "is_supernet": 1,
-  "owner": "b",
-  "zone": "any:[network:n1]"
- },
- "any:a-8": {
-  "ip": "10.0.0.0/8",
   "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
@@ -391,19 +385,29 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=No inversed inheritance for zone
+=TITLE=No inversed inheritance for named aggregate
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-network:n2 = { ip = 10.1.2.0/24; owner = a; }
-network:n3 = { ip = 10.1.3.0/24; owner = b; }
-any:a = { link = network:n3; }
-router:r = {
- interface:n1;
- interface:n2;
- interface:n3;
-}
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+network:n2 = { ip = 10.1.2.0/24; }
+any:a2 = { ip = 10.1.2.0/23; link = network:n2; owner = a; }
+network:n3 = { ip = 10.1.3.0/24; owner = b; }
+any:a = { link = network:n1; }
+router:u = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = any:a;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
 =OUTPUT=
 -- objects
 {
@@ -412,17 +416,19 @@ owner:b = { admins = b@example.com; }
   "is_supernet": 1,
   "zone": "any:a"
  },
- "interface:r.n1": {
-  "ip": "short",
-  "owner": "a"
- },
  "interface:r.n2": {
-  "ip": "short",
-  "owner": "a"
+  "ip": "10.1.2.1"
  },
  "interface:r.n3": {
+  "ip": "10.1.3.1"
+ },
+ "interface:u.n1": {
   "ip": "short",
-  "owner": "b"
+  "owner": "a"
+ },
+ "interface:u.n2": {
+  "ip": "10.1.2.2",
+  "owner": "a"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -437,18 +443,19 @@ owner:b = { admins = b@example.com; }
  "network:n3": {
   "ip": "10.1.3.0/24",
   "owner": "b",
-  "zone": "any:a"
+  "zone": "any:[network:n3]"
  }
 }
 =END=
 
 ############################################################
-=TITLE=No inversed inheritance for zone cluster
+=TITLE=No inversed inheritance for zone cluster with different owners
 =INPUT=
-any:a = { link = network:n1; }
+owner:a = { admins = a@example.com; }
+owner:b = { admins = b@example.com; }
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = b; }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n3 = { ip = 10.2.1.0/24; }
 router:u = {
  interface:n1;
  interface:n2;
@@ -459,24 +466,26 @@ router:r1 = {
  model = IOS;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n3 = { ip = 10.2.1.1; hardware = n3; }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n3 = { ip = 10.2.1.2; hardware = n3; }
 }
-owner:a = { admins = a@example.com; }
-owner:b = { admins = b@example.com; }
+service:s1 = {
+ user = any:[ ip = 10.1.0.0/16 & network:n1 ];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
 =OUTPUT=
 -- objects
 {
- "any:a": {
-  "ip": "0.0.0.0/0",
+ "any:[ip=10.1.0.0/16 & network:n1]": {
+  "ip": "10.1.0.0/16",
   "is_supernet": 1,
-  "zone": "any:a"
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1"
@@ -495,12 +504,16 @@ owner:b = { admins = b@example.com; }
  "network:n1": {
   "ip": "10.1.1.0/24",
   "owner": "a",
-  "zone": "any:a"
+  "zone": "any:[network:n1]"
  },
  "network:n2": {
   "ip": "10.1.2.0/24",
   "owner": "b",
-  "zone": "any:a"
+  "zone": "any:[network:n1]"
+ },
+ "network:n3": {
+  "ip": "10.2.1.0/24",
+  "zone": "any:[network:n3]"
  }
 }
 =END=
@@ -1407,12 +1420,6 @@ service:s1 = {
 }
 --objects
 {
- "any:n1": {
-  "ip": "0.0.0.0/0",
-  "is_supernet": 1,
-  "owner": "n1",
-  "zone": "any:n1"
- },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
   "owner": "r1"
@@ -2887,12 +2894,6 @@ service:s1 = {
   "owner": "all",
   "zone": "any:[network:n3]"
  },
- "any:a1": {
-  "ip": "0.0.0.0/0",
-  "is_supernet": 1,
-  "owner": "a1",
-  "zone": "any:a1"
- },
  "interface:r1.n1": {
   "ip": "short",
   "owner": "a1"
@@ -4109,3 +4110,63 @@ network:n1-super = {
 =END=
 
 ############################################################
+=TITLE=Must not export intermediate aggregates
+=INPUT=
+owner:o1 = { admins = o1@example.com; }
+area:a12 = { inclusive_border = interface:r1.n3; owner = o1; }
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = network:[any:[ip=10.1.0.0/16 & area:a12]];
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+=OUTPUT=
+--objects
+{
+ "interface:r1.n1": {
+  "ip": "10.1.1.1"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "owner": "o1",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/24",
+  "owner": "o1",
+  "zone": "any:[network:n2]"
+ },
+ "network:n3": {
+  "ip": "10.1.3.0/24",
+  "zone": "any:[network:n3]"
+ }
+}
+--services
+{
+ "s1": {
+  "details": { "owner": [ ":unknown" ] },
+  "rules": [{
+    "action": "permit",
+    "src": [],
+    "dst": [ "network:n3" ],
+    "prt": [ "tcp 80" ],
+    "has_user": "src"
+  }]
+ }
+}
+--owner/o1/users
+{ "s1": [ "network:n1", "network:n2" ] }
+=END=
