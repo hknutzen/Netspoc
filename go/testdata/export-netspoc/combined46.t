@@ -562,7 +562,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Combined non matching aggregate in zone mixed v4, v46 cluster
+=TITLE=Combined non matching aggregate in mixed v4, v46 zone cluster
 =INPUT=
 area:all = { anchor = network:n1; owner = o; }
 owner:o = { admins = a1@example.com; }
@@ -590,6 +590,10 @@ pathrestriction:p1 = interface:r1.n1, interface:r2.n3;
 pathrestriction:p2 = interface:r1.n1, interface:r2.n4;
 
 any:a2 = { link = network:n2; }
+service:s1 = {
+ user = any:a2;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
 =OUTPUT=
 --objects
 {
