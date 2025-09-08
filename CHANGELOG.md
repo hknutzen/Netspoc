@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Program "export-netspoc" no longer exports aggregates not used in any rules.
 - Program "format-netspoc" no longer inserts white space at
   delimiter -,:,/ of
   - IP range of host (IPv4 and IPv6)
