@@ -75,13 +75,10 @@ type job struct {
 }
 
 var handler = map[string]func(*state, *job) error{
-	"add":          (*state).patch,
-	"delete":       (*state).patch,
-	"set":          (*state).patch,
-	"create_host":  (*state).createHost,
-	"modify_host":  (*state).modifyHost,
-	"create_owner": (*state).createOwner,
-	"add_to_group": (*state).addToGroup,
+	"add":         (*state).patch,
+	"delete":      (*state).patch,
+	"set":         (*state).patch,
+	"create_host": (*state).createHost,
 }
 
 func (s *state) doJobFile(path string) error {
@@ -205,80 +202,7 @@ func (s *state) createHost(j *job) error {
 	return nil
 }
 
-func (s *state) modifyHost(j *job) error {
-	var p struct {
-		Name  string
-		Owner string
-	}
-	getParams(j, &p)
-	host := p.Name
-	owner := p.Owner
-
-	// Special handling for ID-host:
-	// - remove trailing network name from host name,
-	// - limit search to this network definition
-	net := ""
-	if strings.HasPrefix(host, "id:") {
-		// ID host is extended by network name: host:id:a.b@c.d.net_name
-		i := strings.LastIndex(host, ".")
-		net = "network:" + host[i+1:]
-		host = host[:i]
-	}
-	host = "host:" + host
-	found := s.Modify(func(toplevel ast.Toplevel) bool {
-		if n, ok := toplevel.(*ast.Network); ok {
-			if net != "" && n.Name != net {
-				return false
-			}
-			for _, h := range n.Hosts {
-				if h.Name == host {
-					h.Change("owner", owner)
-					return true
-				}
-			}
-		}
-		return false
-	})
-	if !found {
-		return fmt.Errorf("Can't find '%s'", host)
-	}
-	return nil
-}
-
 type jsonMap map[string]any
-
-func (s *state) createOwner(j *job) error {
-	var p struct {
-		Name       string
-		Admins     []string
-		Watchers   []string
-		OkIfExists int `json:"ok_if_exists"`
-	}
-	getParams(j, &p)
-	value := jsonMap{"admins": p.Admins}
-	if p.Watchers != nil {
-		value["watchers"] = p.Watchers
-	}
-	params, _ := json.Marshal(jsonMap{
-		"path":         "owner:" + p.Name,
-		"value":        value,
-		"ok_if_exists": p.OkIfExists != 0,
-	})
-	return s.patch(&job{Method: "add", Params: params})
-}
-
-func (s *state) addToGroup(j *job) error {
-	var p struct {
-		Name   string
-		Object string
-	}
-	getParams(j, &p)
-	params, _ := json.Marshal(jsonMap{
-		"path":  "group:" + p.Name + ",elements",
-		"value": p.Object,
-	})
-	return s.patch(&job{Method: "add", Params: params})
-}
 
 func getParams(j *job, p any) {
 	// Ignore error and handle params with wrong type like missing params.
