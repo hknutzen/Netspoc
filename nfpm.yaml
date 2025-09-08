@@ -12,3 +12,5 @@ license: GPL
 contents:
   - src: ./bin/*
     dst: /usr/local/bin/
+  - src: ./man/*
+    dst: /usr/local/share/man/man1/

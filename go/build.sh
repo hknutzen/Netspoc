@@ -1,6 +1,9 @@
 #!/bin/bash
 # Prepare for release.
 
+# Patterns which match no files expand to null string.
+shopt -s nullglob
+
 # Abort on first error.
 trap 'echo Failed: $BASH_COMMAND >&2; exit 1' ERR
 
@@ -24,6 +27,16 @@ done
 # Do static analysis of source code.
 cd $dir
 go vet ./...
+
+# Generate manual pages
+for d in $dir/pkg/*; do
+    ( cd $d
+      for f in *.1.md; do
+          m=$(basename $f .md)
+          go tool go-md2man -in $f -out "$dir/../man/$m"
+      done
+    )
+done
 
 # Generate IPv6 tests
 make --silent --directory=testdata/ipv6
