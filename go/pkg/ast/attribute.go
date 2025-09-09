@@ -49,46 +49,14 @@ func (obj *Attribute) GetAttr(name string) *Attribute {
 	return nil
 }
 
-func (obj *Attribute) Remove(name string) {
-	if obj.ValueList != nil {
-		cp := make([]*Value, 0, len(obj.ValueList))
-		for _, a := range obj.ValueList {
-			if a.Value != name {
-				cp = append(cp, a)
-			}
-		}
-		obj.ValueList = cp
-	} else {
-		cp := make([]*Attribute, 0, len(obj.ComplexValue)-1)
-		for _, a := range obj.ComplexValue {
-			if a.Name != name {
-				cp = append(cp, a)
-			}
-		}
-		obj.ComplexValue = cp
-	}
-}
-
-func (obj *Attribute) Replace(attr *Attribute) {
-	for i, a := range obj.ComplexValue {
-		if a.Name == attr.Name {
-			obj.ComplexValue[i] = attr
-			return
+func (obj *Attribute) RemoveFromList(name string) {
+	cp := make([]*Value, 0, len(obj.ValueList))
+	for _, a := range obj.ValueList {
+		if a.Value != name {
+			cp = append(cp, a)
 		}
 	}
-	obj.ComplexValue = append(obj.ComplexValue, attr)
-}
-
-func (obj *Attribute) Change(name, value string) {
-	if value == "" {
-		obj.Remove(name)
-		return
-	}
-	attr := &Attribute{
-		Name:      name,
-		ValueList: []*Value{{Value: value}},
-	}
-	obj.Replace(attr)
+	obj.ValueList = cp
 }
 
 func (obj *TopStruct) RemoveAttr(name string) {

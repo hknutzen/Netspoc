@@ -286,7 +286,7 @@ func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 			n := top.(ast.ToplevelWithAttr)
 			if a := n.GetAttr(attr); a != nil {
 				if oLen := len(a.ValueList); oLen > 0 {
-					a.Remove(name)
+					a.RemoveFromList(name)
 					nLen := len(a.ValueList)
 					if nLen == 0 {
 						n.RemoveAttr(attr)
