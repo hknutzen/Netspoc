@@ -202,8 +202,6 @@ func (s *state) createHost(j *job) error {
 	return nil
 }
 
-type jsonMap map[string]any
-
 func getParams(j *job, p any) {
 	// Ignore error and handle params with wrong type like missing params.
 	json.Unmarshal(j.Params, p)
