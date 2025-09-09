@@ -161,10 +161,10 @@ func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 	aF := s.astFiles[idx]
 	cp := make([]ast.Toplevel, 0, len(aF.Nodes)+1)
 	inserted := false
-	typ, name := getTypeName(n.GetName())
+	typ, name, _ := strings.Cut(n.GetName(), ":")
 	nLower := strings.ToLower(name)
 	for i, toplevel := range aF.Nodes {
-		typ2, name2 := getTypeName(toplevel.GetName())
+		typ2, name2, _ := strings.Cut(toplevel.GetName(), ":")
 		if typ2 == typ && strings.ToLower(name2) > nLower {
 			cp = append(cp, n)
 			cp = append(cp, aF.Nodes[i:]...)
@@ -297,9 +297,4 @@ func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 		}
 		return false
 	})
-}
-
-func getTypeName(v string) (string, string) {
-	typ, name, _ := strings.Cut(v, ":")
-	return typ, name
 }
