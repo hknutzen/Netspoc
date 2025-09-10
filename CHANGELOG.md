@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed program "export-netspoc".
+  Unused _named_ aggregates are exported again for use in internal program "kmprep".
+
 ## [2025-09-09-1437]
 
 ### Changed
