@@ -59,7 +59,7 @@ Remove `host:a`, `host:b` and `interface:r.x`.
 
 Same, but read to be removed objects from file:
 
-`echo 'host:a host:b interface:r.x > file
+`echo 'host:a host:b interface:r.x > file;
  remove-from-netspoc -f file netspoc/`
 
 # COPYRIGHT AND DISCLAIMER
