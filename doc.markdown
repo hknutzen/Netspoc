@@ -14,16 +14,16 @@ layout: default
 
 # Manual pages
 
-[netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/netspoc.pod#___top)
+[netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/netspoc.1.md)
 
-[rename-netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/rename-netspoc.pod#___top)
+[rename-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/rename/rename-netspoc.1.md)
 
-[add-to-netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/add-to-netspoc.pod#___top)
+[add-to-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/addto/add-to-netspoc.1.md)
 
-[remove-from-netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/remove-from-netspoc.pod#___top)
+[remove-from-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/removefrom/remove-from-netspoc.1.md)
 
-[print-group](https://github.com/hknutzen/Netspoc/blob/master/pod-links/print-group.pod#___top)
+[print-group](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/print-group.1.md)
 
-[print-service](https://github.com/hknutzen/Netspoc/blob/master/pod-links/print-service.pod#___top)
+[print-service](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/print-service.1.md)
 
-[cut-netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/cut-netspoc.pod#___top)
+[cut-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/cut-netspoc.1.md)
