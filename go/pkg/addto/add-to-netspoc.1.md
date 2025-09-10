@@ -52,7 +52,7 @@ Add `host:y` at every occurrence of `group:g` and of `network:x`:
 
 Same, but read pairs from file:
 
-`echo 'group:g host:y network:x host:y' > file
+`echo 'group:g host:y network:x host:y' > file;
  add-to-netspoc -f file netspoc/`
 
 # COPYRIGHT AND DISCLAIMER
