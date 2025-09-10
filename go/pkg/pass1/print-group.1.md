@@ -17,7 +17,7 @@ and by default, shows a line with IP/prefixlen and name for each element.
 Group is a named group, some automatic group, some named object or
 a union or intersection or complement of simpler objects.
 
-IP, name and additional columns are separated by TAB character.
+IP address, name and additional columns are separated by TAB character.
 
 Name and IP address of a dual stack object is shown as two lines:
 
@@ -52,20 +52,20 @@ Name and IP address of a dual stack object is shown as two lines:
 
 # EXAMPLES
 
-Show names of elements of group:g
+Show names of elements of `group:g`
 of Netspoc configuration in directory `netspoc/`:
 
 `print-group --name netspoc/ group:g`
 
-Show names and owners of elements of group:a without elements of group:b:
+Show names and owners of elements of `group:a` without elements of `group:b`:
 
 `print-group --name --owner netspoc/ 'group:a &! group:b'`
 
-Show IP addresses of all hosts inside area:x:
+Show IP addresses of all hosts inside `area:x`:
 
 `print-group --ip netspoc/ 'host:[area:x]'`
 
-Show IP address and name of IPv6 networks inside area:x:
+Show IP address and name of IPv6 networks inside `area:x`:
 
 `print-group netspoc/ 'network:[any:[ip6=::/0 & area:x]]'`
 
