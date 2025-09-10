@@ -15,13 +15,13 @@ If no service name is given, all services are printed.
 
 Output format is
 
-with option `-i` (default):
+with option `-i` (default)
 :   `service-name:permit|deny src-ip dst-ip protocol-description`
 
-with option `-n`:
+with option `-n`
 :   `service-name:permit|deny src-name dst-name protocol-description`
 
-with option `-i -n`:
+with option `-i -n`
 :   `service-name:permit|deny src-ip src-name dst-ip dst-name protocol-description`
 
 # OPTIONS
