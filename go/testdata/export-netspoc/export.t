@@ -369,6 +369,12 @@ service:s1 = {
   "owner": "b",
   "zone": "any:[network:n1]"
  },
+ "any:a-8": {
+  "ip": "10.0.0.0/8",
+  "is_supernet": 1,
+  "owner": "b",
+  "zone": "any:[network:n1]"
+ },
  "interface:r.n1": {
   "ip": "10.1.1.1"
  },
@@ -414,6 +420,12 @@ service:s1 = {
  "any:a": {
   "ip": "0.0.0.0/0",
   "is_supernet": 1,
+  "zone": "any:a"
+ },
+ "any:a2": {
+  "ip": "10.1.2.0/23",
+  "is_supernet": 1,
+  "owner": "a",
   "zone": "any:a"
  },
  "interface:r.n2": {
@@ -1420,6 +1432,12 @@ service:s1 = {
 }
 --objects
 {
+ "any:n1": {
+  "ip": "0.0.0.0/0",
+  "is_supernet": 1,
+  "owner": "n1",
+  "zone": "any:n1"
+ },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
   "owner": "r1"
@@ -2893,6 +2911,12 @@ service:s1 = {
   "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n3]"
+ },
+ "any:a1": {
+  "ip": "0.0.0.0/0",
+  "is_supernet": 1,
+  "owner": "a1",
+  "zone": "any:a1"
  },
  "interface:r1.n1": {
   "ip": "short",

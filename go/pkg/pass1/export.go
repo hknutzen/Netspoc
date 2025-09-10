@@ -1049,6 +1049,13 @@ func (c *spoc) exportAssets(
 			continue
 		}
 
+		// Named aggregates are used in internal program "kmprep".
+		for _, agg := range z.ipPrefix2aggregate {
+			if !strings.HasPrefix(agg.name, "any:[") {
+				allObjects[agg] = true
+			}
+		}
+
 		zoneName := c.getZoneName(z)
 		processWithSubnetworks(z.networks, func(n *network) {
 			add := func(ow string, ownNet bool) {
