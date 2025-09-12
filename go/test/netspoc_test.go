@@ -473,7 +473,6 @@ func countEq(t *testing.T, expected, got string) {
 	if d := cmp.Diff(expected, got); d != "" {
 		t.Error(d)
 	}
-	//assert.Check(t, cmp.Equal(expected, got))
 }
 
 func jsonEq(t *testing.T, expected string, got []byte) {
