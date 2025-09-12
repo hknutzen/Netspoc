@@ -535,21 +535,17 @@ func modifyRun(d oslink.Data) int {
 }
 
 // Run Netspoc pass1 + check-acl sequentially.
-// Arguments: PROGRAM -q [-6] [-f file] input code router acl <packet>
+// Arguments: PROGRAM -q [-f file] input code router acl <packet>
 func checkACLRun(d oslink.Data) int {
-	// Args: PROGRAM -q [-6] input code
+	// Args: PROGRAM -q input code
 	var p1Args []string
 	// Args: PROGRAM [-f file] code/router acl <packet>
 	var chArgs []string
 	p1Args = append(p1Args, d.Args[0:2]...) // PROGRAM -q
 	chArgs = append(chArgs, d.Args[0])      // PROGRAM
 	a := 0
-	if d.Args[2] == "-6" {
-		p1Args = append(p1Args, d.Args[2])
-		a = 1
-	}
-	if d.Args[2+a] == "-f" {
-		chArgs = append(chArgs, d.Args[2+a:4+a]...) // -f file
+	if d.Args[2] == "-f" {
+		chArgs = append(chArgs, d.Args[2:4]...) // -f file
 		a += 2
 	}
 	p1Args = append(p1Args, d.Args[2+a:4+a]...)                  // input code
