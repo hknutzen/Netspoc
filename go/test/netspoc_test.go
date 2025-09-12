@@ -313,12 +313,12 @@ func runTest(t *testing.T, tc test, d descr) {
 
 func netspocCheck(t *testing.T, spec, dir string) {
 	// Blocks of expected output are split by single lines of dashes,
-	// followed by an optional device name.
+	// followed by name of generated code file.
 	re := regexp.MustCompile(`(?ms)^-+[ ]*(?:\w\S*)?[ ]*\n`)
 	il := re.FindAllStringIndex(spec, -1)
 
 	if il == nil || il[0][0] != 0 {
-		t.Error("Output spec must start with dashed line")
+		t.Fatal("Output spec must start with dashed line")
 	}
 	var device string
 	var devices []string
@@ -327,7 +327,7 @@ func netspocCheck(t *testing.T, spec, dir string) {
 		marker := spec[p[0] : p[1]-1] // without trailing "\n"
 		pName := strings.Trim(marker, "- ")
 		if device == "" && pName == "" {
-			t.Error("Missing device name in first dashed line of output spec")
+			t.Fatal("Missing device name in first dashed line of output spec")
 		}
 		if pName != "" {
 			device = pName
@@ -347,7 +347,7 @@ func netspocCheck(t *testing.T, spec, dir string) {
 	for _, device := range devices {
 		data, err := os.ReadFile(path.Join(dir, device))
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
 		blocks := device2blocks[device]
 		expected := strings.Join(blocks, "")
