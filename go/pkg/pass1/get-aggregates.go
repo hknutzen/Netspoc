@@ -159,12 +159,11 @@ func propagateOwnerToAggregates(agg *network) {
 }
 
 func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
-	if z.ipPrefix2aggregate[agg.ipp] != nil {
-		return
-	}
-
-	// Create new aggregate from aggregate or network and attach it to zone.
 	clone := func(n *network, z *zone) *network {
+		if agg := z.ipPrefix2aggregate[n.ipp]; agg != nil {
+			return agg
+		}
+		// Create new aggregate from aggregate or network and attach it to zone.
 		agg := new(network)
 		agg.name = n.name
 		agg.isAggregate = true
@@ -185,11 +184,12 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 		return agg
 	}
 	agg2 := clone(agg, z)
-	z2 := z.combined46
-	if a6 := agg.combined46; a6 != nil && z2 != nil {
-		a2 := clone(a6, z2)
-		agg2.combined46 = a2
-		a2.combined46 = agg2
+	if a6 := agg.combined46; a6 != nil {
+		if z2 := z.combined46; z2 != nil {
+			a2 := clone(a6, z2)
+			agg2.combined46 = a2
+			a2.combined46 = agg2
+		}
 	}
 }
 
@@ -253,20 +253,24 @@ func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
 		// aggregate. If found, don't create a new aggregate in zone,
 		// but use the network instead. Otherwise .up relation
 		// wouldn't be well defined.
-		var n *network
-	CLUSTER:
-		for _, z := range z.cluster {
-			for _, n2 := range z.networks {
-				if n2.ipp == ipp {
-					n = n2
-					break CLUSTER
+		findNet := func() *network {
+			for _, z := range z.cluster {
+				for _, n := range z.networks {
+					if n.ipp == ipp {
+						return n
+					}
 				}
 			}
+			return nil
 		}
-		if n != nil {
+		if n := findNet(); n != nil {
 
 			// Handle network like an aggregate.
 			n.zone.ipPrefix2aggregate[ipp] = n
+			if n6 := n.combined46; n6 != nil {
+				// Must also use IPv6 network as aggregate.
+				n6.zone.ipPrefix2aggregate[n6.ipp] = n6
+			}
 
 			// Create aggregates in cluster, using the name of the network.
 			c.duplicateAggregateToCluster(n, true)
