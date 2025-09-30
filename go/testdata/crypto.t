@@ -17,7 +17,6 @@ isakmp:aes256SHA = {
  hash = sha;
  group = 2;
  lifetime = 86400 sec;
- trust_point = ASDM_TrustPoint1;
 }
 crypto:vpn = {
  type = ipsec:aes256SHA;
