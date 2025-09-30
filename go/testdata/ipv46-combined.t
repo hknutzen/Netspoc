@@ -1528,6 +1528,86 @@ access-group n4_in in interface n4
 =END=
 
 ############################################################
+=TITLE=Dual stack internet together with unnamed non matching aggregate
+=INPUT=
+network:Internet = {
+ ip = 0.0.0.0/0;
+ ip6 = ::/0;
+ has_subnets;
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:Internet = {
+ interface:Internet;
+ interface:n1;
+}
+router:fw = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--fw
+! n1_in
+access-list n1_in extended permit tcp any4 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--ipv6/fw
+! n1_in
+access-list n1_in extended permit tcp any6 2001:db8:1:2::/64 eq 80
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Separate v4 and v6 internet together with unnamed non matching aggregate
+=INPUT=
+network:Internet4 = {
+ ip = 0.0.0.0/0;
+ has_subnets;
+}
+network:Internet6 = {
+ ip6 = ::/0;
+ has_subnets;
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:Internet = {
+ interface:Internet4;
+ interface:Internet6;
+ interface:n1;
+}
+router:fw = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--fw
+! n1_in
+access-list n1_in extended permit tcp any4 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--ipv6/fw
+! n1_in
+access-list n1_in extended permit tcp any6 2001:db8:1:2::/64 eq 80
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Bridged network
 =INPUT=
 network:n1/left = {
