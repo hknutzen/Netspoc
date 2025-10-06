@@ -443,7 +443,7 @@ group:g1 =
  network:10_1_7_0-net,
  network:n-10_1_6_0-24,
  # Before
- network:n_999_10_1_10_0, # not recognized as IP-adress
+ network:n_999_10_1_10_0, # not recognized as IP address
  network:n-77,
  group:g9, group:g8 &! host:hx,
  any:a-10_0_0_0-8,
@@ -468,7 +468,7 @@ group:g1 =
  ,
  network:n-77,
  # Before
- network:n_999_10_1_10_0, # not recognized as IP-adress
+ network:n_999_10_1_10_0, # not recognized as IP address
  network:n-10_1_6_0-24,
  network:10_1_7_0-net,
  network:10_1_8_128-10_1_8_255,
@@ -506,7 +506,7 @@ group:g1 =
  network:fc00_12_345_6789_10_1_7_0-net,
  network:n-fc00_12_345_6789_10_1_6_0-120,
  # Before
- network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP-adress
+ network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP address
  network:n-77,
  group:g9, group:g8 &! host:hx,
  any:a-fc00_12_345_6789__-64,
@@ -531,7 +531,7 @@ group:g1 =
  ,
  network:n-77,
  # Before
- network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP-adress
+ network:n_999_fc00_12_345_6789_10_1_10_0, # not recognized as IP address
  network:n-fc00_12_345_6789_10_1_6_0-120,
  network:fc00_12_345_6789_10_1_7_0-net,
  network:fc00_12_345_6789_10_1_8_128-fc00_12_345_6789_10_1_8_255,
