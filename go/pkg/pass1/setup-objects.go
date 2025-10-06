@@ -317,12 +317,8 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 	l3Name := c.getAndCheckLayer3(r, a)
 	c.checkDuplAttr(&a.Interfaces, a.Name)
 	for _, ai := range a.Interfaces {
-		v4Count, v6Count := c.checkIntf46(ai)
-		if v4Count != 0 && v6Count != 0 && v4Count != v6Count {
-			c.err("%s must have identical number of IPv4 and IPv6 addresses",
-				strings.Replace(ai.Name, ":", ":"+rName+".", 1))
-		}
-		is4, is6 := v4Count != 0, v6Count != 0
+		iName := strings.Replace(ai.Name, ":", ":"+rName+".", 1)
+		is4, is6 := c.checkIntf46(iName, ai)
 		if !is4 && !is6 {
 			// Short interface without attributes or
 			// bridged interface without IP address.
@@ -420,52 +416,42 @@ func stripFilterOnly(r *router, other []*routerIntf) {
 
 func ipvx(v6 bool) string { return cond(v6, "IPv6", "IPv4") }
 
-func (c *spoc) checkIntf46(ai *ast.Attribute) (int, int) {
-	var v4Count, v6Count int
-	checkSub := func(a *ast.Attribute) {
-		v4, v6 := check46(a.ComplexValue, []string{"ip"})
-		if v4 {
-			v4Count++
-		}
-		if v6 {
-			v6Count++
+var intfV4Attr = []string{"ip", "unnumbered", "negotiated"}
+
+func (c *spoc) checkIntf46(name string, ai *ast.Attribute) (bool, bool) {
+	a4, a6 := c.getAttr46(name, ai.ComplexValue, intfV4Attr)
+	v4, v6 := a4 != nil, a6 != nil
+	if v4 && v6 {
+		if !strings.HasPrefix(a6.Name, a4.Name) {
+			c.err("Missing '%s' in dual stack %s", a4.Name+"6", name)
+		} else if a4.Name == "ip" && len(a4.ValueList) != len(a6.ValueList) {
+			c.err(
+				"Attributes 'ip' and 'ip6' must have same number of values in %s",
+				name)
 		}
 	}
-	for _, a := range ai.ComplexValue {
-		switch a.Name {
-		case "ip":
-			v4Count += max(1, len(a.ValueList))
-		case "ip6":
-			v6Count += max(1, len(a.ValueList))
-		case "unnumbered":
-			v4Count++
-		case "unnumbered6":
-			v6Count++
-		case "negotiated":
-			v4Count++
-		case "negotiated6":
-			v6Count++
-		case "virtual":
-			checkSub(a)
-		default:
-			if strings.HasPrefix(a.Name, "secondary:") {
-				checkSub(a)
+	checkSub := func(as *ast.Attribute) {
+		for _, a := range as.ComplexValue {
+			switch a.Name {
+			case "ip":
+				if v6 && !v4 {
+					c.err(`Must not use 'ip' in %q of %s`, as.Name, name)
+				}
+			case "ip6":
+				if v4 && !v6 {
+					c.err(`Must not use 'ip6' in %q of %s`, as.Name, name)
+				}
 			}
 		}
 	}
-	return v4Count, v6Count
-}
-
-func check46(l []*ast.Attribute, v4AttrNames []string) (bool, bool) {
-	var isV4, isV6 bool
-	for _, a := range l {
-		if isAttr6(a) {
-			isV6 = true
-		} else if slices.Contains(v4AttrNames, a.Name) {
-			isV4 = true
+	for _, a := range ai.ComplexValue {
+		if a.Name == "virtual" {
+			checkSub(a)
+		} else if strings.HasPrefix(a.Name, "secondary:") {
+			checkSub(a)
 		}
 	}
-	return isV4, isV6
+	return v4, v6
 }
 
 func (c *spoc) getAttr46(name string, l []*ast.Attribute, v4AttrNames []string,
