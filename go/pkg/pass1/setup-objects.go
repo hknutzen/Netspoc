@@ -1087,8 +1087,7 @@ func (c *spoc) setupHost1(v *ast.Attribute, n *network) *host {
 	name := v.Name
 	h := new(host)
 	hName := strings.TrimPrefix(name, "host:")
-	if strings.HasPrefix(hName, "id:") {
-		id := hName[len("id:"):]
+	if id, found := strings.CutPrefix(hName, "id:"); found {
 		if !isIdHostname(id) {
 			c.err("Invalid name in definition of '%s'", name)
 		}
@@ -1997,8 +1996,7 @@ func (c *spoc) setupInterface(
 		default:
 			if m := c.addIntfNat(a, nat, name); m != nil {
 				nat = m
-			} else if strings.HasPrefix(a.Name, "secondary:") {
-				name2 := a.Name[len("secondary:"):]
+			} else if name2, fnd := strings.CutPrefix(a.Name, "secondary:"); fnd {
 				intf := new(routerIntf)
 				intf.name = name + "." + name2
 				sCtx := a.Name + " of " + name
@@ -3414,13 +3412,11 @@ func (c *spoc) getProtocolList(a *ast.Attribute, ctx string) protoList {
 func (c *spoc) expandProtocols(l stringList, ctx string) protoList {
 	var result protoList
 	for _, v := range l {
-		if strings.HasPrefix(v, "protocol:") {
-			name := v[len("protocol:"):]
+		if name, found := strings.CutPrefix(v, "protocol:"); found {
 			if p := c.getProtocolRef(name, ctx); p != nil {
 				result.push(p)
 			}
-		} else if strings.HasPrefix(v, "protocolgroup:") {
-			name := v[len("protocolgroup:"):]
+		} else if name, found := strings.CutPrefix(v, "protocolgroup:"); found {
 			result = append(result, c.expandProtocolgroup(name, ctx)...)
 		} else {
 			ctx2 := "'" + v + "' of " + ctx
@@ -3632,18 +3628,17 @@ func (c *spoc) getLogModifiers(a *ast.Attribute, ctx string) string {
 }
 
 func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
-	if !strings.HasPrefix(a.Name, "log:") {
-		return false
+	if name, found := strings.CutPrefix(a.Name, "log:"); found {
+		m := r.log
+		if m == nil {
+			m = make(map[string]string)
+			r.log = m
+		}
+		c.symTable.knownLog[name] = true
+		m[name] = c.getLogModifiers(a, r.name)
+		return true
 	}
-	m := r.log
-	if m == nil {
-		m = make(map[string]string)
-		r.log = m
-	}
-	name := a.Name[len("log:"):]
-	c.symTable.knownLog[name] = true
-	m[name] = c.getLogModifiers(a, r.name)
-	return true
+	return false
 }
 
 // Check log modifiers and transform to log code.
@@ -3740,10 +3735,10 @@ func (c *spoc) addXNat(
 	getIpX func(*ast.Attribute, string) netip.Prefix,
 ) natTagMap {
 
-	if !strings.HasPrefix(a.Name, "nat:") {
+	tag, found := strings.CutPrefix(a.Name, "nat:")
+	if !found {
 		return nil
 	}
-	tag := a.Name[len("nat:"):]
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
 	ipGiven := false
@@ -3795,13 +3790,13 @@ func (c *spoc) addXNat(
 
 func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netip.Addr, ctx string,
 ) map[string]netip.Addr {
-	if !strings.HasPrefix(a.Name, "nat:") {
+	tag, found := strings.CutPrefix(a.Name, "nat:")
+	if !found {
 		return nil
 	}
 	if m == nil {
 		m = make(map[string]netip.Addr)
 	}
-	tag := a.Name[len("nat:"):]
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
 	if len(l) != 1 || l[0].Name != "ip" {
