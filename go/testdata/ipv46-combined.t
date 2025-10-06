@@ -1197,6 +1197,28 @@ Error: Must not reference IPv4 network:n1 from IPv6 interface:r1.n1
 =END=
 
 ############################################################
+=TITLE=Negotiated must equally be used in v4 and v6 part
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+router:r1 = {
+ interface:n1 = { negotiated; ip6 = 2001:db8:1:1::1; }
+}
+=ERROR=
+Error: Missing 'negotiated6' in dual stack interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Unnumbered must equally be used in v4/v6 network
+=INPUT=
+network:n1 = { unnumbered; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { unnumbered6; ip = 10.1.1.0/24; }
+network:n3 = { unnumbered; unnumbered6; }
+=ERROR=
+Error: Unnumbered network:n1 must not have attribute 'ip6'
+Error: Unnumbered network:n2 must not have attribute 'ip'
+=END=
+
+############################################################
 =TITLE=Duplicate v4 and v6 interface with same name
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
@@ -1237,12 +1259,14 @@ Error: Duplicate definition of router:r1 in ipv6/topo and topo
 =END=
 
 ############################################################
-=TITLE=Different number of IPv4/IPv6 secondary IP adresses at interface
+=TITLE=Different number of IPv4/IPv6 secondary IP addresses at interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
 network:n3 = { unnumbered; }
-network:n4 = {  ip6 = 2001:db8:1:4::/64; }
+network:n4 = { ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip6 = 2001:db8:1:5::/64; }
+network:n6 = { ip = 10.1.6.0/24; }
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1, 10.1.1.2; ip6 = 2001:db8:1:1::2; }
  interface:n2 = {
@@ -1260,15 +1284,28 @@ router:r1 = {
   unnumbered6;
   negotiated6;
  }
+ interface:n5 = {
+  ip6 = 2001:db8:1:5::2;
+  virtual = { ip = 10.1.5.9; }
+ }
+ interface:n6 = {
+  ip = 10.1.6.2;
+  secondary:snd = { ip6 = 2001:db8:1:6::9; }
+ }
 }
 =ERROR=
-Error: interface:r1.n1 must have identical number of IPv4 and IPv6 addresses
+Error: Attributes 'ip' and 'ip6' must have same number of values in interface:r1.n1
 Error: Missing 'ip' in secondary:snd of interface:r1.n2
 Error: Missing 'ip6' in 'virtual' of interface:r1.n2
+Error: Missing 'unnumbered6' in dual stack interface:r1.n3
 Error: Must not reference IPv4 network:n3 from IPv6 interface:r1.n3
-Error: interface:r1.n4 must have identical number of IPv4 and IPv6 addresses
+Error: Must not use both, "negotiated6" and "unnumbered6" in interface:r1.n4
 Error: Must not reference IPv6 network:n4 from IPv4 interface:r1.n4
-=END=
+Error: Must not use 'ip' in "virtual" of interface:r1.n5
+Error: Missing 'ip6' in 'virtual' of interface:r1.n5
+Error: Must not use 'ip6' in "secondary:snd" of interface:r1.n6
+Error: Missing 'ip' in secondary:snd of interface:r1.n6
+=OPTIONS=--max_errors=20
 
 ############################################################
 =TITLE=Pathrestriction with mixed, but not combined interfaces

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Dual stack networks and interfaces now require an uniform use of attributes
+  ip/ip6, unnumbered/unnumbered6, negotiated/negotiated6.
+
 ## [2025-09-10-1418]
 
 ### Fixed
