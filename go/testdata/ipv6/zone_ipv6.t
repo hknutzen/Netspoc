@@ -88,6 +88,23 @@ Error: network:n1a and network:n1b have identical address in any:[network:n1a]
 =END=
 
 ############################################################
+=TITLE=Named non matching aggregate and internet in same zone cluster
+=INPUT=
+any:inet = { link = network:n1; }
+network:n1 = { ip6 = ::a01:100/120; }
+network:inet = { ip6 = ::/0; has_subnets; }
+
+router:r1 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:inet = { ip6 = ::102:304; hardware = inet; }
+}
+=ERROR=
+Error: any:inet and network:inet have identical address in any:[network:n1]
+=END=
+
+############################################################
 =TITLE=Duplicate IP from NAT in zone
 =TODO= No IPv6
 =INPUT=
