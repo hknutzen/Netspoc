@@ -340,6 +340,17 @@ Error: List of values expected in 'ip6' of interface:R.N
 =END=
 
 ############################################################
+=TITLE=Negotiated interface with additional IP address
+=INPUT=
+router:R = {
+ interface:N = { negotiated6; ip6 = ::a01:101; }
+}
+network:N = { ip6 = ::a01:100/120; }
+=ERROR=
+Error: Must not use both, "ip6" and "negotiated6" in interface:R.N
+=END=
+
+############################################################
 =TITLE=Secondary interface without IP
 =INPUT=
 router:R = {
