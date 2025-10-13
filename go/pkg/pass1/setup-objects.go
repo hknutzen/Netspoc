@@ -1815,6 +1815,8 @@ func (c *spoc) setupRouter2(r *router) {
 			tIntf.routing = intf.routing
 			tIntf.natOutgoing = intf.natOutgoing
 			intf.natOutgoing = nil
+			tIntf.natIncoming = intf.natIncoming
+			intf.natIncoming = nil
 			tIntf.id = intf.id
 			if r.managed != "" {
 				hw := intf.hardware

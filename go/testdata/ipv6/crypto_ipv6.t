@@ -2682,6 +2682,55 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
+=TITLE=Attribute nat_in at unmanged spoke
+=TODO= No IPv6
+=INPUT=
+[[crypto_sts]]
+network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::a09:900/120; } }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = {
+  ip6 = ::a01:101;
+  hardware = n1;
+ }
+ interface:dmz = {
+  ip6 = f000::c0a8:65;
+  hub = crypto:sts;
+  hardware = dmz;
+ }
+}
+network:dmz = { ip6 = f000::c0a8:0/120; }
+router:extern = {
+ interface:dmz = { ip6 = f000::c0a8:1; }
+ interface:internet;
+}
+network:internet = { ip6 = ::/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  negotiated6;
+  nat_in = n1;
+  spoke = crypto:sts;
+  id = cert@example.com;
+ }
+ interface:clients;
+}
+network:clients = {
+ ip6 = ::a63:100/120;
+}
+service:s1 = {
+ user = network:clients;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/asavpn
+! dmz_in
+access-list dmz_in extended permit tcp ::a63:100/120 ::a01:100/120 eq 80
+access-list dmz_in extended deny ip any6 any6
+access-group dmz_in in interface dmz
+=END=
+
+############################################################
 =TITLE=No secondary optimization for incoming ID host
 =INPUT=
 [[crypto_vpn]]
