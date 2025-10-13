@@ -343,6 +343,10 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 			c.setupInterface(ai, r6, true, l3Name)
 		}
 	}
+	if r6.interfaces != nil && r.interfaces != nil {
+		r.combined46 = r6
+		r6.combined46 = r
+	}
 	if r.interfaces != nil || r6.interfaces == nil {
 		r.ipV6 = false
 		stripFilterOnly(r, r6.interfaces)
@@ -350,10 +354,7 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 		c.allRouters = append(c.allRouters, r)
 	}
 	if r6.interfaces != nil {
-		if r.interfaces != nil {
-			r.combined46 = r6
-			r6.combined46 = r
-		} else {
+		if r.interfaces == nil {
 			r.interfaces = r6.interfaces
 			r6 = r
 		}
