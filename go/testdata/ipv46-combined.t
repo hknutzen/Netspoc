@@ -997,6 +997,89 @@ Warning: IPv6 area:a1 is empty
 =END=
 
 ############################################################
+=TITLE=Unreachable v6 border of dual stack area
+=INPUT=
+area:a23 =  { border = interface:r1.n2, interface:r3.n3; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+=ERROR=
+Error: Unreachable border of IPv6 area:a23:
+ - interface:r3.n3
+=END=
+
+############################################################
+=TITLE=Inconsistent definition of v6 area in loop
+=INPUT=
+area:a1 = { border = interface:r1.n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = {                ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; hardware = n2; }
+}
+=ERROR=
+Error: Inconsistent definition of IPv6 area:a1 in loop.
+ It is reached from outside via this path:
+ - interface:r1.n1
+ - interface:r2.n1
+ - interface:r2.n2
+ - interface:r1.n2
+ - interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Overlapping v6 areas
+=INPUT=
+area:a1 = { inclusive_border = interface:r1.n1; }
+area:a2 = { inclusive_border = interface:r2.n3; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = {                   ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; hardware = n2; }
+ interface:n3 = {                ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+=ERROR=
+Error: Overlapping IPv6 area:a1 and area:a2
+ - both areas contain any:[network:n2],
+ - only 1. area contains any:[network:n3],
+ - only 2. area contains any:[network:n1]
+=END=
+
+############################################################
 =TITLE=IPv4 policy_distribution_point at pure IPv6 area
 =INPUT=
 area:a1 = { anchor = network:n2;
@@ -1029,6 +1112,37 @@ router:r1 = {
  interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
 }
 =WARNING=NONE
+
+############################################################
+=TITLE=Useless IPv6 policy_distribution_point
+=INPUT=
+area:all = { anchor = network:n2;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+area:a1 = { border = interface:r1.n1;
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h1 = { ip6 = 2001:db8:1:1::10; }
+}
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = host:h1; dst = user; prt = tcp 22;
+}
+=WARNING=
+Warning: Useless 'policy_distribution_point' at IPv6 area:a1,
+ it was already inherited from router_attributes of area:all
+Warning: Useless 'policy_distribution_point' at IPv6 router:r1,
+ it was already inherited from router_attributes of area:all
+=END=
 
 ############################################################
 =TITLE=Use combined46 area in automatic group

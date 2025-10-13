@@ -458,7 +458,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 				l = l[:j]
 				if badIntf != nil {
 					c.err("Unreachable %s of %s:\n%s",
-						attr, a, badIntf.nameList())
+						attr, a.vxName(), badIntf.nameList())
 				}
 				return l
 			}
@@ -500,7 +500,7 @@ func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	}
 	c.err("Inconsistent definition of %s in loop.\n"+
 		" It is reached from outside via this path:\n%s",
-		a, errPath.nameList())
+		a.vxName(), errPath.nameList())
 	return true
 }
 
@@ -654,7 +654,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 						" - both areas contain %s,\n"+
 						" - only 1. area contains %s,\n"+
 						" - only 2. area contains %s",
-						small, next, obj, obj2, obj3)
+						small.vxName(), next.vxName(), obj, obj2, obj3)
 					continue LARGER
 				}
 			}
@@ -866,7 +866,7 @@ func (c *spoc) inheritRouterAttributes(
 				if at1.equal(at2) {
 					c.warn("Useless '%s' at %s,\n"+
 						" it was already inherited from %s",
-						at1.attrName(), a, rA2.name)
+						at1.attrName(), a.vxName(), rA2.name)
 					return
 				}
 			}
@@ -877,7 +877,7 @@ func (c *spoc) inheritRouterAttributes(
 			if at1.equal(at2) {
 				c.warn("Useless '%s' at %s,\n"+
 					" it was already inherited from %s",
-					at2.attrName(), r, rA1.name)
+					at2.attrName(), r.vxName(), rA1.name)
 			}
 		} else {
 			at1.toRouter(r)
