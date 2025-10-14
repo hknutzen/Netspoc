@@ -199,14 +199,12 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 		ob := l[i]
 		if net, ok := ob.(*network); ok {
 			otherPart := net.combined46
-			up := otherPart.up
-			for up != nil {
+			for up := otherPart.up; up != nil; up = up.up {
 				if slices.ContainsFunc(ol, func(o groupObj) bool {
 					return o == up
 				}) {
 					return true
 				}
-				up = up.up
 			}
 		}
 		return false
