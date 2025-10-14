@@ -329,6 +329,95 @@ service:s3 = {
 =END=
 
 ############################################################
+=TITLE=Zone cluster with crypto tunnel
+# Zone of tunnel must be ignored for inversed inheritance of owner.
+=INPUT=
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 1 hour 100000 kilobytes;
+}
+isakmp:aes256SHA = {
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+crypto:sts = {
+ type = ipsec:aes256SHA;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hardware = n1;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = dmz;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  negotiated;
+  nat_out = clients;
+  spoke = crypto:sts;
+  id = cert@example.com;
+ }
+ interface:clients;
+}
+owner:clients = { admins = clients@example.com; }
+network:clients = {
+ ip = 10.99.1.0/24;
+ nat:clients = { ip = 10.9.9.0/24; }
+ owner = clients;
+}
+service:s1 = {
+ user = any:[network:clients];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+-- objects
+{
+ "any:[network:clients]": {
+  "ip": "0.0.0.0/0",
+  "is_supernet": 1,
+  "owner": "clients",
+  "zone": "any:[network:tunnel:vpn1]"
+ },
+ "interface:vpn1.clients": {
+  "ip": "short",
+  "nat": { "clients": "short" },
+  "owner": "clients"
+ },
+ "network:clients": {
+  "ip": "10.99.1.0/24",
+  "nat": { "clients": "10.9.9.0/24" },
+  "owner": "clients",
+  "zone": "any:[network:tunnel:vpn1]"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "zone": "any:[network:n1]"
+ }
+}
+=END=
+
+############################################################
 =TITLE=Must not inherit inversed inherited owner
 =INPUT=
 owner:a = { admins = a@example.com; }
