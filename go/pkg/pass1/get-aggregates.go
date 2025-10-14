@@ -107,7 +107,7 @@ func propagateOwnerToAggregates(agg *network) {
 	for _, z := range cluster {
 		agg2 := z.ipPrefix2aggregate[ipp]
 		inherit := func(n *network) {
-			if n.up == agg2 && n.ipType != unnumberedIP {
+			if n.up == agg2 {
 				if downSet {
 					if downOwner != n.owner {
 						downOwner = nil
