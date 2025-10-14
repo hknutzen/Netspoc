@@ -153,13 +153,11 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 func markSupernetsOfNeedProtect(needProtect []*ipNet) {
 	for _, intf := range needProtect {
-		up := intf.up
-		for up != nil {
+		for up := intf.up; up != nil; up = up.up {
 			if up.isSupernetOfNeedProtect == nil {
 				up.isSupernetOfNeedProtect = make(map[*ipNet]bool)
 			}
 			up.isSupernetOfNeedProtect[intf] = true
-			up = up.up
 		}
 	}
 }

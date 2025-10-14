@@ -703,14 +703,12 @@ func (c *spoc) setupPartOwners() xOwner {
 		if ow := n.owner; ow != nil {
 			owners = append(owners, ow)
 		}
-		up := n.up
-		for up != nil {
+		for up := n.up; up != nil; up = up.up {
 			for _, ow := range owners {
 				if ow != up.owner {
 					add(up, ow)
 				}
 			}
-			up = up.up
 		}
 	}
 
@@ -813,12 +811,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 		process := func(n *network) {
 			outerOwners := make(map[*owner]bool)
 			netOwner := n.owner
-			up := n
-			for {
-				up = up.up
-				if up == nil {
-					break
-				}
+			for up := n.up; up != nil; up = up.up {
 				outerOwner := up.owner
 				if outerOwner == nil {
 					continue

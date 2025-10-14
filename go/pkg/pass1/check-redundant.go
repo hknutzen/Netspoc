@@ -129,13 +129,11 @@ func setLocalPrtRelation(rules []*groupedRule) {
 	}
 	for prt := range prtMap {
 		var localUp *proto
-		up := prt.up
-		for up != nil {
+		for up := prt.up; up != nil; up = up.up {
 			if prtMap[up] {
 				localUp = up
 				break
 			}
-			up = up.up
 		}
 		prt.localUp = localUp
 	}

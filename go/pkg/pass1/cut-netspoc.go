@@ -682,12 +682,7 @@ func (c *spoc) cutNetspoc(
 		}
 		// Walk chain of inheritance.
 		// Mark supernet with NAT attribute.
-		up := n
-		for {
-			up = up.up
-			if up == nil {
-				break
-			}
+		for up := n.up; up != nil; up = up.up {
 			if origNat[up] != nil || up.noCheckSupernetRules {
 				markUnconnectedObj(up, isUsed)
 			}

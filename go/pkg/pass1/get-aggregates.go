@@ -126,8 +126,7 @@ func propagateOwnerToAggregates(agg *network) {
 		}
 		// Take owner from smallest network or named aggregate in
 		// cluster that encloses agg.
-		up := agg.up
-		for up != nil {
+		for up := agg.up; up != nil; up = up.up {
 			if !strings.HasPrefix(up.name, "any:[") {
 				bits := int(up.ipp.Bits())
 				if bits > upBits {
@@ -136,7 +135,6 @@ func propagateOwnerToAggregates(agg *network) {
 				}
 				break
 			}
-			up = up.up
 		}
 	}
 	if downOwner == nil {
