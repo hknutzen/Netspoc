@@ -577,15 +577,9 @@ func setMaxSecondaryNet(networks []*network) {
 			n.maxSecondaryNet = max
 			continue
 		}
-		up := n.up
-		for up != nil {
-			if up.hasOtherSubnet {
-				break
-			} else {
-				if !up.isAggregate {
-					n.maxSecondaryNet = up
-				}
-				up = up.up
+		for up := n.up; up != nil && !up.hasOtherSubnet; up = up.up {
+			if !up.isAggregate {
+				n.maxSecondaryNet = up
 			}
 		}
 	}
