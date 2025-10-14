@@ -151,43 +151,29 @@ func (c *spoc) clusterZones() {
 			// Create a new cluster and collect its zones
 			var cluster []*zone
 			getZoneCluster(z, nil, &cluster)
-			if cluster == nil {
-				// Zone with only tunnel was not added to cluster.
-				z.cluster = []*zone{z}
-			} else {
-				found46 := false
-				for i, z2 := range cluster {
-					// Store final cluster elements in all zones of cluster.
-					z2.cluster = cluster
-					// If cluster has at least one combined46 zone, then store
-					// first combined46 zone as first element of cluster. Thus
-					// it is simple to check if cluster is combined46 cluster.
-					if !found46 && z2.combined46 != nil {
-						found46 = true
-						cluster[0], cluster[i] = cluster[i], cluster[0]
-					}
+			found46 := false
+			for i, z2 := range cluster {
+				// Store final slice of zones in all zones of cluster.
+				z2.cluster = cluster
+				// If cluster has at least one combined46 zone, then store
+				// first combined46 zone as first element of cluster. Thus
+				// it is simple to check if cluster is combined46 cluster.
+				if !found46 && z2.combined46 != nil {
+					found46 = true
+					cluster[0], cluster[i] = cluster[i], cluster[0]
 				}
 			}
 		}
 	}
 }
 
-/*
-#############################################################################
-getZoneCluster collects zones connected by semiManaged devices into a cluster.
-Comments : Tunnel zone is not included in zone cluster, because
-  - it is useless in rules and
-  - we would get inconsistent owner since zone of tunnel
-    doesn't inherit from area.
-*/
+// getZoneCluster collects zones connected by semiManaged devices into a cluster.
 func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
-	// Reference zone in cluster list and vice versa.
-	if !z.isTunnel() {
-		*collected = append(*collected, z)
-		// Set preliminary list as marker, that this zone has been processed.
-		z.cluster = *collected
-	}
+	// Reference zone in cluster and vice versa.
+	*collected = append(*collected, z)
+	// Set preliminary list as marker, that this zone has been processed.
+	z.cluster = *collected
 
 	// Find zone interfaces connected to semi-managed routers...
 	for _, intf := range z.interfaces {

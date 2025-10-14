@@ -2731,6 +2731,62 @@ access-group dmz_in in interface dmz
 =END=
 
 ############################################################
+=TITLE=Zone cluster with crypto tunnel
+# No IPv6 NAT
+# Zone of tunnel must be checked for supernet rules.
+=INPUT=
+[[crypto_vpn]]
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ vpn_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+ interface:n2 = {
+  ip = 10.1.2.1;
+  hardware = n2;
+ }
+}
+router:softclients = {
+ interface:n1 = {
+  spoke = crypto:vpn;
+  ip = 10.1.1.2;
+  nat_out = clients;
+ }
+ interface:clients;
+}
+network:clients = {
+ ip = 10.99.1.0/24; nat:clients = { ip = 10.9.9.0/24; }
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+service:s1 = {
+ user = host:id:foo@domain.x.clients;
+ permit src = user; dst = any:[network:n1]; prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=host:id:foo@domain.x.clients; dst=any:[network:n1]; prt=tcp 80; of service:s1
+ Generated ACL at interface:asavpn.tunnel:softclients would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=OUTPUT=
+-- asavpn
+! n1_in
+access-list n1_in extended permit tcp host 10.9.9.10 any4 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=No secondary optimization for incoming ID host
 =INPUT=
 [[crypto_vpn]]
