@@ -29,6 +29,7 @@ cd $dir
 go vet ./...
 
 # Generate manual pages
+mkdir -p $dir/../man/
 for d in $dir/pkg/*; do
     ( cd $d
       for f in *.1.md; do
