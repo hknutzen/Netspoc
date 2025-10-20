@@ -25,6 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Program "cut-netspoc": Fixed ip6 attribute in dual stack aggregate
   from intersection.
 
+### Fixed
+
+- Program "cut-netspoc": Fixed ip6 attribute in dual stack aggregate
+  from intersection.
+
 ## [2025-09-10-1418]
 
 ### Fixed
