@@ -238,3 +238,46 @@ service:s1 = {
         prt = tcp 22;
 }
 =END=
+
+############################################################
+=TITLE=Dual stack aggregates from area with intersection
+=INPUT=
+area:a = { anchor = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+service:s1 = {
+ user = any:[area:a] &! any:[network:n1];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+service:s1 = {
+ user = any:[ip6 = ::/0 & network:n2],
+        any:[ip6 = ::/0 & network:n3],
+        any:[ip = 0.0.0.0/0 & network:n2],
+        any:[ip = 0.0.0.0/0 & network:n3],
+        ;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=END=

@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dual stack networks and interfaces now require an uniform use of attributes
   ip/ip6, unnumbered/unnumbered6, negotiated/negotiated6.
 
+### Fixed
+
+- Program "cut-netspoc": Fixed ip6 attribute in dual stack aggregate
+  from intersection.
+
 ## [2025-09-10-1418]
 
 ### Fixed
