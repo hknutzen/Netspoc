@@ -276,13 +276,14 @@ func (c *spoc) markAndSubstElements(
 				name = name[1:]
 				ip := ""
 				if left, right, found := strings.Cut(name, " & "); found {
-					ip = left[len("ip="):]
+					_, ip, _ = strings.Cut(left, "=")
 					name = right
 				}
 				name = name[:len(name)-1]
 				a := new(ast.AggAuto)
 				a.Type = typ
 				a.Net = ip
+				a.IPV6 = obj.isIPv6()
 				switch typ2, name2, _ := strings.Cut(name, ":"); typ2 {
 				case "network":
 					obj := c.symTable.network[name2]
