@@ -4,13 +4,13 @@
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
- model = CHECKPOINT;
+ model = Checkpoint;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
 }
 =ERROR=
-Error: Must use VRF ('@...' in name) at router:r1 of model CHECKPOINT
+Error: Must use VRF ('@...' in name) at router:r1 of model Checkpoint
 =END=
 
 ############################################################
@@ -19,13 +19,13 @@ Error: Must use VRF ('@...' in name) at router:r1 of model CHECKPOINT
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1@v1 = {
- model = CHECKPOINT;
+ model = Checkpoint;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
 }
 router:r1@v2 = {
- model = CHECKPOINT;
+ model = Checkpoint;
  managed;
  interface:n1 = { ip = 10.1.1.3; hardware = IN; }
  interface:n2 = { ip = 10.1.2.3; hardware = OUT; }
@@ -34,6 +34,26 @@ router:r1@v2 = {
 Error: Must define unmanaged router:r1
  with attribute 'management_instance'
  for router:r1@v1
+=END=
+
+############################################################
+=TEMPL=cleanup
+{
+ "action": "Drop",
+ "destination": [
+  "Any"
+ ],
+ "install-on": [
+  {{.}}
+ ],
+ "name": "Cleanup rule",
+ "service": [
+  "Any"
+ ],
+ "source": [
+  "Any"
+ ]
+}
 =END=
 
 ############################################################
@@ -52,13 +72,13 @@ network:mgmt = { ip = 10.0.0.0/24; }
 
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:mgmt = { ip = 10.0.0.10; }
 }
 
 router:r1@v2 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:mgmt      = { ip = 10.0.0.1; hardware = mgmt; }
  interface:Loopback0 = { ip = 10.250.2.250; loopback; hardware = loopback; }
  interface:n2        = { ip = 10.1.2.1; hardware = n2v2; }
@@ -66,7 +86,7 @@ router:r1@v2 = {
 
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:mgmt     = { ip = 10.0.0.2; hardware = mgmt; }
  interface:n1       = { ip = 10.1.1.1; hardware = n1v1; }
 }
@@ -94,7 +114,7 @@ service:test = {
 
 =OUTPUT=
 --r1.info
-{"generated_by":"devel","model":"CHECKPOINT","ip_list":["10.0.0.10"],"name_list":["r1"]}
+{"generated_by":"devel","model":"Checkpoint","ip_list":["10.0.0.10"],"name_list":["r1"]}
 --r1
 {
  "Rules": [
@@ -145,7 +165,8 @@ service:test = {
    "install-on": [
     "v2"
    ]
-  }
+  },
+  [[cleanup '"v1", "v2"']]
  ],
  "Networks": null,
  "Hosts": [
@@ -230,12 +251,12 @@ router:u2 = {
 }
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n3 = { ip = 10.3.0.3; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n3 = { ip = 10.3.0.4; hardware = n3v1; }
  interface:n4 = { ip = 10.4.0.1; hardware = n4v1; }
 }
@@ -250,7 +271,7 @@ service:s2 = {
 =OUTPUT=
 --r1
 {
- "Rules":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["v1"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["v1"]}],
+ "Rules":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["v1"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["v1"]}, [[cleanup '"v1"']] ],
  "Networks": [
    {
      "name": "network_n1",
@@ -300,18 +321,39 @@ service:s2 = {
 =END=
 
 ############################################################
+=TITLE=No managed local allowed
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ management_instance;
+ model = Checkpoint;
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r1@v1 = {
+ managed = local;
+ filter_only = 10.1.0.0/16;
+ model = Checkpoint;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
+}
+=ERROR=
+Error: Must not use 'managed = local' at router:r1@v1 of model Checkpoint
+=END=
+
+############################################################
 =TEMPL=topology
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
 }
@@ -380,7 +422,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -484,7 +527,8 @@ service:test2 = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -541,6 +585,7 @@ service:test = {
         dst = network:n1;
         prt = icmp 0,
               icmp 3,
+              #icmp 3/13,
               icmp 4,
               icmp 5,
               icmp 8,
@@ -630,7 +675,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -677,12 +723,12 @@ network:n3 = {
 
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
 }
@@ -713,7 +759,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -760,12 +807,12 @@ network:n1 = { ip = 10.1.1.0/24; host:h1 = { range = 10.1.1.10-10.1.1.30; } }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
 }
@@ -797,7 +844,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -866,13 +914,13 @@ network:n2 = {
 
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
 }
@@ -926,7 +974,8 @@ service:b = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": null,
  "Hosts": [
@@ -973,12 +1022,12 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
@@ -1010,7 +1059,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
@@ -1056,13 +1106,13 @@ network:n3 = {
 
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip = 10.1.2.1; }
 }
 
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip = 10.1.1.1; hardware = n1v1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2v1; }
 }
@@ -1113,7 +1163,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {

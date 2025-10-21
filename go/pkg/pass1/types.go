@@ -253,6 +253,7 @@ type model struct {
 	doAuth                 bool
 	aclUseRealIP           bool
 	canDynCrypto           bool
+	canManagedLocal        bool
 	canMultiLog            bool
 	canObjectgroup         bool
 	canVRF                 bool

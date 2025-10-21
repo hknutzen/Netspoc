@@ -1585,7 +1585,7 @@ func (c *spoc) setupRouter1(v *ast.Router, r *router) {
 	// Check again after "managed=routing_only" has been removed.
 	if managed := r.managed; managed != "" {
 		if managed == "local" {
-			if r.model.hasIoACL {
+			if !r.model.canManagedLocal {
 				c.err("Must not use 'managed = local' at %s of model %s",
 					name, r.model.name)
 			}
@@ -2856,6 +2856,7 @@ var routerInfo = map[string]*model{
 		statelessICMP:   true,
 		inversedACLMask: true,
 		canVRF:          true,
+		canManagedLocal: true,
 		logModifiers: map[string]string{
 			"<empty>":   "log",
 			"log-input": "log-input"},
@@ -2881,16 +2882,17 @@ var routerInfo = map[string]*model{
 			"debugging":     "log 7",
 			"disable":       "log disable",
 		},
-		statelessICMP:  true,
-		hasOutACL:      true,
-		aclUseRealIP:   true,
-		canObjectgroup: true,
-		canDynCrypto:   true,
-		crypto:         "ASA",
-		noCryptoFilter: true,
-		commentChar:    "!",
-		needACL:        true,
-		noACLself:      true,
+		statelessICMP:   true,
+		hasOutACL:       true,
+		aclUseRealIP:    true,
+		canObjectgroup:  true,
+		canDynCrypto:    true,
+		canManagedLocal: true,
+		crypto:          "ASA",
+		noCryptoFilter:  true,
+		commentChar:     "!",
+		needACL:         true,
+		noACLself:       true,
 	},
 	"PAN-OS": {
 		routing: "",
@@ -2916,13 +2918,14 @@ var routerInfo = map[string]*model{
 			"tag:":    ":insert",
 		},
 		canObjectgroup:         true,
+		canManagedLocal:        true,
 		canVRF:                 true,
 		needManagementInstance: true,
 		needVRF:                true,
 		noACLself:              true,
 		noSharedHardware:       true,
 	},
-	"CHECKPOINT": {
+	"Checkpoint": {
 		routing:                "",
 		canVRF:                 true,
 		needVRF:                true,

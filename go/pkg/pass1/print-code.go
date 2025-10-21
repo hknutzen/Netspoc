@@ -2325,7 +2325,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	var reused int32 = 0
 	pass2Code := func(r *router) {
-		if r.model.class == "CHECKPOINT" {
+		if r.model.class == "Checkpoint" {
 			c.printCheckpoint(r, dir)
 		} else {
 			path := c.printRouter(r, dir)
