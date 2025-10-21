@@ -155,7 +155,9 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 	hosts := make(map[string]*chkpHost)
 	networks := make(map[string]*chkpNetwork)
 	tcpudp := make(map[*proto]*chkpTCPUDP)
+	var installOns []chkpName
 	for _, r := range vrfMembers {
+		installOns = append(installOns, chkpName(r.vrf))
 		rules := make(map[string]*chkpRule)
 		for _, hw := range r.hardware {
 
@@ -247,34 +249,37 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 				for _, prt := range rule.prt {
 					prtName := strings.ReplaceAll(prt.name, " ", "_")
 					if prt.proto == "icmp" {
-						switch prt.icmpType {
-						case 0:
-							prtName = "echo-reply"
-						case 3:
-							prtName = "dest-unreach"
-						case 4:
-							prtName = "source-quench"
-						case 5:
-							prtName = "redirect"
-						case 8:
-							prtName = "echo-request"
-						case 11:
-							prtName = "time-exceeded"
-						case 12:
-							prtName = "param-prblm"
-						case 13:
-							prtName = "timestamp"
-						case 14:
-							prtName = "timestamp-reply"
-						case 15:
-							prtName = "info-req"
-						case 16:
-							prtName = "info-reply"
-						case 17:
-							prtName = "mask-request"
-						case 18:
-							prtName = "mask-reply"
+						if prt.icmpCode == -1 {
+							switch prt.icmpType {
+							case 0:
+								prtName = "echo-reply"
+							case 3:
+								prtName = "dest-unreach"
+							case 4:
+								prtName = "source-quench"
+							case 5:
+								prtName = "redirect"
+							case 8:
+								prtName = "echo-request"
+							case 11:
+								prtName = "time-exceeded"
+							case 12:
+								prtName = "param-prblm"
+							case 13:
+								prtName = "timestamp"
+							case 14:
+								prtName = "timestamp-reply"
+							case 15:
+								prtName = "info-req"
+							case 16:
+								prtName = "info-reply"
+							case 17:
+								prtName = "mask-request"
+							case 18:
+								prtName = "mask-reply"
+							}
 						}
+						// TODO: alle mit icmpCode auch in rulePrt eintragen bzw tcpudp map
 					} else if _, found := tcpudp[prt]; !found {
 						rulePrt := &chkpTCPUDP{}
 						rulePrt.Name = prtName
@@ -320,6 +325,14 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 			config.Rules = append(config.Rules, rules[k])
 		}
 	}
+	config.Rules = append(config.Rules, &chkpRule{
+		Name:        "Cleanup rule",
+		Action:      "Drop",
+		Source:      []chkpName{"Any"},
+		Destination: []chkpName{"Any"},
+		Service:     []chkpName{"Any"},
+		InstallOn:   installOns,
+	})
 	for _, k := range slices.Sorted(maps.Keys(hosts)) {
 		config.Hosts = append(config.Hosts, hosts[k])
 	}

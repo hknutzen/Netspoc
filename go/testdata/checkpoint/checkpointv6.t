@@ -1,3 +1,24 @@
+=TEMPL=cleanup
+{
+ "action": "Drop",
+ "destination": [
+  "Any"
+ ],
+ "install-on": [
+  {{.}}
+ ],
+ "name": "Cleanup rule",
+ "service": [
+  "Any"
+ ],
+ "source": [
+  "Any"
+ ]
+}
+=END=
+
+
+############################################################
 =TITLE=single Service
 =INPUT=
 network:n1 = { ip6 = 2001:0db8:1::/64; host:h1 = { ip6 = 2001:0db8:1::1; } }
@@ -5,12 +26,12 @@ network:n2 = { ip6 = 2001:0db8:2::/64; }
 network:n3 = { ip6 = 2001:0db8:3::/64; host:h3 = { ip6 = 2001:0db8:3::1; } }
 router:r1 = {
  management_instance;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n2 = { ip6 = 2001:0db8:2::1; }
 }
 router:r1@v1 = {
  managed;
- model = CHECKPOINT;
+ model = Checkpoint;
  interface:n1 = { ip6 = 2001:0db8:1::2; hardware = n1v1; }
  interface:n2 = { ip6 = 2001:0db8:2::2; hardware = n2v1; }
 }
@@ -60,7 +81,8 @@ service:test = {
    "install-on": [
     "v1"
    ]
-  }
+  },
+  [[cleanup '"v1"']]
  ],
  "Networks": [
   {
