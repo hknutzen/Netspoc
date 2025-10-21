@@ -15,26 +15,16 @@ type redundInfo struct {
 }
 
 type expandedRule struct {
-	deny      bool
-	stateless bool
+	*groupedRule
 	src       someObj
 	dst       someObj
-	srcRange  *proto
 	prt       *proto
-	log       string
-	rule      *unexpRule
 	redundant bool
-	overlaps  bool
 }
 
 func fillExpandedRule(rule *groupedRule) *expandedRule {
 	return &expandedRule{
-		deny:      rule.deny,
-		stateless: rule.stateless,
-		log:       rule.log,
-		srcRange:  rule.srcRange,
-		rule:      rule.rule,
-		overlaps:  rule.overlaps,
+		groupedRule: rule,
 	}
 }
 
