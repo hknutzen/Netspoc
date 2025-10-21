@@ -55,11 +55,10 @@ func (ru *expandedRule) print() string {
 		extra += " stateless"
 	}
 	origPrt := ru.prt
-	if oRule := ru.rule; oRule != nil {
-		s := oRule.service
-		extra += " of " + s.name
-		origPrt = getOrigPrt(ru)
-	}
+	oRule := ru.rule
+	s := oRule.service
+	extra += " of " + s.name
+	origPrt = getOrigPrt(ru)
 	var action string
 	if ru.deny {
 		action = "deny"
@@ -311,7 +310,6 @@ func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
 	}
 }
 
-// Expand path_rules to elementary rules.
 func expandRules(rules []*groupedRule) []*expandedRule {
 	var result []*expandedRule
 	for _, rule := range rules {
