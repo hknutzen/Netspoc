@@ -330,3 +330,54 @@ router:r1 = {
   }
  }
 }
+=END=
+
+############################################################
+=TITLE=Dualstack Router with one v4 and one v6 Interface
+=INPUT=
+network:v4       = { ip = 10.1.1.0/24; }
+network:v6       = { ip6 = 2001:db8:1::/64; }
+network:combined = { ip = 10.1.2.0/24; ip6 = 2001:db8:2::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:v4       = { ip = 10.1.1.1; hardware = inside; }
+ interface:v6       = { ip6 = 2001:db8:1::1; hardware = inside; }
+ interface:combined = { ip = 10.1.2.1; ip6 = 2001:db8:2::1; hardware = outside; }
+}
+
+=OUTPUT=
+{
+  "network": {
+    "network:combined": {
+      "id": "network:combined",
+      "type": "network",
+      "address": "10.1.2.0/24",
+      "address2": "2001:db8:2::/64",
+      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "hosts": null
+    },
+    "network:v4": {
+      "id": "network:v4",
+      "type": "network",
+      "address": "10.1.1.0/24",
+      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "hosts": null
+    },
+    "network:v6": {
+      "id": "network:v6",
+      "type": "network",
+      "address": "2001:db8:1::/64",
+      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "hosts": null
+    }
+  },
+  "router": {
+    "router:r1": {
+      "id": "router:r1",
+      "type": "router: standard",
+      "neighbors": [{"id": "network:v4","neighbor_count": 1},{"id": "network:combined","neighbor_count": 1},{"id": "network:v6","neighbor_count": 1}]
+    }
+  }
+}
+=END=
