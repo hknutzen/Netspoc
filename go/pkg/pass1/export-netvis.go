@@ -128,10 +128,16 @@ func getVisRouter(r *router, routers map[string]visRouter) {
 	var node visRouter
 	node.Id = r.name
 
-	intfs := r.origIntfs
-	if intfs == nil {
-		intfs = r.interfaces
+	var intfs intfList
+	getIntfs := func(r *router) intfList {
+		intfs = r.origIntfs
+		if intfs == nil {
+			intfs = r.interfaces
+		}
+		return intfs
 	}
+	intfs = getIntfs(r)
+
 	routerArea := intfs[0].network.zone.inArea
 
 	var typ = "router"
@@ -145,29 +151,43 @@ func getVisRouter(r *router, routers map[string]visRouter) {
 
 	node.Type = typ
 
-	seen := make(map[*area]bool)
-	for _, intf := range intfs {
-		if intf.network.ipType == tunnelIP {
-			for _, intf2 := range intf.network.interfaces {
-				if intf2.router != r {
-					node.Neighbors = append(node.Neighbors,
-						visNeighbor{Id: intf2.router.name, NeighborCount: len(intf2.router.interfaces), IsTunnel: true})
+	seen := make(map[string]bool)
+
+	addNeighbors := func(intf *routerIntf, ignoreCombined bool) {
+		if !(ignoreCombined && intf.isCombined46()) {
+			if intf.network.ipType == tunnelIP {
+				for _, intf2 := range intf.network.interfaces {
+					if intf2.router != r {
+						node.Neighbors = append(node.Neighbors,
+							visNeighbor{Id: intf2.router.name, NeighborCount: len(intf2.router.interfaces), IsTunnel: true})
+					}
 				}
-			}
-		} else {
-			node.Neighbors = append(node.Neighbors,
-				visNeighbor{Id: intf.network.name, NeighborCount: len(intf.network.interfaces)})
-			a := intf.network.zone.inArea
-			if a != routerArea {
-				routerArea = nil
-			}
-			if a != nil && !seen[a] && r.managed != "" {
+			} else {
 				node.Neighbors = append(node.Neighbors,
-					visNeighbor{Id: a.name, NeighborCount: len(a.border) + len(a.inclusiveBorder)})
-				seen[a] = true
+					visNeighbor{Id: intf.network.name, NeighborCount: len(intf.network.interfaces)})
+				a := intf.network.zone.inArea
+				if a != routerArea {
+					routerArea = nil
+				}
+				if a != nil && !seen[a.name] && r.managed != "" {
+					node.Neighbors = append(node.Neighbors,
+						visNeighbor{Id: a.name, NeighborCount: len(a.border) + len(a.inclusiveBorder)})
+					seen[a.name] = true
+				}
 			}
 		}
 	}
+
+	for _, intf := range intfs {
+		addNeighbors(intf, false)
+	}
+
+	if r.isCombined46() {
+		for _, intf := range getIntfs(r.combined46) {
+			addNeighbors(intf, true)
+		}
+	}
+
 	if routerArea != nil {
 		node.InArea = routerArea.name
 	}
