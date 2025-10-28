@@ -507,6 +507,9 @@ func (c *spoc) checkSupernetDstRule(
 		if intf.loopback {
 			return
 		}
+		if intf.isHub && intf.peer.realIntf.spoke.detailedCryptoAcl {
+			return
+		}
 
 		// Don't check interface where src or dst is attached.
 		z := intf.zone

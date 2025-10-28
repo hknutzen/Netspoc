@@ -2731,59 +2731,176 @@ access-group dmz_in in interface dmz
 =END=
 
 ############################################################
-=TITLE=Zone cluster with crypto tunnel
+# Changed topology
+=TEMPL=topo
+[[crypto_sts]]
+crypto:sts2 = {
+ type = ipsec:aes256SHA;
+ detailed_crypto_acl;
+}
+network:n1 = { ip6 = ::a01:100/120; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = {
+  ip6 = ::a01:101;
+  hardware = n1;
+ }
+ interface:internet = {
+  ip6 = f000::ac10:1;
+  hub = crypto:sts, crypto:sts2;
+  hardware = internet;
+ }
+}
+network:internet = { ip6 = ::/0; }
+router:vpn1 = {
+ interface:internet = {
+  ip6 = f000::ac10:102;
+  id = cert1@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1 = {
+  ip6 = ::a63:101;
+ }
+}
+network:lan1 = { ip6 = ::a63:100/120; }
+router:vpn2 = {
+ interface:internet = {
+  ip6 = f000::ac10:201;
+  id = cert2@example.com;
+  spoke = crypto:sts2;
+ }
+ interface:loop = {
+  ip6 = ::a01:181;
+  loopback;
+  subnet_of = network:n1;
+ }
+}
+service:s1 = {
+ user = network:lan1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+service:s2 = {
+ user = interface:vpn2.loop;
+ permit src = user; dst = network:n1; prt = udp 123;
+}
+=END=
+
+############################################################
+=TITLE=Zone cluster with crypto tunnel and detailed_crypto_acl
+=TODO= No IPv6
+# Zone of tunnel with attribute detailed_crypto_acl
+# needs not to be checked for supernet rules.
+=INPUT=
+[[topo]]
+=WARNING=NONE
+=OUTPUT=
+-- ipv6/asavpn
+! crypto-f000::ac10:201
+access-list crypto-f000::ac10:201 extended permit ip ::a01:100/120 host ::a01:181
+crypto map crypto-internet 2 set peer f000::ac10:201
+crypto map crypto-internet 2 match address crypto-f000::ac10:201
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group f000::ac10:201 type ipsec-l2l
+tunnel-group f000::ac10:201 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 f000::ac10:201
+crypto map crypto-internet interface internet
+--
+! internet_in
+access-list internet_in extended permit tcp ::a63:100/120 ::a01:100/120 eq 80
+access-list internet_in extended permit udp host ::a01:181 ::a01:100/120 eq 123
+access-list internet_in extended deny ip any6 any6
+access-group internet_in in interface internet
+=END=
+
+############################################################
+=TITLE=Zone cluster with crypto tunnel and unexpected access
 =TODO= No IPv6
 # Zone of tunnel must be checked for supernet rules.
 =INPUT=
-[[crypto_vpn]]
-network:n1 = { ip6 = ::a01:100/120; }
-network:n2 = { ip6 = ::a01:200/120; }
-router:asavpn = {
- model = ASA, VPN;
- managed;
- vpn_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:n1 = {
-  ip6 = ::a01:101;
-  hub = crypto:vpn;
-  hardware = n1;
-  no_check;
- }
- interface:n2 = {
-  ip6 = ::a01:201;
-  hardware = n2;
- }
-}
-router:softclients = {
- interface:n1 = {
-  spoke = crypto:vpn;
-  ip6 = ::a01:102;
-  nat_out = clients;
- }
- interface:clients;
-}
-network:clients = {
- ip6 = ::a63:100/120; nat:clients = { ip6 = ::a09:900/120; }
- host:id:foo@domain.x = {  ip6 = ::a63:10a; }
-}
-service:s1 = {
- user = host:id:foo@domain.x.clients;
- permit src = user; dst = any:[network:n1]; prt = tcp 80;
-}
+[[topo]]
+=SUBST=/detailed_crypto_acl;//
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
-  permit src=host:id:foo@domain.x.clients; dst=any:[network:n1]; prt=tcp 80; of service:s1
- Generated ACL at interface:asavpn.tunnel:softclients would permit access to additional networks:
- - network:n2
- Either replace any:[network:n1] by smaller networks that are not supernet
+  permit src=network:lan1; dst=network:n1; prt=tcp 80; of service:s1
+ Generated ACL at interface:asavpn.tunnel:vpn1 would permit access to additional networks:
+ - interface:vpn2.loop
+ Either replace network:n1 by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 =OUTPUT=
 -- ipv6/asavpn
-! n1_in
-access-list n1_in extended permit tcp host ::a09:90a any6 eq 80
-access-list n1_in extended deny ip any6 any6
-access-group n1_in in interface n1
+! crypto-f000::ac10:201
+access-list crypto-f000::ac10:201 extended permit ip any6 host ::a01:181
+crypto map crypto-internet 2 set peer f000::ac10:201
+crypto map crypto-internet 2 match address crypto-f000::ac10:201
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group f000::ac10:201 type ipsec-l2l
+tunnel-group f000::ac10:201 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 f000::ac10:201
+crypto map crypto-internet interface internet
+--
+! internet_in
+access-list internet_in extended permit tcp ::a63:100/120 ::a01:100/120 eq 80
+access-list internet_in extended permit udp host ::a01:181 ::a01:100/120 eq 123
+access-list internet_in extended deny ip any6 any6
+access-group internet_in in interface internet
+=END=
+
+############################################################
+=TITLE=Unchecked supernet at crypto tunnel with detailed_crypto_acl
+=TODO= No IPv6
+# Zone of tunnel with attribute detailed_crypto_acl.
+# Generated crypto ACL doesn't prevent unexpected access,
+# but no warning is shown.
+=INPUT=
+[[topo]]
+service:s3 = {
+ user = interface:vpn2.loop;
+ permit src = user; dst = network:lan1; prt = udp 123;
+}
+=WARNING=NONE
+=OUTPUT=
+-- ipv6/asavpn
+! crypto-f000::ac10:201
+access-list crypto-f000::ac10:201 extended permit ip ::a01:100/120 host ::a01:181
+access-list crypto-f000::ac10:201 extended permit ip ::a63:100/120 host ::a01:181
+crypto map crypto-internet 2 set peer f000::ac10:201
+crypto map crypto-internet 2 match address crypto-f000::ac10:201
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group f000::ac10:201 type ipsec-l2l
+tunnel-group f000::ac10:201 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 f000::ac10:201
+crypto map crypto-internet interface internet
+--
+! internet_in
+object-group network v6g0
+ network-object ::a01:100/120
+ network-object ::a63:100/120
+access-list internet_in extended permit tcp ::a63:100/120 ::a01:100/120 eq 80
+access-list internet_in extended permit udp host ::a01:181 object-group v6g0 eq 123
+access-list internet_in extended deny ip any6 any6
+access-group internet_in in interface internet
 =END=
 
 ############################################################

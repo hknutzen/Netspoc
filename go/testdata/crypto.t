@@ -2731,59 +2731,176 @@ access-group dmz_in in interface dmz
 =END=
 
 ############################################################
-=TITLE=Zone cluster with crypto tunnel
-# No IPv6 NAT
-# Zone of tunnel must be checked for supernet rules.
-=INPUT=
-[[crypto_vpn]]
+# Changed topology
+=TEMPL=topo
+[[crypto_sts]]
+crypto:sts2 = {
+ type = ipsec:aes256SHA;
+ detailed_crypto_acl;
+}
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
 router:asavpn = {
- model = ASA, VPN;
+ model = ASA;
  managed;
- vpn_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
  interface:n1 = {
   ip = 10.1.1.1;
-  hub = crypto:vpn;
   hardware = n1;
-  no_check;
  }
- interface:n2 = {
-  ip = 10.1.2.1;
-  hardware = n2;
+ interface:internet = {
+  ip = 172.16.0.1;
+  hub = crypto:sts, crypto:sts2;
+  hardware = internet;
  }
 }
-router:softclients = {
- interface:n1 = {
-  spoke = crypto:vpn;
-  ip = 10.1.1.2;
-  nat_out = clients;
+network:internet = { ip = 0.0.0.0/0; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 172.16.1.2;
+  id = cert1@example.com;
+  spoke = crypto:sts;
  }
- interface:clients;
+ interface:lan1 = {
+  ip = 10.99.1.1;
+ }
 }
-network:clients = {
- ip = 10.99.1.0/24; nat:clients = { ip = 10.9.9.0/24; }
- host:id:foo@domain.x = {  ip = 10.99.1.10; }
+network:lan1 = { ip = 10.99.1.0/24; }
+router:vpn2 = {
+ interface:internet = {
+  ip = 172.16.2.1;
+  id = cert2@example.com;
+  spoke = crypto:sts2;
+ }
+ interface:loop = {
+  ip = 10.1.1.129;
+  loopback;
+  subnet_of = network:n1;
+ }
 }
 service:s1 = {
- user = host:id:foo@domain.x.clients;
- permit src = user; dst = any:[network:n1]; prt = tcp 80;
+ user = network:lan1;
+ permit src = user; dst = network:n1; prt = tcp 80;
 }
+service:s2 = {
+ user = interface:vpn2.loop;
+ permit src = user; dst = network:n1; prt = udp 123;
+}
+=END=
+
+############################################################
+=TITLE=Zone cluster with crypto tunnel and detailed_crypto_acl
+# No IPv6 NAT
+# Zone of tunnel with attribute detailed_crypto_acl
+# needs not to be checked for supernet rules.
+=INPUT=
+[[topo]]
+=WARNING=NONE
+=OUTPUT=
+-- asavpn
+! crypto-172.16.2.1
+access-list crypto-172.16.2.1 extended permit ip 10.1.1.0 255.255.255.0 host 10.1.1.129
+crypto map crypto-internet 2 set peer 172.16.2.1
+crypto map crypto-internet 2 match address crypto-172.16.2.1
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group 172.16.2.1 type ipsec-l2l
+tunnel-group 172.16.2.1 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 172.16.2.1
+crypto map crypto-internet interface internet
+--
+! internet_in
+access-list internet_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list internet_in extended permit udp host 10.1.1.129 10.1.1.0 255.255.255.0 eq 123
+access-list internet_in extended deny ip any4 any4
+access-group internet_in in interface internet
+=END=
+
+############################################################
+=TITLE=Zone cluster with crypto tunnel and unexpected access
+# No IPv6
+# Zone of tunnel must be checked for supernet rules.
+=INPUT=
+[[topo]]
+=SUBST=/detailed_crypto_acl;//
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
-  permit src=host:id:foo@domain.x.clients; dst=any:[network:n1]; prt=tcp 80; of service:s1
- Generated ACL at interface:asavpn.tunnel:softclients would permit access to additional networks:
- - network:n2
- Either replace any:[network:n1] by smaller networks that are not supernet
+  permit src=network:lan1; dst=network:n1; prt=tcp 80; of service:s1
+ Generated ACL at interface:asavpn.tunnel:vpn1 would permit access to additional networks:
+ - interface:vpn2.loop
+ Either replace network:n1 by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 =OUTPUT=
 -- asavpn
-! n1_in
-access-list n1_in extended permit tcp host 10.9.9.10 any4 eq 80
-access-list n1_in extended deny ip any4 any4
-access-group n1_in in interface n1
+! crypto-172.16.2.1
+access-list crypto-172.16.2.1 extended permit ip any4 host 10.1.1.129
+crypto map crypto-internet 2 set peer 172.16.2.1
+crypto map crypto-internet 2 match address crypto-172.16.2.1
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group 172.16.2.1 type ipsec-l2l
+tunnel-group 172.16.2.1 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 172.16.2.1
+crypto map crypto-internet interface internet
+--
+! internet_in
+access-list internet_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list internet_in extended permit udp host 10.1.1.129 10.1.1.0 255.255.255.0 eq 123
+access-list internet_in extended deny ip any4 any4
+access-group internet_in in interface internet
+=END=
+
+############################################################
+=TITLE=Unchecked supernet at crypto tunnel with detailed_crypto_acl
+# No IPv6 NAT
+# Zone of tunnel with attribute detailed_crypto_acl.
+# Generated crypto ACL doesn't prevent unexpected access,
+# but no warning is shown.
+=INPUT=
+[[topo]]
+service:s3 = {
+ user = interface:vpn2.loop;
+ permit src = user; dst = network:lan1; prt = udp 123;
+}
+=WARNING=NONE
+=OUTPUT=
+-- asavpn
+! crypto-172.16.2.1
+access-list crypto-172.16.2.1 extended permit ip 10.1.1.0 255.255.255.0 host 10.1.1.129
+access-list crypto-172.16.2.1 extended permit ip 10.99.1.0 255.255.255.0 host 10.1.1.129
+crypto map crypto-internet 2 set peer 172.16.2.1
+crypto map crypto-internet 2 match address crypto-172.16.2.1
+crypto map crypto-internet 2 set ikev1 transform-set Trans1
+crypto map crypto-internet 2 set pfs group2
+crypto map crypto-internet 2 set security-association lifetime seconds 3600
+crypto map crypto-internet 2 set security-association lifetime kilobytes 100000
+tunnel-group 172.16.2.1 type ipsec-l2l
+tunnel-group 172.16.2.1 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert2@example.com 10
+ subject-name attr ea eq cert2@example.com
+tunnel-group-map cert2@example.com 10 172.16.2.1
+crypto map crypto-internet interface internet
+--
+! internet_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.99.1.0 255.255.255.0
+access-list internet_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list internet_in extended permit udp host 10.1.1.129 object-group g0 eq 123
+access-list internet_in extended deny ip any4 any4
+access-group internet_in in interface internet
 =END=
 
 ############################################################
