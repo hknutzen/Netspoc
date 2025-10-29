@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Added missing check for supernet rules at crypto interface,
+  but crypto interface with attribute detailed_crypto_acl is left out.
+- Fixed panic from attribute "nat_in" at crypto interface.
+- Program "print-group": Fixed missing dual stack internet.
+- Program "export-netvis": Also export v6-only interfaces of dual stack router.
 - Program "cut-netspoc": Fixed ip6 attribute in dual stack aggregate
   from intersection.
 
