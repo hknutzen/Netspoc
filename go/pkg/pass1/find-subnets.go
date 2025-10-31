@@ -345,7 +345,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 
-	markSubnetsOfAggregates(networks, prefixIPMap, identical)
+	markSupernetsOfAggregates(networks, prefixIPMap, identical)
 
 	// Calculate isIn relation from IP addresses;
 	// This includes all addresses of all networks in all NAT domains.
@@ -585,7 +585,10 @@ func setMaxSecondaryNet(networks []*network) {
 	}
 }
 
-func markSubnetsOfAggregates(
+// markSupernetsOfAggregates marks networks
+// - that have same address as some aggregate or
+// - that are supernet of some aggregate.
+func markSupernetsOfAggregates(
 	networks []*network,
 	prefixIPMap map[int]map[netip.Addr]*network,
 	identical map[*network]netList,
@@ -594,8 +597,8 @@ func markSubnetsOfAggregates(
 		if a.isAggregate {
 			ipp := a.ipp
 			ip := ipp.Addr()
-			len := ipp.Bits()
-			for p := len; p >= 0; p-- {
+			bits := ipp.Bits()
+			for p := bits; p >= 0; p-- {
 				if ip2net, found := prefixIPMap[p]; found {
 					up, _ := ip.Prefix(p)
 					if n, found := ip2net[up.Addr()]; found {
