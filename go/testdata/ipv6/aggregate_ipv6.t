@@ -1355,6 +1355,65 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Mark duplicate identical networks as supernet of aggregate
+=TODO= No IPv6
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; nat:n1 = { ip6 = ::101:100/120; } }
+network:n4 = { ip6 = ::a01:100/120; nat:n4 = { ip6 = ::201:100/120; } }
+any:Sub2 = { ip6 = ::a01:100/120; link = network:n2; }
+any:Sub3 = { ip6 = ::a01:100/120; link = network:n3; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:t1 = { ip6 = ::a09:100/120; }
+network:t2 = { ip6 = ::a09:200/120; }
+network:t3 = { ip6 = ::a09:300/120; }
+network:t4 = { ip6 = ::a09:400/120; }
+
+router:r1 = {
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; nat_out = n4; }
+ interface:t1 = { ip6 = ::a09:101; hardware = t1; nat_out = n4; }
+ interface:t3 = { ip6 = ::a09:301; hardware = t3; nat_out = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:t1 = { ip6 = ::a09:102; hardware = t1; }
+ interface:t2 = { ip6 = ::a09:202; hardware = t2; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:t3 = { ip6 = ::a09:302; hardware = t3; }
+ interface:t4 = { ip6 = ::a09:402; hardware = t4; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+}
+router:r4 = {
+ interface:t2 = { ip6 = ::a09:201; hardware = t2; nat_out = n4; }
+ interface:t4 = { ip6 = ::a09:401; hardware = t4; nat_out = n1; }
+ interface:n4 = { ip6 = ::a01:101; hardware = n1; nat_out = n1; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+ permit src = network:n4; dst = user; prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n4; prt=tcp 80; of service:s1
+ Generated ACL at interface:r3.t3 would permit access to additional networks:
+ - any:Sub3
+ Either replace network:n4 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n4; dst=network:n1; prt=tcp 80; of service:s1
+ Generated ACL at interface:r2.t2 would permit access to additional networks:
+ - any:Sub2
+ Either replace network:n1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
 =TITLE=Don't check supernet of supernet.
 =INPUT=
 network:n1 = { ip6 = ::a01:0/112; }

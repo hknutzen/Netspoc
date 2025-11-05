@@ -1356,6 +1356,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Mark duplicate identical networks as supernet of aggregate
+# No IPv6 NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 1.1.1.0/24; } }
 network:n4 = { ip = 10.1.1.0/24; nat:n4 = { ip = 2.1.1.0/24; } }
