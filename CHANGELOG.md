@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Dual stack networks and interfaces now require an uniform use of attributes
   ip/ip6, unnumbered/unnumbered6, negotiated/negotiated6.
+- Program "export-netspoc" now exports attribute 'zone' also for hosts
+  and interfaces and no longer for only networks and aggregates.
 
 ### Fixed
 
