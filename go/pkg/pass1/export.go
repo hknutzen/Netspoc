@@ -1226,29 +1226,18 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 // Export all objects referenced by rules, users and assets.
 //###################################################################
 
+// Add key 'zone' for all objects.
+// Optionally add key 'is_supernet' for network and aggregate.
 func (c *spoc) zoneAndSubnet(obj srvObj, desc jsonMap) {
-
-	// Change loopback interface to equivalent loopback network.
-	// Network gets zone attribute added, which is needed in IP search
-	// of NetspocWeb.
-	if intf, ok := obj.(*routerIntf); ok {
-		if intf.loopback {
-			obj = intf.network
-		}
-	}
-
-	n, ok := obj.(*network)
-	if !ok {
-		return
-	}
+	n := obj.getNetwork()
 	z := n.zone
-	// Get deterministic zone for aggregates and networks in zone cluster.
+	// Get deterministic zone for objects in zone cluster.
 	z = z.cluster[0]
 	desc["zone"] = c.getZoneName(z)
 
-	// Netspoc-Web only needs info about subnets in other zone.
+	// Netspoc-Web needs info about subnets in other zone.
 	// Attribute name is different for historic reasons.
-	if n.hasOtherSubnet {
+	if n, ok := obj.(*network); ok && n.hasOtherSubnet {
 		desc["is_supernet"] = 1
 	}
 }
@@ -1276,9 +1265,6 @@ func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 		// Add key 'ip' and optionally key 'nat'.
 		ipNatForObject(obj, descr)
 
-		// Change loopback interface to loopback netwok, but leave name unchanged.
-		// Add key 'zone' for network and aggregate.
-		// Optionally add key 'is_supernet' for network and aggregate.
 		c.zoneAndSubnet(obj, descr)
 
 		if o := ownerForObject(obj); o != "" {

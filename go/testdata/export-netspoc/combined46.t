@@ -33,17 +33,27 @@ service:s1 = {
  "host:h": {
   "ip": "172.17.1.48",
   "ip6": "2001:db8:1:1:172:17:1:48",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:[network:n1]"
  },
- "host:h6": { "ip": "2001:db8:1:1::6", "owner": "o" },
+ "host:h6": {
+  "ip": "2001:db8:1:1::6",
+  "owner": "o", "zone":
+  "any:[network:n1]"
+ },
  "host:r": {
   "ip": "172.17.1.188-172.17.1.207",
   "ip6": "2001:db8:1:1:172:17:1:188-2001:db8:1:1:172:17:1:207",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:[network:n1]"
  },
- "interface:r1.n1": { "ip": "172.17.1.1", "ip6": "2001:db8:1:1::1" },
- "interface:r1.n2": { "ip": "2001:db8:1:2::1" },
- "interface:r1.n3": { "ip": "172.17.3.1" },
+ "interface:r1.n1": {
+  "ip": "172.17.1.1",
+  "ip6": "2001:db8:1:1::1",
+  "zone": "any:[network:n1]"
+ },
+ "interface:r1.n2": { "ip": "2001:db8:1:2::1", "zone": "any:[network:n2]" },
+ "interface:r1.n3": { "ip": "172.17.3.1", "zone": "any:[network:n3]" },
  "network:n1": {
   "ip": "172.17.1.0/24",
   "ip6": "2001:db8:1:1::/64",
@@ -606,35 +616,43 @@ service:s1 = {
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
-  "ip6": "2001:db8:1:1::1"
+  "ip6": "2001:db8:1:1::1",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
   "ip": "10.1.2.1",
-  "ip6": "2001:db8:1:2::1"
+  "ip6": "2001:db8:1:2::1",
+  "zone": "any:a2"
  },
  "interface:r1.n3": {
-  "ip": "10.1.3.1"
+  "ip": "10.1.3.1",
+  "zone": "any:a2"
  },
  "interface:r1.n4": {
-  "ip": "2001:db8:1:4::1"
+  "ip": "2001:db8:1:4::1",
+  "zone": "any:a2"
  },
  "interface:r2.n2": {
   "ip": "10.1.2.2",
   "ip6": "2001:db8:1:2::2",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:a2"
  },
  "interface:r2.n3": {
   "ip": "10.1.3.2",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:a2"
  },
  "interface:r2.n4": {
   "ip": "2001:db8:1:4::2",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:a2"
  },
  "interface:r2.n5": {
   "ip": "short",
   "ip6": "short",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:a2"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -720,33 +738,40 @@ service:s1 = {
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
-  "ip6": "2001:db8:1:1::1"
+  "ip6": "2001:db8:1:1::1",
+  "zone": "any:n1-v4"
  },
  "interface:r1.n2": {
   "ip": "10.1.2.1",
-  "ip6": "2001:db8:1:2::1"
+  "ip6": "2001:db8:1:2::1",
+  "zone": "any:n2-v6"
  },
  "interface:r1.n3": {
   "ip": "10.1.3.1",
-  "ip6": "2001:db8:1:3::1"
+  "ip6": "2001:db8:1:3::1",
+  "zone": "any:[network:n3]"
  },
  "interface:u7.n1": {
   "ip": "short",
   "ip6": "short",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:n1-v4"
  },
  "interface:u7.n7": {
   "ip": "short",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:n1-v4"
  },
  "interface:u8.n2": {
   "ip": "short",
   "ip6": "short",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:n2-v6"
  },
  "interface:u8.n8": {
   "ip": "short",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:n2-v6"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -901,20 +926,24 @@ service:s1 = {
   "ip6": "2001:db8:1:1::1",
   "nat": {
    "inet": "1.1.1.1"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
   "ip": "10.1.2.1",
-  "ip6": "2001:db8:1:2::1"
+  "ip6": "2001:db8:1:2::1",
+  "zone": "network:Internet"
  },
  "interface:inet.n2": {
   "ip": "short",
   "ip6": "short",
-  "owner": "x"
+  "owner": "x",
+  "zone": "network:Internet"
  },
  "interface:inet.Internet": {
   "ip": "short",
-  "owner": "x"
+  "owner": "x",
+  "zone": "network:Internet"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",

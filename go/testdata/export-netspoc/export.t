@@ -304,11 +304,13 @@ service:s3 = {
  },
  "interface:u.n1": {
   "ip": "short",
-  "owner": "a"
+  "owner": "a",
+  "zone": "any:[network:n3]"
  },
  "interface:u.n2": {
   "ip": "short",
-  "owner": "a"
+  "owner": "a",
+  "zone": "any:[network:n3]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -402,7 +404,8 @@ service:s1 = {
  "interface:vpn1.clients": {
   "ip": "short",
   "nat": { "clients": "short" },
-  "owner": "clients"
+  "owner": "clients",
+  "zone": "any:[network:tunnel:vpn1]"
  },
  "network:clients": {
   "ip": "10.99.1.0/24",
@@ -465,7 +468,8 @@ service:s1 = {
   "zone": "any:[network:n1]"
  },
  "interface:r.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -518,18 +522,22 @@ service:s1 = {
   "zone": "any:a"
  },
  "interface:r.n2": {
-  "ip": "10.1.2.1"
+  "ip": "10.1.2.1",
+  "zone": "any:a"
  },
  "interface:r.n3": {
-  "ip": "10.1.3.1"
+  "ip": "10.1.3.1",
+  "zone": "any:[network:n3]"
  },
  "interface:u.n1": {
   "ip": "short",
-  "owner": "a"
+  "owner": "a",
+  "zone": "any:a"
  },
  "interface:u.n2": {
   "ip": "10.1.2.2",
-  "owner": "a"
+  "owner": "a",
+  "zone": "any:a"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -589,18 +597,22 @@ service:s1 = {
   "zone": "any:[network:n1]"
  },
  "interface:r1.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r2.n2": {
-  "ip": "10.1.2.2"
+  "ip": "10.1.2.2",
+  "zone": "any:[network:n1]"
  },
  "interface:u.n1": {
   "ip": "short",
-  "owner": "a"
+  "owner": "a",
+  "zone": "any:[network:n1]"
  },
  "interface:u.n2": {
   "ip": "short",
-  "owner": "b"
+  "owner": "b",
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -681,19 +693,23 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
 {
  "interface:asa1.n1": {
   "ip": "10.1.1.1",
-  "owner": "y"
+  "owner": "y",
+  "zone": "any:[network:n1]"
  },
  "interface:asa1.n2": {
   "ip": "10.2.2.1",
-  "owner": "y"
+  "owner": "y",
+  "zone": "any:[network:n2]"
  },
  "interface:asa2.n2": {
   "ip": "10.2.2.2",
-  "owner": "x"
+  "owner": "x",
+  "zone": "any:[network:n2]"
  },
  "interface:asa2.n3": {
   "ip": "10.3.3.1",
-  "owner": "x"
+  "owner": "x",
+  "zone": "any:[network:n3]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -1064,7 +1080,8 @@ service:test = {
   "zone": "any:[network:t2]"
  },
  "interface:asa.n1": {
-  "ip": "10.1.54.163"
+  "ip": "10.1.54.163",
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.54.0/24",
@@ -1192,18 +1209,22 @@ network:Internet = { ip = 0.0.0.0/0; has_subnets; }
   "ip": "10.1.0.1",
   "nat": {
    "inet": "1.1.0.1"
-  }
+  },
+  "zone": "any:[network:Big]"
  },
  "interface:asa.DMZ": {
-  "ip": "10.9.9.1"
+  "ip": "10.9.9.1",
+  "zone": "any:[network:DMZ]"
  },
  "interface:inet.DMZ": {
   "ip": "short",
-  "owner": "x"
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
  },
  "interface:inet.Internet": {
   "ip": "short",
-  "owner": "x"
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
  },
  "network:Big": {
   "ip": "10.1.0.0/16",
@@ -1529,7 +1550,8 @@ service:s1 = {
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
-  "owner": "r1"
+  "owner": "r1",
+  "zone": "any:n1"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -1570,29 +1592,35 @@ router:r3 = {
 {
  "interface:asa.n1": {
   "ip": "10.1.1.101",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n1]"
  },
  "interface:asa.n2/left": {
   "ip": "10.1.2.101",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n1]"
  },
  "interface:bridge.n2": {
   "ip": "10.1.2.9",
   "zone": "any:[interface:bridge.n2]"
  },
  "interface:bridge.n2/left": {
-  "ip": "bridged"
+  "ip": "bridged",
+  "zone": "any:[network:n1]"
  },
  "interface:bridge.n2/right": {
-  "ip": "bridged"
+  "ip": "bridged",
+  "zone": "any:[network:n2/right]"
  },
  "interface:r3.n2/right": {
   "ip": "10.1.2.1",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2/right]"
  },
  "interface:r3.n3": {
   "ip": "short",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2/right]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -1704,14 +1732,17 @@ service:s2 = {
  },
  "interface:VPN1.v1": {
   "ip": "short",
-  "owner": "v1"
+  "owner": "v1",
+  "zone": "any:[network:v1]"
  },
  "interface:VPN2.v2": {
-  "ip": "10.9.2.1"
+  "ip": "10.9.2.1",
+  "zone": "any:[network:v2]"
  },
  "interface:VPN3.v3": {
   "ip": "short",
-  "owner": "Extern_VPN"
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v3]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -2406,18 +2437,22 @@ service:s2 = {
   "zone": "any:[network:n1]"
  },
  "interface:r1.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
-  "ip": "10.1.2.1"
+  "ip": "10.1.2.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r2.n1": {
   "ip": "10.1.1.2",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:[network:n1]"
  },
  "interface:r2.n2": {
   "ip": "10.1.2.2",
-  "owner": "o"
+  "owner": "o",
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -2583,7 +2618,8 @@ service:s3 = {
    "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.10"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "host:h2": {
   "ip": "10.1.1.11",
@@ -2592,7 +2628,8 @@ service:s3 = {
    "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.11"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
@@ -2601,7 +2638,8 @@ service:s3 = {
    "D2": "10.9.9.0/26",
    "H": "hidden",
    "S": "10.8.8.1"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -2621,7 +2659,7 @@ service:s3 = {
 =END=
 
 ############################################################
-=TITLE=Static NAT for
+=TITLE=Static NAT for network, host and interface
 =INPUT=
 network:n1 = {
  ip = 192.168.1.0/24;
@@ -2653,25 +2691,29 @@ service:s2 = {
   "ip": "192.168.1.10",
   "nat": {
    "n1": "10.1.1.10"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "host:h11-16": {
   "ip": "192.168.1.11-192.168.1.16",
   "nat": {
    "n1": "10.1.1.11-10.1.1.16"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n1": {
   "ip": "192.168.1.1",
   "nat": {
    "n1": "10.1.1.1"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n1.2": {
   "ip": "192.168.1.2",
   "nat": {
    "n1": "10.1.1.2"
-  }
+  },
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "192.168.1.0/24",
@@ -2706,7 +2748,8 @@ service:s1 = {
 --objects
 {
  "interface:r1.n1": {
-  "ip": "10.1.1.0/24"
+  "ip": "10.1.1.0/24",
+  "zone": "any:[network:n1]"
  },
  "network:n2": {
   "ip": "10.1.2.0/24",
@@ -2748,35 +2791,43 @@ service:s1 = {
 {
  "interface:r1.n1": {
   "ip": "10.1.1.1",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
   "ip": "10.1.2.1",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n2]"
  },
  "interface:r1.n2.2": {
   "ip": "10.1.2.2",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n2]"
  },
  "interface:r1.n2.3": {
   "ip": "10.1.2.3",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n2]"
  },
  "interface:r1.n2.backup": {
   "ip": "10.1.2.4",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n2]"
  },
  "interface:r2.n2": {
   "ip": "10.1.2.5",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "interface:r2.n2.2": {
   "ip": "10.1.2.6",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "interface:r2.n2.backup": {
   "ip": "10.1.2.7",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -2857,7 +2908,8 @@ service:s1 = {
 --objects
 {
  "host:h1": {
-  "ip": "10.1.1.10-10.1.1.17"
+  "ip": "10.1.1.10-10.1.1.17",
+  "zone": "any:[network:n1]"
  },
  "network:n2": {
   "ip": "10.1.2.0/24",
@@ -3009,14 +3061,16 @@ service:s1 = {
  },
  "interface:r1.n1": {
   "ip": "short",
-  "owner": "a1"
+  "owner": "a1",
+  "zone": "any:a1"
  },
  "interface:r2.l1": {
   "ip": "10.9.9.9",
   "zone": "any:[interface:r2.l1]"
  },
  "interface:r3.n4": {
-  "ip": "10.1.4.1"
+  "ip": "10.1.4.1",
+  "zone": "any:[network:n4]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -3127,10 +3181,12 @@ service:s1 = {
   "zone": "any:[interface:r1.l2]"
  },
  "interface:r1.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
-  "ip": "10.1.2.1"
+  "ip": "10.1.2.1",
+  "zone": "any:[network:n2]"
  },
  "interface:r2.l3": {
   "ip": "10.9.9.3",
@@ -3144,7 +3200,8 @@ service:s1 = {
  },
  "interface:r2.n2": {
   "ip": "10.1.2.2",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -3224,7 +3281,8 @@ service:s1 = {
  },
  "interface:r1.n1": {
   "ip": "10.1.1.1",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n1]"
  },
  "interface:r2.l1.virtual": {
   "ip": "10.9.9.1",
@@ -3233,7 +3291,8 @@ service:s1 = {
  },
  "interface:r2.n1": {
   "ip": "10.1.1.2",
-  "owner": "nms"
+  "owner": "nms",
+  "zone": "any:[network:n1]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -3302,10 +3361,12 @@ service:s1 = {
 --objects
 {
  "interface:r1.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
-  "ip": "10.1.2.1"
+  "ip": "10.1.2.1",
+  "zone": "any:[network:n2]"
  },
  "interface:u1.l1.virtual": {
   "ip": "10.9.9.1",
@@ -3314,7 +3375,8 @@ service:s1 = {
  },
  "interface:u1.n2": {
   "ip": "short",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "interface:u2.l1.virtual": {
   "ip": "10.9.9.1",
@@ -3323,7 +3385,8 @@ service:s1 = {
  },
  "interface:u2.n2": {
   "ip": "short",
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n2]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
@@ -4173,27 +4236,31 @@ network:n1-super = {
   "ip": "10.1.1.1",
   "nat": {
    "hide_a": "hidden"
-  }
+  },
+  "zone": "any:[network:n1a]"
  },
  "interface:r1.n1b": {
   "ip": "10.1.1.2",
   "nat": {
    "hide_b": "hidden"
-  }
+  },
+  "zone": "any:[network:n1b]"
  },
  "interface:u.n1-super": {
   "ip": "short",
   "nat": {
    "hide_b": "hidden"
   },
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n1b]"
  },
  "interface:u.n1b": {
   "ip": "short",
   "nat": {
    "hide_b": "hidden"
   },
-  "owner": "all"
+  "owner": "all",
+  "zone": "any:[network:n1b]"
  },
  "network:n1-super": {
   "ip": "10.1.0.0/16",
@@ -4247,10 +4314,12 @@ service:s1 = {
 --objects
 {
  "interface:r1.n1": {
-  "ip": "10.1.1.1"
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
  },
  "interface:r1.n2": {
-  "ip": "10.1.2.1"
+  "ip": "10.1.2.1",
+  "zone": "any:[network:n2]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
