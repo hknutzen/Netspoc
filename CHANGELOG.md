@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2025-11-11-1158]
+
 ### Changed
 
 - Dual stack networks and interfaces now require an uniform use of attributes
