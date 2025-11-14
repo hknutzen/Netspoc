@@ -227,7 +227,7 @@ router:r1 = {
 }
 service:s1 = {
  user = network:[any:[network:sup]] &! network:sup;
- permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = network:n2; dst = user; prt = tcp 80;
 }
 =ERROR=
 Error: Must not use only IPv4 part of dual stack object network:n1 in service:s1
