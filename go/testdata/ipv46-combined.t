@@ -576,6 +576,11 @@ service:s1 = {
  user = any:[network:n1];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
+# Show error message only once.
+service:s2 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
 =ERROR=
 Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
 - any:[network:n14]
