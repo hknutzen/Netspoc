@@ -43,6 +43,8 @@ func markSecondary(z *zone, mark int) {
 				continue
 			}
 			next := out.zone
+			// Mutation testing would find this condition as useless,
+			// but results in much better performance.
 			if next.secondaryMark == 0 {
 				markSecondary(next, mark)
 			}
