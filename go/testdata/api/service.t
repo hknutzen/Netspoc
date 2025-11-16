@@ -640,6 +640,34 @@ Error: Unknown protocol in 'udp6' of service:s1
 =END=
 
 ############################################################
+=TITLE=Add service, name starting with hyphen, below ASCII 0
+=INPUT=[[input]]
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:-s-",
+        "value": {
+          "user": "network:n1",
+          "rules": [ {
+              "action": "permit",
+              "src": "user",
+              "dst": "network:n2",
+              "prt": "tcp 8888" }]
+      }
+  }
+}
+=OUTPUT=
+@@ rule/other
++service:-s- = {
++ user = network:n1;
++ permit src = user;
++        dst = network:n2;
++        prt = tcp 8888;
++}
+=END=
+
+############################################################
 =TITLE=Add service, missing name
 =INPUT=[[input]]
 =JOB=
