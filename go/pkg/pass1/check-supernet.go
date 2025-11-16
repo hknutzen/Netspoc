@@ -1092,14 +1092,11 @@ func markStateful(z *zone, mark int) {
 		r.activePath = true
 		defer func() { r.activePath = false }()
 		for _, out := range r.interfaces {
-			if out == in {
-				continue
+			if out != in {
+				if next := out.zone; next.statefulMark == 0 {
+					markStateful(next, mark)
+				}
 			}
-			next := out.zone
-			if next.statefulMark != 0 {
-				continue
-			}
-			markStateful(next, mark)
 		}
 	}
 }
