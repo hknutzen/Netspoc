@@ -3343,6 +3343,7 @@ access-group outside_in in interface outside
 =INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =SUBST=/ASA/IOS/
+=SUBST=/aes192/aes/
 =OUTPUT=
 --ipv6/asavpn
 ! [ Crypto ]
@@ -3352,12 +3353,12 @@ crypto isakmp policy 1
  hash sha
  group 2
 crypto isakmp policy 2
- encryption aes 192
+ encryption aes
  hash sha
  group 15
  lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec transform-set Trans2 esp-aes 192 esp-sha384-hmac
+crypto ipsec transform-set Trans2 esp-aes esp-sha384-hmac
 ipv6 access-list crypto-f000::ac10:102
  permit ipv6 any ::a63:100/120
 ipv6 access-list crypto-filter-f000::ac10:102
