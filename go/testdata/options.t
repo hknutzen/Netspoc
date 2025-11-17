@@ -392,7 +392,7 @@ cat >> out/r1.rules <<END
         {
           "src": [ "10.1.1.0/24" ],
           "dst": [ "10.1.2.0/24" ],
-          "prt": [ "tcp 70-90", "tcp 80-99" ]
+          "prt": [ "tcp 70-80", "tcp 80-99" ]
         }
       ],
       "intf_rules": [],
@@ -405,5 +405,5 @@ END
 =INPUT= ignored
 =WITH_OUTDIR=
 =ERROR=
-panic: Unexpected overlapping ranges [70 90] [80 99]
+panic: Unexpected overlapping ranges [70 80] [80 99]
 =END=
