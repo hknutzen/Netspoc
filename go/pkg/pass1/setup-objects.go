@@ -2729,7 +2729,7 @@ func (c *spoc) getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
 	}
 	time := func(v1, v2 string) int {
 		i, err := strconv.Atoi(v1)
-		if err != nil {
+		if err != nil || i < 0 {
 			return bad()
 		}
 		unit := v2
@@ -2741,7 +2741,7 @@ func (c *spoc) getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
 	}
 	kbytes := func(v1, v2 string) int {
 		i, err := strconv.Atoi(v1)
-		if err != nil {
+		if err != nil || i < 0 {
 			return bad()
 		}
 		if v2 != "kilobytes" {
