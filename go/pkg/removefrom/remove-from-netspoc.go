@@ -118,17 +118,17 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 			}
 		case *ast.Service:
 			userEmpty := change(&x.User.Elements)
-			var emptyRules []int
+			var emptyRulesIdx []int
 			for i, r := range x.Rules {
 				empty := change(&r.Src.Elements)
 				if (change(&r.Dst.Elements) || empty) && !userEmpty {
-					emptyRules = append(emptyRules, i)
+					emptyRulesIdx = append(emptyRulesIdx, i)
 				}
 			}
-			if userEmpty || len(emptyRules) == len(x.Rules) {
+			if userEmpty || len(emptyRulesIdx) == len(x.Rules) {
 				emptySvc = append(emptySvc, x)
-			} else if len(emptyRules) > 0 {
-				emptySvcRules[x] = emptyRules
+			} else if len(emptyRulesIdx) > 0 {
+				emptySvcRules[x] = emptyRulesIdx
 			}
 		}
 		return changed
