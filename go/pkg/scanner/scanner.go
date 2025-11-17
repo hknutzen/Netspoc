@@ -249,7 +249,7 @@ func (s *Scanner) TokenToComma() (int, bool, string) {
 
 func (s *Scanner) ToEOL() (int, string) {
 	pos := s.offset
-	for s.ch != '\n' && s.ch >= 0 {
+	for s.ch != '\n' && s.ch != -1 {
 		s.next()
 	}
 	return pos, string(s.src[pos:s.offset])
