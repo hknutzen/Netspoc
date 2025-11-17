@@ -897,9 +897,8 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		}
 	}
 
-	// Do nothing for unmanaged VPN router without any networks.
-
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
+	// Do nothing for unmanaged VPN router without any networks.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
 		for _, id := range slices.Sorted(maps.Keys(singleCertMap)) {
 			idName := genIdName(id)
