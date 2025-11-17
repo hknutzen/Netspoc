@@ -1,9 +1,9 @@
 package removefrom
 
 import (
+	"cmp"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -40,7 +40,6 @@ func setupObjects(m map[string]bool, objects []string) error {
 
 func process(s *astset.State, remove map[string]bool, delDef bool) {
 	var emptySvc []*ast.Service
-	emptySvcRules := make(map[*ast.Service][]int)
 	retain := make(map[string]bool)
 	// Remove elements from element lists.
 	s.Modify(func(n ast.Toplevel) bool {
@@ -117,18 +116,22 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 				change(&x.Elements)
 			}
 		case *ast.Service:
-			userEmpty := change(&x.User.Elements)
-			var emptyRulesIdx []int
-			for i, r := range x.Rules {
-				empty := change(&r.Src.Elements)
-				if (change(&r.Dst.Elements) || empty) && !userEmpty {
-					emptyRulesIdx = append(emptyRulesIdx, i)
-				}
-			}
-			if userEmpty || len(emptyRulesIdx) == len(x.Rules) {
+			if change(&x.User.Elements) {
 				emptySvc = append(emptySvc, x)
-			} else if len(emptyRulesIdx) > 0 {
-				emptySvcRules[x] = emptyRulesIdx
+			} else {
+				j := 0
+				for _, r := range x.Rules {
+					if cmp.Or(change(&r.Src.Elements), change(&r.Dst.Elements)) {
+						changed = true
+					} else {
+						x.Rules[j] = r
+						j++
+					}
+				}
+				x.Rules = x.Rules[:j]
+				if j == 0 {
+					emptySvc = append(emptySvc, x)
+				}
 			}
 		}
 		return changed
@@ -157,28 +160,6 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 	// Delete definition of empty service.
 	for _, sv := range emptySvc {
 		s.DeleteToplevelNode(sv)
-	}
-	deleteEmptyRules(s, emptySvcRules)
-}
-
-func deleteEmptyRules(s *astset.State, empty map[*ast.Service][]int) {
-	for sv, l := range empty {
-		s.Modify(func(toplevel ast.Toplevel) bool {
-			modified := false
-			if n, ok := toplevel.(*ast.Service); ok && n == sv {
-				j := 0
-				for i, a := range n.Rules {
-					if slices.Contains(l, i) {
-						modified = true
-					} else {
-						n.Rules[j] = a
-						j++
-					}
-				}
-				n.Rules = n.Rules[:j]
-			}
-			return modified
-		})
 	}
 }
 
