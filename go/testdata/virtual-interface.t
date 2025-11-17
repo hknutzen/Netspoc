@@ -40,7 +40,21 @@ router:r1 = {
  }
 }
 =ERROR=
-Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
+Error: Redundancy ID must be > 0, < 256 in 'virtual' of interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Negative redundancy ID
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = HSRP; id = -999; }
+ }
+}
+=ERROR=
+Error: Redundancy ID must be > 0, < 256 in 'virtual' of interface:r1.n1
 =END=
 
 ############################################################
