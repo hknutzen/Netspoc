@@ -1541,9 +1541,8 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 		encryption := isakmp.encryption
 		if i := strings.LastIndex(encryption, "-"); i != -1 {
 			encryption = encryption[:i] + " " + encryption[i+1:]
-		} else {
-			rest := strings.TrimPrefix(encryption, "aes")
-			if len(rest) != len(encryption) && len(rest) > 0 {
+		} else if rest, found := strings.CutPrefix(encryption, "aes"); found {
+			if rest != "" {
 				encryption = "aes " + rest
 			}
 		}
