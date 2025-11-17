@@ -1539,7 +1539,7 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 		}
 
 		encryption := isakmp.encryption
-		if i := strings.LastIndex(encryption, "-"); i >= 0 {
+		if i := strings.LastIndex(encryption, "-"); i != -1 {
 			encryption = encryption[:i] + " " + encryption[i+1:]
 		} else {
 			rest := strings.TrimPrefix(encryption, "aes")
@@ -1606,7 +1606,7 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			} else {
 				esp = ciscoCryptoWithDash(esp, "aes")
 				if cryptoType == "IOS" {
-					if i := strings.LastIndex(esp, "-"); i >= 0 {
+					if i := strings.LastIndex(esp, "-"); i != -1 {
 						esp = esp[:i] + " " + esp[i+1:]
 					}
 				}
