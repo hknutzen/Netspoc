@@ -480,10 +480,7 @@ func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 
 	// Print error path, if errors occurred
 	errPath.push(in)
-	// Reverse path.
-	for i, j := 0, len(errPath)-1; i < j; i, j = i+1, j-1 {
-		errPath[i], errPath[j] = errPath[j], errPath[i]
-	}
+	slices.Reverse(errPath)
 	c.err("Inconsistent definition of %s in loop.\n"+
 		" It is reached from outside via this path:\n%s",
 		a.vxName(), errPath.nameList())
