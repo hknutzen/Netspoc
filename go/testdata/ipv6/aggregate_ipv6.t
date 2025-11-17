@@ -2333,8 +2333,12 @@ router:r2 = {
  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
 }
-service:s1 = {
+service:s1a = {
  user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = icmpv6 3/13;
+}
+service:s1b = {
+ user = host:h1;
  permit src = user; dst = any:[network:n2]; prt = icmpv6 3;
 }
 service:s2 = {
@@ -2343,11 +2347,18 @@ service:s2 = {
 }
 =WARNING=
 Warning: Missing transient supernet rules
- between src of service:s1 and dst of service:s2,
+ between src of service:s1a and dst of service:s2,
  matching at any:[network:n2].
  Add missing src elements to service:s2:
  - network:n1
- or add missing dst elements to service:s1:
+ or add missing dst elements to service:s1a:
+ - host:h3
+Warning: Missing transient supernet rules
+ between src of service:s1b and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - host:h1
+ or add missing dst elements to service:s1b:
  - host:h3
 =END=
 
