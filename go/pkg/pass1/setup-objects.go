@@ -568,7 +568,7 @@ func (c *spoc) getRange(s string, ctx string) [2]int {
 	if s1, s2, found := strings.Cut(s, "-"); found {
 		n1 := c.getPort(s1, ctx)
 		n2 := c.getPort(s2, ctx)
-		if n1 >= 0 && n2 >= 0 && n1 > n2 {
+		if n1 > 0 && n2 > 0 && n1 > n2 {
 			c.err("Invalid port range in %s", ctx)
 		}
 		return [2]int{n1, n2}
@@ -581,11 +581,11 @@ func (c *spoc) getPort(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
 		c.err("Expected number in %s: %s", ctx, s)
-		return -1
+		return 0
 	}
 	if num <= 0 {
 		c.err("Expected port number > 0 in %s", ctx)
-		return -1
+		return 0
 	} else if num >= 65536 {
 		c.err("Expected port number < 65536 in %s", ctx)
 	}
