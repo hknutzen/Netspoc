@@ -323,7 +323,7 @@ Error: Expected single number in protocol:test: 1 2
 =TITLE=Invalid protocol number
 =INPUT=
 protocol:test1 = proto 0;
-protocol:test2 = proto 300;
+protocol:test2 = proto 256;
 protocol:test3 = proto foo;
 network:n1 = { ip = 10.1.1.0/24; }
 =ERROR=
