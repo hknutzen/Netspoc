@@ -3063,7 +3063,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string,
 			if err != nil {
 				c.err("Redundancy ID must be numeric in %s", vCtx)
 			} else if !(num >= 0 && num < 256) {
-				c.err("Redundancy ID must be < 256 in %s", vCtx)
+				c.err("Redundancy ID must be > 0, < 256 in %s", vCtx)
 			}
 			virtual.redundancyId = id
 		default:
