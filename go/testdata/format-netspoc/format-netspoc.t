@@ -53,8 +53,9 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 =TITLE=Empty input
 =INPUT=
 --file
-
-=WARNING=NONE
+=OUTPUT=
+-- file
+=END=
 
 ############################################################
 =TITLE=Only comments in file
@@ -62,11 +63,18 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 # c1
   #c1b
 #c2
-=END=
+=OUTPUT=
 # c1
 #c1b
 #c2
-=WARNING=NONE
+=END=
+
+############################################################
+=TITLE=Comment at end of file
+=INPUT=network:n1 = { ip = 10.1.1.0/24; } #comment at EOF
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; } #comment at EOF
+=END=
 
 ############################################################
 =TITLE=Empty group
