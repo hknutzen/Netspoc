@@ -55,7 +55,7 @@ Aborted
 =TITLE=Invalid ports and port ranges (1)
 =INPUT=
 protocol:p1 = tcp 0 - 10;
-protocol:p2 = udp 60000 - 99999;
+protocol:p2 = udp 60000 - 65536;
 protocol:p3 = udp 100100 - 100102;
 protocol:p4 = tcp 90 - 80;
 protocol:p5 = tcp 0 - 0;
