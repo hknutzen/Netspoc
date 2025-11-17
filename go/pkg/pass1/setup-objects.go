@@ -1169,6 +1169,9 @@ func (c *spoc) setupHost2(h *host, a *ast.Attribute) {
 }
 
 // Get slice of exponents of 2.
+// An IPv6 range may have a size of up to 2^128.
+// This exceeds the maximum size of integer.
+// Hence calculate with exponents of 2.
 func rangeSize(rg netipx.IPRange) []int {
 	bitLen := rg.From().BitLen()
 	var l []int
@@ -1183,7 +1186,7 @@ func rangeSize(rg netipx.IPRange) []int {
 	// 1,2,2,3 -> 1,3,3 -> 1,4
 	// 1,1,1,2,3 -> 1,2,2,3 -> 1,3,3 -> 1,4
 	for i := 0; i+2 <= j; i++ {
-		if l[i] == l[i+1] && !(i+3 <= j && l[i+1] == l[i+2]) {
+		if l[i] == l[i+1] && !(i+2 < j && l[i+1] == l[i+2]) {
 			l[i]++
 			copy(l[i+1:], l[i+2:])
 			j--
