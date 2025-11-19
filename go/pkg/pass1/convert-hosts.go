@@ -30,8 +30,8 @@ func (c *spoc) convertHosts() {
 		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
-		bitstrLen := n.ipp.Addr().BitLen()
-		subnetAref := make([]map[netip.Addr]*subnet, bitstrLen)
+		bitLen := n.ipp.Addr().BitLen()
+		subnetAref := make([]map[netip.Addr]*subnet, bitLen)
 
 		// Converts hosts and ranges to subnets.
 		// Eliminate duplicate subnets.
@@ -40,7 +40,7 @@ func (c *spoc) convertHosts() {
 			name := host.name
 			id := host.id
 			if host.ip.IsValid() {
-				nets = []netip.Prefix{netip.PrefixFrom(host.ip, bitstrLen)}
+				nets = []netip.Prefix{netip.PrefixFrom(host.ip, bitLen)}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
@@ -66,7 +66,7 @@ func (c *spoc) convertHosts() {
 			}
 
 			for _, ipp := range nets {
-				subnetSize := bitstrLen - ipp.Bits()
+				subnetSize := bitLen - ipp.Bits()
 				ip2subnet := subnetAref[subnetSize]
 				if ip2subnet == nil {
 					ip2subnet = make(map[netip.Addr]*subnet)
@@ -102,7 +102,7 @@ func (c *spoc) convertHosts() {
 			for ip, subnet := range ip2subnet {
 				// Search for enclosing subnet.
 				for j := i + 1; j < len(subnetAref); j++ {
-					net, _ := ip.Prefix(bitstrLen - j)
+					net, _ := ip.Prefix(bitLen - j)
 					ip = net.Addr()
 					if up := subnetAref[j][ip]; up != nil {
 						subnet.up = up
@@ -120,17 +120,17 @@ func (c *spoc) convertHosts() {
 
 		// Find adjacent subnets which build a larger subnet.
 		s := n.ipp.Bits()
-		networkSize := bitstrLen - s
+		networkSize := bitLen - s
 		for i := range subnetAref {
 			ip2subnet := subnetAref[i]
 			if ip2subnet == nil {
 				continue
 			}
-			size := bitstrLen - i
+			size := bitLen - i
 
 			// Identify next supernet.
 			upSubnetSize := i + 1
-			upSize := bitstrLen - upSubnetSize
+			upSize := bitLen - upSubnetSize
 
 			// left subnet  10.0.0.16/30
 			// as range:    10.0.0.16-10.0.0.19
@@ -171,7 +171,7 @@ func (c *spoc) convertHosts() {
 				neighbor.hasNeighbor = true
 				var up someObj
 
-				if upSubnetSize >= networkSize {
+				if upSubnetSize == networkSize {
 
 					// Larger subnet is whole network.
 					up = n
