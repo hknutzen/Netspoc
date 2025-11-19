@@ -882,7 +882,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			attributes := r.vpnAttributes
 
 			groupPolicyName := ""
-			if len(attributes) > 0 {
+			if len(attributes) != 0 {
 				groupPolicyName = "VPN-router-" + idName
 				printGroupPolicy(groupPolicyName, attributes)
 			}
@@ -899,7 +899,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	// Do nothing for unmanaged VPN router without any networks.
-	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
+	if len(certGroupMap) != 0 || len(singleCertMap) != 0 {
 		for _, id := range slices.Sorted(maps.Keys(singleCertMap)) {
 			idName := genIdName(id)
 			mapName := "ca-map-" + idName
@@ -2353,10 +2353,10 @@ func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	os.RemoveAll(prev)
 
 	generated := int32(len(devices)) - reused
-	if generated > 0 {
+	if generated != 0 {
 		c.info("Generated files for %d devices", generated)
 	}
-	if reused > 0 {
+	if reused != 0 {
 		c.info("Reused files for %d devices from previous run", reused)
 	}
 }
