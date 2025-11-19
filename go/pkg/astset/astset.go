@@ -285,7 +285,7 @@ func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 		if strings.HasPrefix(top.GetName(), typ) {
 			n := top.(ast.ToplevelWithAttr)
 			if a := n.GetAttr(attr); a != nil {
-				if oLen := len(a.ValueList); oLen > 0 {
+				if oLen := len(a.ValueList); oLen != 0 {
 					a.RemoveFromList(name)
 					nLen := len(a.ValueList)
 					if nLen == 0 {
