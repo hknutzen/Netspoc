@@ -537,7 +537,7 @@ func joinV46Pairs(pairs [][2]srvObjList) [][2]srvObjList {
 		}
 		return pair[1][0].isIPv6()
 	})
-	if i < 0 {
+	if i == -1 {
 		return pairs
 	}
 	v4Pairs := pairs[:i]
