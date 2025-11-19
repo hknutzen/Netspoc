@@ -249,7 +249,7 @@ func process(s *astset.State, subst map[string]map[string]string) {
 }
 
 func setupPairs(subst map[string]map[string]string, pattern []string) error {
-	for len(pattern) > 0 {
+	for len(pattern) != 0 {
 		old := pattern[0]
 		if len(pattern) < 2 {
 			return fmt.Errorf("Missing replace string for '%s'", old)

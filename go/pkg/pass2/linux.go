@@ -398,7 +398,7 @@ PRT:
 					proto:   prt,
 					subtree: lo.subtree,
 				}
-				if len(hilo) > 0 {
+				if len(hilo) != 0 {
 					node.lo = hilo[0]
 				}
 				if len(hilo) > 1 {
@@ -869,7 +869,7 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 			name: "src",
 		},
 	}
-	if len(rules) > 0 {
+	if len(rules) != 0 {
 		prevDeny := rules[0].deny
 
 		// Add special rule as marker, that end of rules has been reached.

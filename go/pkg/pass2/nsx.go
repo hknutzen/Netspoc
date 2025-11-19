@@ -19,7 +19,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		joinRanges(acl)
 		hasFinalPermit := checkFinalPermit(acl)
 		findObjectgroups(acl, rData)
-		if len(acl.filterOnly) > 0 && !acl.addPermit {
+		if len(acl.filterOnly) != 0 && !acl.addPermit {
 			addLocalDenyRules(acl, rData)
 		} else if !hasFinalPermit {
 			addFinalPermitDenyRule(acl)

@@ -167,7 +167,7 @@ func (c *spoc) genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 		if ipsec.espAuthentication != "" || ipsec.espEncryption != "" {
 			prt = append(prt, c.prt.Esp)
 		}
-		if len(prt) > 0 {
+		if len(prt) != 0 {
 			rule := template
 			rule.serviceRule = new(serviceRule)
 			rule.prt = prt

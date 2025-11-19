@@ -47,7 +47,7 @@ func (c *spoc) setZones() {
 
 		// Change name from tunnel network to real network for better
 		// error messages and for use in cut-netspoc.
-		if len(z.networks) > 0 &&
+		if len(z.networks) != 0 &&
 			(n.ipType == tunnelIP ||
 				n.ipType == unnumberedIP &&
 					strings.HasSuffix(n.name, "(split Network)")) {
@@ -750,7 +750,7 @@ func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
 	// z.networks currently contains all networks of zone,
 	// subnets are discared later in findSubnetsInZone.
 	for _, n := range z.networks {
-		if len(n.hosts) > 0 {
+		if len(n.hosts) != 0 {
 			withHosts.push(n)
 		} else if n.loopback {
 			loopbacks.push(n)

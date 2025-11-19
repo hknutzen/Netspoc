@@ -108,7 +108,7 @@ func findZoneNetworks(
 			return nil, nil
 		}
 		// If aggregate has networks, add those that are not member of netMap.
-		if aggNets := agg.networks; len(aggNets) > 0 {
+		if aggNets := agg.networks; len(aggNets) != 0 {
 			var l netList
 			for _, net := range aggNets {
 				if !inNetMap(net) {

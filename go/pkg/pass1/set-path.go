@@ -214,7 +214,7 @@ func findPartitionTag(store pathStore) string {
 		z = x
 	}
 	seen := make(map[*zone]bool)
-	if tags := markPartitionGetTags(z, seen); len(tags) > 0 {
+	if tags := markPartitionGetTags(z, seen); len(tags) != 0 {
 		return tags[0]
 	}
 	return ""

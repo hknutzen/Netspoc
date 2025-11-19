@@ -89,7 +89,7 @@ func process(s *astset.State, addTo map[string][]ast.Element) {
 }
 
 func setupPairs(addTo map[string][]ast.Element, pairs []string) error {
-	for len(pairs) > 0 {
+	for len(pairs) != 0 {
 		old := pairs[0]
 		if len(pairs) == 1 {
 			return fmt.Errorf("Missing 2nd. element for '%s'", old)

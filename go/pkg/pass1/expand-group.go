@@ -202,7 +202,7 @@ func (c *spoc) expandIntersection(
 	}
 
 	// Warn on empty intersection of non empty parts.
-	if len(result) == 0 && len(firstSet) > 0 {
+	if len(result) == 0 && len(firstSet) != 0 {
 
 		// Reconstruct visual representation of original group.
 		var printable stringList
