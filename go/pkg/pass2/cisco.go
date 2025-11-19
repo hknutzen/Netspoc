@@ -797,7 +797,7 @@ func finalizeCiscoACL(aclInfo *aclInfo, routerData *routerData) {
 	if !aclInfo.isCryptoACL {
 		findObjectgroups(aclInfo, routerData)
 	}
-	if len(aclInfo.filterOnly) > 0 && !aclInfo.addPermit {
+	if len(aclInfo.filterOnly) != 0 && !aclInfo.addPermit {
 		addLocalDenyRules(aclInfo, routerData)
 	} else if !hasFinalPermit {
 		addFinalPermitDenyRule(aclInfo)

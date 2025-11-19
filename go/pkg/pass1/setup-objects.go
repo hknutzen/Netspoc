@@ -301,7 +301,7 @@ func (c *spoc) checkUnnumbered(v *ast.Network, na4, na6 *ast.Attribute) {
 				}
 			}
 		}
-		if len(v.Hosts) > 0 {
+		if len(v.Hosts) != 0 {
 			c.err("Unnumbered %s must not have host definition", v.Name)
 		}
 	}
@@ -1413,14 +1413,14 @@ func (c *spoc) setupPathrestriction(v *ast.TopList) {
 			}
 		}
 	}
-	if !hasCombined46 && len(v4) > 0 && len(v6) > 0 {
+	if !hasCombined46 && len(v4) != 0 && len(v6) != 0 {
 		c.warn("%s has IPv4 and IPv6 interfaces, but no combined v4/6 interface",
 			name)
 	}
 	process := func(elements, other intfList, vx string) *pathRestriction {
 		// Show warnings only if other list is empty or useless.
 		if len(other) < 2 {
-			if len(other) > 0 {
+			if len(other) != 0 {
 				vx = "IPv" + vx + " "
 			} else {
 				vx = ""
@@ -1438,10 +1438,10 @@ func (c *spoc) setupPathrestriction(v *ast.TopList) {
 		return c.addPathrestriction(name, elements)
 	}
 	var p1 *pathRestriction
-	if len(v4) > 0 || len(v6) == 0 {
+	if len(v4) != 0 || len(v6) == 0 {
 		p1 = process(v4, v6, "4")
 	}
-	if len(v6) > 0 {
+	if len(v6) != 0 {
 		p2 := process(v6, v4, "6")
 		if p1 != nil && p2 != nil {
 			p1.combined46 = p2
@@ -2903,7 +2903,7 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 		return &model{name: m}
 	}
 	info := *orig
-	if len(attributes) > 0 {
+	if len(attributes) != 0 {
 		add := ""
 		for _, att := range attributes {
 			add += ", " + att

@@ -776,7 +776,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					delete(attributes, "check-extended-key-usage")
 
 					groupPolicyName := ""
-					if len(attributes) > 0 {
+					if len(attributes) != 0 {
 						groupPolicyName = "VPN-group-" + idName
 						printGroupPolicy(groupPolicyName, attributes)
 					}

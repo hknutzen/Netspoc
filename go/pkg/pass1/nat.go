@@ -356,7 +356,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 		result = append(result, d)
 		setNatDomain(z, d, nil)
 	}
-	if len(errSeen) > 0 {
+	if len(errSeen) != 0 {
 		return nil
 	}
 	if count := len(result); count > 1 {
@@ -901,7 +901,7 @@ func (c *spoc) CheckUselessNatOutside(doms []*natDomain) {
 					break
 				}
 			}
-			if len(intersect) > 0 {
+			if len(intersect) != 0 {
 				list := slices.Sorted(maps.Keys(intersect))
 				c.warn(
 					"Ignoring 'nat_out = %s' without effect,"+

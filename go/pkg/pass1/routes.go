@@ -700,7 +700,7 @@ func fixBridgedRoutes(r *router) {
 				// Substite real hops later, after loop over hops is finished.
 				subst[hop] = realHops
 			}
-			if len(subst) > 0 {
+			if len(subst) != 0 {
 				var new intfList
 				for _, hop := range hopList {
 					if real := subst[hop]; real != nil {

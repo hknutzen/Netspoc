@@ -19,7 +19,7 @@ func (n *TopStruct) GetAttr1(name string) string {
 	for _, a := range n.Attributes {
 		if a.Name == name {
 			l := a.ValueList
-			if len(l) > 0 {
+			if len(l) != 0 {
 				return l[0].Value
 			}
 		}

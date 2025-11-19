@@ -470,7 +470,7 @@ func (c *spoc) cutNetspoc(
 	path string, names []string, keepOwner bool) {
 
 	toplevel := c.parseFiles(path)
-	if len(names) > 0 {
+	if len(names) != 0 {
 		var copy []ast.Toplevel
 		retain := make(map[string]bool)
 		for i, name := range names {
@@ -862,7 +862,7 @@ func (c *spoc) cutNetspoc(
 			}
 
 			// Retain at least one host of network with ID hosts.
-			if n.hasIdHosts && !added && len(n.hosts) > 0 {
+			if n.hasIdHosts && !added && len(n.hosts) != 0 {
 				isUsed[n.hosts[0].name] = true
 			}
 		}
