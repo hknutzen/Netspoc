@@ -146,7 +146,7 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	// Go from small to large networks. So we combine newly added
 	// networks as well.
 	// Must not optimize network 0/0; it has no supernet.
-	for partPrefix := bitLen; partPrefix > 0; partPrefix-- {
+	for partPrefix := bitLen; partPrefix != 0; partPrefix-- {
 		combinedPrefix := partPrefix - 1
 		ip2net := prefix2ip2net[partPrefix]
 		for ip, left := range ip2net {
