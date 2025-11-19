@@ -209,7 +209,7 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 	next := netList{n1}
 	// Mark all networks connected directly or indirectly with net1
 	// by a bridge as 'connected'.
-	for len(next) > 0 {
+	for len(next) != 0 {
 		n2 := next[0]
 		next = next[1:]
 		if n1.ipp != n2.ipp {

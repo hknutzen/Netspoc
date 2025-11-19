@@ -58,7 +58,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			missing.push(r.name)
 		}
 	}
-	if count := len(missing); count > 0 {
+	if count := len(missing); count != 0 {
 		c.warnOrErr(needAll,
 			"Missing attribute 'policy_distribution_point' for %d devices:\n"+
 				missing.nameList(),
@@ -200,7 +200,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			unreachable = append(unreachable, r)
 		}
 	}
-	if len(unreachable) > 0 {
+	if len(unreachable) != 0 {
 		c.warn("Missing rules to reach %d devices from"+
 			" policy_distribution_point:\n"+unreachable.nameList(),
 			len(unreachable))

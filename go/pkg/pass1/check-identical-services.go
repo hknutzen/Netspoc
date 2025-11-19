@@ -239,7 +239,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						notEq = append(notEq, s2)
 					}
 				}
-				if len(areEq) > 0 {
+				if len(areEq) != 0 {
 					areEq = append(areEq, s1)
 					if !msgSuppressed(areEq) {
 						msg := "These services have identical rule definitions.\n" +

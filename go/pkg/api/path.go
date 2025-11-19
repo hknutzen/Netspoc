@@ -139,7 +139,7 @@ func (s *state) findToplevel(names []string, c change,
 			}
 			return false
 		})
-		if top == nil && len(names) > 0 {
+		if top == nil && len(names) != 0 {
 			return nil, nil, fmt.Errorf(
 				"Can't modify unknown toplevel object '%s'", topName)
 		}
@@ -484,7 +484,7 @@ func getTopList(name string, m map[string]any) (ast.Toplevel, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(ts.Attributes) > 0 {
+	if len(ts.Attributes) != 0 {
 		return nil, fmt.Errorf("Unexpected attribute '%s' in '%s'",
 			ts.Attributes[0].Name, name)
 	}

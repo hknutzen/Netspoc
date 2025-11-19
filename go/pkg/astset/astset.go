@@ -142,7 +142,7 @@ func (s *State) AddTopLevel(n ast.Toplevel) {
 			}
 		case "service":
 			file = "rule"
-			if len(name) > 0 {
+			if len(name) != 0 {
 				s0 := strings.ToUpper(name[0:1])
 				c0 := s0[0]
 				if 'A' <= c0 && c0 <= 'Z' || '0' <= c0 && c0 <= '9' {
