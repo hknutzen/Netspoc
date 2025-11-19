@@ -85,7 +85,6 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	model := r.model
 	vrf := r.vrf
 	doAutoDefaultRoute := c.conf.AutoDefaultRoute
-	zeroNet := c.getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[int]map[netip.Addr]*network)
 	net2hop := make(map[*network]*routerIntf)
@@ -285,6 +284,7 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 		if maxHop != nil {
 
 			// Use default route for this direction.
+			zeroNet := c.getNetwork00(ipv6).ipp
 			nets := []netInfo{{zeroNet, false}}
 			// But still generate routes for small networks
 			// with supernet behind other hop.
