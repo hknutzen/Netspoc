@@ -136,17 +136,17 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 	// Combine adjacent networks, if both use same hop and
 	// if combined network doesn't already exist.
 	// Prepare invPrefixAref.
-	var bitstrLen int
+	var bitLen int
 	if ipv6 {
-		bitstrLen = 128
+		bitLen = 128
 	} else {
-		bitstrLen = 32
+		bitLen = 32
 	}
 
 	// Go from small to large networks. So we combine newly added
 	// networks as well.
 	// Must not optimize network 0/0; it has no supernet.
-	for partPrefix := bitstrLen; partPrefix > 0; partPrefix-- {
+	for partPrefix := bitLen; partPrefix > 0; partPrefix-- {
 		combinedPrefix := partPrefix - 1
 		ip2net := prefix2ip2net[partPrefix]
 		for ip, left := range ip2net {
