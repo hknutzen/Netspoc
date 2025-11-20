@@ -170,6 +170,32 @@ ip access-list extended inet_in
 =END=
 
 ############################################################
+=TITLE=Host range spans the whole internet
+=INPUT=
+network:inet = {
+ ip = 0.0.0.0/0;
+ host:rg = { range = 0.0.0.0 - 255.255.255.255; }
+}
+router:r = {
+ managed;
+ model = IOS;
+ interface:inet = { ip = 10.9.9.1;  hardware = inet; }
+}
+service:s1 = {
+ user = host:rg;
+ permit src = user; dst = interface:r.inet; prt = tcp 80;
+}
+=WARNING=
+Warning: Use network:inet instead of host:rg
+ because both have identical address
+=OUTPUT=
+-- r
+ip access-list extended inet_in
+ permit tcp any host 10.9.9.1 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Redundant rule from host range and combined ip hosts (1)
 =INPUT=
 network:n1 = {
