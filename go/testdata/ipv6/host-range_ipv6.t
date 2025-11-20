@@ -170,7 +170,33 @@ ipv6 access-list inet_in
 =END=
 
 ############################################################
-=TITLE=Redundant rule from host range and combined ip hosts
+=TITLE=Host range spans the whole internet
+=INPUT=
+network:inet = {
+ ip6 = ::/0;
+ host:rg = { range6 = :: - ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff; }
+}
+router:r = {
+ managed;
+ model = IOS;
+ interface:inet = { ip6 = ::a09:901;  hardware = inet; }
+}
+service:s1 = {
+ user = host:rg;
+ permit src = user; dst = interface:r.inet; prt = tcp 80;
+}
+=WARNING=
+Warning: Use network:inet instead of host:rg
+ because both have identical address
+=OUTPUT=
+-- ipv6/r
+ipv6 access-list inet_in
+ permit tcp any host ::a09:901 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Redundant rule from host range and combined ip hosts (1)
 =INPUT=
 network:n1 = {
  ip6 = ::a01:100/120;
@@ -203,6 +229,36 @@ ipv6 access-list n1_in
  deny ipv6 any host ::a01:201
  permit tcp ::a01:104/127 ::a01:200/120 eq 80
  deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Redundant rule from host range and combined ip hosts (2)
+=INPUT=
+network:n1 = {
+ ip6 = ::a01:100/120;
+ host:h4 = { ip6 = ::a01:104; }
+ host:h5 = { ip6 = ::a01:105; }
+ host:h6 = { ip6 = ::a01:106; }
+ host:h7 = { ip6 = ::a01:107; }
+ host:r6-7 = { range6 = ::a01:106-::a01:107; }
+}
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+network:n2 = { ip6 = ::a01:200/120; }
+service:test = {
+ user = host:h4, host:h5, host:h6, host:h7, host:r6-7;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=WARNING=
+Warning: Redundant rules in service:test compared to service:test:
+  permit src=host:h6; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
+  permit src=host:h7; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
 =END=
 
 ############################################################
@@ -267,36 +323,6 @@ network:n = {
 }
 =ERROR=
 Error: Duplicate IP address for host:a and host:b
-=END=
-
-############################################################
-=TITLE=Redundant rule from host range and combined ip hosts
-=INPUT=
-network:n1 = {
- ip6 = ::a01:100/120;
- host:h4 = { ip6 = ::a01:104; }
- host:h5 = { ip6 = ::a01:105; }
- host:h6 = { ip6 = ::a01:106; }
- host:h7 = { ip6 = ::a01:107; }
- host:r6-7 = { range6 = ::a01:106-::a01:107; }
-}
-router:r = {
- model = IOS, FW;
- managed;
- interface:n1 = { ip6 = ::a01:101; hardware = n1; }
- interface:n2 = { ip6 = ::a01:201; hardware = n2; }
-}
-network:n2 = { ip6 = ::a01:200/120; }
-service:test = {
- user = host:h4, host:h5, host:h6, host:h7, host:r6-7;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
-=WARNING=
-Warning: Redundant rules in service:test compared to service:test:
-  permit src=host:h6; dst=network:n2; prt=tcp 80; of service:test
-< permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
-  permit src=host:h7; dst=network:n2; prt=tcp 80; of service:test
-< permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
 =END=
 
 ############################################################
