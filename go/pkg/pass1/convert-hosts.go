@@ -31,7 +31,7 @@ func (c *spoc) convertHosts() {
 			continue
 		}
 		bitLen := n.ipp.Addr().BitLen()
-		subnetAref := make([]map[netip.Addr]*subnet, bitLen)
+		subnetAref := make([]map[netip.Addr]*subnet, bitLen+1)
 
 		// Converts hosts and ranges to subnets.
 		// Eliminate duplicate subnets.
