@@ -2359,9 +2359,7 @@ network:k2 = { ip = 10.2.2.0/24; }
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
- nat:t1 = { ip = 10.9.1.0/24; }
  nat:h1 = { hidden; }
- nat:h2 = { hidden; }
 }
 network:n2 = {
  ip = 10.1.2.0/24;
@@ -2369,7 +2367,9 @@ network:n2 = {
 }
 network:n3 = {
  ip = 10.1.3.0/24;
+ nat:t1 = { ip = 10.9.3.0/24; }
  nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
 }
 router:r1 =  {
  managed;
@@ -2395,10 +2395,10 @@ network:k1 = { ip = 10.2.3.0/24; }
 network:k2 = { ip = 10.2.2.0/24; }
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:h1 at router:r2.
- Reason: Both NAT tags are used grouped at network:n1
+ Reason: Both NAT tags are used grouped at network:n3
  but nat:h1 is missing at network:n2
 Error: Invalid transition from nat:t1 to nat:h2 at router:r2.
- Reason: Both NAT tags are used grouped at network:n1
+ Reason: Both NAT tags are used grouped at network:n3
  but nat:h2 is missing at network:n2
 =END=
 
