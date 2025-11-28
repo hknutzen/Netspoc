@@ -5,7 +5,7 @@
   "Any"
  ],
  "install-on": [
-  {{.}}
+  "Policy Targets"
  ],
  "name": "Cleanup rule",
  "service": [
@@ -47,7 +47,7 @@ service:test = {
 =OUTPUT=
 --ipv6/r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
     "name": "test",
     "action": "Drop",
@@ -62,7 +62,7 @@ service:test = {
       "tcp_24"
     ],
     "install-on": [
-      "v1"
+      "Policy Targets"
     ]
   },
   {
@@ -79,11 +79,11 @@ service:test = {
     "tcp_22"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   [[cleanup '"v1"']]
- ],
+ ]},
  "Networks": [
   {
    "name": "network_n1",
