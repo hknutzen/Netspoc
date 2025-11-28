@@ -12,12 +12,12 @@ import (
 )
 
 type chkpConfig struct {
-	Rules    []*chkpRule
-	Networks []*chkpNetwork
-	Hosts    []*chkpHost
-	Groups   []*chkpGroup
-	TCP      []*chkpTCPUDP
-	UDP      []*chkpTCPUDP
+	TargetRules map[string][]*chkpRule
+	Networks    []*chkpNetwork
+	Hosts       []*chkpHost
+	Groups      []*chkpGroup
+	TCP         []*chkpTCPUDP
+	UDP         []*chkpTCPUDP
 	//ICMP  []*chkpICMP
 	//ICMP6 []*chkpICMP
 	//SvOther       []*chkpSvOther
@@ -155,9 +155,9 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 	hosts := make(map[string]*chkpHost)
 	networks := make(map[string]*chkpNetwork)
 	tcpudp := make(map[*proto]*chkpTCPUDP)
-	var installOns []chkpName
+	config.TargetRules = make(map[string][]*chkpRule)
 	for _, r := range vrfMembers {
-		installOns = append(installOns, chkpName(r.vrf))
+		var targetRules []*chkpRule
 		rules := make(map[string]*chkpRule)
 		for _, hw := range r.hardware {
 
@@ -187,7 +187,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 					Name:      name,
 					Comments:  srv.description,
 					Action:    chkpName(action),
-					InstallOn: []chkpName{chkpName(r.vrf)},
+					InstallOn: []chkpName{chkpName("Policy Targets")},
 				}
 
 				handleRuleObject := func(obj someObj) string {
@@ -322,17 +322,18 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 			slices.Sort(rule.Destination)
 			rule.Destination = slices.Compact(rule.Destination)
 			checkGroup(&rule.Destination, "DstGrp_")
-			config.Rules = append(config.Rules, rules[k])
+			targetRules = append(targetRules, rules[k])
 		}
+		targetRules = append(targetRules, &chkpRule{
+			Name:        "Cleanup rule",
+			Action:      "Drop",
+			Source:      []chkpName{"Any"},
+			Destination: []chkpName{"Any"},
+			Service:     []chkpName{"Any"},
+			InstallOn:   []chkpName{chkpName("Policy Targets")},
+		})
+		config.TargetRules[r.vrf] = targetRules
 	}
-	config.Rules = append(config.Rules, &chkpRule{
-		Name:        "Cleanup rule",
-		Action:      "Drop",
-		Source:      []chkpName{"Any"},
-		Destination: []chkpName{"Any"},
-		Service:     []chkpName{"Any"},
-		InstallOn:   installOns,
-	})
 	for _, k := range slices.Sorted(maps.Keys(hosts)) {
 		config.Hosts = append(config.Hosts, hosts[k])
 	}

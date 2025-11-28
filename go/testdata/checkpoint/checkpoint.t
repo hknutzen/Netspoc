@@ -44,7 +44,7 @@ Error: Must define unmanaged router:r1
   "Any"
  ],
  "install-on": [
-  {{.}}
+  "Policy Targets"
  ],
  "name": "Cleanup rule",
  "service": [
@@ -117,57 +117,62 @@ service:test = {
 {"generated_by":"devel","model":"Checkpoint","ip_list":["10.0.0.10"],"name_list":["r1"]}
 --r1
 {
- "Rules": [
-  {
-   "name": "test",
-   "action": "Drop",
-   "source": [
-    "host_h3"
-   ],
-   "destination": [
-    "interface_u1.n1"
-   ],
-   "service": [
-    "tcp_81"
-   ],
-   "install-on": [
-    "v1"
-   ]
-  },
-  {
-   "name": "test",
-   "action": "Drop",
-   "source": [
-    "host_h3"
-   ],
-   "destination": [
-    "interface_u1.n1"
-   ],
-   "service": [
-    "tcp_81"
-   ],
-   "install-on": [
-    "v2"
-   ]
-  },
-  {
-   "name": "test-2",
-   "action": "Accept",
-   "source": [
-    "host_h3"
-   ],
-   "destination": [
-    "interface_r1@v1.n1"
-   ],
-   "service": [
-    "tcp_22-24"
-   ],
-   "install-on": [
-    "v2"
-   ]
-  },
-  [[cleanup '"v1", "v2"']]
- ],
+ "TargetRules": {
+  "v1": [
+   {
+    "name": "test",
+    "action": "Drop",
+    "source": [
+     "host_h3"
+    ],
+    "destination": [
+     "interface_u1.n1"
+    ],
+    "service": [
+     "tcp_81"
+    ],
+    "install-on": [
+     "Policy Targets"
+    ]
+   },
+   [[cleanup]]
+  ],
+  "v2": [
+   {
+    "name": "test",
+    "action": "Drop",
+    "source": [
+     "host_h3"
+    ],
+    "destination": [
+     "interface_u1.n1"
+    ],
+    "service": [
+     "tcp_81"
+    ],
+    "install-on": [
+     "Policy Targets"
+    ]
+   },
+   {
+    "name": "test-2",
+    "action": "Accept",
+    "source": [
+     "host_h3"
+    ],
+    "destination": [
+     "interface_r1@v1.n1"
+    ],
+    "service": [
+     "tcp_22-24"
+    ],
+    "install-on": [
+     "Policy Targets"
+    ]
+   },
+   [[cleanup]]
+  ]
+ },
  "Networks": null,
  "Hosts": [
   {
@@ -271,7 +276,7 @@ service:s2 = {
 =OUTPUT=
 --r1
 {
- "Rules":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["v1"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["v1"]}, [[cleanup '"v1"']] ],
+ "TargetRules":{"v1":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["Policy Targets"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["Policy Targets"]}, [[cleanup]] ]},
  "Networks": [
    {
      "name": "network_n1",
@@ -388,7 +393,7 @@ service:test = {
 =OUTPUT=
 --r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
     "name": "test",
     "action": "Drop",
@@ -403,7 +408,7 @@ service:test = {
       "tcp_24"
     ],
     "install-on": [
-      "v1"
+      "Policy Targets"
     ]
   },
   {
@@ -420,11 +425,11 @@ service:test = {
     "tcp_22"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "network_n1",
@@ -495,7 +500,7 @@ service:test2 = {
 =OUTPUT=
 --r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -509,7 +514,7 @@ service:test2 = {
     "tcp_22"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -525,11 +530,11 @@ service:test2 = {
     "tcp_23"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "network_n1",
@@ -602,7 +607,7 @@ service:test = {
 =OUTPUT=
 --r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -625,7 +630,7 @@ service:test = {
     "mask-reply"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -641,7 +646,7 @@ service:test = {
     "echo-reply"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -657,7 +662,7 @@ service:test = {
     "dest-unreach"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -673,11 +678,11 @@ service:test = {
     "time-exceeded"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "network_n1",
@@ -743,7 +748,7 @@ service:test = {
 =OUTPUT=
 -- r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -757,11 +762,11 @@ service:test = {
     "tcp_80"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "network_n1",
@@ -823,7 +828,7 @@ service:test = {
 =OUTPUT=
 -- r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -842,11 +847,11 @@ service:test = {
     "tcp_22"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "host_h1",
@@ -941,7 +946,7 @@ service:b = {
 =OUTPUT=
 --r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "a",
    "action": "Accept",
@@ -955,7 +960,7 @@ service:b = {
     "tcp_22-30"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -972,11 +977,11 @@ service:b = {
     "tcp_31-36"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": null,
  "Hosts": [
   {
@@ -1043,7 +1048,7 @@ service:test = {
 =OUTPUT=
 -- r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -1057,11 +1062,11 @@ service:test = {
     "tcp_22"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "network_n1",
@@ -1131,7 +1136,7 @@ service:test = {
 =OUTPUT=
 -- r1
 {
- "Rules": [
+ "TargetRules": {"v1": [
   {
    "name": "test",
    "action": "Accept",
@@ -1145,7 +1150,7 @@ service:test = {
     "tcp_80"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
   {
@@ -1161,11 +1166,11 @@ service:test = {
     "tcp_80"
    ],
    "install-on": [
-    "v1"
+    "Policy Targets"
    ]
   },
-  [[cleanup '"v1"']]
- ],
+  [[cleanup]]
+ ]},
  "Networks": [
   {
    "name": "any_10_1",
