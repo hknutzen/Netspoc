@@ -5,6 +5,9 @@ import (
 	"slices"
 )
 
+// Package-level map to store pathrestriction distances for sorting at display time
+var prDistances map[*pathRestriction]int
+
 // getPathNode provides path node objects for objects specified as src or dst.
 // Parameter: Source or destination object.
 // Returns:
@@ -111,10 +114,11 @@ func calcNext(from pathObj) func(intf *routerIntf) pathObj {
 //   - end: loop node that is to be reached.
 //   - lPath: collect tuples and last interfaces of path.
 //   - navi: lookup hash to reduce search space, holds loops to enter.
+//   - blocking: closure to record blocking pathrestrictions.
 //
 // Returns : true, if path is found.
 func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
-	lPath *loopPath, navi navigation) bool {
+	lPath *loopPath, navi navigation, blocking func(*pathRestriction)) bool {
 
 	//    debug("cluster_path_mark1: obj: obj->{name},
 	//           in_intf: in_intf->{name} to: end->{name}");
@@ -124,6 +128,10 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 	for _, restrict := range pathrestriction {
 		if restrict.activePath {
 			//       debug(" effective restrict->{name} at in_intf->{name}");
+			// Record this pathrestriction as blocking the path.
+			if blocking != nil {
+				blocking(restrict)
+			}
 			return false
 		}
 	}
@@ -198,7 +206,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 		//debug("Try %s -> %s", obj, next)
 
 		// If a valid path is found from next node to end...
-		if clusterPathMark1(next, intf, end, lPath, navi) {
+		if clusterPathMark1(next, intf, end, lPath, navi, blocking) {
 
 			// ...collect path information.
 			//debug(" loop: %s -> %s", inIntf, intf)
@@ -481,6 +489,7 @@ func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 //   - endStore: end node or interface
 //   - startIntf: set if path starts at pathrestricted interface
 //   - endIntf: set if path ends at pathrestricted interface
+//   - blocking: closure to record blocking pathrestrictions.
 //
 // Returns: True if path was found, false otherwise.
 // Results: Sets attributes for found path:
@@ -488,6 +497,7 @@ func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 func intfClusterPathMark(
 	startStore, endStore pathStore,
 	startIntf, endIntf *routerIntf,
+	blocking func(*pathRestriction),
 ) bool {
 	if startIntf != nil {
 		startStore = startIntf.zone
@@ -530,7 +540,7 @@ func intfClusterPathMark(
 	} else {
 
 		// Mark cluster path between different zones.
-		if !clusterPathMark(startStore, endStore) {
+		if !clusterPathMark(startStore, endStore, blocking) {
 			return false
 		}
 
@@ -575,6 +585,7 @@ func intfClusterPathMark(
 //     is a pathrestricted interface of loop.
 //   - endStore: destination loop node or interface, if destination
 //     is a pathrestricted interface of loop.
+//   - blocking: closure to record blocking pathrestrictions.
 //
 // Returns: True if a valid path was found, false otherwise.
 // Results:
@@ -584,7 +595,7 @@ func intfClusterPathMark(
 //	(Starting or ending at pathrestricted interface may lead
 //	 to different paths than for a simple node).
 //	Referenced object holds loop path description.
-func clusterPathMark(startStore, endStore pathStore) bool {
+func clusterPathMark(startStore, endStore pathStore, blocking func(*pathRestriction)) bool {
 
 	// Path from startStore to endStore has been marked already.
 	if startStore.getLoopPath()[endStore] != nil {
@@ -628,7 +639,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 	setup(endStore, &to, &endIntf, &toOut)
 
 	if startIntf != nil || endIntf != nil {
-		return intfClusterPathMark(startStore, endStore, startIntf, endIntf)
+		return intfClusterPathMark(startStore, endStore, startIntf, endIntf, blocking)
 	}
 
 	//debug("clusterPathMark: %s -> %s", startStore, endStore);
@@ -699,7 +710,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 
 			// Search path from next node to to, store it in lPath.
 			//debug(" try: %s -> %s", from, intf)
-			if clusterPathMark1(next, intf, to, lPath, navi) {
+			if clusterPathMark1(next, intf, to, lPath, navi, blocking) {
 				success = true
 				lPath.enter.push(intf)
 				//debug(" enter: %s -> %s", from, intf);
@@ -726,6 +737,7 @@ func connectClusterPath(
 	from, to pathObj,
 	fromIn, toOut *routerIntf,
 	fromStore, toStore pathStore,
+	blocking func(*pathRestriction),
 ) bool {
 
 	// Find object to store path information inside loop.
@@ -779,7 +791,7 @@ func connectClusterPath(
 	startStore, startAtZone := setup(fromStore, from, &fromIn)
 	endStore, endAtZone := setup(toStore, to, &toOut)
 
-	success := clusterPathMark(startStore, endStore)
+	success := clusterPathMark(startStore, endStore, blocking)
 
 	// If loop path was found, set path information for fromIn and
 	// toOut interfaces and connect them with loop path.
@@ -842,6 +854,20 @@ func removePath(fromStore, toStore pathStore) {
 	}
 }
 
+// getPathObj extracts the pathObj from a pathStore.
+func getPathObj(store pathStore) pathObj {
+	switch x := store.(type) {
+	case *routerIntf:
+		return x.router
+	case *router:
+		return x
+	case *zone:
+		return x
+	default:
+		return nil
+	}
+}
+
 // pathMark finds and marks path from source to destination.
 // Parameter:
 //   - fromStore: Object, where path starts.
@@ -849,30 +875,33 @@ func removePath(fromStore, toStore pathStore) {
 //     Typically both are of type zone or router.
 //     For details see description of sub pathWalk.
 //
-// Returns: True if valid path is found, False otherwise.
+// Returns:
+//   - bool: True if valid path is found, False otherwise.
+//   - map: Pathrestrictions that blocked the path (if any).
+//
 // Results: The next interface towards toStore is stored in attribute
 //   - .path1 of fromStore and
 //   - .path of subsequent interfaces on path.
-func pathMark(fromStore, toStore pathStore) bool {
+func pathMark(fromStore, toStore pathStore) (bool, map[*pathRestriction]bool) {
+	// Count how many path attempts each pathrestriction blocks
+	blockingCount := make(map[*pathRestriction]int)
+	blocking := make(map[*pathRestriction]bool)
+
+	recordBlocking := func(pr *pathRestriction) {
+		blockingCount[pr]++
+		blocking[pr] = true
+	}
+
+	// Store counts in package-level map for display sorting
+	defer func() {
+		if len(blockingCount) > 0 {
+			prDistances = blockingCount
+		}
+	}()
 
 	// debug("pathMark %s --> %s", fromStore, toStore)
-	var from, to pathObj
-	switch x := fromStore.(type) {
-	case *routerIntf:
-		from = x.router
-	case *router:
-		from = x
-	case *zone:
-		from = x
-	}
-	switch x := toStore.(type) {
-	case *routerIntf:
-		to = x.router
-	case *router:
-		to = x
-	case *zone:
-		to = x
-	}
+	from := getPathObj(fromStore)
+	to := getPathObj(toStore)
 	fromLoop := from.getLoop()
 	toLoop := to.getLoop()
 
@@ -897,14 +926,14 @@ PATH:
 			} else {
 				fromStore.setPath1(toStore, toOut)
 			}
-			return true
+			return true, blocking
 		}
 
 		// Paths meet inside a loop.
 		if fromLoop != nil && toLoop != nil &&
 			fromLoop.clusterExit == toLoop.clusterExit {
-			if connectClusterPath(from, to, fromIn, toOut, fromStore, toStore) {
-				return true
+			if connectClusterPath(from, to, fromIn, toOut, fromStore, toStore, recordBlocking) {
+				return true, blocking
 			}
 			break PATH
 		}
@@ -914,7 +943,7 @@ PATH:
 
 			// Return, if mark has already been set for a sub-path.
 			if fromIn != nil && fromIn.getPath()[toStore] != nil {
-				return true
+				return true, blocking
 			}
 
 			// Get interface towards zone1.
@@ -939,7 +968,7 @@ PATH:
 
 				// Mark loop path towards next interface.
 				if !connectClusterPath(
-					from, exit, fromIn, fromOut, fromStore, toStore) {
+					from, exit, fromIn, fromOut, fromStore, toStore, recordBlocking) {
 
 					break PATH
 				}
@@ -981,7 +1010,7 @@ PATH:
 				}
 
 				// Mark loop path towards next interface.
-				if !connectClusterPath(entry, to, toIn, toOut, fromStore, toStore) {
+				if !connectClusterPath(entry, to, toIn, toOut, fromStore, toStore, recordBlocking) {
 					break PATH
 				}
 			}
@@ -999,7 +1028,7 @@ PATH:
 	}
 	// Remove partially marked path.
 	removePath(fromStore, toStore)
-	return false
+	return false, blocking
 }
 
 // #############################################################################
@@ -1081,17 +1110,60 @@ func loopPathWalk(
 	return callIt
 }
 
-func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
+func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string, blocking map[*pathRestriction]bool) {
 	tag1 := findPartitionTag(srcPath)
 	tag2 := findPartitionTag(dstPath)
+
 	var msg string
 	if tag1 != tag2 {
-		msg = " Source and destination objects are located in " +
-			"different topology partitions: " +
-			tag1 + ", " + tag2 + "."
+		// Different partitions - this is the root cause
+		msg = fmt.Sprintf(" Source and destination objects are located in "+
+			"different topology partitions: %s, %s.", tag1, tag2)
 	} else {
-		msg = " Check path restrictions and crypto interfaces."
+		// Same partition - check if pathrestrictions are blocking
+		if len(blocking) > 0 {
+			msg = " Possible blocking pathrestrictions:\n"
+
+			// Sort by specificity: pathrestrictions that block fewer paths are more specific
+			// and more likely to be the targeted restriction for this scenario
+			type prInfo struct {
+				pr        *pathRestriction
+				pathCount int // Number of paths blocked
+				name      string
+			}
+			var sorted []prInfo
+
+			for pr := range blocking {
+				count := prDistances[pr] // Number of path attempts blocked
+				sorted = append(sorted, prInfo{
+					pr:        pr,
+					pathCount: count,
+					name:      pr.name,
+				})
+			}
+
+			// Sort by number of blocked paths (fewer first), then alphabetically
+			slices.SortFunc(sorted, func(a, b prInfo) int {
+				// Primary: number of blocked paths (fewer = more specific = more relevant)
+				if a.pathCount != b.pathCount {
+					return a.pathCount - b.pathCount
+				}
+				// Secondary: alphabetical for deterministic output
+				if a.name < b.name {
+					return -1
+				} else if a.name > b.name {
+					return 1
+				}
+				return 0
+			})
+
+			for _, item := range sorted {
+				msg += fmt.Sprintf("  - %s (blocked %d path attempts)\n", item.name, item.pathCount)
+			}
+		}
+		msg += " Check path restrictions and crypto interfaces."
 	}
+
 	c.err("No valid path\n from %s\n to %s\n %s\n"+msg,
 		srcPath, dstPath, context)
 }
@@ -1132,13 +1204,15 @@ func (c *spoc) pathWalk(
 	*/
 	// Identify path from source to destination if not known.
 	if _, found := fromStore.getPath1()[toStore]; !found {
-		if !pathMark(fromStore, toStore) {
+		// Attempt to find a path
+		found, blocking := pathMark(fromStore, toStore)
+		if !found {
+			// Path finding failed.
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
-				c.showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
+				c.showErrNoValidPath(fromStore, toStore, "for rule "+rule.print(), blocking)
 			}
-
 			// Abort, if path does not exist.
 			return
 		}
@@ -1323,6 +1397,8 @@ func (c *spoc) findAutoInterfaces(
 	srcName, dstName string, src2 netOrRouter) intfList {
 
 	var result intfList
+	// Collect blocking pathrestrictions for error reporting.
+	var blocking map[*pathRestriction]bool
 
 	// Check path separately for interfaces with pathrestriction,
 	// because path from inside the router to destination may be restricted.
@@ -1330,7 +1406,9 @@ func (c *spoc) findAutoInterfaces(
 	for _, fromStore := range fromList {
 		for _, toStore := range toList {
 			if _, found := fromStore.getPath1()[toStore]; !found {
-				if !pathMark(fromStore, toStore) {
+				var found bool
+				found, blocking = pathMark(fromStore, toStore)
+				if !found {
 					continue
 				}
 			}
@@ -1382,7 +1460,7 @@ func (c *spoc) findAutoInterfaces(
 	if len(result) == 0 {
 		c.showErrNoValidPath(srcPath, dstPath,
 			fmt.Sprintf("while resolving %s (destination is %s).",
-				srcName, dstName))
+				srcName, dstName), blocking)
 		return nil
 	}
 	delDupl(&result)

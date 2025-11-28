@@ -805,7 +805,7 @@ func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 
 			// Check if path is available.
 			if _, found := from.getPath1()[to]; !found {
-				if !pathMark(from, to) {
+				if found, _ := pathMark(from, to); !found {
 					continue
 				}
 			}
