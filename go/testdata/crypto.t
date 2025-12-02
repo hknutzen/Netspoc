@@ -3567,7 +3567,7 @@ crypto:psk-detailed = {
 }
 ipsec:aes256_sha256_ikev2_psk = {
  key_exchange = isakmp:aes256_sha256_ikev2_psk;
- esp_encryption = aes256;
+# not given: esp_encryption = aes256; becomes "null"
  esp_authentication = sha256;
  pfs_group = 19;
  lifetime = 3600 sec;
@@ -3601,6 +3601,11 @@ service:s1 = {
 }
 =OUTPUT=
 --asavpn
+no sysopt connection permit-vpn
+crypto ipsec ikev2 ipsec-proposal Trans1
+ protocol esp encryption null
+ protocol esp integrity sha-256
+--
 ! crypto-192.168.1.2
 access-list crypto-192.168.1.2 extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
 crypto map crypto-dmz 1 set peer 192.168.1.2
