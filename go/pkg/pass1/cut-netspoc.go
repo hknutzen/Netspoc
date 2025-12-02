@@ -600,23 +600,15 @@ func (c *spoc) cutNetspoc(
 	mark1 := func(r *router) {
 
 		// Mark split router, if some split part is marked.
+		// and mark fragments of marked crypto routers.
 		for _, intf := range getIntf(r) {
 			if frag := intf.router; frag != r && isRouterUsed(frag, isUsed) {
-				// debug("From split: %s", r)
 				setRouterUsed(r, isUsed)
 			}
 		}
 
 		if !isRouterUsed(r, isUsed) {
 			return
-		}
-
-		// Mark fragments of marked crypto routers.
-		for _, intf := range getIntf(r) {
-			if frag := intf.router; frag != r {
-				// debug("Fragment: %s", fragment)
-				setRouterUsed(frag, isUsed)
-			}
 		}
 
 		// Mark path of crypto tunnel.
