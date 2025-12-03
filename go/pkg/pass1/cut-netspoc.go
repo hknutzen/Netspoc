@@ -544,7 +544,7 @@ func (c *spoc) cutNetspoc(
 		if isUsed[r.name] && r.model.needManagementInstance {
 			if mr := c.symTable.router[r.deviceName]; mr != nil {
 				if r.ipV6 != mr.ipV6 {
-					if mr.combined46 == nil || mr.ipV6 {
+					if mr.combined46 == nil {
 						continue
 					}
 					mr = mr.combined46
