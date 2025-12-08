@@ -3,6 +3,7 @@
 package printer
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -25,8 +26,7 @@ func (p *printer) print(line string) {
 }
 
 func (p *printer) emptyLine() {
-	l := len(p.output)
-	if l < 2 || p.output[l-1] != '\n' || p.output[l-2] != '\n' {
+	if !bytes.HasSuffix(p.output, []byte("\n\n")) {
 		p.output = append(p.output, '\n')
 	}
 }
