@@ -3557,7 +3557,7 @@ router:r2 = {
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 service:ping-local = {
- user = foreach any:[network:n3];
+ user = foreach any:[network:n3], any:[network:n1];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmp 8;
 }
 service:NTP-local = {
@@ -3584,6 +3584,10 @@ Warning: Some source/destination pairs of service:ping-local don't affect any fi
  src=network:n4; dst=interface:r2.n4
 =OUTPUT=
 --r1
+ip access-list extended n1_in
+ permit icmp 10.1.1.0 0.0.0.255 host 10.1.1.1 8
+ deny ip any any
+--
 ip access-list extended n2_in
  permit udp 10.1.2.0 0.0.0.255 host 10.1.2.1 eq 123
  permit udp 10.1.3.0 0.0.0.255 host 10.1.2.1 eq 123

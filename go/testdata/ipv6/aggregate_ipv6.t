@@ -3557,7 +3557,7 @@ router:r2 = {
  interface:n4 = { ip6 = ::a01:401; hardware = n4; }
 }
 service:ping-local = {
- user = foreach any:[network:n3];
+ user = foreach any:[network:n3], any:[network:n1];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmpv6 8;
 }
 service:NTP-local = {
@@ -3584,6 +3584,10 @@ Warning: Some source/destination pairs of service:ping-local don't affect any fi
  src=network:n4; dst=interface:r2.n4
 =OUTPUT=
 --ipv6/r1
+ipv6 access-list n1_in
+ permit icmp ::a01:100/120 host ::a01:101 8
+ deny ipv6 any any
+--
 ipv6 access-list n2_in
  permit udp ::a01:200/120 host ::a01:201 eq 123
  permit udp ::a01:300/120 host ::a01:201 eq 123
