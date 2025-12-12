@@ -37,10 +37,10 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n4]
  for rule permit src=network:n1; dst=network:n4; prt=tcp 80; of service:test
- Possible blocking pathrestrictions:
-  - pathrestriction:block_n2
-  - pathrestriction:block_n3
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:block_n2 (blocked 1 path attempt)
+  - pathrestriction:block_n3 (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -89,11 +89,11 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:test
- Possible blocking pathrestrictions:
-  - pathrestriction:block_path_n2
-  - pathrestriction:block_path_n3
-  - pathrestriction:block_path_n4
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:block_path_n2 (blocked 1 path attempt)
+  - pathrestriction:block_path_n3 (blocked 1 path attempt)
+  - pathrestriction:block_path_n4 (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -155,10 +155,10 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n6]
  for rule permit src=network:n1; dst=network:n6; prt=tcp 80; of service:test
- Possible blocking pathrestrictions:
-  - pathrestriction:block_r1_r2_n2
-  - pathrestriction:block_r1_r2_n3
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:block_r1_r2_n2 (blocked 1 path attempt)
+  - pathrestriction:block_r1_r2_n3 (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -220,11 +220,11 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n6]
  for rule permit src=network:n1; dst=network:n6; prt=tcp 80; of service:test
- Possible blocking pathrestrictions:
-  - pathrestriction:block_r2_r3_n4
-  - pathrestriction:block_r2_r3_n5
-  - pathrestriction:block_r1_r2_n2
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:block_r1_r2_n2 (blocked 1 path attempt)
+  - pathrestriction:block_r2_r3_n4 (blocked 2 path attempts)
+  - pathrestriction:block_r2_r3_n5 (blocked 2 path attempts)
 =END=
 
 ############################################################
@@ -319,12 +319,12 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n99]
  for rule permit src=network:n1; dst=network:n99; prt=tcp 80; of service:test
- Possible blocking pathrestrictions:
-  - pathrestriction:block_r4_r5_a
-  - pathrestriction:block_r4_r5_b
-  - pathrestriction:block_r1_r2
-  - pathrestriction:block_r2_r3_a
-  - pathrestriction:block_r2_r3_b
-  - pathrestriction:block_r3_r4
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:block_r1_r2 (blocked 1 path attempt)
+  - pathrestriction:block_r2_r3_a (blocked 2 path attempts)
+  - pathrestriction:block_r2_r3_b (blocked 2 path attempts)
+  - pathrestriction:block_r3_r4 (blocked 2 path attempts)
+  - pathrestriction:block_r4_r5_a (blocked 2 path attempts)
+  - pathrestriction:block_r4_r5_b (blocked 2 path attempts)
 =END=
