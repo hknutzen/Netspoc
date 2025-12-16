@@ -102,7 +102,7 @@ Error: No valid path
 =INPUT=
 # Topology: 3 routers in chain
 # Multiple paths between r1-r2 and r2-r3
-# Pathrestrictions block all possible routes
+# All paths blocked at r1-r2, so r2-r3 restrictions are not reached
 
 network:n1 = { ip = 10.1.1.0/24; }
 
@@ -137,7 +137,7 @@ router:r3 = {
 network:n6 = { ip = 10.6.1.0/24; }
 
 # Block path r1-r2 via n2
-pathrestriction:block_r1_r2_n2 = interface:r1.n2, interface:r2.n2, ;
+pathrestriction:z_block_r1_r2_n2 = interface:r1.n2, interface:r2.n2, ;
 # Block path r1-r2 via n3
 pathrestriction:block_r1_r2_n3 = interface:r1.n3, interface:r2.n3, ;
 # Block path r2-r3 via n4
@@ -157,8 +157,8 @@ Error: No valid path
  for rule permit src=network:n1; dst=network:n6; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
-  - pathrestriction:block_r1_r2_n2 (blocked 1 path attempt)
   - pathrestriction:block_r1_r2_n3 (blocked 1 path attempt)
+  - pathrestriction:z_block_r1_r2_n2 (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -296,14 +296,14 @@ router:r5 = {
 network:n99 = { ip = 10.99.1.0/24; }
 
 # Block ONE path at r1-r2 (so paths via n3 and n4 can proceed)
-pathrestriction:block_r1_r2 = interface:r1.n2, interface:r2.n2, ;
+pathrestriction:z_block_r1_r2 = interface:r1.n2, interface:r2.n2, ;
 
 # Block TWO paths at r2-r3 (so path via n7 can proceed)
 pathrestriction:block_r2_r3_a = interface:r2.n5, interface:r3.n5, ;
 pathrestriction:block_r2_r3_b = interface:r2.n6, interface:r3.n6, ;
 
 # Block ONE path at r3-r4 (so path via n9 can proceed)
-pathrestriction:block_r3_r4 = interface:r3.n8, interface:r4.n8, ;
+pathrestriction:a_block_r3_r4 = interface:r3.n8, interface:r4.n8, ;
 
 # Block ALL paths at r4-r5
 pathrestriction:block_r4_r5_a = interface:r4.n10, interface:r5.n10, ;
@@ -321,10 +321,10 @@ Error: No valid path
  for rule permit src=network:n1; dst=network:n99; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
-  - pathrestriction:block_r1_r2 (blocked 1 path attempt)
+  - pathrestriction:z_block_r1_r2 (blocked 1 path attempt)
+  - pathrestriction:a_block_r3_r4 (blocked 2 path attempts)
   - pathrestriction:block_r2_r3_a (blocked 2 path attempts)
   - pathrestriction:block_r2_r3_b (blocked 2 path attempts)
-  - pathrestriction:block_r3_r4 (blocked 2 path attempts)
   - pathrestriction:block_r4_r5_a (blocked 2 path attempts)
   - pathrestriction:block_r4_r5_b (blocked 2 path attempts)
 =END=
