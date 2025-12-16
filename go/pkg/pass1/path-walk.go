@@ -130,23 +130,21 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 			// Since pathfinding is bidirectional, we encounter each restriction from both sides.
 			// To avoid double-counting, only count when inIntf is in the restriction.
 			// We check if inIntf is one of the restriction's elements to ensure we're at the right location.
-			if blockingCount != nil {
-				for _, intf := range restrict.elements {
-					if intf == inIntf {
-						// Count only from one side: count from the lexicographically larger router
-						// (this is the "second encounter" side where activePath=true)
-						shouldCount := true
-						for _, other := range restrict.elements {
-							if other != inIntf && other.router.name > inIntf.router.name {
-								shouldCount = false
-								break
-							}
+			for _, intf := range restrict.elements {
+				if intf == inIntf {
+					// Count only from one side: count from the lexicographically larger router
+					// (this is the "second encounter" side where activePath=true)
+					shouldCount := true
+					for _, other := range restrict.elements {
+						if other != inIntf && other.router.name > inIntf.router.name {
+							shouldCount = false
+							break
 						}
-						if shouldCount {
-							blockingCount[restrict]++
-						}
-						break
 					}
+					if shouldCount {
+						blockingCount[restrict]++
+					}
+					break
 				}
 			}
 			return false
@@ -506,7 +504,7 @@ func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 //   - endStore: end node or interface
 //   - startIntf: set if path starts at pathrestricted interface
 //   - endIntf: set if path ends at pathrestricted interface
-//   - blocking: closure to record blocking pathrestrictions.
+//   - blockingCount: map to record blocking pathrestrictions and their counts.
 //
 // Returns: True if path was found, false otherwise.
 // Results: Sets attributes for found path:
@@ -602,7 +600,7 @@ func intfClusterPathMark(
 //     is a pathrestricted interface of loop.
 //   - endStore: destination loop node or interface, if destination
 //     is a pathrestricted interface of loop.
-//   - blocking: closure to record blocking pathrestrictions.
+//   - blockingCount: map to record blocking pathrestrictions and their counts.
 //
 // Returns: True if a valid path was found, false otherwise.
 // Results:
