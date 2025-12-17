@@ -672,6 +672,8 @@ Error: No valid path
  to any:[network:n2]
  for rule permit src=network:n1; dst=network:n2; prt=tcp 1100; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 =END=
 
 ############################################################

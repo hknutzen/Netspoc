@@ -105,6 +105,9 @@ Error: No valid path
  to any:[network:rgt]
  for rule permit src=network:lft; dst=network:rgt; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:dst (blocked 1 path attempt)
+  - pathrestriction:top (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -1137,6 +1140,8 @@ Error: No valid path
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p (blocked 1 path attempt)
 =END=
 
 ############################################################
@@ -1190,16 +1195,22 @@ Error: No valid path
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 Error: No valid path
  from any:[network:n1]
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 Error: No valid path
  from any:[network:n1]
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 90; of service:s2
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 =WITH_OUTDIR=true
 
 ############################################################
@@ -1342,21 +1353,29 @@ Error: No valid path
  to any:[network:n3]
  for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 Error: No valid path
  from any:[network:n2]
  to any:[network:n3]
  for rule permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 Error: No valid path
  from any:[network:n1]
  to any:[network:n3]
  for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 Error: No valid path
  from any:[network:n2]
  to any:[network:n3]
  for rule permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:p1 (blocked 2 path attempts)
 =WITH_OUTDIR=true
 
 ############################################################
