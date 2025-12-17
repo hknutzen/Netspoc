@@ -3593,6 +3593,7 @@ crypto:psk-detailed = {
 }
 ipsec:aes256_sha256_ikev2_psk = {
  key_exchange = isakmp:aes256_sha256_ikev2_psk;
+# not given: esp_encryption = aes256; becomes "null"
  esp_authentication = sha256;
  pfs_group = 19;
  lifetime = 3600 sec;
