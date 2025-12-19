@@ -103,6 +103,20 @@ func calcNext(from pathObj) func(intf *routerIntf) pathObj {
 	}
 }
 
+// getPathObj extracts the pathObj from a pathStore.
+func getPathObj(store pathStore) pathObj {
+	switch x := store.(type) {
+	case *routerIntf:
+		return x.router
+	case *router:
+		return x
+	case *zone:
+		return x
+	default:
+		return nil
+	}
+}
+
 // clusterPathMark1 recursively finds
 // path through a loop or loop cluster
 // for a	given pair (start, end) of loop nodes and collects path information.
@@ -896,23 +910,8 @@ func removePath(fromStore, toStore pathStore) {
 func pathMark(fromStore, toStore pathStore) (bool, map[*pathRestriction]int) {
 
 	// debug("pathMark %s --> %s", fromStore, toStore)
-	var from, to pathObj
-	switch x := fromStore.(type) {
-	case *routerIntf:
-		from = x.router
-	case *router:
-		from = x
-	case *zone:
-		from = x
-	}
-	switch x := toStore.(type) {
-	case *routerIntf:
-		to = x.router
-	case *router:
-		to = x
-	case *zone:
-		to = x
-	}
+	from := getPathObj(fromStore)
+	to := getPathObj(toStore)
 
 	// Count how many path attempts each pathrestriction blocks
 	blockingCount := make(map[*pathRestriction]int)
