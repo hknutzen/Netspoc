@@ -105,16 +105,16 @@ func calcNext(from pathObj) func(intf *routerIntf) pathObj {
 
 // getPathObj extracts the pathObj from a pathStore.
 func getPathObj(store pathStore) pathObj {
+	var result pathObj
 	switch x := store.(type) {
 	case *routerIntf:
-		return x.router
+		result = x.router
 	case *router:
-		return x
+		result = x
 	case *zone:
-		return x
-	default:
-		return nil
+		result = x
 	}
+	return result
 }
 
 // clusterPathMark1 recursively finds
