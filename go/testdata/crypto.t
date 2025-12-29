@@ -1667,7 +1667,7 @@ network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- merge_tunnelspecified = 10.0.0.0/16;
+ merge_tunnelspecified = 10.0.0.0/16, 10.9.4.0/22;
  vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1767,8 +1767,8 @@ username u2@domain.x attributes
  vpn-group-policy VPN-group-u2@domain.x
 --
 ! split-tunnel-2
-access-list split-tunnel-2 standard permit 10.9.4.0 255.255.255.0
 access-list split-tunnel-2 standard permit 10.0.0.0 255.255.0.0
+access-list split-tunnel-2 standard permit 10.9.4.0 255.255.252.0
 --
 ! vpn-filter-u3@domain.x
 access-list vpn-filter-u3@domain.x extended permit ip host 10.99.1.12 any4
@@ -1785,13 +1785,16 @@ username u3@domain.x attributes
  vpn-filter value vpn-filter-u3@domain.x
  vpn-group-policy VPN-group-u3@domain.x
 --
+! split-tunnel-3
+access-list split-tunnel-3 standard deny any4
+--
 ! vpn-filter-u4@domain.x
 access-list vpn-filter-u4@domain.x extended permit ip host 10.99.1.254 any4
 access-list vpn-filter-u4@domain.x extended deny ip any4 any4
 group-policy VPN-group-u4@domain.x internal
 group-policy VPN-group-u4@domain.x attributes
  banner value Willkommen
- split-tunnel-network-list value split-tunnel-1
+ split-tunnel-network-list value split-tunnel-3
  split-tunnel-policy tunnelspecified
 username u4@domain.x nopassword
 username u4@domain.x attributes

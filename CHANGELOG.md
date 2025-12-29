@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Only matching networks of attribute 'merge_tunnelspecified'
+  are added to split-tunnel ACL.
+
 ## [2025-11-11-1158]
 
 ### Changed

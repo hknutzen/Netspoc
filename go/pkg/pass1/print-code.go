@@ -414,23 +414,27 @@ func getMergeTunnelAggregates(r *router) netList {
 	return l
 }
 
-// Remove networks that are subnet of aggregates in 'merge'.
-// Add aggregates to result.
+// Remove networks that are subnet of some aggregate in 'merge'.
+// Add matching aggregates to result.
 func mergeSplitTunnelNets(l, merge netList, m natMap) netList {
+	var add netList
 	j := 0
 NET:
 	for _, n := range l {
 		ipp := n.address(m)
 		for _, agg := range merge {
 			ipp2 := agg.ipp
-			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.Addr()) {
+			if ipp.Bits() > ipp2.Bits() && ipp2.Contains(ipp.Addr()) {
+				if !slices.Contains(add, agg) {
+					add.push(agg)
+				}
 				continue NET
 			}
 		}
 		l[j] = n
 		j++
 	}
-	return append(l[:j], merge...)
+	return append(l[:j], add...)
 }
 
 func printAsaTrustpoint(fh *os.File, r *router, trustpoint string) {
