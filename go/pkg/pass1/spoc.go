@@ -32,12 +32,12 @@ type spoc struct {
 	symTable              *symbolTable
 	userObj               userInfo
 	allNetworks           netList
-	allRouters            []*router
-	managedRouters        []*router
+	allRouters            stringerList[router]
+	managedRouters        stringerList[router]
 	allPathRules          pathRules
 	allZones              []*zone
 	ascendingServices     []*service
-	ascendingAreas        []*area
+	ascendingAreas        stringerList[area]
 	pathrestrictions      []*pathRestriction
 	prt                   *stdProto
 	network00             *network

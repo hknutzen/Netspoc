@@ -1477,14 +1477,14 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	cryptoType := r.model.crypto
 
 	// List of ipsec definitions used at current router.
-	var ipsecList []*ipsec
+	var ipsecList stringerList[ipsec]
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range r.interfaces {
 		if intf.ipType == tunnelIP {
 			s := intf.getCrypto().ipsec
 			if !seenIpsec[s] {
 				seenIpsec[s] = true
-				ipsecList = append(ipsecList, s)
+				ipsecList.push(s)
 			}
 		}
 	}
@@ -1495,12 +1495,9 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	}
 
 	// Sort entries by name to get deterministic output.
-	slices.SortFunc(ipsecList, func(a, b *ipsec) int {
-		return strings.Compare(a.name, b.name)
-	})
+	ipsecList = ipsecList.sortByName()
 
 	// List of isakmp definitions used at current router.
-	// Sort entries by name to get deterministic output.
 	var isakmpList []*isakmp
 	seenIsakmp := make(map[*isakmp]bool)
 	for _, i := range ipsecList {

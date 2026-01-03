@@ -319,7 +319,7 @@ attribute needProtect.
 Parameter : Map with crosslinked routers having attribute needProtect set.
 */
 func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
-	var cluster []*router
+	var cluster stringerList[router]
 	seen := make(map[*router]bool)
 
 	// Add routers to cluster via depth first search.
@@ -352,10 +352,7 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		// Fill router cluster
 		cluster = nil
 		walk(r)
-
-		slices.SortFunc(cluster, func(a, b *router) int {
-			return strings.Compare(a.name, b.name)
-		})
+		cluster.sortByName()
 
 		// Collect all interfaces belonging to needProtect routers of cluster...
 		var crosslinkIntfs intfList
@@ -387,9 +384,7 @@ type bLookup map[*routerIntf]borderType
 // setAreas sets up areas, assure proper border definitions.
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
-	slices.SortFunc(c.ascendingAreas, func(a, b *area) int {
-		return cmp.Compare(a.name, b.name)
-	})
+	c.ascendingAreas.sortByName()
 	for _, a := range c.ascendingAreas {
 		if n := a.anchor; n != nil {
 			c.setArea(n.zone, a, nil, nil, objInArea)
