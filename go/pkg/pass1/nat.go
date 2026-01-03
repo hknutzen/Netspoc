@@ -555,15 +555,9 @@ func (c *spoc) errMissinNatOutside(
 			}
 		}
 	}
-	sortByName := func(l intfList) intfList {
-		slices.SortFunc(l, func(a, b *routerIntf) int {
-			return strings.Compare(a.name, b.name)
-		})
-		return l
-	}
-	natIntf = slices.Compact(sortByName(natIntf))
+	natIntf = slices.Compact(natIntf.sortByName())
 	natInfos := make(stringList, len(natIntf))
-	missingIntf = slices.Compact(sortByName(missingIntf))
+	missingIntf = slices.Compact(missingIntf.sortByName())
 	for i, intf := range natIntf {
 		natInfos[i] = intf.name
 		if isNatIncoming(tag, intf) {

@@ -1,21 +1,12 @@
 package pass1
 
-import (
-	"slices"
-	"strings"
-)
-
 func (c *spoc) collectRoutersAndNetworks() {
-	rl := c.allRouters
-	slices.SortFunc(rl, func(a, b *router) int {
-		return strings.Compare(a.name, b.name)
-	})
-	for _, r := range rl {
+	c.allRouters.sortByName()
+	for _, r := range c.allRouters {
 		if r.managed != "" || r.routingOnly {
-			c.managedRouters = append(c.managedRouters, r)
+			c.managedRouters.push(r)
 		}
 	}
-	c.allRouters = rl
 
 	// Collect vrf instances belonging to one device.
 	// Also collect all IPv4 and IPv6 routers with same name.

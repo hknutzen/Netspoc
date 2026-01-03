@@ -351,7 +351,7 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 		r.ipV6 = false
 		stripFilterOnly(r, r6.interfaces)
 		c.setupRouter2(r)
-		c.allRouters = append(c.allRouters, r)
+		c.allRouters.push(r)
 	}
 	if r6.interfaces != nil {
 		if r.interfaces == nil {
@@ -361,7 +361,7 @@ func (c *spoc) setupRouter46(a *ast.Router) {
 		r6.ipV6 = true
 		stripFilterOnly(r6, r.interfaces)
 		c.setupRouter2(r6)
-		c.allRouters = append(c.allRouters, r6)
+		c.allRouters.push(r6)
 	}
 }
 
@@ -1331,7 +1331,7 @@ func (c *spoc) setupArea(v *ast.Area) {
 		}
 		l := groupObjList{n}
 		if n2 := n.combined46; n2 != nil {
-			l = append(l, n2)
+			l.push(n2)
 		}
 		if len(l) >= 1 {
 			n := l[0].(*network)
@@ -1364,7 +1364,7 @@ func (c *spoc) setupArea(v *ast.Area) {
 			}
 		}
 	}
-	c.ascendingAreas = append(c.ascendingAreas, ar)
+	c.ascendingAreas.push(ar)
 	if p := ar.routerAttributes.policyDistributionPoint; p != nil {
 		if p.ipV6 != ar.ipV6 {
 			if ar2 == nil {
@@ -1386,7 +1386,7 @@ func (c *spoc) setupArea(v *ast.Area) {
 		// Attribute 'nat' is only applied to IPv4 part in
 		// combined v4/v6 area.
 		ar2.nat = nil
-		c.ascendingAreas = append(c.ascendingAreas, ar2)
+		c.ascendingAreas.push(ar2)
 	}
 }
 
@@ -3219,7 +3219,7 @@ func (c *spoc) tryNetworkRefList(a *ast.Attribute, ctx string) netList {
 		if len(name) == len(v) {
 			c.err("Expected type 'network:' in %s", ctx2)
 		} else if n, found := c.symTable.network[name]; found {
-			result = append(result, n)
+			result.push(n)
 		} else {
 			c.warn("Ignoring undefined network:%s in %s", name, ctx2)
 		}
@@ -3946,7 +3946,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	cp.origRouter = orig
 	cp.interfaces = intfList{intf}
 	intf.router = &cp
-	c.allRouters = append(c.allRouters, &cp)
+	c.allRouters.push(&cp)
 
 	// Don't check fragment for reachability.
 	cp.policyDistributionPoint = nil

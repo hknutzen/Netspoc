@@ -1,7 +1,5 @@
 package pass1
 
-import ()
-
 func (c *spoc) checkUnstableNatRules() {
 	c.progress("Checking rules for unstable subnet relation")
 	process := func(l ruleList) {
@@ -11,7 +9,7 @@ func (c *spoc) checkUnstableNatRules() {
 				for _, obj := range l {
 					if n, ok := obj.(*network); ok {
 						if n.unstableNat != nil {
-							result = append(result, n)
+							result.push(n)
 						}
 					}
 				}

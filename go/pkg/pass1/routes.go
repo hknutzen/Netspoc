@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"slices"
-	"strings"
 )
 
 /*
@@ -872,20 +871,8 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 				net2intf[n] = intf
 			}
 
-			// Sort for finding duplicates and for deterministic error messages.
-			slices.SortFunc(hopList, func(a, b *routerIntf) int {
-				return strings.Compare(a.name, b.name)
-			})
-			j := 0
-			var prev *routerIntf
-			for _, hop := range hopList {
-				if hop != prev {
-					hopList[j] = hop
-					j++
-					prev = hop
-				}
-			}
-			hopList = hopList[:j]
+			// Sort for deterministic error messages.
+			hopList = slices.Compact(hopList.sortByName())
 
 			// Simple case: one hop
 			if len(hopList) == 1 {

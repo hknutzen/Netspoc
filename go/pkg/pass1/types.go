@@ -3,6 +3,8 @@ package pass1
 import (
 	"fmt"
 	"net/netip"
+	"slices"
+	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 
@@ -13,6 +15,13 @@ type stringerList[E fmt.Stringer] []*E
 
 func (a *stringerList[E]) push(e *E) {
 	*a = append(*a, e)
+}
+
+func (l stringerList[E]) sortByName() stringerList[E] {
+	slices.SortFunc(l, func(a, b *E) int {
+		return strings.Compare((*a).String(), (*b).String())
+	})
+	return l
 }
 
 type intfList = stringerList[routerIntf]
@@ -491,6 +500,9 @@ type ipsec struct {
 	espEncryption     string
 	pfsGroup          string
 }
+
+func (x ipsec) String() string { return x.name }
+
 type isakmp struct {
 	name           string
 	authentication string
