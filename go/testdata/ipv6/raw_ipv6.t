@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=Copy raw, check unused raw
+=TITLE=Copy raw, check unused raw, ignore hidden file
 =INPUT=
 -- topology
 network:n1 = { ip6 = ::a01:100/120; }
@@ -25,6 +25,8 @@ router:r2 = {
 !!!
 -- raw/r0
 access-list n2_in extended permit udp any6 any6 eq 123
+-- raw/.hidden
+abc
 -- raw/r1
 ! manual route
 ipv6 route ::a01:200/120 ::a01:101
@@ -36,16 +38,6 @@ Warning: Found unused file raw/r0
 ! manual route
 ipv6 route ::a01:200/120 ::a01:101
 =END=
-
-############################################################
-=TITLE=Ignore hidden file
-=INPUT=
--- topology
-network:n1 = { ip6 = ::a01:100/120; }
--- raw/.hidden
-abc
-=WITH_OUTDIR=
-=WARNING=NONE
 
 ############################################################
 =TITLE=Ignore file with name "raw"
