@@ -13,7 +13,7 @@ print-path [options] FILE|DIR SOURCE DESTINATION
 This program reads a Netspoc configuration and finds the path between
 two network objects (SOURCE and DESTINATION). It analyzes the routing
 and outputs all network elements (networks and routers) that are part
-of the path as a JSON array.
+of the path as a JSON array to **standard output (STDOUT)**.
 
 The program determines which networks and routers would be traversed
 when packets flow from the source to the destination, taking into account
@@ -61,6 +61,8 @@ Example output:
 `["network:n1", "network:n2", "router:r1"]`
 
 # COPYRIGHT AND DISCLAIMER
+
+(c) 2025 by Dominik Kunkel, netspoc@drachionix.eu
 
 (c) 2025 by Heinz Knutzen, heinz.knutzen@googlemail.com
 

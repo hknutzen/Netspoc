@@ -13,13 +13,14 @@ transpose-service [options] FILE|DIR [service:]NAME ...
 This program reads a Netspoc configuration and one or more SERVICE name(s).
 It transposes the specified services in each file by switching the `user`
 keyword between `src` and `dst` attributes in service rules. The
-functionality of the service is not changed - only the direction
+functionality of the service is not changed - the traffic flow remains
+the same, only the perspective (which side is considered the `user`) 
 is reversed.
 
 For example, if a service has `user = src` and allows traffic from
 network A to network B, after transposition it will have `user = dst`
-and allow the same traffic, but now specified as traffic to network A
-from network B.
+and still allow the same traffic from network A to network B, but now
+the destination (network B) is considered the `user` instead of the source.
 
 Changes are done in place, no backup files are created. But only
 changed files are touched.

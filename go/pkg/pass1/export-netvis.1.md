@@ -11,8 +11,9 @@ export-netvis [options] FILE|DIR
 # DESCRIPTION
 
 This program reads a Netspoc configuration and exports the network topology
-as JSON data. The output includes information about networks, routers, and their
-interconnections, which can be used for visualization purposes.
+as JSON data to **standard output (STDOUT)**. The output includes information 
+about networks, routers, and their interconnections, which can be used for 
+visualization purposes.
 
 The JSON output contains:
 
@@ -63,6 +64,8 @@ Export topology quietly without progress messages:
 `export-netvis -q netspoc/`
 
 # COPYRIGHT AND DISCLAIMER
+
+(c) 2025 by Dominik Kunkel, netspoc@drachionix.eu
 
 (c) 2025 by Heinz Knutzen, heinz.knutzen@googlemail.com
 
