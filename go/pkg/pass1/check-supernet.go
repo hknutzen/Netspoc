@@ -116,7 +116,7 @@ func findZoneNetworks(
 				}
 			}
 			if len(l) == 0 {
-				// Ignore aggregate if all its networks are added.
+				// Ignore aggregate if all its networks are member.
 				return nil, nil
 			} else {
 				return agg, l
@@ -129,8 +129,8 @@ func findZoneNetworks(
 	// Use cached result.
 	l, found := z.ipPrefix2net[ipp]
 
-	// Check real networks in zone without aggregates and without subnets.
 	if !found {
+		// Check real networks in zone without aggregates and without subnets.
 		bits := ipp.Bits()
 		for _, net := range z.networks {
 			if inNetMap(net) {
@@ -144,6 +144,16 @@ func findZoneNetworks(
 				isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
 
 				l.push(net)
+			}
+		}
+		// Check aggregates in zone.
+		for _, agg := range z.ipPrefix2aggregate {
+			// Igore aggregate with networks, because these networks
+			// have already been checked above.
+			if !agg.invisible && len(agg.networks) == 0 && !inNetMap(agg) {
+				if agg.ipp.Bits() >= bits && ipp.Contains(agg.ipp.Addr()) {
+					l.push(agg)
+				}
 			}
 		}
 		if z.ipPrefix2net == nil {

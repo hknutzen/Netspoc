@@ -272,6 +272,47 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Check sub aggregate with and without enclosed networks
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:u = {
+ interface:n3;
+ interface:n2-sub-a;
+ interface:n2-sub-b;
+}
+# Is shown in warning, because it has no enclosed networks.
+any:sub-27-1 = { ip = 10.1.2.128/25; link = network:n3; }
+# Is not shown in warning, because it is assumed to aggregate
+# its enclosed networks.
+any:sub-27-2 = { ip = 10.1.2.0/25; link = network:n3; }
+network:n2-sub-a = { ip = 10.1.2.32/27; subnet_of = network:n2; }
+network:n2-sub-b = { ip = 10.1.2.64/27; subnet_of = network:n2; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2, network:n2-sub-a; prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2-sub-b
+ - any:sub-27-1
+ Either replace network:n2 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
 =TITLE=Two warnings for split protocol with and without modifiers
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
