@@ -380,7 +380,7 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Ignore non matching local aggregate
+=TITLE=Unnamed aggregate with IP not matching filter_only
 =INPUT=
 [[topo]]
 service:Test = {
@@ -389,15 +389,70 @@ service:Test = {
         dst = network:n2;
         prt = tcp 80;
 }
+=ERROR=
+Error: any:[ip6=::a63:0/112 & network:n1] doesn't match attribute 'filter_only' of router:d32
+=END=
+
+############################################################
+=TITLE=Named aggregate at unnumbered network not matching filter_only
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+router:r1 = {
+ model = IOS;
+ managed = local;
+ filter_only = ::a01:0/112;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered6; hardware = un; }
+}
+network:un = { unnumbered6; }
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:un = { unnumbered6; hardware = un; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+}
+network:n2 = { ip6 = ::a02:200/120; }
+
+any:un = { link = network:un; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:un; prt = tcp 80;
+}
 =OUTPUT=
---ipv6/d32
-! n1_in
-object-group network v6g0
- network-object ::a3e:0/117
- network-object ::a3e:f100/120
-access-list n1_in extended deny ip any6 object-group v6g0
-access-list n1_in extended permit ip any6 any6
-access-group n1_in in interface n1
+--ipv6/r1
+ipv6 access-list n1_in
+ deny ipv6 any host ::a01:101
+ permit tcp ::a01:100/120 any eq 80
+ deny ipv6 any ::a01:0/112
+ permit ipv6 any any
+=END=
+
+############################################################
+=TITLE=Unnamed aggregate at unnumbered network not matching filter_only
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+router:r1 = {
+ model = IOS;
+ managed = local;
+ filter_only = ::a01:0/112;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered6; hardware = un; }
+}
+network:un = { unnumbered6; }
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:un = { unnumbered6; hardware = un; }
+ interface:n2 = { ip6 = ::a02:201; hardware = n2; }
+}
+network:n2 = { ip6 = ::a02:200/120; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:un]; prt = tcp 80;
+}
+=ERROR=
+Error: any:[network:un] doesn't match attribute 'filter_only' of router:r1
 =END=
 
 ############################################################

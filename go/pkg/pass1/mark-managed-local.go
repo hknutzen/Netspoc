@@ -3,6 +3,7 @@ package pass1
 import (
 	"net/netip"
 	"slices"
+	"strings"
 )
 
 type clusterInfo struct {
@@ -11,8 +12,9 @@ type clusterInfo struct {
 	mark       int
 }
 type managedLocalCluster struct {
-	mark  int
-	zones []*zone
+	mark   int
+	zones  []*zone
+	router *router
 }
 
 // Find clusters of zones connected by 'local' and semi-managed routers.
@@ -103,8 +105,9 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 
 		walk(r0)
 		cl := &managedLocalCluster{
-			mark:  mark,
-			zones: localZones,
+			mark:   mark,
+			zones:  localZones,
+			router: r0,
 		}
 		for _, z := range localZones {
 			z.managedLocalCluster = cl
@@ -129,6 +132,14 @@ func (c *spoc) markManagedLocal() {
 	c.network00.filterAt = make(map[int]bool)
 	c.network00v6.filterAt = make(map[int]bool)
 
+	getMap := func(n *network) map[int]bool {
+		m := n.filterAt
+		if m == nil {
+			m = make(map[int]bool)
+			n.filterAt = m
+		}
+		return m
+	}
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
 		for _, z := range c.allZones {
@@ -137,41 +148,55 @@ func (c *spoc) markManagedLocal() {
 				bits := ipp.Bits()
 				for _, net := range cluster.filterOnly {
 					if bits >= net.Bits() && net.Contains(ip) {
-
 						// Mark network and enclosing aggregates.
-						obj := n
-						for obj != nil {
-							m := obj.filterAt
-							if m == nil {
-								m = make(map[int]bool)
-								obj.filterAt = m
-							} else if m[mark] {
+						for obj := n; obj != nil; obj = obj.up {
+							m := getMap(obj)
+							if m[mark] {
 								// Has already been processed as supernet of
 								// other network.
 								break
 							}
 							m[mark] = true
-							obj = obj.up
 						}
 					}
 				}
 			}
 			processWithSubnetworks(z.networks, func(n *network) {
-				natNetwork := getNatNetwork(n, cluster.natMap)
-				if natNetwork.hidden {
-					return
+				if nn := getNatNetwork(n, cluster.natMap); !nn.hidden {
+					setMark(nn.ipp, n)
 				}
-				setMark(natNetwork.ipp, n)
 			})
 			for _, agg := range z.ipPrefix2aggregate {
 				setMark(agg.ipp, agg)
 			}
 		}
-
 		// Rules from general_permit should be applied to all devices
 		// with 'managed=local'.
 		c.network00.filterAt[mark] = true
 		c.network00v6.filterAt[mark] = true
+	}
+
+	// Networks matching filter_only have been marked in prevous step.
+	// Aggregates that are suppernet of those networks have also been marked.
+	// Now check other aggregates that have not been marked.
+	for _, z := range c.allZones {
+		if cl := z.managedLocalCluster; cl != nil {
+			for _, agg := range z.ipPrefix2aggregate {
+				if agg.filterAt[cl.mark] {
+					continue
+				}
+				// Silently add non matching named aggregate to filter.
+				// We can't reject those aggregates, because they may be
+				// needed for e.g. attribute "no_check_supernet_rules".
+				if agg.ipp.Bits() == 0 && !strings.HasPrefix(agg.name, "any:[") {
+					m := getMap(agg)
+					m[cl.mark] = true
+				} else if !agg.invisible {
+					c.err("%s doesn't match attribute 'filter_only' of %s",
+						agg.vxName(), cl.router.vxName())
+				}
+			}
+		}
 	}
 }
 
