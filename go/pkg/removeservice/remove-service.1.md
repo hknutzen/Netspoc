@@ -52,6 +52,8 @@ Remove service quietly without showing changed files:
 
 # COPYRIGHT AND DISCLAIMER
 
+(c) 2025 by Dominik Kunkel, netspoc@drachionix.eu
+
 (c) 2025 by Heinz Knutzen, heinz.knutzen@googlemail.com
 
 http://hknutzen.github.com/Netspoc
