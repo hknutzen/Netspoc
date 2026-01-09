@@ -116,6 +116,7 @@ func findZoneNetworks(
 				}
 			}
 			if len(l) == 0 {
+				// Ignore aggregate if all its networks are added.
 				return nil, nil
 			} else {
 				return agg, l
