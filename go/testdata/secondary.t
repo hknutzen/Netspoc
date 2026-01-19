@@ -473,6 +473,89 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=No optimization with same size aggregate in other zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:any = {
+ user = any:[ip = 10.1.1.0/24 & network:n3];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s1 = {
+ user = host:h10, host:h12;
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+=OUTPUT=
+--r2
+! n2_in
+object-group network g0
+ network-object host 10.1.1.10
+ network-object host 10.1.1.12
+access-list n2_in extended permit ip object-group g0 10.1.4.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Optimize with same size invisible aggregate in other zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:any = {
+ user = network:[any:[ip = 10.1.1.0/24 & network:n3]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s1 = {
+ user = host:h10, host:h12;
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+=OUTPUT=
+--r2
+! n2_in
+access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Optimize even if src range is different
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
