@@ -473,6 +473,89 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=No optimization with same size aggregate in other zone
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h12 = { ip6 = ::a01:10c; }
+}
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
+}
+
+service:any = {
+ user = any:[ip6 = ::a01:100/120 & network:n3];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s1 = {
+ user = host:h10, host:h12;
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+=OUTPUT=
+--ipv6/r2
+! n2_in
+object-group network v6g0
+ network-object host ::a01:10a
+ network-object host ::a01:10c
+access-list n2_in extended permit ip object-group v6g0 ::a01:400/120
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Optimize with same size invisible aggregate in other zone
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120;
+ host:h10 = { ip6 = ::a01:10a; }
+ host:h12 = { ip6 = ::a01:10c; }
+}
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
+}
+
+service:any = {
+ user = network:[any:[ip6 = ::a01:100/120 & network:n3]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s1 = {
+ user = host:h10, host:h12;
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+=OUTPUT=
+--ipv6/r2
+! n2_in
+access-list n2_in extended permit ip ::a01:100/120 ::a01:400/120
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Optimize even if src range is different
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; }

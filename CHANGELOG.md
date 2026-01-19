@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Secondary optimization is enabled for network having invisible aggregate
+  as supernet.
 - Only matching networks of attribute 'merge_tunnelspecified'
   are added to split-tunnel ACL.
 
