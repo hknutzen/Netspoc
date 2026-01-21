@@ -6,12 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- A better error message is shown if restrictions block all paths
+  between source and destination.
+  Restrictions blocking fewer paths are shown first, as they typically
+  represent earlier bottlenecks in the topology.
+
 ### Fixed
 
 - Secondary optimization is enabled for network having invisible aggregate
   as supernet.
 - Only matching networks of attribute 'merge_tunnelspecified'
   are added to split-tunnel ACL.
+- Also check aggregates that are subnet of networks for unexpected access
+  from supernet rules.
+
+### Added
+
+- More manual pages:
+  - export-netvis
+  - print-path
+  - remove-service
+  - transpose-service
 
 ## [2025-11-11-1158]
 
