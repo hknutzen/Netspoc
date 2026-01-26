@@ -226,16 +226,44 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 		// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
 		if z0 := z.cluster[0]; z0.combined46 != nil {
 			z = z0
+			if z.ipV6 {
+				z = z.combined46
+			}
 		}
 		ipp = c.getNetwork00(z.ipV6).ipp
 		result := c.getAny1(z, ipp, visible, ctx)
-		// Add non matching aggregate to combined zone.
+		// Add non matching aggregate to dual stack zone.
 		if z2 := z.combined46; z2 != nil {
-			ipp = c.getNetwork00(z2.ipV6).ipp
-			if z2.ipPrefix2aggregate[ipp] == nil {
+			ipp2 := c.getNetwork00(z2.ipV6).ipp
+			// Process only once if called from different part of zone cluster
+			// or from other side of dual stack zone.
+			firstRun := z2.ipPrefix2aggregate[ipp2] == nil
+			result = append(result, c.getAny1(z2, ipp2, visible, ctx)...)
+			if firstRun {
 				c.checkDualStackZone(z2)
+				a4 := z.ipPrefix2aggregate[ipp]
+				a6 := z2.ipPrefix2aggregate[ipp2]
+				if a4.name != a6.name {
+					if strings.HasPrefix(a4.name, "network:") {
+						c.err("Must not use IPv4 only %s together with dual stack %s",
+							a4, z)
+					}
+					if strings.HasPrefix(a6.name, "network:") {
+						c.err("Must not use IPv6 only %s together with dual stack %s",
+							a6, z)
+					}
+				}
+				for _, z4 := range z.cluster {
+					if z6 := z4.combined46; z6 != nil {
+						n4 := z4.ipPrefix2aggregate[ipp]
+						n6 := z6.ipPrefix2aggregate[ipp2]
+						if n4.name == n6.name {
+							n4.combined46 = n6
+							n6.combined46 = n4
+						}
+					}
+				}
 			}
-			result = append(result, c.getAny1(z2, ipp, visible, ctx)...)
 		}
 		return result
 	} else {
@@ -276,7 +304,7 @@ func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
 
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
-			if z.combined46 != nil || ipp.Bits() != 0 {
+			if ipp.Bits() != 0 {
 				attr := v6Attr("ip", z.ipV6)
 				name =
 					name[:len("any:[")] + attr + "=" + ipp.String() + " & " +

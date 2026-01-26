@@ -149,32 +149,7 @@ router:Internet = {
 }
 =OUTPUT=
 0.0.0.0/0	network:Internet
-10.1.1.0/24	network:n1
 ::/0	network:Internet
-2001:db8:1:1::/64	network:n1
-=PARAM=network:[area:Internet]
-
-############################################################
-=TITLE=Networks and sub networks with separate v4, v6 internet
-=INPUT=
-area:Internet = { anchor = network:n1; }
-network:Internet4 = {
- ip = 0.0.0.0/0;
- has_subnets;
-}
-network:Internet6 = {
- ip6 = ::/0;
- has_subnets;
-}
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-router:Internet = {
- interface:Internet4;
- interface:Internet6;
- interface:n1;
-}
-=OUTPUT=
-0.0.0.0/0	network:Internet4
 10.1.1.0/24	network:n1
-::/0	network:Internet6
 2001:db8:1:1::/64	network:n1
 =PARAM=network:[area:Internet]

@@ -188,27 +188,6 @@ Error: Must not use ipv4_only and ipv6_only together at service:s1
 =END=
 
 ############################################################
-=TITLE=Must not use only v6 part of dual stack network
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-network:n2_4 = { ip = 10.1.2.0/24; }
-network:n2_6 = { ip6 = 2001:db8:1:2::/64; }
-router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2_4 = { ip = 10.1.2.1; hardware = n2; }
- interface:n2_6 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
-service:s1 = {
- user = network:[any:[ip6 = ::/0 & network:n1]];
- permit src = user; dst = network:n2_4, network:n2_6; prt = tcp 80;
-}
-=ERROR=
-Error: Must not use only IPv6 part of dual stack object network:n1 in service:s1
-=END=
-
-############################################################
 =TITLE=Must not use only v4 part of dual stack network with v6 supernet
 =INPUT=
 network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
@@ -231,6 +210,63 @@ service:s1 = {
 }
 =ERROR=
 Error: Must not use only IPv4 part of dual stack object network:n1 in service:s1
+=END=
+
+############################################################
+=TITLE=Must not use only v6 part of dual stack network with v4 supernet
+=INPUT=
+network:sup = { ip = 10.1.0.0/21; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.9.0/24; ip6 = 2001:db8:9:2::/64; }
+router:u = {
+ interface:sup;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.9.1; ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:sup]] &! network:sup;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use only IPv6 part of dual stack object network:n1 in service:s1
+=END=
+
+############################################################
+=TITLE=Aggregate from IPv6 network in dual stack zone cluster
+=INPUT=
+network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:sup = { ip6 = 2001:db8:1::1; hardware = sup; }
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = any:[network:sup];
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.2.0 0.0.0.255 any eq 80
+ deny ip any any
 =END=
 
 ############################################################
@@ -282,35 +318,89 @@ service:s1 = {
 }
 =WARNING=NONE
 
+############################################################
+=TITLE=Ignore ip /0 in named non matching aggregate
+=INPUT=
+any:n1 = { ip = ::/0; link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+=WARNING=
+Warning: Ignoring "ip" with prefix length 0 in any:n1
+=END=
 
 ############################################################
-=TITLE=Must not use only v4 part of dual stack aggregate in zone cluster
+=TITLE=Ignore ip6 /0 in named non matching aggregate
 =INPUT=
-any:n1 = { link = network:n1; }
+any:n1-6 = { ip6 = ::/0; link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+=WARNING=
+Warning: Ignoring "ip6" with prefix length 0 in any:n1-6
+=END=
+
+############################################################
+=TITLE=Ignore /0 address in unnamed non matching aggregate
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
-network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
-router:u = {
- interface:n1;
- interface:n2;
-}
 router:r1 = {
  managed;
- routing = manual;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
 }
-pathrestriction:p1 = interface:u.n1, interface:u.n2, interface:r1.n1;
 service:s1 = {
- user = any:[ip = 0.0.0.0/0 & any:n1] &! network:n2;
- permit src = user; dst = network:n3; prt = tcp 80;
+ user = any:[ip = 0.0.0.0/0 & network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
-=ERROR=
-Warning: Useless delete of IPv4 network:n2 in user of service:s1
-Warning: Useless delete of IPv6 network:n2 in user of service:s1
-Error: Must not use only IPv4 part of dual stack object any:n1 in service:s1
+=WARNING=
+Warning: Ignoring address with prefix length 0 in any:[ip = 0.0.0.0/0 & ..] of user of service:s1
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp any 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ deny ipv6 any host 2001:db8:1:2::1
+ permit tcp any 2001:db8:1:2::/64 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Show warning about ignored /0 address only once
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = foreach interface:r1.[all];
+ permit src = any:[ip=0.0.0.0/0 & user]; dst = user; prt = icmp 8, icmpv6 128;
+}
+=WARNING=
+Warning: Ignoring address with prefix length 0 in any:[ip = 0.0.0.0/0 & ..] of src of rule in service:s1
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ permit icmp any host 10.1.1.1 8
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit icmp any host 10.1.2.1 8
+ deny ip any any
+--ipv6/r1
+ipv6 access-list n1_in
+ permit icmp any host 2001:db8:1:1::1 128
+ deny ipv6 any any
+--
+ipv6 access-list n2_in
+ permit icmp any host 2001:db8:1:2::1 128
+ deny ipv6 any any
 =END=
 
 ############################################################
@@ -392,6 +482,50 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
+=TITLE=Auto interfaces of network with v4/v6, v4 and v6
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:u1 = {
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; }
+}
+router:u2 = {
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:u3 = {
+ interface:n2;
+ interface:n3 = { ip6 = 2001:db8:1:3::3; }
+}
+service:s1 = {
+ user = interface:[network:n3].[auto];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.2 eq 22
+ deny ip any any
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit tcp 2001:db8:1:1::/64 host 2001:db8:1:3::1 eq 22
+ permit tcp 2001:db8:1:1::/64 host 2001:db8:1:3::3 eq 22
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=v4 part and v6 part connected only by v46 unnumbered network
 =INPUT=
 any:un = { link = network:un; }
@@ -462,10 +596,10 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
 }
 =ERROR=
-Error: Only one partition name allowed in IPv6 zone any:[network:n1], but found:
+Error: Only one partition name allowed in IPv6 zone any:[network:n2], but found:
  - p2
  - p1
-Warning: Spare partition name for single IPv6 partition any:[network:n1]: p2.
+Warning: Spare partition name for single IPv6 partition any:[network:n2]: p2.
 =END=
 
 ############################################################
@@ -564,8 +698,8 @@ router:r1 = {
 any:a1 = { link = network:n1; }
 =ERROR=
 Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
-- any:[network:n14]
-- any:[network:n24]
+- any:[network:n1]
+- any:[network:n2]
 =END=
 
 ############################################################
@@ -583,8 +717,8 @@ service:s2 = {
 }
 =ERROR=
 Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
-- any:[network:n14]
-- any:[network:n24]
+- any:[network:n1]
+- any:[network:n2]
 =END=
 
 ############################################################
@@ -1224,7 +1358,7 @@ Error: Must not use both, "ip" and "ip6" in any:a1
 =END=
 
 ############################################################
-=TITLE=Anonymous matching v4 aggregate applied to v6 network
+=TITLE=Unnamed matching v4 aggregate applied to v6 network
 =INPUT=
 network:n1 = { ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip6 = 2001:db8:1:2::/64; }
@@ -1243,7 +1377,7 @@ Error: IPv4/v6 mismatch for network:n1 in any:[ip = 10.1.0.0/16 & ..] of user of
 =END=
 
 ############################################################
-=TITLE=Anonymous matching v6 aggregate applied to v4 area
+=TITLE=Unnanmed matching v6 aggregate applied to v4 area
 =INPUT=
 area:a1 = { anchor = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1621,8 +1755,8 @@ router:u = {
 }
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 =ERROR=
-Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1-v6]
-Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1-v4]
+Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1]
+Error: Duplicate any:n1-v4 and any:n1-v6 in any:[network:n1]
 =END=
 
 ############################################################
@@ -1747,7 +1881,7 @@ access-group n4_in in interface n4
 =END=
 
 ############################################################
-=TITLE=Anonymous non matching aggregate with mixed v4, v4/6, v6 in zone cluster
+=TITLE=Unnamed non matching aggregate with mixed v4, v4/6, v6 in zone cluster
 =INPUT=
 [[INPUT]]
 service:s1 = {
@@ -1770,6 +1904,29 @@ access-group n3_in in interface n3
 access-list n4_in extended permit tcp any6 2001:db8:1:1::/64 eq 80
 access-list n4_in extended deny ip any6 any6
 access-group n4_in in interface n4
+=END=
+
+############################################################
+=TITLE=Unnamed non matching dual stack aggregate to v4 network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit tcp any4 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 =END=
 
 ############################################################
@@ -1839,17 +1996,40 @@ service:s1 = {
  user = any:[network:n1];
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=OUTPUT=
---fw
-! n1_in
-access-list n1_in extended permit tcp any4 10.1.2.0 255.255.255.0 eq 80
-access-list n1_in extended deny ip any4 any4
-access-group n1_in in interface n1
---ipv6/fw
-! n1_in
-access-list n1_in extended permit tcp any6 2001:db8:1:2::/64 eq 80
-access-list n1_in extended deny ip any6 any6
-access-group n1_in in interface n1
+=ERROR=
+Error: Must not use IPv4 only network:Internet4 together with dual stack any:[network:n1]
+Error: Must not use IPv6 only network:Internet6 together with dual stack any:[network:n1]
+=END=
+
+
+############################################################
+=TITLE=v4 internet in dual stack zone cluster with non matching aggregate
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+ nat:inet = { ip = 1.1.1.0/24; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:inet = {
+ interface:n2;
+ interface:Internet = { nat_out = inet; }
+}
+network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+
+service:s1 = {
+ user = any:[network:n2];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use IPv4 only network:Internet together with dual stack any:[network:n2]
 =END=
 
 ############################################################
@@ -2045,3 +2225,37 @@ Warning: Unknown owner for IPv6 host:h2 in service:s1
 Warning: Unknown owner for IPv6 interface:r1.n2 in service:s1
 Warning: Unknown owner for IPv6 network:n2 in service:s1
 =OPTIONS=--check_service_unknown_owner=warn
+
+############################################################
+=TITLE=Dual stack objects in service with foreach
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ ip6 = 2001:db8:1:1::/64;
+ host:h10 = { ip = 10.1.1.10; ip6 = 2001:db8:1:1::10; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+
+service:s1 = {
+ user = foreach network:n1;
+ permit src = user; dst = interface:[user].[all]; prt = tcp 80;
+}
+service:s2 = {
+ user = foreach host:h10;
+ permit src = user; dst = interface:[network:[user]].[all]; prt = tcp 81;
+}
+service:s3 = {
+ user = foreach any:[network:n1];
+ permit src = user; dst = interface:[user].[all]; prt = tcp 82;
+}
+service:s4 = {
+ user = foreach interface:r1.n1;
+ permit src = network:[user]; dst = user; prt = tcp 22;
+}
+=WARNING=NONE

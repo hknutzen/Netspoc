@@ -22,14 +22,14 @@ router:R2 = {
  interface:N2 = {ip6 = ::a05:101;hardware = N2;}
 }
 network:N2 = {ip6 = ::a05:100/126;}
-any:ANY_G27 = {ip6 = ::/0; link = network:T1;}
+any:ANY_G27 = {link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip6 = {{.}} & network:N2];
+	dst = any:ANY_G27, any:[{{.}} network:N2];
 	prt = tcp 80;
 }
-=INPUT=[[input "::/0"]]
+=INPUT=[[input ""]]
 =OUTPUT=
 --ipv6/R1
 ipv6 access-list N1_in
@@ -41,7 +41,7 @@ ipv6 access-list N1_in
 
 ############################################################
 =TITLE=Aggregates in subnet relation
-=INPUT=[[input "::a00:0/104"]]
+=INPUT=[[input "ip6 = ::a00:0/104 &"]]
 # Unchanged ouput
 =OUTPUT=
 --ipv6/R1

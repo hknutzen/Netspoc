@@ -1224,9 +1224,14 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 				c.err("Must not use both, %q and %q in %s", ipAttr, a.Name, name)
 			} else {
 				ipAttr = a.Name
-				ag.ipp = c.getIpPrefix(a, name)
 				ag.ipV6 = a.Name == "ip6"
-				c.checkVxIP(ag.ipp.Addr(), ag.ipV6, a.Name, name)
+				ag.ipp = c.getIpPrefix(a, name)
+				if ag.ipp.Bits() == 0 {
+					c.warn("Ignoring %q with prefix length 0 in %s", a.Name, name)
+					ag.ipp = netip.Prefix{}
+				} else {
+					c.checkVxIP(ag.ipp.Addr(), ag.ipV6, a.Name, name)
+				}
 			}
 		case "link":
 			hasLink = true

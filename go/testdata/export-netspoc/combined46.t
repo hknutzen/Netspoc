@@ -487,8 +487,7 @@ service:s1 = {
    {
     "action": "permit",
     "dst": [
-     "any:[ip6=::/0 & network:n2]",
-     "any:[ip=0.0.0.0/0 & network:n2]"
+     "any:[network:n2]"
     ],
     "has_user": "src",
     "prt": [
@@ -531,8 +530,8 @@ service:s1 = {
  user = any:[network:n1, network:n2];
  permit src = user;
         dst = any:[network:n3],
-              any:[ip=0.0.0.0/0 & network:n4],
-              any:[ip6=::/0 & network:n5],
+              any:[network:n4],
+              any:[network:n5],
               ;
         prt = tcp 80;
 }
@@ -549,10 +548,9 @@ service:s1 = {
    {
     "action": "permit",
     "dst": [
-     "any:[ip6=::/0 & network:n3]",
-     "any:[ip6=::/0 & network:n5]",
-     "any:[ip=0.0.0.0/0 & network:n3]",
-     "any:[ip=0.0.0.0/0 & network:n4]"
+     "any:[network:n3]",
+     "any:[network:n4]",
+     "any:[network:n5]"
     ],
     "has_user": "src",
     "prt": [
@@ -566,8 +564,7 @@ service:s1 = {
 --owner/o/users
 {
  "s1": [
-  "any:[ip6=::/0 & network:n2]",
-  "any:[ip=0.0.0.0/0 & network:n2]",
+  "any:[network:n2]",
   "any:n1"
  ]
 }
@@ -853,20 +850,13 @@ router:u2 = {
 =OUTPUT=
 --zone2areas
 {
- "any:[network:n1_4]": [ "a1-v4", "all-v4", "all-v6" ],
  "any:[network:n2_4]": [ "all-v4" ],
- "any:[network:n2_6]": [ "all-v6" ]
+ "any:[network:n2_6]": [ "all-v6" ],
+ "any:[network:n3_46]": [ "a1-v4", "all-v4", "all-v6" ]
 }
 --owner/o/assets
 {
  "anys": {
-  "any:[network:n1_4]": {
-   "networks": {
-    "network:n1_4": [ "interface:r1.n1_4", "interface:u1.n1_4" ],
-    "network:n1_6": [ "interface:r2.n1_6", "interface:u1.n1_6" ],
-    "network:n3_46": [ "interface:u1.n3_46" ]
-   }
-  },
   "any:[network:n2_4]": {
    "networks": {
     "network:n2_4": [ "interface:r1.n2_4", "interface:u2.n2_4" ]
@@ -876,100 +866,14 @@ router:u2 = {
    "networks": {
     "network:n2_6": [ "interface:r2.n2_6", "interface:u2.n2_6" ]
    }
+  },
+  "any:[network:n3_46]": {
+   "networks": {
+    "network:n1_4": [ "interface:r1.n1_4", "interface:u1.n1_4" ],
+    "network:n1_6": [ "interface:r2.n1_6", "interface:u1.n1_6" ],
+    "network:n3_46": [ "interface:u1.n3_46" ]
+   }
   }
- }
-}
-=END=
-
-############################################################
-=TITLE=v4 network/0 in dual stack zone cluster with non matching aggregate
-=INPUT=
-owner:x = { admins = guest; }
-area:all = { owner = x; anchor = network:n1; }
-network:n1 = {
- ip = 10.1.1.0/24;
- ip6 = 2001:db8:1:1::/64;
- nat:inet = { ip = 1.1.1.0/24; }
-}
-router:r1 = {
- managed;
- model = ASA;
- routing = manual;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
-network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
-router:inet = {
- interface:n2;
- interface:Internet = { nat_out = inet; }
-}
-network:Internet = { ip = 0.0.0.0/0; has_subnets; }
-
-service:s1 = {
- user = any:[network:n2];
- permit src = network:n1; dst = user; prt = tcp 80;
-}
-
-=OUTPUT=
--- owner/x/users
-{
- "s1": [
-  "any:[ip6=::/0 & network:n2]",
-  "network:Internet"
- ]
-}
--- objects
-{
- "any:[ip6=::/0 & network:n2]": {
-  "ip": "::/0",
-  "is_supernet": 1,
-  "owner": "x",
-  "zone": "network:Internet"
- },
- "interface:r1.n1": {
-  "ip": "10.1.1.1",
-  "ip6": "2001:db8:1:1::1",
-  "nat": {
-   "inet": "1.1.1.1"
-  },
-  "zone": "any:[network:n1]"
- },
- "interface:r1.n2": {
-  "ip": "10.1.2.1",
-  "ip6": "2001:db8:1:2::1",
-  "zone": "network:Internet"
- },
- "interface:inet.n2": {
-  "ip": "short",
-  "ip6": "short",
-  "owner": "x",
-  "zone": "network:Internet"
- },
- "interface:inet.Internet": {
-  "ip": "short",
-  "owner": "x",
-  "zone": "network:Internet"
- },
- "network:n1": {
-  "ip": "10.1.1.0/24",
-  "ip6": "2001:db8:1:1::/64",
-  "nat": {
-   "inet": "1.1.1.0/24"
-  },
-  "owner": "x",
-  "zone": "any:[network:n1]"
- },
- "network:n2": {
-  "ip": "10.1.2.0/24",
-  "ip6": "2001:db8:1:2::/64",
-  "owner": "x",
-  "zone": "network:Internet"
- },
- "network:Internet": {
-  "ip": "0.0.0.0/0",
-  "is_supernet": 1,
-  "owner": "x",
-  "zone": "network:Internet"
  }
 }
 =END=
