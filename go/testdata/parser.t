@@ -1210,7 +1210,6 @@ Error: Must not use attribute 'no_check_supernet_rules' if IP is set for any:n
 owner:o = { admins = a@b.c; }
 any:n = {
  link = network:n;
- ip = 0.0.0.0/0;
  owner = o;
  no_check_supernet_rules;
 }

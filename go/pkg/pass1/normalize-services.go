@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"net/netip"
 	"slices"
 )
 
@@ -384,25 +383,24 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			}
 		}
 		if s.foreach {
-			// Must not split aggregate set of zone cluster.
-			// Otherwise we would get wrong result for interface[user].[all].
-			var cluster *zone
-			var ipp netip.Prefix
-			clusterIdx := 0
-			for i, elt := range user {
-				if n, ok := elt.(*network); ok {
-					cl := n.zone.cluster[0]
-					if cl == cluster && n.ipp == ipp {
-						continue
-					} else {
-						cluster = cl
-						ipp = n.ipp
-					}
-				}
-				process(user[clusterIdx:i])
-				clusterIdx = i
+			// Must not split objects with same name.
+			// 1. aggregate set of zone cluster,
+			// otherwise we would get wrong result for interface[user].[all]
+			// 2. dual stack objects,
+			// to prevent error
+			// "Must not use only IPv4 part of dual stack object"
+			m := make(map[string][]groupObj)
+			for _, elt := range user {
+				name := elt.String()
+				m[name] = append(m[name], elt)
 			}
-			process(user[clusterIdx:])
+			for _, elt := range user {
+				name := elt.String()
+				if l := m[name]; l != nil {
+					process(l)
+					m[name] = nil
+				}
+			}
 		} else {
 			process(user)
 		}

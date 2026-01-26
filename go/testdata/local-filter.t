@@ -338,9 +338,9 @@ access-group n1_in in interface n1
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = 0.0.0.0/0 & network:n1];
+ user = any:[network:n1];
  permit src = user;
-        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        dst = any:[network:n2];
         prt = tcp 80;
 }
 =OUTPUT=
@@ -362,9 +362,9 @@ access-group n1_in in interface n1
 =INPUT=
 [[topo]]
 service:Test = {
- user = any:[ip = 0.0.0.0/0 & network:n1];
+ user = any:[network:n1];
  permit src = user;
-        dst = any:[ip = 0.0.0.0/0 & network:n2];
+        dst = any:[network:n2];
         prt = ip;
 }
 =OUTPUT=

@@ -271,10 +271,8 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.2; ip6 = 2001:db8:1:3::1; hardware = n3; }
 }
 service:s1 = {
- user = any:[ip6 = ::/0 & network:n2],
-        any:[ip6 = ::/0 & network:n3],
-        any:[ip = 0.0.0.0/0 & network:n2],
-        any:[ip = 0.0.0.0/0 & network:n3],
+ user = any:[network:n2],
+        any:[network:n3],
         ;
  permit src = user;
         dst = network:n1;

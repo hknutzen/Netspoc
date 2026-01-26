@@ -40,18 +40,18 @@ type userInfo struct {
 type netOrRouter interface {
 	getPathNode() pathStore
 	isIPv6() bool
-	isCombined46() bool
 }
 
 type autoIntf struct {
-	managed bool
-	name    string
-	object  netOrRouter
+	managed    bool
+	name       string
+	object     netOrRouter
+	combined46 *autoIntf
 }
 
 func (x autoIntf) String() string     { return x.name }
 func (x autoIntf) isIPv6() bool       { return x.object.isIPv6() }
-func (x autoIntf) isCombined46() bool { return x.object.isCombined46() }
+func (x autoIntf) isCombined46() bool { return x.combined46 != nil }
 
 type groupObj interface {
 	String() string

@@ -22,14 +22,14 @@ router:R2 = {
  interface:N2 = {ip = 10.5.1.1;hardware = N2;}
 }
 network:N2 = {ip = 10.5.1.0/30;}
-any:ANY_G27 = {ip = 0.0.0.0/0; link = network:T1;}
+any:ANY_G27 = {link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip = {{.}} & network:N2];
+	dst = any:ANY_G27, any:[{{.}} network:N2];
 	prt = tcp 80;
 }
-=INPUT=[[input "0.0.0.0/0"]]
+=INPUT=[[input ""]]
 =OUTPUT=
 --R1
 ip access-list extended N1_in
@@ -41,7 +41,7 @@ ip access-list extended N1_in
 
 ############################################################
 =TITLE=Aggregates in subnet relation
-=INPUT=[[input "10.0.0.0/8"]]
+=INPUT=[[input "ip = 10.0.0.0/8 &"]]
 # Unchanged ouput
 =OUTPUT=
 --R1

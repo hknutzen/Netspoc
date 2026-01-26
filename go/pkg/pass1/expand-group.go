@@ -95,31 +95,44 @@ func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 		r = r.origRouter
 	}
 
-	result := c.routerAutoInterfaces[r]
-	if result == nil {
+	a := c.routerAutoInterfaces[r]
+	if a == nil {
 		name := "interface:" + strings.TrimPrefix(r.name, "router:") + ".[auto]"
-		result = &autoIntf{
+		a = &autoIntf{
 			name:   name,
 			object: r,
 		}
-		c.routerAutoInterfaces[r] = result
+		if r2 := r.combined46; r2 != nil {
+			if a2 := c.routerAutoInterfaces[r2]; a2 != nil {
+				a.combined46 = a2
+				a2.combined46 = a
+			}
+		}
+		c.routerAutoInterfaces[r] = a
 	}
-	return result
+	return a
 }
 
 // Create autoIntf from network.
 func (c *spoc) getNetworkAutoIntf(n *network, managed bool) *autoIntf {
-	result := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
-	if result == nil {
+	a := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
+	if a == nil {
 		name := "interface:[" + n.name + "].[auto]"
-		result = &autoIntf{
+		a = &autoIntf{
 			name:    name,
 			object:  n,
 			managed: managed,
 		}
-		c.networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
+		if n2 := n.combined46; n2 != nil {
+			a2 := c.networkAutoInterfaces[networkAutoIntfKey{n2, managed}]
+			if a2 != nil {
+				a.combined46 = a2
+				a2.combined46 = a
+			}
+		}
+		c.networkAutoInterfaces[networkAutoIntfKey{n, managed}] = a
 	}
-	return result
+	return a
 }
 
 // Remove duplicate elements in place and warn about them.
@@ -503,7 +516,8 @@ func (c *spoc) expandGroup1(
 						result = append(result, x.networks...)
 					}
 				case *area:
-					list := getAggregates(obj, c.getNetwork00(x.ipV6).ipp)
+					unset := netip.Prefix{}
+					list := getAggregates(obj, unset)
 					for _, agg := range list {
 
 						// Check type, because getAggregates potentially
@@ -529,6 +543,7 @@ func (c *spoc) expandGroup1(
 			}
 			switch x.GetType() {
 			case "host":
+				seen := make(map[*network]bool)
 				for _, obj := range subObjects {
 					switch x := obj.(type) {
 					case *host:
@@ -540,8 +555,11 @@ func (c *spoc) expandGroup1(
 					}
 					if networks := getNetworks(obj, true); networks != nil {
 						for _, n := range networks {
-							for _, h := range n.hosts {
-								result.push(h)
+							if !seen[n] {
+								seen[n] = true
+								for _, h := range n.hosts {
+									result.push(h)
+								}
 							}
 						}
 					} else {
@@ -589,6 +607,11 @@ func (c *spoc) expandGroup1(
 						c.err("IPv6 address expected in %s of %s", show(), ctx)
 					} else if !x.IPV6 && ipp.Addr().Is6() {
 						c.err("IPv4 address expected in %s of %s", show(), ctx)
+					} else if ipp.Bits() == 0 {
+						c.warn("Ignoring address with prefix length 0 in %s of %s",
+							show(), ctx)
+						ipp = netip.Prefix{}
+						x.Net = "" // Show warning only once.
 					}
 				}
 

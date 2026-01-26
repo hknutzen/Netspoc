@@ -4312,10 +4312,7 @@ network:n1 = {
  nat:d = { ip = 10.9.9.0/24; }
  subnet_of = network:n;
 }
-any:a = {
- ip = 0.0.0.0/0;
- link = network:n1;
-}
+any:a = { link = network:n1; }
 router:u = {
  interface:n;
  interface:n1;

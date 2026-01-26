@@ -81,6 +81,9 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	link := func(z, z2 *zone) {
 		if z.combined46 == nil {
 			z.combined46 = z2
+			// Combined zones must have identical name, because name of
+			// combined aggregate is derived from name of zone.
+			z.name = "any:[" + n.name + "]"
 		} else if z.combined46 != z2 {
 			if !slices.Contains(z.combined46Other, z2) {
 				z.combined46Other = append(z.combined46Other, z2)
