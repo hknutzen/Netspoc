@@ -1244,6 +1244,9 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 	// If no ipAttr is given, this case is handled later when
 	// processing zones.
 	if ipAttr != "" {
+		if ag.ipV6 && net.combined46 != nil {
+			net = net.combined46
+		}
 		if ag.ipV6 != net.ipV6 {
 			c.err("Must not link %s address to %s network in %s",
 				ipvx(ag.ipV6), ipvx(ag.link.ipV6), name)

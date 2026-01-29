@@ -1190,7 +1190,7 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Named matching v4 aggregate applied to v6 network
+=TITLE=Named matching v4 aggregate linked to v6 network
 =INPUT=
 network:n1 = { ip6 = 2001:db8:1:1::/64; }
 any:a1 = { ip = 10.1.0.0/16; link = network:n1; }
@@ -1199,13 +1199,20 @@ Error: Must not link IPv4 address to IPv6 network in any:a1
 =END=
 
 ############################################################
-=TITLE=Named matching v6 aggregate applied to v4 network
+=TITLE=Named matching v6 aggregate linked to v4 network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 any:a1 = { ip6 = 2001:db8::/32; link = network:n1; }
 =ERROR=
 Error: Must not link IPv6 address to IPv4 network in any:a1
 =END=
+
+############################################################
+=TITLE=Named matching v6 aggregate linked to dual stack network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+any:n1-6-48 = { ip6 = 2001:db8:1::/48; link = network:n1; }
+=WARNING=NONE
 
 ############################################################
 =TITLE=Must not use ip and ip6 at named aggregate
