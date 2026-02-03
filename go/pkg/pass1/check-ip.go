@@ -8,42 +8,33 @@ import (
 )
 
 func (c *spoc) checkIPAddresses() {
-	c.checkSubnetOf()
+	for _, n := range c.allNetworks {
+		c.checkSubnetOf(n)
+		c.checkSubnetOfInNAT(n.nat)
+	}
 	c.checkIPAddressesAndBridges()
 }
 
-func (c *spoc) checkSubnetOf() {
-	check := func(n *network) {
-		if sn := n.subnetOf; sn != nil {
-			ctx := natName(n)
-			if sn.ipType == unnumberedIP {
-				c.err("Unnumbered %s must not be referenced from"+
-					" attribute 'subnet_of'\n of %s", sn, ctx)
-				// Prevent further errors;
-				n.subnetOf = nil
-				return
-			}
-			if !sn.ipp.Contains(n.ipp.Addr()) {
-				c.err("%s is subnet_of %s but its IP doesn't match that's address",
-					ctx, sn)
-			}
+func (c *spoc) checkSubnetOf(n *network) {
+	if sn := n.subnetOf; sn != nil {
+		ctx := natName(n)
+		if sn.ipType == unnumberedIP {
+			c.err("Unnumbered %s must not be referenced from"+
+				" attribute 'subnet_of'\n of %s", sn, ctx)
+			// Prevent further errors;
+			n.subnetOf = nil
+			return
+		}
+		if !sn.ipp.Contains(n.ipp.Addr()) {
+			c.err("%s is subnet_of %s but its IP doesn't match that's address",
+				ctx, sn)
 		}
 	}
-	checkNat := func(nat natTagMap) {
-		for _, n := range nat {
-			check(n)
-		}
-	}
-	for _, n := range c.allNetworks {
-		check(n)
-		if nat := n.nat; nat != nil {
-			checkNat(nat)
-		}
-	}
-	for _, ar := range c.ascendingAreas {
-		if nat := ar.nat; nat != nil {
-			checkNat(nat)
-		}
+}
+
+func (c *spoc) checkSubnetOfInNAT(m natTagMap) {
+	for _, n := range m {
+		c.checkSubnetOf(n)
 	}
 }
 

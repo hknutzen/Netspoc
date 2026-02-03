@@ -1290,6 +1290,7 @@ func (c *spoc) setupArea(v *ast.Area) {
 		default:
 			if c.addAttr(a, &ar.attr, name) {
 			} else if nat := c.addNetNat(a, ar.nat, name); nat != nil {
+				c.checkSubnetOfInNAT(nat)
 				ar.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
