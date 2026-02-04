@@ -263,10 +263,12 @@ func (c *spoc) setupNetwork46(a *ast.Network) {
 		n6.hosts = hosts6
 		n.combined46 = n6
 		n6.combined46 = n
-		// Attributes 'nat' and 'subnet_of' are applied only to IPv4
-		// part in combined v4/v6 network.
-		n6.subnetOf = nil
+		// Attribute 'nat' is applied only to IPv4 part in combined
+		// v4/v6 network.
 		n6.nat = nil
+		// Attribute 'subnet_of' is applied to IPv4 at first
+		// but checked later for matching IPv6 network.
+		n6.subnetOf = nil
 		c.setupNetwork2(n, na4)
 		c.setupNetwork2(n6, na6)
 		// Attribute 'has_subnets' is only applied to IPv6 part,

@@ -15,6 +15,12 @@ func (c *spoc) checkIPAddresses() {
 	c.checkIPAddressesAndBridges()
 }
 
+func (c *spoc) checkSubnetOfInNAT(m natTagMap) {
+	for _, n := range m {
+		c.checkSubnetOf(n)
+	}
+}
+
 func (c *spoc) checkSubnetOf(n *network) {
 	if sn := n.subnetOf; sn != nil {
 		ctx := natName(n)
@@ -25,16 +31,29 @@ func (c *spoc) checkSubnetOf(n *network) {
 			n.subnetOf = nil
 			return
 		}
-		if !sn.ipp.Contains(n.ipp.Addr()) {
-			c.err("%s is subnet_of %s but its IP doesn't match that's address",
-				ctx, sn)
+		var n6 *network
+		if !n.ipV6 {
+			n6 = n.combined46
 		}
-	}
-}
-
-func (c *spoc) checkSubnetOfInNAT(m natTagMap) {
-	for _, n := range m {
-		c.checkSubnetOf(n)
+		if n6 != nil {
+			if sn.ipp.Contains(n6.ipp.Addr()) {
+				n6.subnetOf = sn
+			} else {
+				sn6 := sn.combined46
+				if sn6 != nil && sn6.ipp.Contains(n6.ipp.Addr()) {
+					n6.subnetOf = sn6
+				}
+			}
+		}
+		if sn.ipp.Contains(n.ipp.Addr()) {
+			return
+		}
+		if n6 != nil && n6.subnetOf != nil {
+			n.subnetOf = nil
+			return
+		}
+		c.err("%s is subnet_of %s but its IP doesn't match that's address",
+			ctx, sn)
 	}
 }
 

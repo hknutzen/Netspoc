@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   between source and destination.
   Restrictions blocking fewer paths are shown first, as they typically
   represent earlier bottlenecks in the topology.
+- Attribute 'subnet_of' used at dual stack network no longer only
+  applies to IPv4 address. It now declares, that IPv4 oder IPv6 or
+  both addresses are in subnet relation.
 
 ### Fixed
 
