@@ -1964,6 +1964,17 @@ router:r1 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=subnet_of at combined network matches v6 network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
+network:n2 = { ip6 = 2001:db8:1:0::/48; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=One subnet_of at combined network applicable to v4 and v6 part
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
