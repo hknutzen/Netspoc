@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-02-05-1317]
+
 ### Changed
 
 - A better error message is shown if restrictions block all paths
