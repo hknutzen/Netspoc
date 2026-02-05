@@ -358,7 +358,7 @@ router:R = {
 }
 network:N = { ip6 = ::a01:100/120; }
 =ERROR=
-Error: Missing 'ip6' in secondary:second of interface:R.N
+Error: Missing 'ip6' in "secondary:second" of interface:R.N
 =END=
 
 ############################################################
@@ -369,8 +369,8 @@ router:R = {
 }
 network:N = { ip6 = ::a01:100/120; }
 =ERROR=
+Error: Missing 'ip6' in "secondary:second" of interface:R.N
 Error: Unexpected attribute in secondary:second of interface:R.N: foo
-Error: Missing 'ip6' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -414,8 +414,8 @@ router:R = {
 }
 network:N = { ip6 = ::a01:100/120; }
 =ERROR=
+Error: Missing 'ip6' in "virtual" of interface:R.N
 Error: Unexpected attribute in 'virtual' of interface:R.N: foo
-Error: Missing 'ip6' in 'virtual' of interface:R.N
 =END=
 
 ############################################################

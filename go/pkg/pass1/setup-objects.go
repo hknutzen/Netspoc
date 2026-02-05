@@ -434,16 +434,25 @@ func (c *spoc) checkIntf46(name string, ai *ast.Attribute) (bool, bool) {
 		}
 	}
 	checkSub := func(as *ast.Attribute) {
-		for _, a := range as.ComplexValue {
-			switch a.Name {
-			case "ip":
-				if v6 && !v4 {
-					c.err(`Must not use 'ip' in %q of %s`, as.Name, name)
-				}
-			case "ip6":
-				if v4 && !v6 {
-					c.err(`Must not use 'ip6' in %q of %s`, as.Name, name)
-				}
+		hasIP := as.GetAttr("ip") != nil
+		hasIP6 := as.GetAttr("ip6") != nil
+		if v4 && v6 {
+			if !hasIP && !hasIP6 {
+				c.err(`Missing 'ip' and/or 'ip6' in %q of %s`, as.Name, name)
+			}
+		} else if v6 {
+			if hasIP {
+				c.err(`Must not use 'ip' in %q of %s`, as.Name, name)
+			}
+			if !hasIP6 {
+				c.err(`Missing 'ip6' in %q of %s`, as.Name, name)
+			}
+		} else if v4 {
+			if hasIP6 {
+				c.err(`Must not use 'ip6' in %q of %s`, as.Name, name)
+			}
+			if !hasIP {
+				c.err(`Missing 'ip' in %q of %s`, as.Name, name)
 			}
 		}
 	}
@@ -2009,11 +2018,9 @@ func (c *spoc) setupInterface(
 						c.err("Unexpected attribute in %s: %s", sCtx, a2.Name)
 					}
 				}
-				if !intf.ip.IsValid() {
-					c.err("Missing '%s' in %s", v6Attr("ip", v6), sCtx)
-					intf.ipType = shortIP
+				if intf.ip.IsValid() {
+					secondaryList.push(intf)
 				}
-				secondaryList.push(intf)
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
@@ -3077,7 +3084,6 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string,
 		}
 	}
 	if !virtual.ip.IsValid() {
-		c.err("Missing '%s' in %s", v6Attr("ip", v6), vCtx)
 		return nil
 	}
 	if virtual.redundancyId != "" && virtual.redundancyType == nil {
