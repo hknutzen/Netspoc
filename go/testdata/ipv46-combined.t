@@ -1413,11 +1413,11 @@ router:r1 = {
  }
  interface:n5 = {
   ip6 = 2001:db8:1:5::2;
-  virtual = { type = VRRP; id = 123; }
+  virtual = { ip = 10.1.5.1; type = VRRP; id = 123; }
  }
  interface:n6 = {
   ip = 10.1.6.2;
-  secondary:snd = {}
+  secondary:snd = { ip6 = 2001:db8:1:6::9; }
  }
 }
 =ERROR=
@@ -1427,9 +1427,11 @@ Error: Missing 'unnumbered6' in dual stack interface:r1.n3
 Error: Must not reference IPv4 network:n3 from IPv6 interface:r1.n3
 Error: Must not use both, "negotiated6" and "unnumbered6" in interface:r1.n4
 Error: Must not reference IPv6 network:n4 from IPv4 interface:r1.n4
+Error: Must not use 'ip' in "virtual" of interface:r1.n5
 Error: Missing 'ip6' in "virtual" of interface:r1.n5
+Error: Must not use 'ip6' in "secondary:snd" of interface:r1.n6
 Error: Missing 'ip' in "secondary:snd" of interface:r1.n6
-=END=
+=OPTIONS=--max_errors 20
 
 ############################################################
 =TITLE=Dual stack router with v4/v6 only virtual interfaces
