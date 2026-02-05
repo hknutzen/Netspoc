@@ -358,7 +358,7 @@ router:R = {
 }
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Missing 'ip' in secondary:second of interface:R.N
+Error: Missing 'ip' in "secondary:second" of interface:R.N
 =END=
 
 ############################################################
@@ -369,8 +369,8 @@ router:R = {
 }
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
+Error: Missing 'ip' in "secondary:second" of interface:R.N
 Error: Unexpected attribute in secondary:second of interface:R.N: foo
-Error: Missing 'ip' in secondary:second of interface:R.N
 =END=
 
 ############################################################
@@ -414,8 +414,8 @@ router:R = {
 }
 network:N = { ip = 10.1.1.0/24; }
 =ERROR=
+Error: Missing 'ip' in "virtual" of interface:R.N
 Error: Unexpected attribute in 'virtual' of interface:R.N: foo
-Error: Missing 'ip' in 'virtual' of interface:R.N
 =END=
 
 ############################################################
