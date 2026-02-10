@@ -3,6 +3,7 @@ package pass1
 import (
 	"cmp"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 )
@@ -311,6 +312,11 @@ func clusterNavigation(from, to pathObj) navigation {
 			break
 		} else if fromLoop.distance >= toLoop.distance {
 			// Different loops, take next step from loop with higher distance.
+			// Detect self-referencing loops (infinite loop protection)
+			if fromLoop.exit.getLoop() == fromLoop {
+				fmt.Fprintf(os.Stderr, "Warning: Infinite loop detected in clusterNavigation! Router '%s' in loop structure references itself on exit.\n", fromLoop.exit)
+				break
+			}
 			add(fromLoop, fromLoop)
 
 			//	    debug("- Fr: from_loop->{exit}->{name}from_loop to itself");

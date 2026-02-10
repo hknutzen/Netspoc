@@ -45,9 +45,9 @@ func (ru *expandedRule) print() string {
 		extra += " stateless"
 	}
 	origPrt := ru.prt
-	oRule := ru.rule
-	s := oRule.service
-	extra += " of " + s.name
+	if ru.rule != nil && ru.rule.service != nil {
+		extra += " of " + ru.rule.service.name
+	}
 	origPrt = getOrigPrt(ru)
 	var action string
 	if ru.deny {
@@ -69,6 +69,9 @@ func (ru *expandedRule) print() string {
 
 func getOrigPrt(ru *expandedRule) *proto {
 	prt := ru.prt
+	if ru.rule == nil {
+		return prt
+	}
 	protocol := prt.proto
 	oRule := ru.rule
 	for _, oPrt := range oRule.prt {
