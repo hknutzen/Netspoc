@@ -1400,6 +1400,7 @@ router:r1 = {
   ip6 = 2001:db8:1:2::2;
   virtual = { ip = 10.1.2.9; }
   secondary:snd = { ip6 = 2001:db8:1:2::9; }
+  secondary:snd2 = {}
  }
  interface:n3 = {
   unnumbered;
@@ -1412,7 +1413,7 @@ router:r1 = {
  }
  interface:n5 = {
   ip6 = 2001:db8:1:5::2;
-  virtual = { ip = 10.1.5.9; }
+  virtual = { ip = 10.1.5.1; type = VRRP; id = 123; }
  }
  interface:n6 = {
   ip = 10.1.6.2;
@@ -1421,17 +1422,98 @@ router:r1 = {
 }
 =ERROR=
 Error: Attributes 'ip' and 'ip6' must have same number of values in interface:r1.n1
-Error: Missing 'ip' in secondary:snd of interface:r1.n2
-Error: Missing 'ip6' in 'virtual' of interface:r1.n2
+Error: Missing 'ip' and/or 'ip6' in "secondary:snd2" of interface:r1.n2
 Error: Missing 'unnumbered6' in dual stack interface:r1.n3
 Error: Must not reference IPv4 network:n3 from IPv6 interface:r1.n3
 Error: Must not use both, "negotiated6" and "unnumbered6" in interface:r1.n4
 Error: Must not reference IPv6 network:n4 from IPv4 interface:r1.n4
 Error: Must not use 'ip' in "virtual" of interface:r1.n5
-Error: Missing 'ip6' in 'virtual' of interface:r1.n5
+Error: Missing 'ip6' in "virtual" of interface:r1.n5
 Error: Must not use 'ip6' in "secondary:snd" of interface:r1.n6
-Error: Missing 'ip' in secondary:snd of interface:r1.n6
-=OPTIONS=--max_errors=20
+Error: Missing 'ip' in "secondary:snd" of interface:r1.n6
+=OPTIONS=--max_errors 20
+
+############################################################
+=TITLE=Dual stack router with v4/v6 only virtual interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  ip6 = 2001:db8:1:1::2;
+  virtual = { ip6 = 2001:db8:1:1::1; type = VRRP; id = 1; }
+  hardware = n1;
+ }
+ interface:n2 = {
+  ip = 10.1.2.2;
+  ip6 = 2001:db8:1:2::2;
+  virtual = { ip = 10.1.2.1; type = VRRP; id = 2; }
+  hardware = n2;
+ }
+}
+service:s1 = {
+ user = interface:r1.n1.virtual;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+service:s2 = {
+ user = interface:r1.n2.virtual;
+ permit src = network:n2; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--r1
+ip access-list extended n2_in
+ permit tcp 10.1.2.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit 112 10.1.2.0 0.0.0.255 host 224.0.0.18
+ deny ip any any
+--ipv6/r1
+ipv6 access-list n1_in
+ permit tcp 2001:db8:1:1::/64 host 2001:db8:1:1::1 eq 22
+ permit 112 2001:db8:1:1::/64 host ff02::12
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Dual stack router with v4/v6 only secondary interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  ip6 = 2001:db8:1:1::2;
+  secondary:snd = { ip = 10.1.1.9; }
+  hardware = n1;
+ }
+ interface:n2 = {
+  ip = 10.1.2.2;
+  ip6 = 2001:db8:1:2::2;
+  secondary:snd = { ip6 = 2001:db8:1:2::9; }
+  hardware = n2;
+ }
+}
+service:s1 = {
+ user = interface:r1.n1.snd;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+service:s2 = {
+ user = interface:r1.n2.snd;
+ permit src = network:n2; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.9 eq 22
+ deny ip any any
+--ipv6/r1
+ipv6 access-list n2_in
+ permit tcp 2001:db8:1:2::/64 host 2001:db8:1:2::9 eq 22
+ deny ipv6 any any
+=END=
 
 ############################################################
 =TITLE=Pathrestriction with mixed, but not combined interfaces
@@ -1875,6 +1957,17 @@ router:r1 = {
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:0::/48; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=subnet_of at combined network matches v6 network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; subnet_of = network:n2;}
+network:n2 = { ip6 = 2001:db8:1:0::/48; }
 router:r1 = {
  interface:n1;
  interface:n2;
