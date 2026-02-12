@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- IP address with prefix length 0 is ignored at unnamed aggregate.
+  I.e. any:[ip=0.0.0.0/0 & network:n1] is handled like any:[network:n1].
+  This prevents accessing only the IPv4 part of a dual stack zone.
+- Automatic group of area that only has IPv4 borders or IPv4 anchor,
+  now also includes dual stack objects located inside this area.
+
 ## [2026-02-05-1317]
 
 ### Changed
