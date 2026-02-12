@@ -911,7 +911,7 @@ network:n1 = { ip = 10.1.1.0/24;
  host:x2 = { ip = 10.1.1.2; owner = x2; }
  host:x3 = { ip = 10.1.1.3; owner = x3; }
  host:x4 = { ip = 10.1.1.4; owner = x4; }
- host:x5 = { ip = 10.1.1.4; }
+ host:x5 = { ip = 10.1.1.5; }
 }
 network:n2 = { ip = 10.1.2.0/24;
  host:DA_1 = { ip = 10.1.2.1; owner = DA_1; }
