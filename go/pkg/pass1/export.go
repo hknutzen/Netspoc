@@ -1394,6 +1394,7 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	// All objects referenced in rules and in networks and hosts of owners.
 	allObjects := make(map[srvObj]bool)
 	c.readNetspoc(inDir)
+	c.checkIPAddresses()
 	c.setZone()
 	c.setPath()
 	natDomains, multiNAT := c.distributeNatInfo()

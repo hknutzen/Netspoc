@@ -256,6 +256,7 @@ router:u0 = {
 router:r1 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
 }
@@ -422,6 +423,7 @@ network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
 router:r1 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
 }
 service:s1 = {
@@ -711,6 +713,7 @@ network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
 router:r1 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
@@ -827,12 +830,14 @@ network:n3_46 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
 router:r1 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1_4 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2_4 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1_6 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
  interface:n2_6 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
 }
