@@ -174,6 +174,14 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 	if s.ipV4Only || s.ipV6Only {
 		return
 	}
+	isOtherAggInCluster := func(ob groupObj) bool {
+		if agg, ok := ob.(*network); ok && agg.isAggregate {
+			if z := agg.zone; z != z.cluster[0] {
+				return true
+			}
+		}
+		return false
+	}
 	m := make(map[string]bool)
 	for _, ob := range v6 {
 		if ob.isCombined46() {
@@ -202,7 +210,7 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 	}
 
 	for _, ob := range v4 {
-		if ob.isCombined46() {
+		if ob.isCombined46() && !isOtherAggInCluster(ob) {
 			if m[ob.String()] {
 				delete(m, ob.String())
 			} else if !checkSup(v4, v6, ob.String()) {
