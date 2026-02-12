@@ -256,6 +256,16 @@ func (c *spoc) expandGroup1(
 		return !(intf.ipType == tunnelIP ||
 			visible && (intf.ipType == unnumberedIP || intf.ipType == bridgedIP))
 	}
+	withCombinedZones := func(a *area, f func(*zone)) {
+		for _, z := range a.zones {
+			f(z)
+			if !a.isCombined46() {
+				if z6 := z.combined46; z6 != nil {
+					f(z6)
+				}
+			}
+		}
+	}
 	if len(list) == 0 {
 		c.warn("%s is empty", ctx)
 	}
@@ -346,7 +356,13 @@ func (c *spoc) expandGroup1(
 						}
 					}
 				case *routerIntf:
-					autoFromRouter(x.router)
+					r := x.router
+					autoFromRouter(r)
+					if !x.isCombined46() {
+						if r6 := r.combined46; r6 != nil {
+							autoFromRouter(r6)
+						}
+					}
 				case *area:
 					var routers []*router
 
@@ -364,7 +380,7 @@ func (c *spoc) expandGroup1(
 
 						// Add managed routers at border of security zones
 						// inside current area.
-						for _, z := range x.zones {
+						withCombinedZones(x, func(z *zone) {
 							for _, intf := range z.interfaces {
 								r := intf.router
 								if !seen[r] && (r.managed != "" || r.routingOnly) {
@@ -372,9 +388,9 @@ func (c *spoc) expandGroup1(
 									routers = append(routers, r)
 								}
 							}
-						}
+						})
 					} else {
-						for _, z := range x.zones {
+						withCombinedZones(x, func(z *zone) {
 							processWithSubnetworks(z.networks, func(n *network) {
 								for _, intf := range n.interfaces {
 									r := intf.router
@@ -384,7 +400,7 @@ func (c *spoc) expandGroup1(
 									}
 								}
 							})
-						}
+						})
 					}
 					if selector == "all" {
 						for _, r := range routers {
@@ -459,17 +475,13 @@ func (c *spoc) expandGroup1(
 				switch x := obj.(type) {
 				case *area:
 					seen := make(map[*zone]bool)
-					for _, z := range x.zones {
-						if c := z.cluster; len(c) > 1 {
-							z = c[0]
-							if seen[z] {
-								continue
-							} else {
-								seen[z] = true
-							}
+					withCombinedZones(x, func(z *zone) {
+						z = z.cluster[0]
+						if !seen[z] {
+							seen[z] = true
+							zones = append(zones, z)
 						}
-						zones = append(zones, z)
-					}
+					})
 				case *network:
 					if x.isAggregate {
 						zones = append(zones, x.zone)
