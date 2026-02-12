@@ -29,6 +29,21 @@ network:n1
 =PARAM=interface:r1.[all]
 
 ############################################################
+=TITLE=All interfaces from combined router from v4 interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+=OUTPUT=
+10.1.1.1	interface:r1.n1
+10.1.2.1	interface:r1.n2
+2001:db8:1:2::1	interface:r1.n2
+=PARAM=interface:[interface:r1.n1].[all]
+
+############################################################
 =TITLE=Anonymous matching aggregate where attribute ip has v6 address
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
