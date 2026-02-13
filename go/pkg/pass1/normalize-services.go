@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"fmt"
 	"slices"
 )
 
@@ -160,6 +161,7 @@ func (c *spoc) splitCombined46(l groupObjList, s *service,
 		} else if check && obj.isIPv6() != s.ipV6Only {
 			c.err("Must not use %s %s with 'ipv%s_only' of %s",
 				ipvx(obj.isIPv6()), obj, cond(s.ipV6Only, "6", "4"), s)
+			continue
 		}
 		if obj.isIPv6() {
 			v6.push(obj)
@@ -171,9 +173,6 @@ func (c *spoc) splitCombined46(l groupObjList, s *service,
 }
 
 func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
-	if s.ipV4Only || s.ipV6Only {
-		return
-	}
 	isOtherAggInCluster := func(ob groupObj) bool {
 		if agg, ok := ob.(*network); ok && agg.isAggregate {
 			if z := agg.zone; z != z.cluster[0] {
@@ -248,14 +247,6 @@ func (c *spoc) normalizeSrcDstList(
 			c.checkCombined46(dstList4, dstList6, s)
 		}
 	} else {
-		if s.ipV4Only {
-			c.err("Must not use 'ipv4_only' in %s,"+
-				" because no combined IPv4/IPv6 objects are in use", s)
-		}
-		if s.ipV6Only {
-			c.err("Must not use 'ipv6_only' in %s,"+
-				" because no combined IPv4/IPv6 objects are in use", s)
-		}
 		if srcList4 != nil && dstList6 != nil {
 			c.err("Must not use IPv4 %s and IPv6 %s together in %s",
 				srcList4[0], dstList6[0], s)
@@ -324,7 +315,7 @@ func (c *spoc) normalizeSrcDstList(
 func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	user := c.expandUser(s)
 	hasRules := false
-	for _, uRule := range s.rules {
+	for i, uRule := range s.rules {
 		deny := uRule.action == "deny"
 		var store *serviceRuleList
 		if deny {
@@ -338,8 +329,10 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			continue
 		}
 		simplePrtList, complexPrtList := classifyProtocols(prtList)
+		has46 := false
 		process := func(elt groupObjList) {
-			srcDstListPairs, has46 := c.normalizeSrcDstList(uRule, elt, s)
+			srcDstListPairs, is46Rule := c.normalizeSrcDstList(uRule, elt, s)
+			has46 = has46 || is46Rule
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
@@ -403,6 +396,25 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			}
 		} else {
 			process(user)
+		}
+		if !has46 {
+			inRule := func() string {
+				if len(s.rules) > 1 {
+					return fmt.Sprintf("for rule %d of %s", i+1, s)
+				} else {
+					return fmt.Sprintf("in %s", s)
+				}
+			}
+			if s.ipV4Only {
+				c.warn("Ignoring 'ipv4_only' %s,"+
+					" because no combined IPv4/IPv6 objects are in use",
+					inRule())
+			}
+			if s.ipV6Only {
+				c.warn("Ignoring 'ipv6_only' %s,"+
+					" because no combined IPv4/IPv6 objects are in use",
+					inRule())
+			}
 		}
 	}
 	if !hasRules && len(user) == 0 {
