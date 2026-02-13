@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -79,24 +80,12 @@ func (c *spoc) propagateOwners() {
 
 	// Collect list of owners and watchingOwners from areas at
 	// zones in attribute .watchingOwners. Is needed in export-netspoc.
-	type key struct {
-		z *zone
-		o *owner
-	}
-	zoneOwnerSeen := make(map[key]bool)
 	for _, area := range c.ascendingAreas {
-		o := area.watchingOwner
-		if o == nil {
-			o = area.owner
-		}
-		if o == nil {
-			continue
-		}
-		for _, z := range area.zones {
-			k := key{z, o}
-			if !zoneOwnerSeen[k] {
-				zoneOwnerSeen[k] = true
-				z.watchingOwners = append(z.watchingOwners, o)
+		if o := cmp.Or(area.watchingOwner, area.owner); o != nil {
+			for _, z := range area.zones {
+				if !slices.Contains(z.watchingOwners, o) {
+					z.watchingOwners = append(z.watchingOwners, o)
+				}
 			}
 		}
 	}
@@ -108,10 +97,8 @@ func (c *spoc) propagateOwners() {
 		}
 		var invalid netList
 		for _, n := range c.allNetworks {
-			if netOwner := n.owner; netOwner != nil {
-				if netOwner == o {
-					continue
-				}
+			if n.owner == o {
+				continue
 			}
 			if n.ipType == tunnelIP {
 				continue
