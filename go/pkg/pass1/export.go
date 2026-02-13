@@ -1180,7 +1180,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	for ow := range maps.Keys(c.symTable.owner) {
+	for ow := range c.symTable.owner {
 		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
