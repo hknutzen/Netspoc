@@ -150,6 +150,7 @@ network:n1 = { ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip6 = 2001:db8:1:2::/64; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; ip6 = 2001:db8:1:5::/64; }
 router:r1 = {
  managed;
  model = ASA;
@@ -157,6 +158,7 @@ router:r1 = {
  interface:n2 = { ip6 = 2001:db8:1:2::1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; ip6 = 2001:db8:1:5::1; hardware = n5; }
 }
 
 service:s1 = {
@@ -167,11 +169,12 @@ service:s1 = {
 service:s2 = {
  ipv4_only;
  user = network:n3;
- permit src = user; dst = network:n4; prt = tcp 80;
+ permit src = user; dst = network:n5; prt = tcp 80;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
-=ERROR=
-Error: Must not use 'ipv6_only' in service:s1, because no combined IPv4/IPv6 objects are in use
-Error: Must not use 'ipv4_only' in service:s2, because no combined IPv4/IPv6 objects are in use
+=WARNING=
+Warning: Ignoring 'ipv6_only' in service:s1, because no combined IPv4/IPv6 objects are in use
+Warning: Ignoring 'ipv4_only' for rule 2 of service:s2, because no combined IPv4/IPv6 objects are in use
 =END=
 
 ############################################################
@@ -235,6 +238,40 @@ service:s1 = {
 }
 =ERROR=
 Error: Must not use only IPv6 part of dual stack object network:n1 in service:s1
+=END=
+
+############################################################
+=TITLE=Dual stack aggregates in zone cluster
+# Must not show this error message:
+# Must not use only IPv4 part of dual stack object any:[network:n1]
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; ip6 = 2001:db8:1:0::/64; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:n0 = { ip = 10.1.0.1; ip6 = 2001:db8:1:0::1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = any:[network:n0];
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.2.0 0.0.0.255 any eq 80
+ deny ip any any
 =END=
 
 ############################################################
@@ -2259,3 +2296,53 @@ service:s4 = {
  permit src = network:[user]; dst = user; prt = tcp 22;
 }
 =WARNING=NONE
+
+############################################################
+=TITLE=V4 only and dual stack objects in service with ipv4_only + foreach
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+service:s1 = {
+ ipv4_only;
+ user = foreach interface:r1.[all];
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit icmp any host 10.1.1.1 8
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit icmp any host 10.1.2.1 8
+ deny ip any any
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n2_in
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Service with ipv4_only + foreach having only v4 objects
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ ipv4_only;
+ user = foreach interface:r1.[all];
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+=WARNING=
+Warning: Ignoring 'ipv4_only' in service:s1, because no combined IPv4/IPv6 objects are in use
+=END=
