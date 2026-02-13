@@ -807,7 +807,7 @@ func (o *owner) isNil() bool              { return o == nil }
 func (o *owner) equal(o2 routerAttr) bool { return o == o2 }
 func (o *owner) toRouter(r *router)       { r.owner = o }
 
-// inheritAttributesFromArea distributes area attributes to zones and
+// inheritAttributesFromArea distributes attributes of area to
 // managed routers.
 func (c *spoc) inheritAttributesFromArea() {
 
@@ -842,14 +842,13 @@ func (c *spoc) inheritRouterAttributes(
 	}
 	// Check for redundant attribute with enclosing areas.
 	for up := a.inArea; up != nil; up = up.inArea {
-		if rA2 := &up.routerAttributes; rA2 != nil {
-			if at2 := getAttr(rA2); !at2.isNil() {
-				if at1.equal(at2) {
-					c.warn("Useless '%s' at %s,\n"+
-						" it was already inherited from %s",
-						at1.attrName(), a.vxName(), rA2.name)
-					return
-				}
+		rA2 := &up.routerAttributes
+		if at2 := getAttr(rA2); !at2.isNil() {
+			if at1.equal(at2) {
+				c.warn("Useless '%s' at %s,\n"+
+					" it was already inherited from %s",
+					at1.attrName(), a.vxName(), rA2.name)
+				return
 			}
 		}
 	}
