@@ -116,15 +116,12 @@ func (c *spoc) propagateOwners() {
 	}
 
 	// Set owner for interfaces of managed routers.
+	// Interface of managed router is not allowed to have individual owner.
 	for _, r := range c.managedRouters {
-		o := r.owner
-		if o == nil {
-			continue
-		}
-
-		// Interface of managed router is not allowed to have individual owner.
-		for _, intf := range withSecondary(getIntf(r)) {
-			intf.owner = o
+		if o := r.owner; o != nil {
+			for _, intf := range withSecondary(getIntf(r)) {
+				intf.owner = o
+			}
 		}
 	}
 
@@ -133,8 +130,7 @@ func (c *spoc) propagateOwners() {
 	for _, r := range c.allRouters {
 		for _, intf := range r.interfaces {
 			if intf.loopback {
-				o := intf.owner
-				intf.network.owner = o
+				intf.network.owner = intf.owner
 			}
 		}
 	}
