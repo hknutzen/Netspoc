@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-02-16-1119]
+
 ### Changed
 
 - IP address with prefix length 0 is ignored at unnamed aggregate.
