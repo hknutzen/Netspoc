@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Automatic group of area that only has IPv4 borders or IPv4 anchor,
   now also includes dual stack objects located inside this area.
 
+### Fixed
+
+- If an unnamed aggregate without IP matches IPv4 and IPv6 networks,
+  it is marked as dual stack now.
+- Fixed handling of 'ipv4_only' and 'ipv6_only' with 'foreach'.
+
 ## [2026-02-05-1317]
 
 ### Changed
