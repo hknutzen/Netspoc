@@ -2208,16 +2208,12 @@ area:a1 = { border = interface:r1.n1; owner = o1; }
   "all",
   "o3"
  ],
- "o1@example.com": null,
- "o2@example.com": null,
- "o2s1@example.com": null,
  "o2s2@other": [
   "o2s2"
  ],
  "o3@sub.example.com": [
   "o3"
- ],
- "o4@example.com": null
+ ]
 }
 =END=
 

@@ -1369,9 +1369,10 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	// Create owner array from owner map.
 	email2oList := make(map[string]stringList)
 	for e, m := range email2owners {
-
-		// Sort owner names for output.
-		email2oList[e] = slices.Sorted(maps.Keys(m))
+		if len(m) > 0 {
+			// Sort owner names for output.
+			email2oList[e] = slices.Sorted(maps.Keys(m))
+		}
 	}
 	c.exportJson(outDir, "email", email2oList)
 }
