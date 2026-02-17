@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- export-netspoc no longer adds email with empty owner list to file "email".
+
 ## [2026-02-16-1119]
 
 ### Changed
