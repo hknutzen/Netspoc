@@ -301,6 +301,40 @@ Error: Inconsistent definition of area:a2 in loop.
 =END=
 
 ############################################################
+=TITLE=Inconsistent definition of area in loop II
+=INPUT=
+area:a1 = {
+ border = interface:r1.n1;
+ inclusive_border = interface:r2.n2;
+}
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:103; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+}
+=ERROR=
+Error: Inconsistent definition of area:a1 in loop.
+ It is reached from outside via this path:
+ - interface:r1.n1
+ - interface:r3.n1
+ - interface:r3.n2
+ - interface:r2.n2
+=END=
+############################################################
 =TITLE=ACL from inclusive area
 # border and inclusive_border can contact at an interface.
 =INPUT=
