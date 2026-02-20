@@ -467,7 +467,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 /*
 ##############################################################################
 setArea collects zones and routers of an area.
-Returns false, or true if error was found.
+Returns false if no error was found, or true if error was found.
 */
 func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	lookup bLookup, objInArea map[pathObj]map[*area]bool) bool {
@@ -532,12 +532,15 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		// For areas with defined borders, check if border was found...
 		if t, found := lookup[intf]; found {
 			// Reached border from wrong side or border classification wrong.
-			if t == inclusiveBorder != !isZone {
-				// will be collected to show invalid path
+			// Collect interfaces to show invalid path
+			if t == foundBorder {
+				// Reached border from wrong side
 				return intfList{intf}
 			}
-
-			// ...mark found border.
+			if (t == normalBorder && !isZone) || (t == inclusiveBorder && isZone) {
+				// Border classification wrong
+				return intfList{intf}
+			}
 			lookup[intf] = foundBorder
 			continue
 		}
