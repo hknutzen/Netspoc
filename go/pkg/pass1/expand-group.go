@@ -804,18 +804,20 @@ func (c *spoc) expandGroupInRule(l []ast.Element, ctx string) groupObjList {
 		}
 	}
 	list = list[:j]
-	seen := make(map[groupObj]bool, len(list))
-	for _, o := range list {
-		seen[o] = true
-	}
-SUBNET:
-	for _, n := range addedSubnets {
-		for up := n; up != nil; up = up.up {
-			if seen[up] {
-				continue SUBNET
-			}
+	if addedSubnets != nil {
+		seen := make(map[groupObj]bool, len(list))
+		for _, o := range list {
+			seen[o] = true
 		}
-		list.push(n)
+	SUBNET:
+		for _, n := range addedSubnets {
+			for up := n; up != nil; up = up.up {
+				if seen[up] {
+					continue SUBNET
+				}
+			}
+			list.push(n)
+		}
 	}
 	return list
 }
