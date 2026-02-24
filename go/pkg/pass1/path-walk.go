@@ -813,7 +813,22 @@ func connectClusterPath(
 			}
 		} else if *borderIntf != nil && (*borderIntf).pathRestrict != nil {
 			// Loop is entered/exited at pathrestricted interface.
-			store = *borderIntf
+			// But only use the interface as store when it leads into
+			// the same loop cluster. If the interface exits to a
+			// different loop cluster, path information must be stored at router
+			borderZoneLoop := (*borderIntf).zone.loop
+			objLoop := obj.getLoop()
+			if borderZoneLoop != nil && objLoop != nil &&
+				borderZoneLoop.clusterExit != objLoop.clusterExit {
+				switch x := obj.(type) {
+				case *router:
+					store = x
+				case *zone:
+					store = x
+				}
+			} else {
+				store = *borderIntf
+			}
 		} else {
 			// Loop starts/ends or is entered/exited at obj; no
 			// pathrestriction is effective.
