@@ -873,3 +873,104 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
+=TITLE=Pathrestricted interface between two loops, router first
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5;
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+pathrestriction:pr1 = interface:r2.n4, interface:r1.n3;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = ip;
+}
+=OUTPUT=
+--r2
+! n2_in
+access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Pathrestricted interface between two loops, zone first
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.4; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n4; }
+}
+pathrestriction:pr1 = interface:r3.n2, interface:r3.n4;
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = network:n1; prt = ip;
+}
+=OUTPUT=
+--r3
+! n3_in
+access-list n3_in extended permit ip 10.1.4.0 255.255.255.0 10.1.1.0 255.255.255.0
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+--
+! n4_in
+access-list n4_in extended deny ip any4 any4
+access-group n4_in in interface n4
+=END=
