@@ -873,3 +873,104 @@ ipv6 access-list n2_in
 =END=
 
 ############################################################
+=TITLE=Pathrestricted interface between two loops, router first
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+network:n5 = { ip6 = ::a01:500/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:301; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:401; hardware = n4; }
+}
+router:r3 = {
+ interface:n4;
+ interface:n5;
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+ interface:n5 = { ip6 = ::a01:501; hardware = n5; }
+}
+pathrestriction:pr1 = interface:r2.n4, interface:r1.n3;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = ip;
+}
+=OUTPUT=
+--ipv6/r2
+! n2_in
+access-list n2_in extended permit ip ::a01:100/120 ::a01:400/120
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Pathrestricted interface between two loops, zone first
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:303; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:403; hardware = n4; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip6 = ::a01:304; hardware = n3; }
+ interface:n4 = { ip6 = ::a01:404; hardware = n4; }
+}
+pathrestriction:pr1 = interface:r3.n2, interface:r3.n4;
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = network:n1; prt = ip;
+}
+=OUTPUT=
+--ipv6/r3
+! n3_in
+access-list n3_in extended permit ip ::a01:400/120 ::a01:100/120
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
+--
+! n4_in
+access-list n4_in extended deny ip any6 any6
+access-group n4_in in interface n4
+=END=
