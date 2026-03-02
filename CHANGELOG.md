@@ -8,7 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- export-netspoc no longer adds email with empty owner list to file "email".
+- Fixed bug where Netspoc no longer terminated when finding path
+  through two loops connected by an interface with pathrestriction.
+- Program "export-netspoc" no longer exports visible services.
+  Lists are empty now.
+- Program "export-netspoc" no longer adds email with empty owner list
+  to file "email".
 
 ## [2026-02-16-1119]
 
