@@ -8,10 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2026-03-02-1256]
 
-### Changed
+### Fixed
 
 - Fixed bug where Netspoc no longer terminated when finding path
   through two loops connected by an interface with pathrestriction.
+
+### Changed
+
 - Program "export-netspoc" no longer exports visible services.
   Lists are empty now.
 - Program "export-netspoc" no longer adds email with empty owner list
