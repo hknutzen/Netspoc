@@ -190,7 +190,7 @@ router:r1 = {
 }
 network:n2 = { ip6 = ::a02:200/120; }
 =ERROR=
-Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that one's address
 =END=
 
 ############################################################

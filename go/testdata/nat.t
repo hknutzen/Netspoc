@@ -298,7 +298,7 @@ access-group n3_in in interface n3
 =TITLE=Declared subnet of NAT network in area doesn't match
 =INPUT=[[input 10.11.3.16/28]]
 =ERROR=
-Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's address
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that one's address
 =END=
 
 ############################################################
@@ -513,7 +513,7 @@ Warning: nat:C of network:Test is subnet of network:X
 =TITLE=Declared NAT network subnet doesn't match
 =INPUT=[[input  {ip: "10.8.4.240/28", sub: "subnet_of = network:X;"}]]
 =ERROR=
-Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's address
+Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that one's address
 =END=
 
 ############################################################

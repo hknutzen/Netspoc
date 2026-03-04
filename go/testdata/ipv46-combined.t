@@ -2155,7 +2155,7 @@ router:r1 = {
  interface:n2;
 }
 =ERROR=
-Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that one's address
 =END=
 
 ############################################################
