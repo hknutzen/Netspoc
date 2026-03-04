@@ -97,8 +97,8 @@ router:r1 = {
  interface:n2 = { ip6 = 1000::abcd:0001:0001; }
 }
 =ERROR=
-Error: network:n2 is subnet_of network:n1 but its IP doesn't match that's address
-Error: network:n1 is subnet_of network:n2 but its IP doesn't match that's address
+Error: network:n2 is subnet_of network:n1 but its IP doesn't match that one's address
+Error: network:n1 is subnet_of network:n2 but its IP doesn't match that one's address
 =END=
 
 ############################################################
