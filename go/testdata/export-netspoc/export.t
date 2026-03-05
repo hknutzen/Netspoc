@@ -80,19 +80,22 @@ service:test = {
  "owner": [
   "test"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/y/service_lists
 {
  "owner": [],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
  "owner": [],
  "user": [
   "test"
- ]
+ ],
+ "visible": []
 }
 =END=
 
@@ -108,14 +111,16 @@ service:test = {
 --owner/y/service_lists
 {
  "owner": [],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
  "owner": [],
  "user": [
   "test"
- ]
+ ],
+ "visible": []
 }
 =END=
 
@@ -133,7 +138,8 @@ service:test = {
  "owner": [],
  "user": [
   "test"
- ]
+ ],
+ "visible": []
 }
 =END=
 
@@ -155,7 +161,8 @@ service:test2 = {
  "owner": [],
  "user": [
   "test2"
- ]
+ ],
+ "visible": []
 }
 --owner/z/service_lists
 {
@@ -163,7 +170,8 @@ service:test2 = {
  "user": [
   "test",
   "test2"
- ]
+ ],
+ "visible": []
 }
 =END=
 
@@ -185,7 +193,8 @@ service:test2 = {
  "owner": [
   "test2"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
@@ -193,7 +202,8 @@ service:test2 = {
   "test",
   "test2"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 =END=
 
@@ -215,7 +225,8 @@ service:test2 = {
  "owner": [],
  "user": [
   "test2"
- ]
+ ],
+ "visible": []
 }
 --owner/z/service_lists
 {
@@ -223,7 +234,8 @@ service:test2 = {
  "user": [
   "test",
   "test2"
- ]
+ ],
+ "visible": []
 }
 =END=
 
@@ -830,7 +842,8 @@ service:h3 = {
   "n2",
   "n3"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/a2/service_lists
 {
@@ -841,7 +854,8 @@ service:h3 = {
   "n2",
   "n3"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/n2/service_lists
 {
@@ -852,7 +866,8 @@ service:h3 = {
   "n2",
   "n3"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/n3/service_lists
 {
@@ -863,7 +878,8 @@ service:h3 = {
   "n2",
   "n3"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/h3/service_lists
 {
@@ -874,7 +890,125 @@ service:h3 = {
   "n2",
   "n3"
  ],
- "user": []
+ "user": [],
+ "visible": []
+}
+=END=
+
+############################################################
+=TITLE=Visible services
+=INPUT=
+owner:x1 = { admins = x1@example.com; }
+owner:x2 = { admins = x2@example.com; }
+owner:x3 = { admins = x3@example.com; }
+owner:x4 = { admins = x4@example.com; }
+owner:DA_1 = { admins = DA_1@example.com; }
+owner:DA_2 = { admins = DA_2@example.com; }
+owner:DA_3 = { admins = DA_3@example.com; }
+owner:DA_4 = { admins = DA_4@example.com; }
+network:n1 = { ip = 10.1.1.0/24;
+ host:x1 = { ip = 10.1.1.1; owner = x1; }
+ host:x2 = { ip = 10.1.1.2; owner = x2; }
+ host:x3 = { ip = 10.1.1.3; owner = x3; }
+ host:x4 = { ip = 10.1.1.4; owner = x4; }
+ host:x5 = { ip = 10.1.1.5; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ host:DA_1 = { ip = 10.1.2.1; owner = DA_1; }
+ host:DA_2 = { ip = 10.1.2.2; owner = DA_2; }
+ host:DA_3 = { ip = 10.1.2.3; owner = DA_3; }
+ host:DA_4 = { ip = 10.1.2.4; owner = DA_4; }
+ host:DA_5 = { ip = 10.1.2.5; }
+}
+router:r = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.99; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.99; hardware = n2; }
+}
+service:s1 = {
+ user = host:x1, host:x2, host:x3;
+ permit src = user; dst = host:DA_1; prt = tcp 80;
+}
+service:s2 = {
+ user = host:DA_1, host:DA_2, host:DA_3;
+ permit src = user; dst = host:x1; prt = tcp 80;
+}
+service:s3 = {
+ user = host:DA_1, host:DA_2, host:x3;
+ permit src = user; dst = host:x1; prt = tcp 80;
+}
+service:s4 = {
+ user = host:x1, host:x2, host:x3;
+ permit src = user; dst = host:x5; prt = tcp 80;
+}
+service:s5 = {
+ user = host:DA_1, host:DA_2, host:DA_3;
+ permit src = user; dst = host:x5; prt = tcp 81;
+}
+service:s6 = {
+ user = host:DA_5;
+ permit src = user; dst = host:x5; prt = tcp 82;
+}
+service:s7 = {
+ user = host:x1;
+ permit src = user; dst = host:DA_1; prt = tcp 80;
+}
+service:s8 = {
+ multi_owner;
+ user = host:x1;
+ permit src = user; dst = host:DA_1, host:x2; prt = tcp 80;
+}
+=OUTPUT=
+--owner/x1/service_lists
+{
+ "owner": [
+  "s2",
+  "s3"
+ ],
+ "user": [
+  "s1",
+  "s4",
+  "s7",
+  "s8"
+ ],
+ "visible": []
+}
+--owner/x4/service_lists
+{
+ "owner": [],
+ "user": [],
+ "visible": [
+  "s1",
+  "s4"
+ ]
+}
+--owner/DA_1/service_lists
+{
+ "owner": [
+  "s1",
+  "s7",
+  "s8"
+ ],
+ "user": [
+  "s2",
+  "s3",
+  "s5"
+ ],
+ "visible": ["s4"]
+}
+--owner/DA_4/service_lists
+{
+ "owner": [],
+ "user": [],
+ "visible": [
+  "s1",
+  "s2",
+  "s4",
+  "s5",
+  "s7",
+  "s8"
+ ]
 }
 =END=
 
@@ -1391,7 +1525,8 @@ service:s1 = {
  "owner": [
   "s1"
  ],
- "user": []
+ "user": [],
+ "visible": []
 }
 --owner/all/assets
 {
@@ -2152,7 +2287,8 @@ service:s1 = {
  "owner": [],
  "user": [
   "s1"
- ]
+ ],
+ "visible": []
 }
 -- owner/all/users
 {
@@ -2165,7 +2301,8 @@ service:s1 = {
  "owner": [],
  "user": [
   "s1"
- ]
+ ],
+ "visible": []
 }
 -- owner/a/users
 {
@@ -2837,7 +2974,8 @@ service:n3 = {
   "a",
   "n2",
   "n3"
- ]
+ ],
+ "visible": []
 }
 --owner/n1/service_lists
 {
@@ -2846,7 +2984,8 @@ service:n3 = {
   "a",
   "h1",
   "n1"
- ]
+ ],
+ "visible": []
 }
 --owner/n2/service_lists
 {
@@ -2854,7 +2993,8 @@ service:n3 = {
  "user": [
   "a",
   "n2"
- ]
+ ],
+ "visible": []
 }
 --owner/h1/service_lists
 {
@@ -2863,7 +3003,8 @@ service:n3 = {
   "a",
   "h1",
   "n1"
- ]
+ ],
+ "visible": []
 }
 =END=
 
