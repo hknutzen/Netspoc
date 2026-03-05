@@ -292,6 +292,35 @@ func protoDescr(l []*proto) stringList {
 	return result
 }
 
+func findVisibility(owners, uowners stringList) string {
+	DAOwner := false
+	m := make(map[string]bool)
+	for _, ow := range owners {
+		if strings.HasPrefix(ow, "DA_") {
+			DAOwner = true
+		}
+		m[ow] = true
+	}
+	DAUser := 0
+	otherUser := 0
+	for _, ow := range uowners {
+		if !m[ow] {
+			if strings.HasPrefix(ow, "DA_") {
+				DAUser++
+			} else {
+				otherUser++
+			}
+		}
+	}
+
+	if otherUser >= 3 {
+		return "*"
+	} else if DAOwner || DAUser >= 3 {
+		return "DA_"
+	}
+	return ""
+}
+
 // Calculate unique id for set of rules.
 // Take first 8 characters of base64 encoded SHA1 hash.
 // This gives 8x6=48 bits.
@@ -321,6 +350,7 @@ type exportedSvc struct {
 	partOwners   []string
 	partUowners  []string
 	uowners      []string
+	visible      string
 }
 
 // Split service, if 'user' has different values in normalized rules.
@@ -611,6 +641,8 @@ func (c *spoc) setupServiceInfo(
 		s.uowners = uowners
 		s.partUowners = xOwnersForObjects(users, pInfo)
 		s.outerUowners = xOwnersForObjects(users, oInfo)
+
+		s.visible = findVisibility(owners, uowners)
 	}
 }
 
@@ -1131,6 +1163,20 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 		addChk(s.uowners, "user", chkUser)
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
+		if visible := s.visible; visible != "" {
+			for ow := range c.symTable.owner {
+				type2sMap := owner2type2sMap[ow]
+				if type2sMap["owner"][s] {
+					continue
+				}
+				if type2sMap["user"][s] {
+					continue
+				}
+				if visible == "*" || strings.HasPrefix(ow, visible) {
+					add(stringList{ow}, "visible")
+				}
+			}
+		}
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
@@ -1138,13 +1184,16 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
-		for _, typ := range []string{"owner", "user"} {
+		for _, typ := range []string{"owner", "user", "visible"} {
 			sNames := make(stringList, 0)
+		SVC:
 			for s := range type2sMap[typ] {
 				sName := strings.TrimPrefix(s.name, "service:")
 				sNames.push(sName)
 				var users srvObjList
 				switch typ {
+				case "visible":
+					continue SVC
 				case "owner":
 					users = s.user
 				case "user":
