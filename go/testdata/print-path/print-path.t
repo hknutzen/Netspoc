@@ -146,3 +146,22 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 =OUTPUT=
 ["network:n1","network:n2","network:n3","router:r1","router:u1"]
+=END=
+
+############################################################
+=TITLE=Path from dual stack network to v6 network
+=PARAMS=network:n1 network:n2
+=INPUT=
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip6 = 2001:db8:9:2::/64; }
+
+=OUTPUT=
+["network:n1","network:n2","router:r1"]
+=END=
