@@ -6,7 +6,7 @@ layout: default
 
 ## About
 
-Netspoc is [free](https://github.com/hknutzen/Netspoc/raw/releases/LICENSE)
+Netspoc is [free](https://github.com/hknutzen/Netspoc/raw/refs/heads/master/LICENSE)
 software to manage all the packet filter devices inside your
 network topology.  Filter rules for each device are generated from one
 central ruleset, using a description of your network topology.
@@ -31,7 +31,7 @@ different networks.
 #### Topology
 
 You define the networks in more detail with attributes like IP address
-and hosts and arrange them into a topology.  
+and hosts and arrange them into a topology.
 The topology is a graph of networks connected by packet filters and routers.
 
 </div>
@@ -41,7 +41,7 @@ The topology is a graph of networks connected by packet filters and routers.
 
 #### Find paths
 
-Netspoc processes each rule and finds the path from source 
+Netspoc processes each rule and finds the path from source
 to destination.
 
 </div>
