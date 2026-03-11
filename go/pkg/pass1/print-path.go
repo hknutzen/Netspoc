@@ -80,6 +80,13 @@ func (c *spoc) printPath(stdout io.Writer, path string, params []string) {
 			c.abort("Unsupported element: %v", elements[0])
 		}
 	}
+	// If one side is a dual-stack (combined46) network, pick the part
+	// that matches the IP version of the other side.
+	for i := range l {
+		if l[i].isCombined46() && l[i].isIPv6() != l[1-i].isIPv6() {
+			l[i] = l[i].combined46
+		}
+	}
 
 	znl := make(map[*zone]netList)
 	isUsed := make(map[string]bool)
