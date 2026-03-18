@@ -448,8 +448,18 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				}
 			}
 			if foreach {
+				// Collect parts of dual stack objects and process them together.
+				m := make(map[string][]groupObj)
 				for _, elt := range user {
-					process(groupObjList{elt})
+					name := elt.String()
+					m[name] = append(m[name], elt)
+				}
+				for _, elt := range user {
+					name := elt.String()
+					if l := m[name]; l != nil {
+						process(l)
+						m[name] = nil
+					}
 				}
 			} else {
 				process(user)

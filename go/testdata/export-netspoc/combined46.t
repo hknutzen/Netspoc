@@ -324,6 +324,38 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Dual stack objects in service with ipv4_only + foreach
+=INPUT=
+network:n1 = { ip = 10.1.1.12/30; ip6 = 2001:db8:1:1::/64; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.13; ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+service:s1 = {
+ ipv4_only;
+ user = foreach interface:r1.n1;
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+=OUTPUT=
+--services
+{
+ "s1": {
+  "details": {"owner": [":unknown"]},
+  "rules": [
+   {
+    "action": "permit",
+    "src": [],
+    "dst": ["interface:r1.n1"],
+    "prt": ["icmp 8"],
+    "has_user": "src"
+   }
+  ]
+ }
+}
+=END=
+
+############################################################
 =TITLE=V4 only network to dual stack network
 =INPUT=
 area:all = { anchor = network:n2; owner = o; }
