@@ -356,6 +356,116 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=V4 subnet is deleted in rule if supernet is present
+=INPUT=
+area:all = { anchor = network:n2; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:sup = { ip = 10.1.0.0/23; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:9:2::/64; }
+router:u = {
+ interface:sup;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:n1]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--owner/o/users
+{
+ "s1": [
+  "network:n1", "network:sup"
+ ]
+}
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
+    }
+  ]
+ }
+}
+=END=
+
+############################################################
+=TITLE=V6 subnet is deleted in rule if supernet is present
+=INPUT=
+area:all = { anchor = network:n2; owner = o; }
+owner:o = { admins = a1@example.com; }
+network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:9:2::/64; }
+router:u = {
+ interface:sup;
+ interface:n1;
+}
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:9:2::1; hardware = n2; }
+}
+service:s1 = {
+ user = network:[any:[network:n1]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+--owner/o/users
+{
+ "s1": [
+  "network:n1", "network:sup"
+ ]
+}
+--services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    "o"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
+    }
+  ]
+ }
+}
+=END=
+
+############################################################
 =TITLE=V4 only network to dual stack network
 =INPUT=
 area:all = { anchor = network:n2; owner = o; }

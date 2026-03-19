@@ -552,31 +552,52 @@ func joinV46Pairs(pairs [][2]srvObjList) [][2]srvObjList {
 	}
 	v4Pairs := pairs[:i]
 	v6Pairs := pairs[i:]
-	eqComb46 := func(l4, l6 srvObjList) bool {
+	// Check if supernet of dual stack network is used in service
+	// because the network might be deleted by optimization.
+	checkSup := func(ob srvObj, l srvObjList) bool {
+		if net, ok := ob.(*network); ok {
+			otherPart := net.combined46
+			for up := otherPart.up; up != nil; up = up.up {
+				if slices.ContainsFunc(l, func(o srvObj) bool {
+					return o == up
+				}) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	join := func(l4, l6 srvObjList) srvObjList {
 		m := make(map[string]bool)
 		for _, ob := range l4 {
 			if ob.isCombined46() {
 				m[ob.String()] = true
 			}
 		}
-		count := 0
+		result := l4
 		for _, ob := range l6 {
 			if ob.isCombined46() {
-				if !m[ob.String()] {
-					return false
+				if m[ob.String()] {
+					delete(m, ob.String())
+				} else if checkSup(ob, l4) {
+					result.push(ob)
+				} else {
+					return nil
 				}
-				count++
+			} else {
+				result.push(ob)
 			}
 		}
-		return count == len(m)
-	}
-	join6 := func(l4, l6 srvObjList) srvObjList {
-		for _, ob := range l6 {
-			if !ob.isCombined46() {
-				l4 = append(l4, ob)
+		for nm := range m {
+			i := slices.IndexFunc(l4, func(o srvObj) bool {
+				return o.String() == nm
+			})
+			ob := l4[i]
+			if !checkSup(ob, l6) {
+				return nil
 			}
 		}
-		return l4
+		return result
 	}
 	// Merge IPv6 pair into IPv4 pair if it has identical combined src
 	// and dst objects.
@@ -584,11 +605,11 @@ func joinV46Pairs(pairs [][2]srvObjList) [][2]srvObjList {
 V6:
 	for _, p6 := range v6Pairs {
 		for i, p4 := range v4Pairs {
-			if eqComb46(p4[0], p6[0]) && eqComb46(p4[1], p6[1]) {
-				v4Pairs[i] = [2]srvObjList{
-					join6(p4[0], p6[0]), join6(p4[1], p6[1]),
+			if src := join(p4[0], p6[0]); src != nil {
+				if dst := join(p4[1], p6[1]); dst != nil {
+					v4Pairs[i] = [2]srvObjList{src, dst}
+					continue V6
 				}
-				continue V6
 			}
 		}
 		v6Extra = append(v6Extra, p6)
