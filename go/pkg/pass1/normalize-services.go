@@ -181,24 +181,13 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 		}
 		return false
 	}
-	m := make(map[string]bool)
-	for _, ob := range v6 {
-		if ob.isCombined46() {
-			m[ob.String()] = true
-		}
-	}
-
 	// Check if supernet of dual stack network is used in service
 	// because the network might be deleted by optimization.
-	checkSup := func(l, ol groupObjList, nm string) bool {
-		i := slices.IndexFunc(l, func(o groupObj) bool {
-			return o.String() == nm
-		})
-		ob := l[i]
+	checkSup := func(ob groupObj, l groupObjList) bool {
 		if net, ok := ob.(*network); ok {
 			otherPart := net.combined46
 			for up := otherPart.up; up != nil; up = up.up {
-				if slices.ContainsFunc(ol, func(o groupObj) bool {
+				if slices.ContainsFunc(l, func(o groupObj) bool {
 					return o == up
 				}) {
 					return true
@@ -208,20 +197,29 @@ func (c *spoc) checkCombined46(v4, v6 groupObjList, s *service) {
 		return false
 	}
 
+	m := make(map[string]bool)
+	for _, ob := range v6 {
+		if ob.isCombined46() {
+			m[ob.String()] = true
+		}
+	}
 	for _, ob := range v4 {
 		if ob.isCombined46() && !isOtherAggInCluster(ob) {
 			if m[ob.String()] {
 				delete(m, ob.String())
-			} else if !checkSup(v4, v6, ob.String()) {
+			} else if !checkSup(ob, v6) {
 				c.err(
 					"Must not use only IPv4 part of dual stack object %s in %s",
 					ob, s)
 			}
 		}
 	}
-
 	for nm := range m {
-		if !checkSup(v6, v4, nm) {
+		i := slices.IndexFunc(v6, func(o groupObj) bool {
+			return o.String() == nm
+		})
+		ob := v6[i]
+		if !checkSup(ob, v4) {
 			c.err("Must not use only IPv6 part of dual stack object %s in %s", nm, s)
 		}
 	}
