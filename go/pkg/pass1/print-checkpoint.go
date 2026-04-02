@@ -18,7 +18,7 @@ type chkpConfig struct {
 	Groups      []*chkpGroup
 	TCP         []*chkpTCPUDP
 	UDP         []*chkpTCPUDP
-	//ICMP  []*chkpICMP
+	ICMP        []*chkpICMP
 	//ICMP6 []*chkpICMP
 	//SvOther       []*chkpSvOther
 	GatewayRoutes map[string][]*chkpRoute
@@ -155,6 +155,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 	hosts := make(map[string]*chkpHost)
 	networks := make(map[string]*chkpNetwork)
 	tcpudp := make(map[*proto]*chkpTCPUDP)
+	icmp := make(map[*proto]*chkpICMP)
 	config.TargetRules = make(map[string][]*chkpRule)
 	for _, r := range vrfMembers {
 		var targetRules []*chkpRule
@@ -246,40 +247,57 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 					objName := handleRuleObject(dst)
 					rules[name].Destination = append(rules[name].Destination, chkpName(objName))
 				}
+
+				checkName := func(prtType int) string {
+					switch prtType {
+					case 0:
+						return "echo-reply"
+					case 3:
+						return "dest-unreach"
+					case 4:
+						return "source-quench"
+					case 5:
+						return "redirect"
+					case 8:
+						return "echo-request"
+					case 11:
+						return "time-exceeded"
+					case 12:
+						return "param-prblm"
+					case 13:
+						return "timestamp"
+					case 14:
+						return "timestamp-reply"
+					case 15:
+						return "info-req"
+					case 16:
+						return "info-reply"
+					case 17:
+						return "mask-request"
+					case 18:
+						return "mask-reply"
+					}
+					return ""
+				}
+
 				for _, prt := range rule.prt {
 					prtName := strings.ReplaceAll(prt.name, " ", "_")
 					if prt.proto == "icmp" {
-						if prt.icmpCode == -1 {
-							switch prt.icmpType {
-							case 0:
-								prtName = "echo-reply"
-							case 3:
-								prtName = "dest-unreach"
-							case 4:
-								prtName = "source-quench"
-							case 5:
-								prtName = "redirect"
-							case 8:
-								prtName = "echo-request"
-							case 11:
-								prtName = "time-exceeded"
-							case 12:
-								prtName = "param-prblm"
-							case 13:
-								prtName = "timestamp"
-							case 14:
-								prtName = "timestamp-reply"
-							case 15:
-								prtName = "info-req"
-							case 16:
-								prtName = "info-reply"
-							case 17:
-								prtName = "mask-request"
-							case 18:
-								prtName = "mask-reply"
+						rulePrt := &chkpICMP{}
+						rulePrt.Name = prtName
+						rulePrt.IcmpType = &prt.icmpType
+
+						if prt.icmpCode != -1 {
+							rulePrt.IcmpCode = &prt.icmpCode
+						} else {
+							// If no code is given, we can use the already existing name of the type as service name.
+							name := checkName(prt.icmpType)
+							if name != "" {
+								prtName = name
+								goto ADDPRT
 							}
 						}
-						// TODO: alle mit icmpCode auch in rulePrt eintragen bzw tcpudp map
+						icmp[prt] = rulePrt
 					} else if _, found := tcpudp[prt]; !found {
 						rulePrt := &chkpTCPUDP{}
 						rulePrt.Name = prtName
@@ -289,6 +307,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 						}
 						tcpudp[prt] = rulePrt
 					}
+				ADDPRT:
 					rules[name].Service = append(rules[name].Service, chkpName(prtName))
 				}
 			}
@@ -352,6 +371,14 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 		case "udp":
 			config.UDP = append(config.UDP, tcpudp[k])
 		}
+	}
+	for _, k := range slices.SortedFunc(maps.Keys(icmp), func(a, b *proto) int {
+		if cm := cmp.Compare(a.icmpType, b.icmpType); cm != 0 {
+			return cm
+		}
+		return cmp.Compare(a.icmpCode, b.icmpCode)
+	}) {
+		config.ICMP = append(config.ICMP, icmp[k])
 	}
 }
 

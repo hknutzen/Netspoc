@@ -200,6 +200,7 @@ service:test = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -298,6 +299,7 @@ service:s2 = {
  "Groups":null,
  "TCP":[{"name":"tcp_22","port":"22"},{"name":"tcp_23","port":"23"}],
  "UDP":null,
+ "ICMP": null,
  "GatewayRoutes": {
     "v1": [
       {
@@ -468,6 +470,7 @@ service:test = {
    "port": "22"
   }
  ],
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -564,6 +567,7 @@ service:test2 = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -589,11 +593,12 @@ service:test = {
  permit src = user;
         dst = network:n1;
         prt = icmp 0,
-              icmp 3,
-              #icmp 3/13,
+              icmp 3/13,
               icmp 4,
               icmp 5,
+              icmp 6/0,
               icmp 8,
+              icmp 9,
               icmp 11,
               icmp 12,
               icmp 13,
@@ -620,7 +625,9 @@ service:test = {
    "service": [
     "source-quench",
     "redirect",
+    "icmp_6/0",
     "echo-request",
+    "icmp_9",
     "param-prblm",
     "timestamp",
     "timestamp-reply",
@@ -659,7 +666,7 @@ service:test = {
     "network_n1"
    ],
    "service": [
-    "dest-unreach"
+    "icmp_3/13"
    ],
    "install-on": [
     "Policy Targets"
@@ -699,6 +706,22 @@ service:test = {
  "Groups": null,
  "TCP": null,
  "UDP": null,
+ "ICMP": [
+  {
+   "name": "icmp_3/13",
+   "icmp-type": 3,
+   "icmp-code": 13
+  },
+  {
+   "name": "icmp_6/0",
+   "icmp-type": 6,
+   "icmp-code": 0
+  },
+  {
+   "name": "icmp_9",
+   "icmp-type": 9
+  }
+ ],
  "GatewayRoutes": {
   "v1": [
    {
@@ -788,6 +811,7 @@ service:test = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -897,6 +921,7 @@ service:test = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1013,6 +1038,7 @@ service:b = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1088,6 +1114,7 @@ service:test = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1192,6 +1219,7 @@ service:test = {
   }
  ],
  "UDP": null,
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": null
  }
