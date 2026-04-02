@@ -122,6 +122,7 @@ service:test = {
    "port": "22"
   }
  ],
+ "ICMP": null,
  "GatewayRoutes": {
   "v1": [
    {
