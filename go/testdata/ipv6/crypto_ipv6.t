@@ -3570,7 +3570,6 @@ crypto:psk-detailed = {
 }
 ipsec:aes256_sha256_ikev2_psk = {
  key_exchange = isakmp:aes256_sha256_ikev2_psk;
-# not given: esp_encryption = aes256; becomes "null"
  esp_authentication = sha256;
  pfs_group = 19;
  lifetime = 3600 sec;
@@ -3625,6 +3624,59 @@ crypto map crypto-dmz interface dmz
 access-list n1_in extended permit tcp ::a01:100/120 ::a01:200/120 eq 22
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=detailed_crypto_acl without rules
+# This generates invalid code,
+# because ACL crypto-f000::c0a8:102 is referenced
+# but it is not defined, since no internal networks are known.
+=INPUT=
+crypto:psk-detailed = {
+ type = ipsec:aes256_sha256_ikev2_psk;
+ detailed_crypto_acl;
+}
+ipsec:aes256_sha256_ikev2_psk = {
+ key_exchange = isakmp:aes256_sha256_ikev2_psk;
+ esp_authentication = sha256;
+ pfs_group = 19;
+ lifetime = 3600 sec;
+}
+isakmp:aes256_sha256_ikev2_psk = {
+ ike_version = 2;
+ nat_traversal = additional;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha256;
+ group = 19;
+ lifetime = 86400 sec;
+}
+network:n1 = { ip6 = ::a01:100/120;}
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:dmz = { ip6 = f000::c0a8:104; hardware = dmz;
+                   hub = crypto:psk-detailed; }
+}
+network:dmz = { ip6 = f000::c0a8:100/123;}
+router:r1 = {
+ interface:dmz = { ip6 = f000::c0a8:102; spoke = crypto:psk-detailed; }
+ interface:n2;
+}
+network:n2 = { ip6 = ::a01:200/120;}
+=OUTPUT=
+--ipv6/asavpn
+! crypto-f000::c0a8:102
+crypto map crypto-dmz 1 set peer f000::c0a8:102
+crypto map crypto-dmz 1 match address crypto-f000::c0a8:102
+crypto map crypto-dmz 1 set ikev2 ipsec-proposal Trans1
+crypto map crypto-dmz 1 set pfs group19
+crypto map crypto-dmz 1 set security-association lifetime seconds 3600
+tunnel-group f000::c0a8:102 type ipsec-l2l
+tunnel-group f000::c0a8:102 ipsec-attributes
+ peer-id-validate nocheck
+crypto map crypto-dmz interface dmz
 =END=
 
 ############################################################
