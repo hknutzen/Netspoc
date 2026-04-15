@@ -541,6 +541,9 @@ type zone struct {
 }
 
 func (x zone) String() string { return x.name }
+func (x zone) vxName() string {
+	return vxName(x.name, x.ipV6, x.combined46 != nil)
+}
 
 // Embedded in router and area.
 type routerAttributes struct {
@@ -740,6 +743,7 @@ type pathStore interface {
 	setLoopPath(pathStore, *loopPath)
 	getZone() pathObj
 	isIPv6() bool
+	vxName() string
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }

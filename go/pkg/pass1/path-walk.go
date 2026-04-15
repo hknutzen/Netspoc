@@ -1170,7 +1170,7 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string, bl
 	}
 
 	c.err("No valid path\n from %s\n to %s\n %s\n%s",
-		srcPath, dstPath, context, msg)
+		srcPath.vxName(), dstPath.vxName(), context, msg)
 }
 
 // pathWalk visits every node

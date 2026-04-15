@@ -647,8 +647,11 @@ network:u2 = { unnumbered; partition = p2; }
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
 router:r1 = {
- interface:n1 = { ip6 = 2001:db8:1:1::1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
 }
 router:u1 = {
  interface:u1;
@@ -658,7 +661,17 @@ router:u2 = {
  interface:u2;
  interface:n2;
 }
-=WARNING=NONE
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: No valid path
+ from IPv4 any:[network:n1]
+ to IPv4 any:[network:n2]
+ for rule permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1
+ Source and destination objects are located in different topology partitions: p1, p2.
+=END=
 
 ############################################################
 =TITLE=Unconnected v6 part in combined zone
