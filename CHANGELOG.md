@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-04-20-1357]
+
 ### Fixed
 
 - Netspoc now aborts on inconsistently defined area having contradictory
