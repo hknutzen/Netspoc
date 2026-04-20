@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Netspoc now aborts on inconsistently defined area having contradictory
+  attributes "border" and "inclusive_border" (#48).
+- Program "export-netspoc"
+  - no longer generates cryptic name
+    for dual stack service with missing IPv4/v6 part (#58),
+  - no longer generates empty IPv6 rule for service with "foreach"
+    and "ipv4_only" (#57).
+- Program "print-path" no longer panics when finding path
+  between dual stack object and IPv6 object (#56).
+
 ## [2026-03-05-0859]
 
 ### Changed
