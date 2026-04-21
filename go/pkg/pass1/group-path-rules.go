@@ -108,6 +108,37 @@ func (c *spoc) isUnenforceableRule(rule *groupedRule, s2u svc2unenforceable,
 	return false
 }
 
+// addSubnetsInZoneCluster adds subnets of network located in other
+// parts of zone cluster.
+// Path of subnet may be modified by pathrestriction.
+// Hence we must traverse also paths of subnets.
+func addSubnetsInZoneCluster(l []someObj) []someObj {
+	var subnets netList
+	for _, obj := range l {
+		if n, ok := obj.(*network); ok {
+			subnets = append(subnets, n.subnetsInCluster...)
+		}
+	}
+	if subnets != nil {
+		seen := make(map[someObj]bool, len(l))
+		for _, obj := range l {
+			seen[obj] = true
+		}
+	SUBNET:
+		for _, n := range subnets {
+			for up := n; up != nil; up = up.up {
+				if seen[up] {
+					// Ignore subnet in same zone.
+					continue SUBNET
+				}
+			}
+			l = append(l, n)
+		}
+	}
+	return l
+
+}
+
 //#######################################################################
 // Convert normalized service rules to grouped path rules.
 //#######################################################################
@@ -121,6 +152,7 @@ type groupWithPath struct {
 // Put multiple interfaces of managed router always into different
 // groups, even if router is identical.
 func splitRuleGroup(group []someObj) []groupWithPath {
+	group = addSubnetsInZoneCluster(group)
 	// Check if group has elements from different zones and must be split.
 	path0 := group[0].getPathNode()
 	different := false

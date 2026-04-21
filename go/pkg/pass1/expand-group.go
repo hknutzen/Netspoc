@@ -763,11 +763,6 @@ func (c *spoc) expandGroupInRule(l []ast.Element, ctx string) groupObjList {
 	list := c.expandGroup(l, ctx, false)
 
 	// Ignore unusable objects.
-	//
-	// Add subnets of network in other parts of zone cluster.
-	// Path of subnet may be modified by pathrestriction.
-	// Hence we must traverse also paths of subnets.
-	var addedSubnets netList
 	j := 0
 	for _, obj := range list {
 		var ignore string
@@ -781,8 +776,6 @@ func (c *spoc) expandGroupInRule(l []ast.Element, ctx string) groupObjList {
 				if x.hasIdHosts {
 					ignore = x.name + " with software clients"
 				}
-			} else {
-				addedSubnets = append(addedSubnets, x.subnetsInCluster...)
 			}
 		case *routerIntf:
 			switch x.ipType {
@@ -804,20 +797,5 @@ func (c *spoc) expandGroupInRule(l []ast.Element, ctx string) groupObjList {
 		}
 	}
 	list = list[:j]
-	if addedSubnets != nil {
-		seen := make(map[groupObj]bool, len(list))
-		for _, o := range list {
-			seen[o] = true
-		}
-	SUBNET:
-		for _, n := range addedSubnets {
-			for up := n; up != nil; up = up.up {
-				if seen[up] {
-					continue SUBNET
-				}
-			}
-			list.push(n)
-		}
-	}
 	return list
 }

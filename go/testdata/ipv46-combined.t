@@ -275,6 +275,47 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
+=TITLE=Implicit IPv4 subnet of dual stack network in zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.2.128/25; ip6 = 2001:db8:1:3::/64; subnet_of = network:n2; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n3 = { ip = 10.1.2.129; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+router:u = {
+ interface:n2 = { ip = 10.1.2.2; ip6 = 2001:db8:1:2::2; }
+ interface:n3 = { ip = 10.1.2.130; ip6 = 2001:db8:1:3::2; }
+}
+pathrestriction:p1 = interface:r1.n2, interface:u.n2;
+pathrestriction:p2 = interface:r2.n3, interface:u.n3;
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ permit tcp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+--r2
+ip access-list extended n3_in
+ deny ip any host 10.1.1.2
+ permit tcp 10.1.2.128 0.0.0.127 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Aggregate from IPv6 network in dual stack zone cluster
 =INPUT=
 network:sup = { ip6 = 2001:db8:1::/60; has_subnets; }
