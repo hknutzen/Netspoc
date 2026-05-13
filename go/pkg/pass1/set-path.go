@@ -84,7 +84,7 @@ func setpathObj(obj pathObj, toZone1 *routerIntf, distToZone1 int,
 
 	// Continue graph exploration otherwise.
 	obj.setActivePath()
-	defer func() { obj.clearActivePath() }()
+	defer obj.clearActivePath()
 	obj.setDistance(distToZone1)
 	maxDistance := distToZone1
 

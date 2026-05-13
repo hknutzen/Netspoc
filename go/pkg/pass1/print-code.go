@@ -2154,7 +2154,7 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 		if err != nil {
 			c.abort("Can't %v", err)
 		}
-		defer func() { os.RemoveAll(tmpDir) }()
+		defer os.RemoveAll(tmpDir)
 		tmpCode = filepath.Join(tmpDir, "code")
 		if err := os.Rename(dir, tmpCode); err != nil {
 			c.abort("Can't %v", err)

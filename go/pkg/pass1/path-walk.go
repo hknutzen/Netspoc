@@ -182,7 +182,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 
 	// Mark current path for loop detection.
 	obj.setActivePath()
-	defer func() { obj.clearActivePath() }()
+	defer obj.clearActivePath()
 
 	// debug "activated obj->{name}";
 
@@ -706,7 +706,7 @@ func clusterPathMark(
 
 		// Mark current path for loop detection.
 		from.setActivePath()
-		defer func() { from.clearActivePath() }()
+		defer from.clearActivePath()
 
 		// To find paths, process every loop interface of from node.
 		getNext := calcNext(from)
