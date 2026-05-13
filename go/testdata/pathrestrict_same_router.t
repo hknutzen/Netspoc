@@ -27,11 +27,22 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
+service:s2 = {
+ user = network:n4;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
 =ERROR=
 Error: No valid path
  from any:[network:n1]
  to any:[network:n4]
  for rule permit src=network:n1; dst=network:n4; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:pr1 (blocked 1 path attempt)
+Error: No valid path
+ from any:[network:n4]
+ to any:[network:n1]
+ for rule permit src=network:n4; dst=network:n1; prt=tcp 80; of service:s2
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
   - pathrestriction:pr1 (blocked 1 path attempt)

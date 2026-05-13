@@ -933,6 +933,11 @@ PATH:
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
 
+			// Check if the path across this router (from entering interface to exiting interface) is blocked by a shared path restriction.
+			if isBlocked(fromIn, toOut) {
+				return false, blockingCount
+			}
+
 			// We need to distinguish between .path1 and .path for
 			// the case, where fromStore is a pathrestricted
 			// interface I of zone at border of loop. In this case, the
