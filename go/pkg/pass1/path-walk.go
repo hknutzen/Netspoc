@@ -902,6 +902,21 @@ func pathMark(fromStore, toStore pathStore) (bool, map[*pathRestriction]int) {
 	// Count how many path attempts each pathrestriction blocks
 	blockingCount := make(map[*pathRestriction]int)
 
+	// isBlocked checks if the path from in to out is blocked by any pathrestriction and updates blockingCount accordingly.
+	isBlocked := func(in, out *routerIntf) bool {
+		if in != nil && out != nil && in != out {
+			for _, pr1 := range in.pathRestrict {
+				for _, pr2 := range out.pathRestrict {
+					if pr1 == pr2 {
+						blockingCount[pr1]++
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
 	// debug("pathMark %s --> %s", fromStore, toStore)
 	fromLoop := from.getLoop()
 	toLoop := to.getLoop()
@@ -917,6 +932,11 @@ PATH:
 
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
+
+			// Check if the path across this router (from entering interface to exiting interface) is blocked by a shared path restriction.
+			if isBlocked(fromIn, toOut) {
+				return false, blockingCount
+			}
 
 			// We need to distinguish between .path1 and .path for
 			// the case, where fromStore is a pathrestricted
@@ -977,6 +997,11 @@ PATH:
 
 			// Mark path at the interface we came from (step in path direction)
 			//debug("pAth: %s %s -> %s", fromIn, fromStore, fromOut)
+
+			// Check if the forward path across this router (from entering interface to exiting interface) is blocked by a shared path restriction.
+			if isBlocked(fromIn, fromOut) {
+				return false, blockingCount
+			}
 			if fromIn != nil {
 				fromIn.setPath(toStore, fromOut)
 			} else {
@@ -1019,6 +1044,11 @@ PATH:
 			// Mark path at interface we go to (step in opposite path direction).
 
 			//debug("path: %s -> %s %s", toIn, toStore, toOut)
+
+			// Check if the backward path across this router (from entering interface to exiting interface) is blocked by a shared path restriction.
+			if isBlocked(toIn, toOut) {
+				return false, blockingCount
+			}
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
 			toLoop = to.getLoop()
