@@ -1226,7 +1226,7 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 	cryptoAclName := "crypto-" + suffix
 
 	// Generate crypto ACL entries.
-	// - either generic from remote network to any or
+	// - either generic from remote networks to any or
 	// - detailed to all networks which are used in rules.
 	isHub := intf.isHub
 	var hub *routerIntf
