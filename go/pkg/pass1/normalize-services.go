@@ -36,7 +36,7 @@ func (c *spoc) pathAutoInterfaces(
 		dstPath = x
 		toList = []pathStore{x}
 	}
-	if srcPath == dstPath || srcPath.isIPv6() != dstPath.isIPv6() {
+	if srcPath == dstPath {
 		return nil
 	}
 	result := c.findAutoInterfaces(
