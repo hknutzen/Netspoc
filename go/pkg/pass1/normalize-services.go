@@ -88,17 +88,10 @@ func (c *spoc) expandAutoIntfWithDstList(
 
 				// If identical result already was found with other destination,
 				// then share this result for both destinations.
-			PAIR:
 				for _, pair2 := range result {
-					if len(pair2.srcList) != len(real) {
-						continue
-					}
-					for i, intf := range pair2.srcList {
-						if real[i] != intf {
-							continue PAIR
-						}
+					if slices.Equal(pair2.srcList, real) {
 						pair = pair2
-						break PAIR
+						break
 					}
 				}
 				if pair == nil {
