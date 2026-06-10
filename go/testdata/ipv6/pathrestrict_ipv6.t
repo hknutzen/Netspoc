@@ -625,7 +625,7 @@ router:r2 = {
 # Pathrestriction is ignored outside of cyclic graph.
 # Internally, pathrestriction is removed from both interfaces,
 # to prevent further errors.
-# We must get the rigth interface, while it is moved from r2 to r2'.
+# We must get the right interface, while it is moved from r2 to r2'.
 pathrestriction:p1 =
  interface:r1.n2,
  interface:r2.n2,
