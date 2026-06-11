@@ -427,7 +427,7 @@ func (c *spoc) expandCrypto() {
 				delete(r.vpnAttributes, "trust-point")
 				r.trustPoint = trustPoint
 			} else {
-				c.err("Missing 'trust-point' in vpnAttributes of %s", r)
+				c.err("Missing 'trust-point' in vpn_attributes of %s", r)
 			}
 		} else if cryptoType == "ASA" {
 			for _, intf := range r.interfaces {

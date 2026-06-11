@@ -1521,7 +1521,7 @@ Warning: Ignoring value at vpn_attribute 'group-lock' of host:id:domain.x.custom
 =INPUT=[[input]]
 =SUBST=/trust-point = ASDM_TrustPoint1;//
 =ERROR=
-Error: Missing 'trust-point' in vpnAttributes of router:asavpn
+Error: Missing 'trust-point' in vpn_attributes of router:asavpn
 =END=
 
 ############################################################
