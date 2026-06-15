@@ -4419,6 +4419,48 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =END=
 
 ############################################################
+=TITLE=Multiple networks behind unmanaged VPN-Router
+=INPUT=
+[[crypto_sts]]
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 1.2.3.0/25; }
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.1;
+  spoke = crypto:sts;
+  id = cert@example.com;
+ }
+ interface:lan1;
+}
+network:lan1 = { ip = 10.99.1.0/24; }
+router:u = {
+ interface:lan1;
+ interface:lan2;
+}
+network:lan2 = { ip = 10.99.2.0/24; }
+=ERROR=
+Error: Exactly one network must be located behind unmanaged interface:vpn1.lan1 of crypto router
+=END=
+
+############################################################
 =TITLE=Virtual interface must not be spoke
 =INPUT=
 [[crypto_sts]]
