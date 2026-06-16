@@ -836,11 +836,21 @@ Error: Missing attribute 'cert_id' at network:n having hosts with attribute 'lda
 =INPUT=
 network:n = {
  ip6 = ::a01:100/120; cert_id = @b.c;
+ host:h = { range6 = ::a01:108 - ::a01:10f; ldap_id = a@b.c; }
+}
+=ERROR=
+Error: Domain name expected in attribute 'cert_id' of network:n
+=END=
+
+############################################################
+=TITLE=Attribute ldap_id only valid with range
+=INPUT=
+network:n = {
+ ip6 = ::a01:100/120;
  host:h = { ip6 = ::a01:101; ldap_id = a@b.c; }
 }
 =ERROR=
 Error: Attribute 'ldap_Id' must only be used together with IP range at host:h
-Error: Domain name expected in attribute 'cert_id' of network:n
 =END=
 
 ############################################################

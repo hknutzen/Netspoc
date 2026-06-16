@@ -12,14 +12,14 @@ func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 		z := intf.zone
 		if len(z.interfaces) != 1 {
 			c.err("Exactly one security zone must be located behind"+
-				" managed %s of crypto router", intf)
+				" managed %s of crypto router", intf.vxName())
 		}
 		return z.networks
 	} else {
 		net := intf.network
 		if len(net.interfaces) != 1 {
 			c.err("Exactly one network must be located behind"+
-				" unmanaged %s of crypto router", intf)
+				" unmanaged %s of crypto router", intf.vxName())
 		}
 		return netList{net}
 	}
@@ -204,7 +204,7 @@ func (c *spoc) expandCrypto() {
 
 		// Do consistency checks and
 		// add rules which allow encrypted traffic.
-		for _, tunnel := range cr.tunnels {
+		for _, tunnel := range slices.Concat(cr.tunnels4, cr.tunnels6) {
 			spoke, hub := tunnel.interfaces[0], tunnel.interfaces[1]
 			router := spoke.router
 			managed := router.managed
@@ -333,7 +333,7 @@ func (c *spoc) expandCrypto() {
 				if doAuth && managed == "" {
 					c.err("Networks behind crypto tunnel to %s of model '%s'"+
 						" need to have ID hosts:\n"+encrypted.nameList(),
-						hubRouter, hubRouter.model.name)
+						hubRouter.vxName(), hubRouter.model.name)
 				} else if needId {
 					c.err("%s needs attribute 'id', because %s"+
 						" has authentication=rsasig",
@@ -426,7 +426,10 @@ func (c *spoc) expandCrypto() {
 			if trustPoint, found := r.vpnAttributes["trust-point"]; found {
 				delete(r.vpnAttributes, "trust-point")
 				r.trustPoint = trustPoint
-			} else {
+				if r6 := r.combined46; r6 != nil {
+					r6.trustPoint = trustPoint
+				}
+			} else if r.trustPoint == "" {
 				c.err("Missing 'trust-point' in vpn_attributes of %s", r)
 			}
 		} else if cryptoType == "ASA" {
@@ -442,7 +445,7 @@ func (c *spoc) expandCrypto() {
 		if !n.isAggregate && n.hasIdHosts && !hasTunnel[n] {
 			c.err(
 				"%s having ID hosts must be connected to router with crypto spoke",
-				n)
+				n.vxName())
 		}
 	}
 }

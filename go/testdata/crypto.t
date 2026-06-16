@@ -402,24 +402,41 @@ Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavp
 =TITLE=Crypto must not share hardware
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:intern = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
  model = ASA, VPN;
  managed;
- vpn_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:n1 = {
+ vpn_attributes = { trust-point = ASDM_TrustPoint1; }
+ interface:intern = {
   ip = 10.1.1.1;
-  hub = crypto:vpn;
-  hardware = n1;
+  hardware = intern;
  }
- interface:n2 = { ip = 10.1.2.1; hardware = n1; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = intern;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
 }
 =ERROR=
-Error: Crypto interface:asavpn.n1 must not share hardware with other interface:asavpn.n2
+Error: Crypto interface:asavpn.dmz must not share hardware with other interface:asavpn.intern
 =END=
 
 ############################################################

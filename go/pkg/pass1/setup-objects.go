@@ -68,7 +68,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.setAscendingServices()
 	c.checkGeneralPermit()
 	c.stopOnErr()
-	c.linkTunnels()
+	c.createTunnels()
 	c.linkVirtualInterfaces()
 	c.splitSemiManagedRouters()
 	c.collectRoutersAndNetworks()
@@ -1028,56 +1028,6 @@ func (c *spoc) setupNetwork2(n *network, a *ast.Attribute) {
 				}
 			}
 		}
-
-		// Check and mark networks with ID-hosts.
-		ldapCount := 0
-		idHostsCount := 0
-		for _, h := range n.hosts {
-			if h.ldapId != "" {
-				ldapCount++
-				h.id = h.ldapId
-			} else if h.id != "" {
-				idHostsCount++
-			}
-		}
-		if ldapCount > 0 {
-
-			// If one host has ldap_id, all hosts must have ldap_id.
-			if len(n.hosts) != ldapCount {
-				c.err("All hosts must have attribute 'ldap_id' in %s", name)
-			}
-			if n.certId == "" {
-				c.err("Missing attribute 'cert_id' at %s having hosts"+
-					" with attribute 'ldap_id'", name)
-			} else if !isDomain(n.certId) {
-				c.err("Domain name expected in attribute 'cert_id' of %s", name)
-			}
-
-			// Mark network.
-			n.hasIdHosts = true
-		} else {
-			if n.ldapAppend != "" {
-				c.warn("Ignoring 'ldap_append' at %s", name)
-			}
-			if n.certId != "" {
-				n.certId = ""
-				c.warn("Ignoring 'cert_id' at %s", name)
-			}
-			if idHostsCount > 0 {
-
-				// If one host has ID, all hosts must have ID.
-				if len(n.hosts) != idHostsCount {
-					c.err("All hosts must have ID in %s", name)
-				}
-
-				// Mark network.
-				n.hasIdHosts = true
-			}
-		}
-
-		if !n.hasIdHosts && n.vpnAttributes != nil {
-			c.warn("Ignoring 'vpn_attributes' at %s", name)
-		}
 	}
 }
 
@@ -1784,7 +1734,7 @@ func (c *spoc) setupRouter2(r *router) {
 		if r.model.doAuth {
 			if !isCryptoHub {
 				c.warn("Attribute 'hub' needs to be defined"+
-					" at some interface of %s of model %s", r.name, r.model.name)
+					" at some interface of %s of model %s", r.vxName(), r.model.name)
 			}
 		}
 
@@ -1806,7 +1756,6 @@ func (c *spoc) setupRouter2(r *router) {
 		c.moveNatIn2Out(r)
 	}
 	var otherSpoke *routerIntf
-	rName := strings.TrimPrefix(r.name, "router:")
 	for _, intf := range r.interfaces {
 		if cr := intf.spoke; cr != nil {
 			if otherSpoke != nil {
@@ -1816,41 +1765,11 @@ func (c *spoc) setupRouter2(r *router) {
 				continue
 			}
 			otherSpoke = intf
-			// Create tunnel network.
-			netName := "tunnel:" + rName
-			tNet := new(network)
-			tNet.name = "network:" + netName
-			tNet.ipType = tunnelIP
-			tNet.ipV6 = r.ipV6
-
-			// Tunnel network will later be attached to crypto hub.
-			cr.tunnels.push(tNet)
-
-			// Create tunnel interface.
-			iName := rName + "." + netName
-			tIntf := new(routerIntf)
-			tIntf.name = "interface:" + iName
-			tIntf.ipType = tunnelIP
-			tIntf.ipV6 = r.ipV6
-			tIntf.router = r
-			tIntf.network = tNet
-			tIntf.realIntf = intf
-			tIntf.routing = intf.routing
-			tIntf.natOutgoing = intf.natOutgoing
-			intf.natOutgoing = nil
-			tIntf.natIncoming = intf.natIncoming
-			intf.natIncoming = nil
-			tIntf.id = intf.id
-			if r.managed != "" {
-				hw := intf.hardware
-				tIntf.hardware = hw
-				hw.interfaces.push(tIntf)
+			if intf.ipV6 {
+				cr.spokes6.push(intf)
+			} else {
+				cr.spokes4.push(intf)
 			}
-			r.interfaces.push(tIntf)
-			tNet.interfaces.push(tIntf)
-		}
-		if (intf.spoke != nil || intf.hub != nil) && !intf.noCheck {
-			c.moveLockedIntf(intf)
 		}
 	}
 }
@@ -2226,25 +2145,6 @@ func (c *spoc) setupInterface(
 			c.warn("'routing=manual' must only be applied to router, not to %s",
 				intf)
 		}
-
-		if l := intf.hub; l != nil {
-			if intf.ipType != hasIP {
-				c.err("Crypto hub %s must have IP address", intf)
-			}
-			if intf.natOutgoing != nil {
-				c.err("Must not use 'nat_out' at crypto hub %s\n"+
-					" Move it as 'nat_out' to crypto definition instead", intf)
-			}
-			for _, cr := range l {
-				if cr.hub != nil {
-					c.err("Must use 'hub = %s' exactly once, not at both\n"+
-						" - %s\n"+
-						" - %s", cr.name, cr.hub, intf)
-				} else {
-					cr.hub = intf
-				}
-			}
-		}
 	} else { // Unmanaged device.
 		if intf.reroutePermit != nil {
 			intf.reroutePermit = nil
@@ -2279,8 +2179,6 @@ func (c *spoc) setupInterface(
 				intf.natIncoming = nil
 				intf.natOutgoing = nil
 				intf.nat = nil
-				intf.hub = nil
-				intf.spoke = nil
 				subnetOf = nil
 				continue
 			}
@@ -2301,6 +2199,28 @@ func (c *spoc) setupInterface(
 		if r.managed == "" {
 			if intf.natOutgoing != nil || intf.natIncoming != nil {
 				r.semiManaged = true
+			}
+		} else {
+			// Check crypto hub, after attribute combined46 has been set.
+			if l := intf.hub; l != nil {
+				if intf.ipType != hasIP {
+					c.err("Crypto hub %s must have IP address", intf.vxName())
+				}
+				if intf.natOutgoing != nil {
+					c.err("Must not use 'nat_out' at crypto hub %s\n"+
+						" Move it as 'nat_out' to crypto definition instead", intf)
+				}
+				for _, cr := range l {
+					if other := cr.hub; other != nil {
+						if other.combined46 != intf {
+							c.err("Must use 'hub = %s' exactly once, not at both\n"+
+								" - %s\n"+
+								" - %s", cr.name, other, intf)
+						}
+					} else {
+						cr.hub = intf
+					}
+				}
 			}
 		}
 	}
@@ -3949,11 +3869,133 @@ func (c *spoc) checkNoInAcl(r *router) {
 	}
 }
 
+// Create tunnel networks between hubs and spokes.
+func (c *spoc) createTunnels() {
+	// Split router with hub interface later, after all tunnels have
+	// been created.
+	var hubsToMove intfList
+	// Sorting needed for deterministic error messages.
+	l := slices.SortedFunc(maps.Values(c.symTable.crypto),
+		func(a, b *crypto) int { return cmp.Compare(a.name, b.name) })
+	for _, cr := range l {
+		connect := func(realHub *routerIntf, spokes intfList) {
+			if realHub == nil || spokes == nil {
+				return
+			}
+			hr := realHub.router
+			model := hr.model
+			hrName := strings.TrimPrefix(hr.name, "router:")
+			for _, realSpoke := range spokes {
+				sr := realSpoke.router
+				srName := strings.TrimPrefix(sr.name, "router:")
+				// Create tunnel network.
+				netName := "tunnel:" + srName
+				tunnel := &network{}
+				tunnel.name = "network:" + netName
+				tunnel.ipType = tunnelIP
+				tunnel.ipV6 = sr.ipV6
+				if tunnel.ipV6 {
+					cr.tunnels6.push(tunnel)
+				} else {
+					cr.tunnels4.push(tunnel)
+				}
+				// Create spoke interface.
+				spoke := new(routerIntf)
+				spoke.name = "interface:" + srName + "." + netName
+				spoke.ipType = tunnelIP
+				spoke.ipV6 = sr.ipV6
+				spoke.router = sr
+				spoke.network = tunnel
+				spoke.realIntf = realSpoke
+				spoke.routing = realSpoke.routing
+				spoke.natOutgoing = realSpoke.natOutgoing
+				realSpoke.natOutgoing = nil
+				spoke.natIncoming = realSpoke.natIncoming
+				realSpoke.natIncoming = nil
+				spoke.id = realSpoke.id
+				if sr.managed != "" {
+					hw := realSpoke.hardware
+					spoke.hardware = hw
+					hw.interfaces.push(spoke)
+				}
+				sr.interfaces.push(spoke)
+				// Create hub interface.
+				hub := new(routerIntf)
+				hub.name = "interface:" + hrName + "." + netName
+				hub.ipType = tunnelIP
+				hub.ipV6 = realHub.ipV6
+				// Attention: shared hardware between router and origRouter.
+				hw := realHub.hardware
+				hub.hardware = hw
+				hw.interfaces.push(hub)
+				hub.isHub = true
+				hub.realIntf = realHub
+				hub.router = hr
+				hub.network = tunnel
+				hub.natOutgoing = cr.natOutgoing
+				hub.routing = realHub.routing
+				hub.peer = spoke
+				spoke.peer = hub
+				hr.interfaces.push(hub)
+				tunnel.interfaces = intfList{spoke, hub}
+
+				if !realSpoke.ip.IsValid() {
+					if !(model.doAuth || model.canDynCrypto) {
+						c.err(
+							"%s can't establish crypto tunnel to %s with unknown IP",
+							hr.vxName(), realSpoke)
+					}
+				}
+				c.moveLockedIntf(realSpoke)
+			}
+			hubsToMove.push(realHub)
+		}
+		hub := cr.hub
+		var v4Hub, v6Hub *routerIntf
+		if hub == nil {
+			c.warn("No hub has been defined for %s", cr.name)
+			continue
+		}
+		// Router of type 'doAuth' can only check certificates,
+		// not pre-shared keys.
+		r := hub.router
+		isakmp := cr.ipsec.isakmp
+		needId := isakmp.authentication == "rsasig"
+		if r.model.doAuth && !needId {
+			c.err("%s needs authentication=rsasig in %s", r, isakmp.name)
+		}
+		if len(cr.spokes4) == 0 && len(cr.spokes6) == 0 {
+			c.warn("No spokes have been defined for %s", cr.name)
+			continue
+		}
+		if hub.ipV6 {
+			v4Hub = nil
+			v6Hub = hub
+		} else {
+			v4Hub = hub
+			v6Hub = hub.combined46
+		}
+		connect(v4Hub, cr.spokes4)
+		connect(v6Hub, cr.spokes6)
+	}
+	seen := make(map[*routerIntf]bool)
+	for _, hub := range hubsToMove {
+		if !seen[hub] {
+			c.moveLockedIntf(hub)
+			seen[hub] = true
+		}
+	}
+
+}
+
 // No traffic must traverse crypto interface.
 // Hence split router into separate instances, one instance for each
 // crypto interface.
 // Split routers are tied by identical attribute .deviceName.
 func (c *spoc) moveLockedIntf(intf *routerIntf) {
+	if intf.noCheck {
+		return
+	}
 	orig := intf.router
 
 	// Use different and uniqe name for each split router.
@@ -3991,81 +4033,6 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
-			}
-		}
-	}
-}
-
-// Link tunnel networks with tunnel hubs.
-func (c *spoc) linkTunnels() {
-	// Sorting needed for deterministic error messages.
-	l := slices.SortedFunc(maps.Values(c.symTable.crypto),
-		func(a, b *crypto) int { return cmp.Compare(a.name, b.name) })
-	for _, cr := range l {
-		realHub := cr.hub
-		if realHub == nil {
-			c.warn("No hub has been defined for %s", cr.name)
-			continue
-		}
-		tunnels := cr.tunnels
-		if len(tunnels) == 0 {
-			c.warn("No spokes have been defined for %s", cr.name)
-		}
-
-		isakmp := cr.ipsec.isakmp
-		needId := isakmp.authentication == "rsasig"
-
-		// Note: Crypto router is split internally into two nodes.
-		// Typically we get get a node with only a single crypto interface.
-		// Take original router with cleartext interface(s).
-		r := realHub.router
-		if orig := r.origRouter; orig != nil {
-			r = orig
-		}
-		model := r.model
-		rName := r.name[len("router:"):]
-
-		// Router of type 'doAuth' can only check certificates,
-		// not pre-shared keys.
-		if model.doAuth && !needId {
-			c.err("%s needs authentication=rsasig in %s", r, isakmp.name)
-		}
-
-		// Generate a single tunnel from each spoke to single hub.
-		for _, spokeNet := range tunnels {
-			netName := spokeNet.name[len("network:"):]
-			spoke := spokeNet.interfaces[0]
-			realSpoke := spoke.realIntf
-
-			hw := realHub.hardware
-			hub := new(routerIntf)
-			hub.name = "interface:" + rName + "." + netName
-			hub.ipType = tunnelIP
-			// Attention: shared hardware between router and origRouter.
-			hub.hardware = hw
-			hub.isHub = true
-			hub.realIntf = realHub
-			hub.router = r
-			hub.network = spokeNet
-			hub.natOutgoing = cr.natOutgoing
-			hub.routing = realHub.routing
-			hub.peer = spoke
-			spoke.peer = hub
-			r.interfaces.push(hub)
-			hw.interfaces.push(hub)
-			spokeNet.interfaces.push(hub)
-
-			// We need hub also be available in origIntfs.
-			if r.origIntfs != nil {
-				r.origIntfs.push(hub)
-			}
-
-			if !realSpoke.ip.IsValid() {
-				if !(model.doAuth || model.canDynCrypto) {
-					c.err(
-						"%s can't establish crypto tunnel to %s with unknown IP",
-						r, realSpoke)
-				}
 			}
 		}
 	}

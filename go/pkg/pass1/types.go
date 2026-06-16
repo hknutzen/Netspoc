@@ -489,7 +489,10 @@ type crypto struct {
 	ipsec             *ipsec
 	name              string
 	hub               *routerIntf
-	tunnels           netList
+	spokes4           intfList
+	spokes6           intfList
+	tunnels4          netList
+	tunnels6          netList
 }
 type ipsec struct {
 	name              string

@@ -61,9 +61,7 @@ sub adjust_testfile {
     my $file = pop @path;
     $file =~ /(.+)\.t/;
     my $name = $1;
-
-    open (my $outfilehandle, '>', "$dir/${name}_ipv6.t") or
-        die "Can not open file $filename";
+    my @output;
 
     # Convert IPv4 input file line by line.
     while (my $line = <$infilehandle>) {
@@ -211,17 +209,25 @@ sub adjust_testfile {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
         }
 
-        # Convert syntax and convert mask to prefix in 'ip local pool'
+        # Convert syntax of 'ip local pool':
+        # - convert mask to prefix
+        # - increment start IP
+        # - add count
         if ($line =~
             s/^ip local pool (\S+) ($ipv6)-($ipv6) mask ($ipv6)/ipv6 local pool $1 $2!$4/)
         {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
+            # ::a:b:c:40/122 => ::a:b:c:41/122
+            $line =~ s|(\d+)/|($1+1).'/'|e;
             if (my ($len) = $line =~ m|/(\d+)$|) {
                 chomp $line;
-                my $count = 2 ** (128 - $len);
+                my $count = 2 ** (128 - $len) - 1;
                 $line .= " $count\n";
             }
         }
+
+        # Convert syntax of command 'address-pools'
+        $line =~ s/^ address-pools value/ ipv6-address-pools value/;
 
         # Convert syntax for NX-OS
         $line =~ s/^ ip (address $ipv6\/\d+)/ ipv6 $1/;
@@ -273,9 +279,33 @@ sub adjust_testfile {
         $line =~ s/(=")(r\d+")/$1v6$2/g;
         # Convert rule names in JSON: "id": "r7",
         $line =~ s/(: ?")(r\d+")/$1v6$2/g;
-
-        print $outfilehandle $line;
+        push(@output, $line);
     }
     close $infilehandle;
+
+    # Sort subcommands of "group-policy", because Netspoc also
+    # generates them sorted and sort order changes for subcommand
+    # "address-pools" => "ipv6-address-pools"
+    my $i = 0;
+    while ($i < $#output) {
+        my $line = $output[$i];
+        $i++;
+        if ($line =~ /^group-policy/) {
+            my $start = $i;
+            while ($i < $#output) {
+                last if $output[$i] !~ /^ /;
+                $i++;
+            }
+            my $end = $i-1;
+            if ($end > $start) {
+                @output[$start .. $end] = sort(@output[$start .. $end]);
+            }
+        }
+    }
+    open (my $outfilehandle, '>', "$dir/${name}_ipv6.t") or
+        die "Can not open file $filename";
+    for my $line (@output) {
+        print $outfilehandle $line;
+    }
     close $outfilehandle;
 }

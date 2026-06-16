@@ -402,24 +402,41 @@ Error: Must not apply NAT tag "n1" (from 'nat_in') to crypto hub interface:asavp
 =TITLE=Crypto must not share hardware
 =INPUT=
 [[crypto_vpn]]
-network:n1 = { ip6 = ::a01:100/120; }
-network:n2 = { ip6 = ::a01:200/120; }
+network:intern = { ip6 = ::a01:100/120; }
 
 router:asavpn = {
  model = ASA, VPN;
  managed;
- vpn_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:n1 = {
+ vpn_attributes = { trust-point = ASDM_TrustPoint1; }
+ interface:intern = {
   ip6 = ::a01:101;
-  hub = crypto:vpn;
-  hardware = n1;
+  hardware = intern;
  }
- interface:n2 = { ip6 = ::a01:201; hardware = n1; }
+ interface:dmz = {
+  ip6 = f000::c0a8:65;
+  hub = crypto:vpn;
+  hardware = intern;
+ }
+}
+network:dmz = { ip6 = f000::c0a8:0/120; }
+router:extern = {
+ interface:dmz = { ip6 = f000::c0a8:1; }
+ interface:internet;
+}
+network:internet = { ip6 = ::/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+network:customers1 = {
+ ip6 = ::a63:100/120;
+ host:id:foo@domain.x = {
+  ip6 = ::a63:10a;
+  vpn_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
 }
 =ERROR=
-Error: Crypto interface:asavpn.n1 must not share hardware with other interface:asavpn.n2
+Error: Crypto interface:asavpn.dmz must not share hardware with other interface:asavpn.intern
 =END=
 
 ############################################################
@@ -1320,7 +1337,7 @@ tunnel-group-map default-group VPN-single
 ! vpn-filter-@domain.y
 access-list vpn-filter-@domain.y extended permit ip ::a63:240/122 any6
 access-list vpn-filter-@domain.y extended deny ip any6 any6
-ipv6 local pool pool-@domain.y ::a63:240/122 64
+ipv6 local pool pool-@domain.y ::a63:241/122 63
 crypto ca certificate map ca-map-@domain.y 10
  subject-name attr ea co @domain.y
 tunnel-group VPN-tunnel-@domain.y type remote-access
@@ -1334,8 +1351,8 @@ tunnel-group VPN-tunnel-@domain.y webvpn-attributes
 tunnel-group-map ca-map-@domain.y 10 VPN-tunnel-@domain.y
 group-policy VPN-group-@domain.y internal
 group-policy VPN-group-@domain.y attributes
- address-pools value pool-@domain.y
  group-lock value VPN-tunnel-@domain.y
+ ipv6-address-pools value pool-@domain.y
  vpn-filter value vpn-filter-@domain.y
  vpn-idle-timeout 40
 --
@@ -1375,7 +1392,7 @@ access-list split-tunnel-1 standard permit ::a00:400/120
 ! vpn-filter-domain.x
 access-list vpn-filter-domain.x extended permit ip ::a63:200/122 any6
 access-list vpn-filter-domain.x extended deny ip any6 any6
-ipv6 local pool pool-domain.x ::a63:200/122 64
+ipv6 local pool pool-domain.x ::a63:201/122 63
 crypto ca certificate map ca-map-domain.x 10
  subject-name attr ou co domain.x
 tunnel-group VPN-tunnel-domain.x type remote-access
@@ -1393,8 +1410,8 @@ tunnel-group VPN-tunnel-domain.x webvpn-attributes
 tunnel-group-map ca-map-domain.x 10 VPN-tunnel-domain.x
 group-policy VPN-group-domain.x internal
 group-policy VPN-group-domain.x attributes
- address-pools value pool-domain.x
  group-lock value VPN-tunnel-domain.x
+ ipv6-address-pools value pool-domain.x
  split-tunnel-network-list value split-tunnel-1
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-domain.x
@@ -1441,7 +1458,7 @@ username unused@domain.x attributes
 ! vpn-filter-zzz
 access-list vpn-filter-zzz extended permit ip ::a63:280/122 any6
 access-list vpn-filter-zzz extended deny ip any6 any6
-ipv6 local pool pool-zzz ::a63:280/122 64
+ipv6 local pool pool-zzz ::a63:281/122 63
 crypto ca certificate map ca-map-zzz 10
  subject-name attr ou co zzz
  extended-key-usage co 1.3.6.1.4.1.311.20.2.2
@@ -1456,8 +1473,8 @@ tunnel-group VPN-tunnel-zzz webvpn-attributes
 tunnel-group-map ca-map-zzz 10 VPN-tunnel-zzz
 group-policy VPN-group-zzz internal
 group-policy VPN-group-zzz attributes
- address-pools value pool-zzz
  client-bypass-protocol enable
+ ipv6-address-pools value pool-zzz
  split-tunnel-network-list value split-tunnel-1
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-zzz
@@ -1959,7 +1976,7 @@ service:test2 = {
 ! vpn-filter-1
 access-list vpn-filter-1 extended permit ip ::a63:108/125 any6
 access-list vpn-filter-1 extended deny ip any6 any6
-ipv6 local pool pool-1 ::a63:108/125 8
+ipv6 local pool pool-1 ::a63:109/125 7
 crypto ca certificate map ca-map-cert1 10
  subject-name attr cn co cert1
 tunnel-group VPN-tunnel-cert1 type remote-access
@@ -1973,13 +1990,13 @@ tunnel-group VPN-tunnel-cert1 webvpn-attributes
 tunnel-group-map ca-map-cert1 10 VPN-tunnel-cert1
 group-policy VPN-group-1 internal
 group-policy VPN-group-1 attributes
- address-pools value pool-1
+ ipv6-address-pools value pool-1
  vpn-filter value vpn-filter-1
 --
 ! vpn-filter-2
 access-list vpn-filter-2 extended permit ip ::a63:200/122 any6
 access-list vpn-filter-2 extended deny ip any6 any6
-ipv6 local pool pool-2 ::a63:200/122 64
+ipv6 local pool pool-2 ::a63:201/122 63
 crypto ca certificate map ca-map-cert2 10
  subject-name attr ou co cert2
 tunnel-group VPN-tunnel-cert2 type remote-access
@@ -1993,18 +2010,18 @@ tunnel-group VPN-tunnel-cert2 webvpn-attributes
 tunnel-group-map ca-map-cert2 10 VPN-tunnel-cert2
 group-policy VPN-group-2 internal
 group-policy VPN-group-2 attributes
- address-pools value pool-2
  group-lock value VPN-tunnel-cert2
+ ipv6-address-pools value pool-2
  vpn-filter value vpn-filter-2
 --
 ! vpn-filter-3
 access-list vpn-filter-3 extended permit ip ::a63:280/122 any6
 access-list vpn-filter-3 extended deny ip any6 any6
-ipv6 local pool pool-3 ::a63:280/122 64
+ipv6 local pool pool-3 ::a63:281/122 63
 group-policy VPN-group-3 internal
 group-policy VPN-group-3 attributes
- address-pools value pool-3
  group-lock value VPN-tunnel-cert2
+ ipv6-address-pools value pool-3
  vpn-filter value vpn-filter-3
 --
 webvpn
@@ -4416,6 +4433,48 @@ network:lan1 = {
 }
 =ERROR=
 Error: network:lan1 having ID hosts can't be checked by router:asavpn
+=END=
+
+############################################################
+=TITLE=Multiple networks behind unmanaged VPN-Router
+=INPUT=
+[[crypto_sts]]
+network:intern = { ip6 = ::a01:100/120; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip6 = ::a01:165;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip6 = ::102:302;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip6 = ::102:300/121; }
+router:extern = {
+ interface:dmz = { ip6 = ::102:301; }
+ interface:internet;
+}
+network:internet = { ip6 = ::/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip6 = ::101:101;
+  spoke = crypto:sts;
+  id = cert@example.com;
+ }
+ interface:lan1;
+}
+network:lan1 = { ip6 = ::a63:100/120; }
+router:u = {
+ interface:lan1;
+ interface:lan2;
+}
+network:lan2 = { ip6 = ::a63:200/120; }
+=ERROR=
+Error: Exactly one network must be located behind unmanaged interface:vpn1.lan1 of crypto router
 =END=
 
 ############################################################

@@ -37,16 +37,15 @@ func (c *spoc) convertHosts() {
 		// Eliminate duplicate subnets.
 		for _, host := range n.hosts {
 			var nets []netip.Prefix
-			name := host.name
 			id := host.id
 			if host.ip.IsValid() {
 				nets = []netip.Prefix{netip.PrefixFrom(host.ip, bitLen)}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
-						c.err("ID of %s must not start with character '@'", name)
+						c.err("ID of %s must not start with character '@'", host)
 					case -1:
-						c.err("ID of %s must contain character '@'", name)
+						c.err("ID of %s must contain character '@'", host)
 					}
 				}
 			} else {
@@ -55,12 +54,13 @@ func (c *spoc) convertHosts() {
 				if id != "" {
 					if len(nets) > 1 {
 						c.err("Range of %s with ID must expand to exactly one subnet",
-							name)
+							host.vxName())
+						nets = nets[:1]
 					} else if nets[0].IsSingleIP() {
-						c.err("%s with ID must not have single IP", name)
+						c.err("%s with ID must not have single IP", host.vxName())
 					} else if strings.Index(id, "@") > 0 {
 						c.err("ID of %s must start with character '@'"+
-							" or have no '@' at all", name)
+							" or have no '@' at all", host)
 					}
 				}
 			}
@@ -78,7 +78,7 @@ func (c *spoc) convertHosts() {
 					host.subnets = append(host.subnets, other)
 				} else {
 					s := new(subnet)
-					s.name = name
+					s.name = host.name
 					s.network = n
 					s.ipp = ipp
 					s.ipV6 = host.ipV6

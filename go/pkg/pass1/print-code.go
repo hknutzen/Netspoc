@@ -574,6 +574,7 @@ var asaVpnAttrNeedValue = map[string]bool{
 	"split-dns":                                       true,
 	"wins-server":                                     true,
 	"address-pools":                                   true,
+	"ipv6-address-pools":                              true,
 	"split-tunnel-network-list":                       true,
 	"vpn-filter":                                      true,
 }
@@ -802,16 +803,20 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				} else {
 					name := "pool-" + idName
 					if ipv6 {
-						count := 1 << (128 - src.ipp.Bits())
+						// First address can't be used.
+						first := src.ipp.Addr().Next()
+						bits := src.ipp.Bits()
+						count := 1<<(128-bits) - 1
 						fmt.Fprintf(fh, "ipv6 local pool %s %s/%d %d\n",
-							name, ip, src.ipp.Bits(), count)
+							name, first, bits, count)
+						attributes["ipv6-address-pools"] = name
 					} else {
 						max := netipx.RangeOfPrefix(src.ipp).To().String()
 						mask := net.IP(net.CIDRMask(src.ipp.Bits(), 32)).String()
 						fmt.Fprintf(fh, "ip local pool %s %s-%s mask %s\n",
 							name, ip, max, mask)
+						attributes["address-pools"] = name
 					}
-					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
 					groupPolicyName := "VPN-group-" + idName
 

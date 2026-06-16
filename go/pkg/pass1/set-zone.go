@@ -21,6 +21,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.checkReroutePermit()
 	c.findSubnetsInZoneCluster()
 	c.inheritAttributes()
+	c.checkIDHosts()
 	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
 	c.markSubnetsInZoneCluster()
 	c.updateSubnetRelation()
@@ -95,11 +96,6 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 			link(z, z2)
 			link(z2, z)
 		}
-	}
-
-	//debug("%s in %s", n, z)
-	if n.hasIdHosts {
-		z.hasIdHosts = true
 	}
 	if n.partition != "" {
 		if z.partition != "" {
@@ -1122,6 +1118,61 @@ func (c *spoc) markSubnetsInZoneCluster() {
 					big.subnetsInCluster.push(n)
 				}
 			}
+		}
+	}
+}
+
+func (c *spoc) checkIDHosts() {
+	for _, n := range c.allNetworks {
+		ldapCount := 0
+		idHostsCount := 0
+		for _, h := range n.hosts {
+			if h.ldapId != "" {
+				ldapCount++
+				h.id = h.ldapId
+			} else if h.id != "" {
+				idHostsCount++
+			}
+		}
+		if ldapCount > 0 {
+
+			// If one host has ldap_id, all hosts must have ldap_id.
+			if len(n.hosts) != ldapCount {
+				c.err("All hosts must have attribute 'ldap_id' in %s", n.vxName())
+			}
+			if n.certId == "" {
+				c.err("Missing attribute 'cert_id' at %s having hosts"+
+					" with attribute 'ldap_id'", n.vxName())
+			} else if !isDomain(n.certId) {
+				c.err("Domain name expected in attribute 'cert_id' of %s", n.vxName())
+			}
+
+			// Mark network.
+			n.hasIdHosts = true
+		} else {
+			if n.ldapAppend != "" {
+				c.warn("Ignoring 'ldap_append' at %s", n)
+			}
+			if n.certId != "" {
+				n.certId = ""
+				c.warn("Ignoring 'cert_id' at %s", n)
+			}
+			if idHostsCount > 0 {
+
+				// If one host has ID, all hosts must have ID.
+				if len(n.hosts) != idHostsCount {
+					c.err("All hosts must have ID in %s", n.vxName())
+				}
+
+				// Mark network.
+				n.hasIdHosts = true
+			}
+		}
+		if !n.hasIdHosts && n.vpnAttributes != nil {
+			c.warn("Ignoring 'vpn_attributes' at %s", n.vxName())
+		}
+		if n.hasIdHosts {
+			n.zone.hasIdHosts = true
 		}
 	}
 }
