@@ -491,8 +491,7 @@ type crypto struct {
 	hub               *routerIntf
 	spokes4           intfList
 	spokes6           intfList
-	tunnels4          netList
-	tunnels6          netList
+	tunnels           netList
 }
 type ipsec struct {
 	name              string

@@ -204,7 +204,7 @@ func (c *spoc) expandCrypto() {
 
 		// Do consistency checks and
 		// add rules which allow encrypted traffic.
-		for _, tunnel := range slices.Concat(cr.tunnels4, cr.tunnels6) {
+		for _, tunnel := range cr.tunnels {
 			spoke, hub := tunnel.interfaces[0], tunnel.interfaces[1]
 			router := spoke.router
 			managed := router.managed

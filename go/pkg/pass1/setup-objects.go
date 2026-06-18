@@ -3894,11 +3894,7 @@ func (c *spoc) createTunnels() {
 				tunnel.name = "network:" + netName
 				tunnel.ipType = tunnelIP
 				tunnel.ipV6 = sr.ipV6
-				if tunnel.ipV6 {
-					cr.tunnels6.push(tunnel)
-				} else {
-					cr.tunnels4.push(tunnel)
-				}
+				cr.tunnels.push(tunnel)
 				// Create spoke interface.
 				spoke := new(routerIntf)
 				spoke.name = "interface:" + srName + "." + netName
@@ -3985,7 +3981,6 @@ func (c *spoc) createTunnels() {
 			seen[hub] = true
 		}
 	}
-
 }
 
 // No traffic must traverse crypto interface.
