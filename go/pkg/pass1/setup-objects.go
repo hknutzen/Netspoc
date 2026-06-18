@@ -2280,6 +2280,7 @@ func (c *spoc) setupInterface(
 		if other := intf.combined46; other != nil {
 			n.combined46 = other.network
 			other.network.combined46 = n
+			n.autoIPv6Hosts = "none"
 		}
 	} else {
 

@@ -198,6 +198,19 @@ network:n2 = { ip = 10.1.2.0/24; }
 =WARNING=NONE
 
 ############################################################
+=TITLE=Must not inherit auto_ipv6_hosts at loopback network
+=INPUT=
+area:all = { anchor = network:n1; auto_ipv6_hosts = readable; }
+network:n1 = { ip = 172.17.1.0/24; ip6 = 2001:db8:1:1:1::/80; }
+router:r1 = {
+ interface:n1;
+ interface:lb = { ip = 172.17.2.99; ip6 = 2001:db8:1:1:1::99; loopback; }
+}
+=ERROR=
+Error: Can't use 'auto_ipv6_hosts' at network:n1 having prefix len > 64
+=END=
+
+############################################################
 =TITLE=Nested inheritance of attribute auto_ipv6_hosts
 =INPUT=
 area:all = { anchor = network:n1; auto_ipv6_hosts = readable; }
