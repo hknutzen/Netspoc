@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Attribute 'subnet_of' in NAT definition of dual stack interface
+  is ignored in IPv6 part.
 - Commands for Cisco ASA have been fixed:
   - 'ipv6 local pool' now leaves first address unused.
   - 'ipv6-address-pools' is used to apply an IPv6 pool.

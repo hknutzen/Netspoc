@@ -2178,7 +2178,6 @@ func (c *spoc) setupInterface(
 			if intf.ipV6 {
 				intf.natIncoming = nil
 				intf.natOutgoing = nil
-				intf.nat = nil
 				subnetOf = nil
 				continue
 			}
@@ -2269,7 +2268,9 @@ func (c *spoc) setupInterface(
 			n.subnetOf = subnetOf
 
 			// Move NAT definition to loopback network.
-			n.nat = nat
+			if !v6 {
+				n.nat = nat
+			}
 
 			if intf.redundant {
 				c.symTable.network[shortName] = n
