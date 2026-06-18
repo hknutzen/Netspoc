@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- VPN tunnels in dual stack topology now also support IPv6 traffic.
+
+### Fixed
+
+- Commands for Cisco ASA have been fixed:
+  - 'ipv6 local pool' now leaves first address unused.
+  - 'ipv6-address-pools' is used to apply an IPv6 pool.
+
 ## [2026-04-20-1357]
 
 ### Fixed
