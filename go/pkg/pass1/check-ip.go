@@ -53,7 +53,7 @@ func (c *spoc) checkSubnetOf(n *network) {
 			return
 		}
 		c.err("%s is subnet_of %s but its IP doesn't match that one's address",
-			ctx, sn)
+			ctx, sn.vxName())
 	}
 }
 

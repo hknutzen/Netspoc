@@ -2178,7 +2178,6 @@ func (c *spoc) setupInterface(
 			if intf.ipV6 {
 				intf.natIncoming = nil
 				intf.natOutgoing = nil
-				subnetOf = nil
 				continue
 			}
 		} else if v6 {
@@ -2278,7 +2277,12 @@ func (c *spoc) setupInterface(
 		}
 		intf.network = n
 		n.interfaces.push(intf)
+		if other := intf.combined46; other != nil {
+			n.combined46 = other.network
+			other.network.combined46 = n
+		}
 	} else {
+
 		// Link interface with network.
 		n := c.symTable.network[nName]
 		if n == nil {

@@ -2213,6 +2213,20 @@ Error: network:n1 is subnet_of network:n2 but its IP doesn't match that one's ad
 =END=
 
 ############################################################
+=TITLE=subnet_of at interface applicable to v4 and v6 part
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+router:r1 = {
+ interface:n1;
+ interface:lb = {
+  ip = 10.1.1.3; ip6 = 2001:db8:1:1::3;
+  vip;
+  subnet_of = network:n1;
+ }
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=subnet_of at NAT definition of interface ignored at v6 part
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
