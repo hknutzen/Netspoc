@@ -293,7 +293,7 @@ func (c *spoc) expandCrypto() {
 							src: s,
 						}
 					}
-					encrypted = append(encrypted, net)
+					encrypted.push(net)
 				} else {
 					hasOtherNetwork = true
 					encrypted = append(encrypted, allNetworks...)
@@ -312,15 +312,14 @@ func (c *spoc) expandCrypto() {
 					c.err("Invalid attribute 'id' at %s.\n"+
 						" Set authentication=rsasig at %s", spoke, isakmp.name)
 				}
-				list := id2intf[id]
 				var other intfList
-				for _, intf := range list {
+				for _, intf := range id2intf[id] {
 					if intf.peer.router == hubRouter {
-						other = append(other, intf)
+						other.push(intf)
 					}
 				}
 				if len(other) != 0 {
-					other = append(other, spoke)
+					other.push(spoke)
 					// Id must be unique per crypto hub, because it
 					// is used to generate ACL names and other names.
 					c.err("Must not reuse 'id = %s' at different"+
@@ -344,7 +343,7 @@ func (c *spoc) expandCrypto() {
 			// Add only non hidden peer networks.
 			for _, net := range encrypted {
 				if !getNatNetwork(net, natMap).hidden {
-					hub.peerNetworks = append(hub.peerNetworks, net)
+					hub.peerNetworks.push(net)
 				}
 			}
 
@@ -380,32 +379,27 @@ func (c *spoc) expandCrypto() {
 		}
 	}
 
-	// Check for duplicate IDs of different hosts
+	// checkDuplIDHosts checks for duplicate IDs of different hosts
 	// coming into different hardware at current device.
 	// ASA_VPN can't distinguish different hosts with same ID
 	// coming into different hardware interfaces.
-	for _, r := range managedCryptoHubs {
-		cryptoType := r.model.crypto
-		if cryptoType != "ASA_VPN" {
-			continue
-		}
+	checkDuplIDHosts := func(r *router) {
 		var idRulesIntfs intfList
 		for _, intf := range r.interfaces {
 			if intf.idRules != nil {
-				idRulesIntfs = append(idRulesIntfs, intf)
+				idRulesIntfs.push(intf)
 			}
 		}
 		if len(idRulesIntfs) < 2 {
-			continue
+			return
 		}
 		id2src := make(map[string]someObj)
 		for _, intf := range idRulesIntfs {
-			m := intf.idRules
-			for id, idIntf := range m {
+			for id, idIntf := range intf.idRules {
 				src1 := idIntf.src
 				if src2, found := id2src[id]; found {
 					c.err("Duplicate ID-host %s from %s and %s at %s",
-						id, src1.network, src2.getNetwork(), r)
+						id, src1.network.vxName(), src2.getNetwork(), r)
 				} else {
 					id2src[id] = src1
 				}
@@ -418,8 +412,9 @@ func (c *spoc) expandCrypto() {
 		// No longer needed.
 		r.extendedKeys = nil
 
-		cryptoType := r.model.crypto
-		if cryptoType == "ASA_VPN" {
+		switch r.model.crypto {
+		case "ASA_VPN":
+			checkDuplIDHosts(r)
 			c.verifyAsaVpnAttributes(r.name, r.vpnAttributes)
 
 			// Move 'trust-point' from vpn_attributes to router attribute.
@@ -432,7 +427,7 @@ func (c *spoc) expandCrypto() {
 			} else if r.trustPoint == "" {
 				c.err("Missing 'trust-point' in vpn_attributes of %s", r)
 			}
-		} else if cryptoType == "ASA" {
+		case "ASA":
 			for _, intf := range r.interfaces {
 				if intf.ipType == tunnelIP {
 					c.verifyAsaTrustpoint(r, intf.getCrypto())
