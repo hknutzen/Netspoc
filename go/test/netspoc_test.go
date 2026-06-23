@@ -352,14 +352,14 @@ func netspocCheck(t *testing.T, spec, dir string) {
 		blocks := device2blocks[device]
 		expected := strings.Join(blocks, "")
 		t.Run(device, func(t *testing.T) {
-			countEq(t, expected, getBlocks(string(data), blocks))
+			countEq(t, expected, getBlocks(t, string(data), blocks))
 		})
 	}
 }
 
 // Find lines in data which equal one of first lines in blocks.
 // Output found lines and subsequent lines up to empty line or comment line.
-func getBlocks(data string, blocks []string) string {
+func getBlocks(t *testing.T, data string, blocks []string) string {
 	find := make(map[string]bool)
 	for _, block := range blocks {
 		end := len(block)
@@ -367,6 +367,9 @@ func getBlocks(data string, blocks []string) string {
 			end = idx
 		}
 		line := block[0:end]
+		if line == "" {
+			t.Fatal("Block of expected lines must nut start with empty line")
+		}
 		find[line] = true
 	}
 	out := ""
