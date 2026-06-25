@@ -105,7 +105,7 @@ service:s2 = {
 }
 =PARAMS= --quiet=false service:s1 service:s2
 =WARNING=
-Changed 1 files
+Changed INPUT
 =OUTPUT=
 service:s1 = {
  user = network:n1,
@@ -135,7 +135,7 @@ service:s4 = {
  user = network:n4;
  permit src = user; dst = network:y; prt = 80;
 }
-=FOPTION=
+=FILE_OPTION=
 service:s1 service:s2
 service:s3 service:s4
 =OUTPUT=
@@ -167,22 +167,22 @@ service:s2 = {
  user = network:n2;
  permit src = user; dst = network:x; prt = 80;
 }
-=FOPTION=
+=FILE_OPTION=
 service:s1 service:s2
 service:s1 service:s2
 =ERROR=
 Error: Can't find service:s2
 =END=
 
-=TITLE= Bad service name
+=TITLE= Unknown first service
 =INPUT=
-service:s1 = {
+service:s2 = {
  user = network:n1;
  permit src = user; dst = network:x; prt = 80;
 }
 =PARAMS= s1 s2
 =ERROR=
-Error: Missing prefix 'service:' in 's1'
+Error: Can't find service:s1
 =END=
 
 =TITLE= Can't combine single service

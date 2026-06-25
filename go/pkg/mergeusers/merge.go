@@ -2,32 +2,34 @@ package mergeusers
 
 import (
 	"fmt"
+	"os"
+	"slices"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
-	"io/ioutil"
-	"os"
-	"strings"
 )
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] netspoc service:s1 service:s2 ...\n", os.Args[0])
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] netspoc [service:]s1 [service:]s2 ...\n",
+			d.Args[0])
 		fs.PrintDefaults()
 	}
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
 	fromFile := fs.StringP("file", "f", "", "Read service lists from file")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -44,34 +46,33 @@ func Main() int {
 	if *fromFile != "" {
 		l, err := readServiceLists(*fromFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 		svLists = l
 	}
 	svArgs := args[1:]
 	if len(svArgs) > 0 {
-		if err := checkServiceList(svArgs); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-			return 1
-		}
 		svLists = append(svLists, svArgs)
 	}
 
-	// Initialize Conf, especially attribute IgnoreFiles.
-	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
-
 	// Do work.
-	if err := process(path, svLists); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+	s, err := astset.Read(path)
+	if err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	if err := process(s, svLists); err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+		return 1
+	}
+	s.ShowChanged(d.Stderr, *quiet)
+	s.Print()
 	return 0
 }
 
 func readServiceLists(path string) ([][]string, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("Can't %s", err)
 	}
@@ -80,48 +81,33 @@ func readServiceLists(path string) ([][]string, error) {
 	for _, line := range lines {
 		names := strings.Fields(line)
 		if len(names) != 0 {
-			if err := checkServiceList(names); err != nil {
-				return nil, err
-			}
 			result = append(result, names)
 		}
 	}
 	return result, nil
 }
 
-func checkServiceList(l []string) error {
-	for _, n := range l {
-		if !strings.HasPrefix(n, "service:") {
-			return fmt.Errorf("Missing prefix 'service:' in '%s'", n)
-		}
-	}
-	if len(l) == 1 {
-		return fmt.Errorf("Can't combine single '%s'", l[0])
-	}
-	return nil
-}
-
-func process(path string, svLists [][]string) error {
-	s, err := astset.Read(path)
-	if err != nil {
-		return err
-	}
+func process(s *astset.State, svLists [][]string) error {
 	for _, svNames := range svLists {
 		if err := combine(s, svNames); err != nil {
 			return err
 		}
 	}
-	if conf.Conf.Verbose {
-		changes := s.Changed()
-		fmt.Fprintf(os.Stderr, "Changed %d files\n", len(changes))
-	}
-	s.Print()
 	return nil
 }
 
 func combine(set *astset.State, svNames []string) error {
-	name1 := svNames[0]
+	addPrefix := func(n string) string {
+		if !strings.HasPrefix(n, "service:") {
+			n = "service:" + n
+		}
+		return n
+	}
+	name1 := addPrefix(svNames[0])
 	otherNames := svNames[1:]
+	if len(otherNames) == 0 {
+		return fmt.Errorf("Can't combine single '%s'", name1)
+	}
 
 	// Find other services that will be merged into first service.
 	// Collect attributes and delete afterwards.
@@ -129,6 +115,7 @@ func combine(set *astset.State, svNames []string) error {
 	hasUnenforceable := false
 	var overlaps []*ast.Value
 	for _, name := range otherNames {
+		name = addPrefix(name)
 		if name == name1 {
 			return fmt.Errorf("Must not combine with itself: %s", name)
 		}
@@ -159,34 +146,35 @@ func combine(set *astset.State, svNames []string) error {
 	}
 
 	// Modify first service
-	err := set.ModifyObj(name1, func(obj ast.Toplevel) {
-		s := obj.(*ast.Service)
-		s.User.Elements = append(s.User.Elements, users...)
-		if hasUnenforceable {
-			s.ReplaceAttr(&ast.Attribute{Name: "has_unenforceable"})
+	var s1 *ast.Service
+	set.Modify(func(obj ast.Toplevel) bool {
+		if s, ok := obj.(*ast.Service); ok && s.Name == name1 {
+			s1 = s
+			return true // Mark as modified.
 		}
-		if overlaps != nil {
-			for _, a := range s.Attributes {
-				if a.Name == "overlaps" {
-					overlaps = append(overlaps, a.ValueList...)
-				}
-			}
-			seen := make(map[string]bool)
-			j := 0
-			for _, v := range overlaps {
-				if !seen[v.Value] {
-					seen[v.Value] = true
-					overlaps[j] = v
-					j++
-				}
-			}
-			overlaps = overlaps[:j]
-			s.ReplaceAttr(&ast.Attribute{Name: "overlaps", ValueList: overlaps})
-		}
-		s.Order()
+		return false
 	})
-	if err != nil {
-		return err
+	if s1 == nil {
+		return fmt.Errorf("Can't find %s", name1)
 	}
+	s1.User.Elements = append(s1.User.Elements, users...)
+	if hasUnenforceable {
+		s1.ReplaceAttr(&ast.Attribute{Name: "has_unenforceable"})
+	}
+	if overlaps != nil {
+		var l []*ast.Value
+		if a := s1.GetAttr("overlaps"); a != nil {
+			l = a.ValueList
+		}
+		overlaps = slices.Concat(l, overlaps)
+		slices.SortFunc(overlaps, func(a, b *ast.Value) int {
+			return strings.Compare(a.Value, b.Value)
+		})
+		overlaps = slices.CompactFunc(overlaps, func(a, b *ast.Value) bool {
+			return a.Value == b.Value
+		})
+		s1.ReplaceAttr(&ast.Attribute{Name: "overlaps", ValueList: overlaps})
+	}
+	s1.Order()
 	return nil
 }

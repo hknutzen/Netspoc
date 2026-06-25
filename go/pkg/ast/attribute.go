@@ -68,3 +68,13 @@ func (obj *TopStruct) RemoveAttr(name string) {
 	}
 	obj.Attributes = cp
 }
+
+func (obj *TopStruct) ReplaceAttr(attr *Attribute) {
+	for i, a := range obj.Attributes {
+		if a.Name == attr.Name {
+			obj.Attributes[i] = attr
+			return
+		}
+	}
+	obj.Attributes = append(obj.Attributes, attr)
+}

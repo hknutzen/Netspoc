@@ -55,6 +55,7 @@ var tests = []test{
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
 	{"expand-group", chgInputT, expand.Main, chgInputCheck},
+	{"merge-service-users", chgInputT, mergeusers.Main, chgInputCheck},
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
 	{"remove-service", chgInputT, removeservice.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
@@ -67,7 +68,6 @@ var tests = []test{
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
 	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},
-	{"merge-service-users", chgInputT, mergeusers.Main, chgInputCheck},
 }
 
 var count int32
