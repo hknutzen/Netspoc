@@ -103,11 +103,47 @@ func combine(set *astset.State, svNames []string) error {
 		}
 		return n
 	}
+
+	// Find first service.
 	name1 := addPrefix(svNames[0])
+	var s1 *ast.Service
+	set.Modify(func(obj ast.Toplevel) bool {
+		if s, ok := obj.(*ast.Service); ok && s.Name == name1 {
+			s1 = s
+			return true // Mark as modified.
+		}
+		return false
+	})
+	if s1 == nil {
+		return fmt.Errorf("Can't find %s", name1)
+	}
 	otherNames := svNames[1:]
 	if len(otherNames) == 0 {
 		return fmt.Errorf("Can't combine single '%s'", name1)
 	}
+
+	// If any service references some to be combined services,
+	// then change this to the one remaining service.
+	// Also collect overlap values of s1.
+	var l1 []*ast.Value
+	set.Modify(func(obj ast.Toplevel) bool {
+		modified := false
+		if s, ok := obj.(*ast.Service); ok {
+			if a := s.GetAttr("overlaps"); a != nil {
+				l := a.ValueList
+				if s == s1 {
+					l1 = l
+				}
+				for _, v := range l {
+					if slices.Contains(otherNames, v.Value) {
+						v.Value = name1
+						modified = true
+					}
+				}
+			}
+		}
+		return modified
+	})
 
 	// Find other services that will be merged into first service.
 	// Collect attributes and delete afterwards.
@@ -122,17 +158,15 @@ func combine(set *astset.State, svNames []string) error {
 		found := false
 		// Here we only traverse and actually don't modify.
 		set.Modify(func(obj ast.Toplevel) bool {
-			if s, ok := obj.(*ast.Service); ok {
-				if name == s.Name {
-					found = true
-					users = append(users, s.User.Elements...)
-					for _, a := range s.Attributes {
-						switch a.Name {
-						case "has_unenforceable":
-							hasUnenforceable = true
-						case "overlaps":
-							overlaps = append(overlaps, a.ValueList...)
-						}
+			if s, ok := obj.(*ast.Service); ok && name == s.Name {
+				found = true
+				users = append(users, s.User.Elements...)
+				for _, a := range s.Attributes {
+					switch a.Name {
+					case "has_unenforceable":
+						hasUnenforceable = true
+					case "overlaps":
+						overlaps = append(overlaps, a.ValueList...)
 					}
 				}
 			}
@@ -145,36 +179,24 @@ func combine(set *astset.State, svNames []string) error {
 		set.DeleteToplevel(name)
 	}
 
-	// Modify first service
-	var s1 *ast.Service
-	set.Modify(func(obj ast.Toplevel) bool {
-		if s, ok := obj.(*ast.Service); ok && s.Name == name1 {
-			s1 = s
-			return true // Mark as modified.
-		}
-		return false
-	})
-	if s1 == nil {
-		return fmt.Errorf("Can't find %s", name1)
-	}
 	s1.User.Elements = append(s1.User.Elements, users...)
 	if hasUnenforceable {
 		s1.ReplaceAttr(&ast.Attribute{Name: "has_unenforceable"})
 	}
-	if overlaps != nil {
-		var l []*ast.Value
-		if a := s1.GetAttr("overlaps"); a != nil {
-			l = a.ValueList
-		}
-		overlaps = slices.Concat(l, overlaps)
-		slices.SortFunc(overlaps, func(a, b *ast.Value) int {
-			return strings.Compare(a.Value, b.Value)
-		})
-		overlaps = slices.CompactFunc(overlaps, func(a, b *ast.Value) bool {
-			return a.Value == b.Value
-		})
+	overlaps = slices.Concat(l1, overlaps)
+	slices.SortFunc(overlaps, func(a, b *ast.Value) int {
+		return strings.Compare(a.Value, b.Value)
+	})
+	overlaps = slices.CompactFunc(overlaps, func(a, b *ast.Value) bool {
+		return a.Value == b.Value
+	})
+	if len(overlaps) > 0 {
 		s1.ReplaceAttr(&ast.Attribute{Name: "overlaps", ValueList: overlaps})
 	}
 	s1.Order()
+	s1.User.Elements =
+		slices.CompactFunc(s1.User.Elements, func(a, b ast.Element) bool {
+			return a.GetType() == b.GetType() && a.String() == b.String()
+		})
 	return nil
 }

@@ -27,22 +27,22 @@ service:s1 = {
 }
 =END=
 
-=TITLE=Merge attributes
+=TITLE=Merge attributes and remove duplicate elements
 =INPUT=
 service:s1 = {
  overlaps = service:x;
  has_unenforceable;
- user = network:n1b, network:n1a;
+ user = network:n1b, network:n1a, network:n2, network:n3a;
  permit src = user; dst = network:x; prt = 80;
 }
 service:s3 = {
- overlaps = service:z;
+ overlaps = service:s1;
  has_unenforceable;
  user = network:n3a, network:n3b;
  permit src = user; dst = network:x; prt = 80;
 }
 service:s2 = {
- overlaps = service:y, service:z;
+ overlaps = service:y, service:s1;
  user = network:n2;
  permit src = user; dst = network:x; prt = 80;
 }
@@ -50,9 +50,9 @@ service:s2 = {
 =OUTPUT=
 service:s1 = {
  has_unenforceable;
- overlaps = service:x,
+ overlaps = service:s1,
+            service:x,
             service:y,
-            service:z,
             ;
  user = network:n1a,
         network:n1b,
@@ -62,6 +62,42 @@ service:s1 = {
         ;
  permit src = user;
         dst = network:x;
+        prt = 80;
+}
+=END=
+
+=TITLE=Change overlaps of all services that reference some merged service
+=INPUT=
+service:s1 = {
+ overlaps = service:s2;
+ user = network:n1;
+ permit src = user; dst = network:x; prt = 80;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:x; prt = 80;
+}
+service:other = {
+ overlaps = service:s2;
+ user = network:other;
+ permit src = user; dst = host:x; prt = 80;
+}
+=PARAMS= service:s1 service:s2
+=OUTPUT=
+service:s1 = {
+ overlaps = service:s1;
+ user = network:n1,
+        network:n2,
+        ;
+ permit src = user;
+        dst = network:x;
+        prt = 80;
+}
+service:other = {
+ overlaps = service:s1;
+ user = network:other;
+ permit src = user;
+        dst = host:x;
         prt = 80;
 }
 =END=
