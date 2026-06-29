@@ -1052,8 +1052,11 @@ network:c1a = { ip = 10.0.100.16/28;}
 network:c1b = { ip = 10.0.101.16/28;}
 network:c2 = { ip = 10.137.15.0/24;}
 any:c2   = { ip = 10.140.0.0/16; link = network:c2; }
-pathrestriction:r1 =
- interface:r1.t1, interface:r1.c1a, interface:r1.c1b
+pathrestriction:r1a =
+ interface:r1.t1, interface:r1.c1a
+;
+pathrestriction:r1b =
+ interface:r1.t1, interface:r1.c1b
 ;
 pathrestriction:r2 =
  interface:r2.t2, interface:r2.c2

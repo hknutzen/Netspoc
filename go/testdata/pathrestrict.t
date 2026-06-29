@@ -596,7 +596,7 @@ pathrestriction:p1 =
  interface:r3.n3,
 ;
 =WARNING=
-Warning: Ignoring pathrestriction:p1 at interface:r3.n3
+Warning: Ignoring interface:r3.n3 of pathrestriction:p1
  because it isn't located inside cyclic graph
 =END=
 
@@ -631,9 +631,9 @@ pathrestriction:p1 =
  interface:r2.n2,
 ;
 =WARNING=
-Warning: Ignoring pathrestriction:p1 at interface:r1.n2
+Warning: Ignoring interface:r1.n2 of pathrestriction:p1
  because it isn't located inside cyclic graph
-Warning: Ignoring pathrestriction:p1 at interface:r2.n2
+Warning: Ignoring interface:r2.n2 of pathrestriction:p1
  because it isn't located inside cyclic graph
 =END=
 
@@ -1099,19 +1099,20 @@ ip access-list extended n3_in
 =END=
 
 ############################################################
-=TITLE=Pathrestriction at both borders of loop
+=TITLE=Pathrestriction at different borders of loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
 router:u = {
  interface:n1;
  interface:n2;
  interface:n3;
 }
-pathrestriction:p = interface:u.n1, interface:r3.n4;
+pathrestriction:p = interface:u.n1, interface:r3.n4, interface:r4.n4;
 router:r1 = {
  managed;
  model = IOS;
@@ -1130,18 +1131,21 @@ router:r3 = {
  interface:n4 = { ip = 10.1.4.3; hardware = n4; }
  interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 }
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.4; hardware = n4; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n5; prt = ip;
 }
-=ERROR=
-Error: No valid path
- from any:[network:n1]
- to any:[network:n5]
- for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
- Check path restrictions and crypto interfaces.
- Possible blocking pathrestrictions:
-  - pathrestriction:p (blocked 1 path attempt)
+=WARNING=
+Warning: Ignoring interface:r3.n4 of pathrestriction:p.
+ Pathrestriction must not have more than one interface at border of loop.
+ First one is interface:u.n1(split2)
+Warning: Ignoring interface:r4.n4 of pathrestriction:p.
+ Pathrestriction must not have more than one interface at border of loop.
+ First one is interface:u.n1(split2)
 =END=
 
 ############################################################

@@ -1806,11 +1806,11 @@ router:r2 = {
 }
 pathrestriction:p = interface:r1.n1, interface:r2.n1, interface:r1.n3;
 =WARNING=
-Warning: Ignoring IPv6 pathrestriction:p at interface:r1.n1
+Warning: Ignoring IPv6 interface:r1.n1 of pathrestriction:p
  because it isn't located inside cyclic graph
-Warning: Ignoring IPv6 pathrestriction:p at interface:r2.n1
+Warning: Ignoring IPv6 interface:r2.n1 of pathrestriction:p
  because it isn't located inside cyclic graph
-Warning: Ignoring IPv6 pathrestriction:p at interface:r1.n3
+Warning: Ignoring interface:r1.n3 of pathrestriction:p
  because it isn't located inside cyclic graph
 =END=
 

@@ -410,7 +410,7 @@ func (c *spoc) checkPathrestrictions() {
 func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 	p *pathRestriction, otherLoopOK map[*pathRestriction]bool,
 ) {
-	var prevIntf *routerIntf
+	var prevIntf, firstBorder *routerIntf
 	var prevCluster pathObj
 	loopOK := true
 	j := 0
@@ -431,22 +431,34 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 			}
 		}
 
-		if loop == nil {
+		showWarn := func(msg string, args ...any) {
 			// Don't show warning for automatically created
 			// pathrestriction because equivalent warning was already
 			// shown for virtual interfaces.
 			if !strings.HasPrefix(p.name, "auto-virtual:") {
 				if !(otherLoopOK[p] && hasOnlyCombinedIntf(p)) {
-					vx := ""
-					if p.combined46 != nil {
-						vx = ipvx(p.elements[0].ipV6) + " "
-					}
-					c.warn("Ignoring %s%s at %s\n because it isn't located "+
-						"inside cyclic graph", vx, p.name, intf)
+					c.warn(msg, args...)
 				}
 			}
+		}
+		if loop == nil {
+			showWarn("Ignoring %s of %s\n"+
+				" because it isn't located inside cyclic graph",
+				intf.vxName(), p.name)
 			loopOK = false
 			continue
+		}
+
+		// At most most one interface must be located at border of loop.
+		if intf.loop == nil {
+			if firstBorder != nil {
+				showWarn("Ignoring %s of %s.\n Pathrestriction must not have"+
+					" more than one interface at border of loop.\n First one is %s",
+					intf.vxName(), p.name, firstBorder)
+				loopOK = false
+				continue
+			}
+			firstBorder = intf
 		}
 
 		// Interfaces must belong to same loop cluster.
@@ -468,6 +480,9 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 		j++
 	}
 	p.elements = p.elements[:j]
+	if firstBorder != nil && len(p.elements) == 1 {
+		p.elements = nil // Prevent duplicate error message.
+	}
 	if loopOK {
 		if p2 := p.combined46; p2 != nil {
 			otherLoopOK[p2] = true
