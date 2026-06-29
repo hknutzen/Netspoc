@@ -662,99 +662,79 @@ func clusterPathMark(
 
 	//debug("clusterPathMark: %s -> %s", startStore, endStore);
 	//debug(" %s -> %s", from, to);
-	success := true
 
 	// Activate pathrestriction at border of loop.
 	for _, intf := range []*routerIntf{fromIn, toOut} {
-		if intf == nil {
-			continue
-		}
-		pathrestriction := intf.pathRestrict
-		if pathrestriction != nil {
-			for _, restrict := range pathrestriction {
-
-				// No path possible, if restriction has been just
-				// activated at other side of loop.
-				if restrict.activePath {
-					success = false
-					// Count this as a blocked path attempt
-					blockingCount[restrict]++
-				}
+		if intf != nil {
+			for _, restrict := range intf.pathRestrict {
 				restrict.activePath = true
-			}
-
-			// Deactivate pathrestrictions later.
-			defer func() {
-				for _, restrict := range pathrestriction {
+				// Deactivate pathrestriction later.
+				defer func() {
 					restrict.activePath = false
-				}
-			}()
+				}()
+			}
 		}
 	}
 
 	// Find loop paths via depth first search.
-	// Ignore path, if not valid due to pathrestrictions.
-	if success {
-		success = false
+	success := false
 
-		// Create navigation look up map to reduce search space in loop cluster.
-		navi := clusterNavigation(from, to)
-		allowed := navi[from.getLoop()]
+	// Create navigation look up map to reduce search space in loop cluster.
+	navi := clusterNavigation(from, to)
+	allowed := navi[from.getLoop()]
 
-		// These attributes describe valid paths inside loop.
-		lPath := new(loopPath)
+	// These attributes describe valid paths inside loop.
+	lPath := new(loopPath)
 
-		// Mark current path for loop detection.
-		from.setActivePath()
-		defer from.clearActivePath()
+	// Mark current path for loop detection.
+	from.setActivePath()
+	defer from.clearActivePath()
 
-		// To find paths, process every loop interface of from node.
-		getNext := calcNext(from)
-		for _, intf := range from.intfList() {
-			loop := intf.loop
-			if loop == nil {
-				continue
-			}
-
-			// Skip interface that will not lead to a path,
-			// because node is not included in navi.
-			if !allowed[loop] {
-				continue
-			}
-
-			// Extract adjacent node (= next node on path).
-			next := getNext(intf)
-
-			// Track which pathrestrictions block this specific interface choice
-			localBlocking := make(map[*pathRestriction]int)
-
-			// Search path from next node to to, store it in lPath.
-			//debug(" try: %s -> %s", from, intf)
-			if clusterPathMark1(next, intf, to, lPath, navi, localBlocking) {
-				success = true
-				lPath.enter.push(intf)
-				//debug(" enter: %s -> %s", from, intf);
-			} else {
-				// This interface choice failed - add the accumulated counts from localBlocking
-				for pr, count := range localBlocking {
-					blockingCount[pr] += count
-				}
-			}
+	// To find paths, process every loop interface of from node.
+	getNext := calcNext(from)
+	for _, intf := range from.intfList() {
+		loop := intf.loop
+		if loop == nil {
+			continue
 		}
 
-		// Only store complete result.
-		if success {
-			delDupl(&lPath.routerTuples)
-			delDupl(&lPath.zoneTuples)
+		// Skip interface that will not lead to a path,
+		// because node is not included in navi.
+		if !allowed[loop] {
+			continue
+		}
 
-			// Remove duplicates, which occur from nested loops.
-			delDupl(&lPath.leave)
+		// Extract adjacent node (= next node on path).
+		next := getNext(intf)
 
-			// Add loop path information to start node or interface.
-			startStore.setLoopPath(endStore, lPath)
+		// Track which pathrestrictions block this specific interface choice
+		localBlocking := make(map[*pathRestriction]int)
+
+		// Search path from next node to to, store it in lPath.
+		//debug(" try: %s -> %s", from, intf)
+		if clusterPathMark1(next, intf, to, lPath, navi, localBlocking) {
+			success = true
+			lPath.enter.push(intf)
+			//debug(" enter: %s -> %s", from, intf);
+		} else {
+			// This interface choice failed - add the accumulated counts from localBlocking
+			for pr, count := range localBlocking {
+				blockingCount[pr] += count
+			}
 		}
 	}
 
+	// Only store complete result.
+	if success {
+		delDupl(&lPath.routerTuples)
+		delDupl(&lPath.zoneTuples)
+
+		// Remove duplicates, which occur from nested loops.
+		delDupl(&lPath.leave)
+
+		// Add loop path information to start node or interface.
+		startStore.setLoopPath(endStore, lPath)
+	}
 	return success
 }
 
