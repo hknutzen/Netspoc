@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- A pathrestriction must use at most one interface at border of loop.
+  If some pathrestriction uses more than one interface at border of
+  loop, a warning will be shown. It should be split into multiple
+  pathrestrictions, before this version is activated.
+
 ## [2026-06-18-2046]
 
 ### Changed
