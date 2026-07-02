@@ -305,8 +305,8 @@ func (c *spoc) expandGroup1(
 							result.push(intf)
 						}
 					}
-				} else if a := c.getRouterAutoIntf(r); a != nil {
-					result.push(a)
+				} else {
+					result.push(c.getRouterAutoIntf(r))
 				}
 			}
 			for _, obj := range subObjects {
@@ -351,8 +351,8 @@ func (c *spoc) expandGroup1(
 						if x.isAggregate {
 							c.err("Must not use interface:[any:..].[auto] in %s",
 								ctx)
-						} else if a := c.getNetworkAutoIntf(x, managed); a != nil {
-							result.push(a)
+						} else {
+							result.push(c.getNetworkAutoIntf(x, managed))
 						}
 					}
 				case *routerIntf:
@@ -412,9 +412,7 @@ func (c *spoc) expandGroup1(
 						}
 					} else {
 						for _, r := range routers {
-							if a := c.getRouterAutoIntf(r); a != nil {
-								result.push(a)
-							}
+							result.push(c.getRouterAutoIntf(r))
 						}
 					}
 				case *autoIntf:
@@ -443,8 +441,8 @@ func (c *spoc) expandGroup1(
 									result.push(intf)
 								}
 							}
-						} else if a := c.getRouterAutoIntf(r); a != nil {
-							result.push(a)
+						} else {
+							result.push(c.getRouterAutoIntf(r))
 						}
 					}
 				} else {
