@@ -96,13 +96,13 @@ Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 # Virtual interface outside of loop, but at border of other loop.
 router:r1 = {
  managed;
- model = ASA;
+ model = IOS;
  routing = manual;
  interface:n1 = { ip6 = ::a01:102; virtual = { ip6 = ::a01:101; } hardware = n1; }
 }
 router:r2 = {
  managed;
- model = ASA;
+ model = IOS;
  routing = manual;
  interface:n1 = { ip6 = ::a01:103; virtual = { ip6 = ::a01:101; } hardware = n1; }
 }
@@ -130,6 +130,15 @@ service:s1 = {
 =WARNING=
 Warning: interface:r1.n1.virtual must be located inside cyclic sub-graph
 Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n1_in
+ permit udp ::a01:200/120 eq 123 host ::a01:102
+ deny ipv6 any any
+--ipv6/r2
+ipv6 access-list n1_in
+ permit udp ::a01:200/120 eq 123 host ::a01:103
+ deny ipv6 any any
 =END=
 
 ############################################################
