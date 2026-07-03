@@ -685,6 +685,55 @@ ip access-list extended E0_in
 =END=
 
 ############################################################
+=TITLE=Interface with pathrestriction at border of loop
+# Pathrestriction has no effect, because router:r0 is not traversed.
+=INPUT=
+router:r0 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.9; hardware = n1; }
+}
+network:n1 =  { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2;
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;  }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+pathrestriction:p1 = interface:r0.n1, interface:r2.n1;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = interface:r0.[auto]; prt = udp 123;
+}
+=OUTPUT=
+--r0
+ip access-list extended n1_in
+ permit udp 10.1.2.0 0.0.0.255 host 10.1.1.9 eq 123
+ deny ip any any
+--r1
+ip access-list extended n2_in
+ permit udp 10.1.2.0 0.0.0.255 host 10.1.1.9 eq 123
+ deny ip any any
+--r2
+ip access-list extended n2_in
+ permit udp 10.1.2.0 0.0.0.255 host 10.1.1.9 eq 123
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Ignore interface with pathrestriction at border of loop (1)
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

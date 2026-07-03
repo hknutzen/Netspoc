@@ -685,6 +685,55 @@ ipv6 access-list E0_in
 =END=
 
 ############################################################
+=TITLE=Interface with pathrestriction at border of loop
+# Pathrestriction has no effect, because router:r0 is not traversed.
+=INPUT=
+router:r0 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip6 = ::a01:109; hardware = n1; }
+}
+network:n1 =  { ip6 = ::a01:100/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2;
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2;  }
+}
+network:n2 = { ip6 = ::a01:200/120; }
+
+pathrestriction:p1 = interface:r0.n1, interface:r2.n1;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = interface:r0.[auto]; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r0
+ipv6 access-list n1_in
+ permit udp ::a01:200/120 host ::a01:109 eq 123
+ deny ipv6 any any
+--ipv6/r1
+ipv6 access-list n2_in
+ permit udp ::a01:200/120 host ::a01:109 eq 123
+ deny ipv6 any any
+--ipv6/r2
+ipv6 access-list n2_in
+ permit udp ::a01:200/120 host ::a01:109 eq 123
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Ignore interface with pathrestriction at border of loop (1)
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; }
