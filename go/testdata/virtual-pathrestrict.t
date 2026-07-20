@@ -22,23 +22,17 @@ service:test = {
         dst = user;
         prt = tcp 22;
 }
-=OUTPUT=
---r1
-ip access-list extended e0_in
- permit tcp host 10.1.1.84 host 10.1.1.83 eq 22
- permit tcp host 10.1.1.84 host 10.1.1.83 established
- deny ip any any
---
-ip access-list extended e1_in
- deny ip any any
---r2
-ip access-list extended e0_in
- permit tcp host 10.1.1.83 host 10.1.1.84 eq 22
- permit tcp host 10.1.1.83 host 10.1.1.84 established
- deny ip any any
---
-ip access-list extended e1_in
- deny ip any any
+=ERROR=
+Error: No valid path
+ from interface:r1.a.virtual
+ to interface:r2.a.virtual
+ for rule permit src=interface:r1.a; dst=interface:r2.a; prt=tcp 22; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from interface:r2.a.virtual
+ to interface:r1.a.virtual
+ for rule permit src=interface:r2.a; dst=interface:r1.a; prt=tcp 22; of service:test
+ Check path restrictions and crypto interfaces.
 =END=
 
 ############################################################

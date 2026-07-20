@@ -891,7 +891,6 @@ ipv6 access-list n5_in
 
 ############################################################
 =TITLE=Pathrestricted src and dst in same zone
-# Should we find additional paths through network:n2?
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; }
 network:n2 = { ip6 = ::a01:200/120; }
@@ -925,6 +924,7 @@ ipv6 access-list n1_in
  deny ipv6 any any
 --
 ipv6 access-list n2_in
+ permit tcp host ::a01:101 host ::a01:102 eq 22
  deny ipv6 any any
 --
 ipv6 access-list n3_in

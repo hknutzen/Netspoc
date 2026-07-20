@@ -440,6 +440,128 @@ ipv6 access-list n2_in
 =END=
 
 ############################################################
+=TITLE=Path in loop between zone and interface of zone with pathrestriction
+# See issue #65
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+network:n4 = { ip6 = ::a01:400/120; }
+router:r1 = {
+  interface:n1;
+  interface:n2;
+  interface:n3;
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+  interface:n4 = { ip6 = ::a01:402; hardware = n4; }
+}
+pathrestriction:p1 = interface:r2.n2, interface:r2.n4;
+service:s1 = {
+  user = network:n1;
+  permit src = user; dst = interface:r2.n2; prt = icmpv6 8;
+}
+=OUTPUT=
+--ipv6/r2
+ipv6 access-list n2_in
+ permit icmp ::a01:100/120 host ::a01:202 8
+ deny ipv6 any any
+--
+ipv6 access-list n3_in
+ permit icmp ::a01:100/120 host ::a01:202 8
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Generate ACL + routes for path starting at border of loop
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+router:r1 = {
+  managed;
+  model = IOS;
+  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+}
+router:r3 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:303; hardware = n3; }
+}
+# p1 would restrict traffic from n1, but not traffic starting at r1.n2
+pathrestriction:p1 = interface:r1.n2, interface:r3.n3;
+pathrestriction:p2 = interface:r2.n2, interface:r2.n3;
+service:s1 = {
+  user = interface:r1.n2;
+  permit src = user; dst = network:n3; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route ::a01:300/120 ::a01:203
+--
+ipv6 access-list n2_in
+ permit udp ::a01:300/120 eq 123 host ::a01:201
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Generate ACL + routes for path ending at border of loop
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+router:r1 = {
+  managed;
+  model = IOS;
+  interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+  interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:302; hardware = n3; }
+}
+router:r3 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip6 = ::a01:203; hardware = n2; }
+  interface:n3 = { ip6 = ::a01:303; hardware = n3; }
+}
+pathrestriction:p1 = interface:r1.n2, interface:r3.n3;
+pathrestriction:p2 = interface:r2.n2, interface:r2.n3;
+service:s1 = {
+  user = network:n3;
+  permit src = user; dst = interface:r1.n2; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route ::a01:300/120 ::a01:203
+--
+ipv6 access-list n2_in
+ permit udp ::a01:300/120 host ::a01:201 eq 123
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Minimal path inside loop with pathrestriction at border inside path
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; }

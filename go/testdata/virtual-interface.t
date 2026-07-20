@@ -185,9 +185,7 @@ ip route 10.1.2.0 255.255.255.0 10.1.3.3
 =END=
 
 ############################################################
-=TITLE=Virtual interfaces prevent valid path
-# Implicit pathrestriction would permit path,
-# but virtual interfaces let path be pruned later.
+=TITLE=Virtual interfaces prevent path
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -228,6 +226,8 @@ Error: No valid path
  to interface:r1.n2.virtual
  for rule permit src=network:n3; dst=interface:r1.n2; prt=tcp 22; of service:s1
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:r3 (blocked 1 path attempt)
 =END=
 
 ############################################################

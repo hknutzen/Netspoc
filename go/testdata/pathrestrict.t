@@ -891,7 +891,6 @@ ip access-list extended n5_in
 
 ############################################################
 =TITLE=Pathrestricted src and dst in same zone
-# Should we find additional paths through network:n2?
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -925,6 +924,7 @@ ip access-list extended n1_in
  deny ip any any
 --
 ip access-list extended n2_in
+ permit tcp host 10.1.1.1 host 10.1.1.2 eq 22
  deny ip any any
 --
 ip access-list extended n3_in
