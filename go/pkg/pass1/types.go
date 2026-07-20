@@ -355,6 +355,7 @@ type router struct {
 }
 
 func (x router) String() string     { return x.name }
+func (x router) isRouter() bool     { return true }
 func (x router) isCombined46() bool { return x.combined46 != nil }
 func (x router) vxName() string {
 	return vxName(x.name, x.ipV6, x.combined46 != nil)
@@ -543,6 +544,7 @@ type zone struct {
 }
 
 func (x zone) String() string { return x.name }
+func (x zone) isRouter() bool { return false }
 func (x zone) vxName() string {
 	return vxName(x.name, x.ipV6, x.combined46 != nil)
 }
@@ -814,6 +816,7 @@ type pathObj interface {
 	setNavi(pathObj, navigation)
 	setToZone1(*routerIntf)
 	getToZone1() *routerIntf
+	isRouter() bool
 }
 
 func (x *pathObjData) intfList() intfList              { return x.interfaces }

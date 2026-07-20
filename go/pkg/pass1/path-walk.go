@@ -22,15 +22,12 @@ func (obj *routerIntf) getPathNode() pathStore {
 	r := obj.router
 	if r.managed != "" || r.semiManaged {
 
-		// If this is a secondary interface, we can't use it to enter
-		// the router, because it has an active pathrestriction attached.
-		// But it doesn't matter if we use the main interface instead.
+		// If this is a secondary interface, use the main interface instead.
 		if main := obj.mainIntf; main != nil {
 			obj = main
 		}
 
-		// Special handling needed if src or dst is interface
-		// which has pathrestriction attached.
+		// Special handling needed if object is interface with pathrestriction.
 		if obj.pathRestrict != nil {
 			return obj
 		} else {
@@ -125,84 +122,119 @@ func getPathObj(store pathStore) pathObj {
 //   - obj: current (or start) loop node (zone or router).
 //   - inIntf: interface current loop node was entered from.
 //   - end: loop node that is to be reached.
-//   - lPath: collect tuples and last interfaces of path.
+//   - lPath: collect tuples and enter+leave interfaces of path.
 //   - navi: lookup hash to reduce search space, holds loops to enter.
 //   - blockingCount: map to record blocking pathrestrictions and their counts.
 //
 // Returns : true, if path is found.
-func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
-	lPath *loopPath, navi navigation, blockingCount map[*pathRestriction]int) bool {
+func clusterPathMark1(
+	obj pathObj, inIntf *routerIntf, end pathObj,
+	startInLoop, endInLoop *routerIntf,
+	lPath *loopPath, navi navigation,
+	blockingCount map[*pathRestriction]int,
+) bool {
 
-	//    debug("cluster_path_mark1: obj: obj->{name},
-	//           in_intf: in_intf->{name} to: end->{name}");
-
-	// Stop path exploration when activated PR (2nd occurrence) was passed.
-	pathrestriction := inIntf.pathRestrict
-	for _, restrict := range pathrestriction {
-		if restrict.activePath {
-			// Count blocking pathrestriction only once per path attempt.
-			// Since pathfinding is bidirectional, we encounter each restriction from both sides.
-			// To avoid double-counting, only count when inIntf is in the restriction.
-			// We check if inIntf is one of the restriction's elements to ensure we're at the right location.
-			for _, intf := range restrict.elements {
-				if intf == inIntf {
-					// Count only from one side: count from the lexicographically larger router
-					// (this is the "second encounter" side where activePath=true)
-					shouldCount := true
-					for _, other := range restrict.elements {
-						if other != inIntf && other.router.name > inIntf.router.name {
-							shouldCount = false
-							break
+	isBlocked := func(intf *routerIntf) bool {
+		for _, restrict := range intf.pathRestrict {
+			if restrict.activePath {
+				// Count blocking pathrestriction only once per path attempt.
+				// Since pathfinding is bidirectional, we encounter each
+				// restriction from both sides. To avoid double-counting,
+				// only count when inIntf is in the restriction. We check if
+				// inIntf is one of the restriction's elements to ensure
+				// we're at the right location.
+				for _, intf := range restrict.elements {
+					if intf == inIntf {
+						// Count only from one side: count from the
+						// lexicographically larger router (this is the "second
+						// encounter" side where activePath is set)
+						shouldCount := true
+						for _, other := range restrict.elements {
+							if other != inIntf && other.router.name > inIntf.router.name {
+								shouldCount = false
+								break
+							}
 						}
+						if shouldCount {
+							blockingCount[restrict]++
+						}
+						break
 					}
-					if shouldCount {
-						blockingCount[restrict]++
-					}
-					break
 				}
+				return true
 			}
+		}
+		return false
+	}
+	if endInLoop != nil {
+		// If path ends at interface inside loop then check earlier if this
+		// interface has been reached.
+		if inIntf == endInLoop {
+			// Pathrestriction is ignored if path ends at current
+			// interface and is about to leave zone.
+			if obj.isRouter() {
+				// Store interface where we leave the loop.
+				lPath.leave.push(inIntf)
+				return true
+			}
+		} else if slices.Contains(endInLoop.redundancyIntfs, inIntf) {
+			// Prohibit paths traversing related redundancy interfaces.
+			return false
+		}
+	}
+	if startInLoop != nil && inIntf != startInLoop {
+		if slices.Contains(startInLoop.redundancyIntfs, inIntf) {
+			// Prohibit paths traversing related redundancy interfaces.
+			return false
+		}
+		if inIntf.router == startInLoop.router {
+			// Pathrestriction at startInLoop must be checked or activated if
+			// start router is left at other interface than startInLoop.
+			if isBlocked(startInLoop) {
+				return false
+			}
+			defer handlePathrestriction(startInLoop)()
+		}
+	}
+
+	if inIntf == startInLoop && !obj.isRouter() {
+		// Pathrestriction is ignored if path starts at current
+		// interface and is about to enter zone.
+	} else {
+		// Stop path exploration when activated PR (2nd occurrence) is reached.
+		if isBlocked(inIntf) {
 			return false
 		}
 	}
 
-	// Node has been visited before - return to avoid walking loops.
+	// Node has been visited before - avoid walking loops.
 	if obj.isActivePath() {
-		//    debug(" active: obj->{name}");
 		return false
-	}
-
-	// Found a path to router or zone.
-	if obj == end {
-
-		// Store interface where we leave the loop.
-		lPath.leave.push(inIntf)
-		//    debug(" leave: in_intf->{name} -> end->{name}");
-		return true
 	}
 
 	// Mark current path for loop detection.
 	obj.setActivePath()
 	defer obj.clearActivePath()
 
-	// debug "activated obj->{name}";
-
-	// Activate passed pathrestrictions.
-	if pathrestriction != nil {
-		for _, restrict := range pathrestriction {
-
-			//       debug(" enabled restrict->{name} at in_intf->{name}");
-			restrict.activePath = true
+	// Activate passed pathrestriction.
+	// But ignore pathrestriction if path starts at current interface and
+	// is about to enter zone.
+	if inIntf.pathRestrict != nil && (inIntf != startInLoop || obj.isRouter()) {
+		defer handlePathrestriction(inIntf)()
+	}
+	if endInLoop != nil {
+		if inIntf.router == endInLoop.router && isBlocked(endInLoop) {
+			// endInLoop is reached from same router but pathrestriction
+			// will be crossed.
+			return false
 		}
+	}
 
-		// Deactivate pathrestrictions later.
-		defer func() {
-			//       debug "deactivated obj->{name}";
-			for _, restrict := range pathrestriction {
-
-				//          debug(" disabled restrict->{name} at in_intf->{name}");
-				restrict.activePath = false
-			}
-		}()
+	// Found path to router or zone.
+	if obj == end {
+		// Store interface where we leave the loop.
+		lPath.leave.push(inIntf)
+		return true
 	}
 
 	var typeTuples *intfPairs
@@ -235,10 +267,10 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 		//debug("Try %s -> %s", obj, next)
 
 		// If a valid path is found from next node to end...
-		if clusterPathMark1(next, intf, end, lPath, navi, blockingCount) {
-
+		if clusterPathMark1(
+			next, intf, end, startInLoop, endInLoop, lPath, navi, blockingCount,
+		) {
 			// ...collect path information.
-			//debug(" loop: %s -> %s", inIntf, intf)
 			typeTuples.push(intfPair{inIntf, intf})
 			success = true
 		}
@@ -331,350 +363,24 @@ func clusterNavigation(from, to pathObj) navigation {
 	return navi
 }
 
-// fixupZonePath adapts path starting/ending at zone,
-// such that the original start/end-interface is reached.
-//
-//	First step:
-//	Remove paths, that traverse router of start/end interface,
-//	but don't terminate at that router. This would lead to
-//	invalid paths entering the same router two times.
-//	Second step:
-//	Adjust start/end of paths from zone to router.
-//
-// Parameters:
-//   - start, end: start and/or end interface of orginal path
-//   - lPath: Describes path inside loop.
-//
-// Returns: nothing
-// Results: Changes attributes of lPath.
-func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
-	tuples := &lPath.routerTuples
-	delIn := make(map[*routerIntf]bool)
-	delOut := make(map[*routerIntf]bool)
-	markDeleted := func(idx int) {
-		tuple := (*tuples)[idx]
-		// Mark interfaces of to be removed tuple, because adjacent tuples
-		// could become dangling now.
-		delIn[tuple[1]] = true
-		delOut[tuple[0]] = true
-		// Mark tuple at position idx as deleted.
-		(*tuples)[idx][0] = nil
-	}
-	setup := func(startEnd *routerIntf, inOut int) {
-		if startEnd == nil {
-			return
-		}
-		// Remove tuples traversing that router, where path should start/end.
-		// Collect interfaces of to be removed tuples.
-		router := startEnd.router
-		for idx, tuple := range *tuples {
-			intf := tuple[inOut]
-			if intf.router == router {
-				if intf != startEnd {
-					markDeleted(idx)
-				}
-			} else {
-				// Prohibit paths traversing related redundancy interfaces.
-				if slices.Contains(startEnd.redundancyIntfs, intf) {
-					markDeleted(idx)
-				}
-			}
-		}
-	}
-	setup(start, 0)
-	setup(end, 1)
-
-	// Remove dangling tuples.
-	changed := false
-	for len(delIn) != 0 || len(delOut) != 0 {
-		changed = true
-
-		// Remove mark, if non removed tuples are adjacent.
-		for _, tuple := range *tuples {
-			if tuple[0] != nil {
-				delete(delIn, tuple[1])
-				delete(delOut, tuple[0])
-			}
-		}
-		// Find dangling tuples for next iteration.
-		if tuples == &lPath.routerTuples {
-			tuples = &lPath.zoneTuples
-		} else {
-			tuples = &lPath.routerTuples
-		}
-		delInPrev := delIn
-		delOutPrev := delOut
-		delIn = make(map[*routerIntf]bool)
-		delOut = make(map[*routerIntf]bool)
-		for idx, tuple := range *tuples {
-			if tuple[0] != nil {
-				if delInPrev[tuple[0]] || delOutPrev[tuple[1]] {
-					markDeleted(idx)
-				}
-			}
-		}
-	}
-
-	if changed {
-
-		// Remove tuples that are marked as deleted. Change in place.
-		delTuples := func(path intfPairs) intfPairs {
-			j := 0
-			for _, tuple := range path {
-				if tuple[0] != nil {
-					path[j] = tuple
-					j++
-				}
-			}
-			return path[:j]
-		}
-		lPath.routerTuples = delTuples(lPath.routerTuples)
-		lPath.zoneTuples = delTuples(lPath.zoneTuples)
-
-		// Find dangling interfaces at start and end of path by marking
-		// all interfaces that are used in path.
-		hasIn := make(map[*routerIntf]bool)
-		hasOut := make(map[*routerIntf]bool)
-
-		// First/last tuple of path is known to be part of router,
-		// because path starts/ends at zone.
-		// But for other side of path, we don't know if it starts at
-		// router or zone; so we must check zoneTuples also.
-		mark := func(tuples intfPairs) {
-			for _, tuple := range tuples {
-				hasIn[tuple[0]] = true
-				hasOut[tuple[1]] = true
-			}
-		}
-		mark(lPath.routerTuples)
-		mark(lPath.zoneTuples)
-
-		// Remove dangling interfaces while preserving original backing
-		// array.
-		delIntf := func(l intfList, m map[*routerIntf]bool) intfList {
-			j := 0
-			for _, intf := range l {
-				if m[intf] {
-					l[j] = intf
-					j++
-				}
-			}
-			return l[:j]
-		}
-		lPath.enter = delIntf(lPath.enter, hasIn)
-		lPath.leave = delIntf(lPath.leave, hasOut)
-	}
-
-	// Change start/end of paths from zone to router of original interface.
-	change := func(startEnd *routerIntf, inOut int) {
-		if startEnd == nil {
-			return
-		}
-		isStart := inOut == 0
-		outIn := 1
-		enterLeave := &lPath.enter
-		if !isStart {
-			outIn = 0
-			enterLeave = &lPath.leave
-		}
-		addIntf := make(intfList, 0)
-		seenIntf := false
-		for _, intf := range *enterLeave {
-			if intf == startEnd {
-				j := 0
-				for _, tuple := range lPath.routerTuples {
-					if tuple[inOut] == intf {
-						addIntf.push(tuple[outIn])
-					} else {
-						lPath.routerTuples[j] = tuple
-						j++
-					}
-				}
-				lPath.routerTuples = lPath.routerTuples[:j]
-			} else {
-				if isStart {
-					lPath.zoneTuples.push(intfPair{startEnd, intf})
-				} else {
-					lPath.zoneTuples.push(intfPair{intf, startEnd})
-				}
-				if !seenIntf {
-					seenIntf = true
-					addIntf.push(startEnd)
-				}
-			}
-		}
-		*enterLeave = addIntf
-	}
-	change(start, 0)
-	change(end, 1)
-}
-
-// intfClusterPathMark marks path starting/ending at pathrestricted
-// interface by first marking path from/to related zone and
-// afterwards fixing found path.
-//
-// Parameters:
-//   - startStore: start node or interface
-//   - endStore: end node or interface
-//   - startIntf: set if path starts at pathrestricted interface
-//   - endIntf: set if path ends at pathrestricted interface
-//   - blockingCount: map to record blocking pathrestrictions and their counts.
-//
-// Returns: True if path was found, false otherwise.
-// Results: Sets attributes for found path:
-// loopEnter, loopLeave, PathTuples for found path.
-func intfClusterPathMark(
-	from, to pathObj,
-	startStore, endStore pathStore,
-	startIntf, endIntf *routerIntf,
-	blockingCount map[*pathRestriction]int,
-) bool {
-	if startIntf != nil {
-		startStore = startIntf.zone
-		from = startIntf.zone
-	}
-	if endIntf != nil {
-		endStore = endIntf.zone
-		to = endIntf.zone
-	}
-
-	// Check if zones are equal.
-	zoneEq := func(s1, s2 pathStore) bool {
-		if intf, ok := s1.(*routerIntf); ok {
-			if zone, ok := s2.(*zone); ok {
-				return intf.zone == zone
-			}
-		}
-		return false
-	}
-
-	lPath := new(loopPath)
-
-	// Set minimal path manually.
-	if startStore == endStore ||
-		zoneEq(endStore, startStore) ||
-		zoneEq(startStore, endStore) {
-		if startIntf != nil && endIntf != nil {
-			lPath.enter = intfList{startIntf}
-			lPath.leave = intfList{endIntf}
-			lPath.zoneTuples = intfPairs{{startIntf, endIntf}}
-			startStore = startIntf
-			endStore = endIntf
-		} else if startIntf != nil {
-			lPath.enter = intfList{startIntf}
-			lPath.leave = intfList{startIntf}
-			startStore = startIntf
-		} else {
-			lPath.enter = intfList{endIntf}
-			lPath.leave = intfList{endIntf}
-			endStore = endIntf
-		}
-	} else {
-
-		// Mark cluster path between different zones.
-		if !clusterPathMark(from, to, startStore, endStore, blockingCount) {
-			return false
-		}
-
-		origPath := startStore.getLoopPath()[endStore]
-
-		// Copy arrays, othwise origPath would be changed below.
-		lPath.enter = append(lPath.enter, origPath.enter...)
-		lPath.leave = append(lPath.leave, origPath.leave...)
-		lPath.routerTuples = append(lPath.routerTuples, origPath.routerTuples...)
-		lPath.zoneTuples = append(lPath.zoneTuples, origPath.zoneTuples...)
-
-		// Fixup start and/or end of path.
-		if startIntf != nil || endIntf != nil {
-			fixupZonePath(startIntf, endIntf, lPath)
-			if startIntf != nil {
-				startStore = startIntf
-			}
-			if endIntf != nil {
-				endStore = endIntf
-			}
-		}
-	}
-
-	// Check if path is empty after fixup.
-	if len(lPath.enter) == 0 {
-		return false
-	}
-
-	// Store found path.
-	startStore.setLoopPath(endStore, lPath)
-
-	return true
-}
-
 // #############################################################################
 // clusterPathMark collects path information through a loop
 // for a pair of loop nodes (zone or router) and
 // stores it at the object where loop paths begins.
 //
 // Parameters :
-//   - startStore: source loop node or interface, if source
-//     is a pathrestricted interface of loop.
-//   - endStore: destination loop node or interface, if destination
-//     is a pathrestricted interface of loop.
+//   - from: source loop node.
+//   - to: destination loop node.
+//   - startInLoop: Interface where path starts in loop or nil.
+//   - endInLoop: Interface where path ends in loop or nil.
 //   - blockingCount: map to record blocking pathrestrictions and their counts.
 //
-// Returns: True if a valid path was found, false otherwise.
-// Results:
-// Loop entering interface
-// holds reference to where loop path information is stored.
-//
-//	(Starting or ending at pathrestricted interface may lead
-//	 to different paths than for a simple node).
-//	Referenced object holds loop path description.
+// Returns: loopPath if a valid path was found, nil otherwise.
 func clusterPathMark(
 	from, to pathObj,
-	startStore, endStore pathStore,
+	startInLoop, endInLoop *routerIntf,
 	blockingCount map[*pathRestriction]int,
-) bool {
-
-	// Path from startStore to endStore has been marked already.
-	if startStore.getLoopPath()[endStore] != nil {
-		return true
-	}
-
-	getLoopBorderIntf := func(s pathStore) (*routerIntf, *routerIntf) {
-		if intf, ok := s.(*routerIntf); ok {
-			if intf.loop != nil {
-				return intf, nil
-			}
-			return nil, intf
-		}
-		return nil, nil
-	}
-	// startIntf is set, if path starts at pathrestricted interface
-	// inside of loop.
-	// fromIn is set, if path starts or enters loop at pathrestricted
-	// interface at border of loop. In this case, corresponding loop node
-	// is always a router, because zones case has been transformed before.
-	startIntf, fromIn := getLoopBorderIntf(startStore)
-	endIntf, toOut := getLoopBorderIntf(endStore)
-
-	if startIntf != nil || endIntf != nil {
-		return intfClusterPathMark(
-			from, to, startStore, endStore, startIntf, endIntf, blockingCount)
-	}
-
-	//debug("clusterPathMark: %s -> %s", startStore, endStore);
-	//debug(" %s -> %s", from, to);
-
-	// Activate pathrestriction at border of loop.
-	for _, intf := range []*routerIntf{fromIn, toOut} {
-		if intf != nil {
-			for _, restrict := range intf.pathRestrict {
-				restrict.activePath = true
-				// Deactivate pathrestriction later.
-				defer func() {
-					restrict.activePath = false
-				}()
-			}
-		}
-	}
+) *loopPath {
 
 	// Find loop paths via depth first search.
 	success := false
@@ -683,7 +389,7 @@ func clusterPathMark(
 	navi := clusterNavigation(from, to)
 	allowed := navi[from.getLoop()]
 
-	// These attributes describe valid paths inside loop.
+	// This describes valid paths inside loop.
 	lPath := new(loopPath)
 
 	// Mark current path for loop detection.
@@ -711,13 +417,14 @@ func clusterPathMark(
 		localBlocking := make(map[*pathRestriction]int)
 
 		// Search path from next node to to, store it in lPath.
-		//debug(" try: %s -> %s", from, intf)
-		if clusterPathMark1(next, intf, to, lPath, navi, localBlocking) {
+		if clusterPathMark1(
+			next, intf, to, startInLoop, endInLoop,
+			lPath, navi, localBlocking,
+		) {
 			success = true
 			lPath.enter.push(intf)
-			//debug(" enter: %s -> %s", from, intf);
 		} else {
-			// This interface choice failed - add the accumulated counts from localBlocking
+			// This interface choice failed - add the accumulated counts.
 			for pr, count := range localBlocking {
 				blockingCount[pr] += count
 			}
@@ -732,54 +439,57 @@ func clusterPathMark(
 		// Remove duplicates, which occur from nested loops.
 		delDupl(&lPath.leave)
 
-		// Add loop path information to start node or interface.
-		startStore.setLoopPath(endStore, lPath)
+		return lPath
 	}
-	return success
+	return nil
 }
 
 func connectClusterPath(
 	from, to pathObj,
 	fromIn, toOut *routerIntf,
-	fromStore, toStore pathStore,
+	startStore, endStore pathStore,
 	blockingCount map[*pathRestriction]int,
 ) bool {
 
-	// Find object to store path information inside loop.
-	// Path may differ depending on whether loop entering and exiting
-	// interfaces are pathrestricted or not. Storing path information
-	// in different objects respects this.
-	setup := func(
-		s pathStore, obj pathObj, borderIntf **routerIntf) (pathStore, bool) {
-
+	// 1. Find object to store path information inside loop.
+	//    Path may differ depending on whether loop entering and exiting
+	//    interfaces are pathrestricted or not. Storing path information
+	//    in different objects respects this.
+	// 2. Find interface at border / entry / exit of loop
+	//    where pathrestriction must be activated.
+	// 3. Find interface with pathrestriction
+	//    where path starts / ends inside loop.
+	// 4. Set flag if path starts at zone at border of loop.
+	setup := func(s pathStore, obj pathObj, ioIntf *routerIntf,
+	) (pathStore, *routerIntf, *routerIntf, bool) {
 		var store pathStore
-		// Clear borderIntf if we are about to enter/exit a loop at zone,
-		// because pathrestriction at borderIntf must not be activated.
-		storeIntf, storeIsIntf := s.(*routerIntf)
-		if storeIsIntf {
-			if *borderIntf == storeIntf {
-				*borderIntf = nil
-			}
-		}
-		// Path starts/ends at pathrestricted interface inside or at
-		// border of current loop.
-		// Set flag, if path starts at interface of zone at border of loop.
+		var restricted, inLoop *routerIntf
 		atZone := false
-		if *borderIntf == nil && storeIsIntf {
-			// Path starts/ends at border of current loop at zone node.
-			// Pathrestriction must not be activated, hence use zone as
-			// store.
-			if storeIntf.loop == nil && storeIntf.zone.loop != nil {
-				store = storeIntf.zone
-				atZone = true
+		if intf, ok := s.(*routerIntf); ok && (ioIntf == nil || ioIntf == intf) {
+			// Path starts/ends at pathrestricted interface.
+			if intf.loop == nil {
+				// Path starts/ends at border of current loop.
+				switch x := obj.(type) {
+				case *router:
+					restricted = intf
+					store = intf
+				case *zone:
+					// Ignore pathrestriction when entering a loop at zone and
+					// path starts at interface at border of this zone,
+					// because IP address of interface belongs to IP adress of
+					// entered network and hence must no be restricted.
+					store = x
+					atZone = true
+				}
 			} else {
-				// Path starts/ends inside or at border of current loop at
-				// router node.
-				store = storeIntf
+				// Path starts/ends inside current loop.
+				inLoop = intf
+				store = intf
 			}
-		} else if *borderIntf != nil && (*borderIntf).pathRestrict != nil {
+		} else if ioIntf != nil && ioIntf.pathRestrict != nil {
 			// Loop is entered/exited at pathrestricted interface.
-			store = *borderIntf
+			store = ioIntf
+			restricted = ioIntf
 		} else {
 			// Loop starts/ends or is entered/exited at obj; no
 			// pathrestriction is effective.
@@ -790,61 +500,63 @@ func connectClusterPath(
 				store = x
 			}
 		}
-		return store, atZone
+		return store, restricted, inLoop, atZone
 	}
+	fromStore, fromRestricted, startIntf, startAtZone :=
+		setup(startStore, from, fromIn)
+	toStore, toRestricted, endIntf, _ :=
+		setup(endStore, to, toOut)
 
-	startStore, startAtZone := setup(fromStore, from, &fromIn)
-	endStore, endAtZone := setup(toStore, to, &toOut)
+	// Check, if loop path from fromStore to toStore has been marked already.
+	if fromStore.getLoopPath()[toStore] == nil {
 
-	success := clusterPathMark(from, to, startStore, endStore, blockingCount)
-
-	// If loop path was found, set path information for fromIn and
-	// toOut interfaces and connect them with loop path.
-	if success {
-		var store pathStore
-
-		if fromIn != nil {
-			store = fromIn
-		} else {
-			store = fromStore
+		// Activate pathrestrictions now and deactivate later.
+		if fromRestricted != nil {
+			defer handlePathrestriction(fromRestricted)()
 		}
-		if endAtZone {
-			// Path ends at interface of zone at border of loop.
-			// Continue path to router of interface outside of loop.
-			toOut = toStore.(*routerIntf)
-		}
-		if fromIn != nil || startAtZone {
-			store.setPath(toStore, toOut)
-		} else {
-			store.setPath1(toStore, toOut)
+		if toRestricted != nil {
+			defer handlePathrestriction(toRestricted)()
 		}
 
-		/*
-			var debuggingPathAttr string
-			if fromIn != nil || startAtZone {
-				debuggingPathAttr = "path"
-			} else {
-				debuggingPathAttr = "path1"
-			}
-			debug("loop %s: %s -> %s", debuggingPathAttr, store, toStore)
-		*/
-
-		// Collect path information at beginning of loop path (startStore).
-		// Loop paths beginning at loop node can differ depending on the way
-		// the node is entered (interface with/without pathrestriction,
-		// pathrestricted src/dst interface), requiring storing path
-		// information at different objects.
-		// Path information is stored at attribute loopEntry.
-		if startAtZone {
-			x := store.(*routerIntf)
-			x.setLoopEntryZone(toStore, startStore)
-		} else {
-			store.setLoopEntry(toStore, startStore)
+		lPath := clusterPathMark(from, to, startIntf, endIntf, blockingCount)
+		if lPath == nil {
+			return false
 		}
-		startStore.setLoopExit(toStore, endStore)
+		fromStore.setLoopPath(toStore, lPath)
 	}
+	// If loop path was found, connect it with linear path.
+	var store pathStore
+	if fromIn != nil {
+		store = fromIn
+		store.setPath(endStore, toOut)
+	} else {
+		store = startStore
+		store.setPath1(endStore, toOut)
+	}
+	// Collect path information at beginning of loop path (fromStore).
+	// Loop paths beginning at loop node can differ depending on the way
+	// the node is entered (interface with/without pathrestriction,
+	// pathrestricted src/dst interface), requiring storing path
+	// information at different objects and at different attributes.
+	if startAtZone {
+		x := store.(*routerIntf)
+		x.setLoopEntryZone(endStore, fromStore)
+	} else {
+		store.setLoopEntry(endStore, fromStore)
+	}
+	fromStore.setLoopExit(endStore, toStore)
+	return true
+}
 
-	return success
+func handlePathrestriction(intf *routerIntf) func() {
+	for _, restrict := range intf.pathRestrict {
+		restrict.activePath = true
+	}
+	return func() {
+		for _, restrict := range intf.pathRestrict {
+			restrict.activePath = false
+		}
+	}
 }
 
 // Remove partially marked path.
@@ -864,7 +576,7 @@ func removePath(fromStore, toStore pathStore) {
 //   - fromStore: Object, where path starts.
 //   - toStore: Objects, where path ends.
 //     Typically both are of type zone or router.
-//     For details see description of sub pathWalk.
+//     For details see description of func pathWalk.
 //
 // Returns:
 //   - bool: True if valid path is found, False otherwise.
@@ -1034,8 +746,6 @@ func loopPathWalk(
 	fun func(r *groupedRule, i, o *routerIntf),
 ) bool {
 
-	// debug("loopPathWalk: %s->%s=>%s->%s", in, loopEntry, loopExit, out)
-
 	lPath := loopEntry.getLoopPath()[loopExit]
 
 	// Process entry of cyclic graph.
@@ -1044,7 +754,6 @@ func loopPathWalk(
 	case *router:
 		isRouter = true
 	case *routerIntf:
-
 		// Take only interface which originally was a router.
 		if x.router == lPath.enter[0].router {
 			isRouter = true
@@ -1215,23 +924,17 @@ func (c *spoc) pathWalk(
 
 	var in *routerIntf
 	out := fromStore.getPath1()[toStore]
+
+	// Check, if path starts inside or at border of cyclic graph.
 	var loopEntry pathStore
 
-	// Path starts inside or at border of cyclic graph.
-	//
 	// Special case: Path starts at pathrestricted interface of
 	// zone at border of loop and hence this pathrestriction will
 	// not be activated. Use attribute loopEntryZone, to find correct
 	// path in loop.
 	if x, ok := fromStore.(*routerIntf); ok {
 		loopEntry = x.loopEntryZone[toStore]
-
 		if loopEntry != nil {
-
-			// Walk path starting at router outside of loop.
-			if callIt {
-				fun(rule, nil, x)
-			}
 			in = x
 			out = x.path[toStore]
 		}
@@ -1242,12 +945,12 @@ func (c *spoc) pathWalk(
 		loopEntry = fromStore.getLoopEntry()[toStore]
 	}
 
-	// Walk loop path.
+	// Walk loop at beginning of path.
 	if loopEntry != nil {
 		loopExit := loopEntry.getLoopExit()[toStore]
 		callIt = loopPathWalk(in, out, loopEntry, loopExit, atZone, rule, fun)
 
-		// Return, if end of path has been reached.
+		// Finish, if end of path has been reached.
 		if out == nil {
 			return
 		}
@@ -1271,12 +974,11 @@ func (c *spoc) pathWalk(
 			callIt = // Was function called on last node of loop?
 				loopPathWalk(in, out, loopEntry, loopExit, atZone, rule, fun)
 		} else if callIt {
-
 			// Non-loop path continues - call function, if switch is set.
 			fun(rule, in, out)
 		}
 
-		// Return, if end of path has been reached.
+		// Finish, if end of path has been reached.
 		if out == nil {
 			return
 		}
@@ -1400,6 +1102,9 @@ func (c *spoc) findAutoInterfaces(
 					continue
 				}
 			}
+			// Handle special case, where path starts at pathrestricted
+			// interface at border of loop and corresponding router is located
+			// outside of loop.
 			if x, ok := fromStore.(*routerIntf); ok {
 				if _, found := x.loopEntryZone[toStore]; found {
 					result.push(x)

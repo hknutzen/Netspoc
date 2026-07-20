@@ -812,10 +812,11 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
-=TITLE=Find auto interface with pathrestriction in loop
+=TITLE=Find auto interface with pathrestriction in loop (1)
 =INPUT=
 network:n1 = { ip6 = ::a01:100/120; }
 network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
 router:r1 = {
  managed;
  routing = manual;
@@ -831,24 +832,67 @@ router:r2 = {
  interface:n2 = { ip6 = ::a01:202; hardware = n2; }
  interface:n3 = { ip6 = ::a01:302; hardware = n3;}
 }
-network:n3 = { ip6 = ::a01:300/120; }
 pathrestriction:p =
  interface:r1.n2,
  interface:r2.n2,
 ;
 service:s = {
  user = interface:r1.[auto];
- permit src = network:n3; dst = user; prt = tcp 22;
+ permit src = user; dst = network:n3; prt = tcp 22;
 }
 =OUTPUT=
 --ipv6/r2
-! n3_in
+! n1_in
 object-group network v6g0
  network-object host ::a01:101
  network-object host ::a01:201
-access-list n3_in extended permit tcp ::a01:300/120 object-group v6g0 eq 22
-access-list n3_in extended deny ip any6 any6
-access-group n3_in in interface n3
+access-list n1_in extended permit tcp object-group v6g0 ::a01:300/120 eq 22
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp host ::a01:201 ::a01:300/120 eq 22
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Find auto interface with pathrestriction in loop (2)
+=INPUT=
+network:n1 = { ip6 = ::a01:100/120; }
+network:n2 = { ip6 = ::a01:200/120; }
+network:n3 = { ip6 = ::a01:300/120; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:101; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip6 = ::a01:102; hardware = n1; }
+ interface:n2 = { ip6 = ::a01:202; hardware = n2; }
+ interface:n3 = { ip6 = ::a01:302; hardware = n3;}
+}
+pathrestriction:r1 = interface:r1.n1, interface:r1.n2;
+service:s = {
+ user = interface:r1.[auto];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+--ipv6/r2
+! n1_in
+access-list n1_in extended permit tcp host ::a01:101 ::a01:300/120 eq 22
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp host ::a01:201 ::a01:300/120 eq 22
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
 =END=
 
 ############################################################

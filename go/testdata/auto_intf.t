@@ -812,10 +812,11 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
-=TITLE=Find auto interface with pathrestriction in loop
+=TITLE=Find auto interface with pathrestriction in loop (1)
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  routing = manual;
@@ -831,24 +832,67 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3;}
 }
-network:n3 = { ip = 10.1.3.0/24; }
 pathrestriction:p =
  interface:r1.n2,
  interface:r2.n2,
 ;
 service:s = {
  user = interface:r1.[auto];
- permit src = network:n3; dst = user; prt = tcp 22;
+ permit src = user; dst = network:n3; prt = tcp 22;
 }
 =OUTPUT=
 --r2
-! n3_in
+! n1_in
 object-group network g0
  network-object host 10.1.1.1
  network-object host 10.1.2.1
-access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 object-group g0 eq 22
-access-list n3_in extended deny ip any4 any4
-access-group n3_in in interface n3
+access-list n1_in extended permit tcp object-group g0 10.1.3.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp host 10.1.2.1 10.1.3.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Find auto interface with pathrestriction in loop (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3;}
+}
+pathrestriction:r1 = interface:r1.n1, interface:r1.n2;
+service:s = {
+ user = interface:r1.[auto];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+=OUTPUT=
+--r2
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.1 10.1.3.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp host 10.1.2.1 10.1.3.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 =END=
 
 ############################################################

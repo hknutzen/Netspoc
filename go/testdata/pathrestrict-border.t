@@ -440,6 +440,128 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
+=TITLE=Path in loop between zone and interface of zone with pathrestriction
+# See issue #65
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+  interface:n1;
+  interface:n2;
+  interface:n3;
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+pathrestriction:p1 = interface:r2.n2, interface:r2.n4;
+service:s1 = {
+  user = network:n1;
+  permit src = user; dst = interface:r2.n2; prt = icmp 8;
+}
+=OUTPUT=
+--r2
+ip access-list extended n2_in
+ permit icmp 10.1.1.0 0.0.0.255 host 10.1.2.2 8
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit icmp 10.1.1.0 0.0.0.255 host 10.1.2.2 8
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Generate ACL + routes for path starting at border of loop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+  managed;
+  model = IOS;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+# p1 would restrict traffic from n1, but not traffic starting at r1.n2
+pathrestriction:p1 = interface:r1.n2, interface:r3.n3;
+pathrestriction:p2 = interface:r2.n2, interface:r2.n3;
+service:s1 = {
+  user = interface:r1.n2;
+  permit src = user; dst = network:n3; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+ip route 10.1.3.0 255.255.255.0 10.1.2.3
+--
+ip access-list extended n2_in
+ permit udp 10.1.3.0 0.0.0.255 eq 123 host 10.1.2.1
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Generate ACL + routes for path ending at border of loop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+  managed;
+  model = IOS;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+  managed;
+  model = IOS;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+pathrestriction:p1 = interface:r1.n2, interface:r3.n3;
+pathrestriction:p2 = interface:r2.n2, interface:r2.n3;
+service:s1 = {
+  user = network:n3;
+  permit src = user; dst = interface:r1.n2; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+ip route 10.1.3.0 255.255.255.0 10.1.2.3
+--
+ip access-list extended n2_in
+ permit udp 10.1.3.0 0.0.0.255 host 10.1.2.1 eq 123
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Minimal path inside loop with pathrestriction at border inside path
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

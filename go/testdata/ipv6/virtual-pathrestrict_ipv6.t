@@ -22,23 +22,17 @@ service:test = {
         dst = user;
         prt = tcp 22;
 }
-=OUTPUT=
---ipv6/r1
-ipv6 access-list e0_in
- permit tcp host ::a01:154 host ::a01:153 eq 22
- permit tcp host ::a01:154 host ::a01:153 established
- deny ipv6 any any
---
-ipv6 access-list e1_in
- deny ipv6 any any
---ipv6/r2
-ipv6 access-list e0_in
- permit tcp host ::a01:153 host ::a01:154 eq 22
- permit tcp host ::a01:153 host ::a01:154 established
- deny ipv6 any any
---
-ipv6 access-list e1_in
- deny ipv6 any any
+=ERROR=
+Error: No valid path
+ from interface:r1.a.virtual
+ to interface:r2.a.virtual
+ for rule permit src=interface:r1.a; dst=interface:r2.a; prt=tcp 22; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from interface:r2.a.virtual
+ to interface:r1.a.virtual
+ for rule permit src=interface:r2.a; dst=interface:r1.a; prt=tcp 22; of service:test
+ Check path restrictions and crypto interfaces.
 =END=
 
 ############################################################
