@@ -389,7 +389,7 @@ type routerIntf struct {
 	layer3Intf      *routerIntf
 	loop            *loop
 	loopback        bool
-	loopEntryZone   map[pathStore]pathStore
+	loopConnZone    map[pathStore]loopConn
 	mainIntf        *routerIntf
 	natMap          natMap
 	noCheck         bool
@@ -726,35 +726,31 @@ type pathRules struct {
 //###################################################################
 
 type pathStoreData struct {
-	path      map[pathStore]*routerIntf
-	path1     map[pathStore]*routerIntf
-	loopEntry map[pathStore]pathStore
-	loopExit  map[pathStore]pathStore
-	loopPath  map[pathStore]*loopPath
+	path     map[pathStore]*routerIntf
+	path1    map[pathStore]*routerIntf
+	loopConn map[pathStore]loopConn
+	loopPath map[pathStore]*loopPath
 }
 
 type pathStore interface {
 	String() string
 	getPath() map[pathStore]*routerIntf
 	getPath1() map[pathStore]*routerIntf
-	getLoopEntry() map[pathStore]pathStore
-	getLoopExit() map[pathStore]pathStore
+	getLoopConn() map[pathStore]loopConn
 	getLoopPath() map[pathStore]*loopPath
 	setPath(pathStore, *routerIntf)
 	setPath1(pathStore, *routerIntf)
-	setLoopEntry(pathStore, pathStore)
-	setLoopExit(pathStore, pathStore)
+	setLoopConn(pathStore, pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
 	getZone() pathObj
 	isIPv6() bool
 	vxName() string
 }
 
-func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
-func (x *pathStoreData) getPath1() map[pathStore]*routerIntf   { return x.path1 }
-func (x *pathStoreData) getLoopEntry() map[pathStore]pathStore { return x.loopEntry }
-func (x *pathStoreData) getLoopExit() map[pathStore]pathStore  { return x.loopExit }
-func (x *pathStoreData) getLoopPath() map[pathStore]*loopPath  { return x.loopPath }
+func (x *pathStoreData) getPath() map[pathStore]*routerIntf   { return x.path }
+func (x *pathStoreData) getPath1() map[pathStore]*routerIntf  { return x.path1 }
+func (x *pathStoreData) getLoopConn() map[pathStore]loopConn  { return x.loopConn }
+func (x *pathStoreData) getLoopPath() map[pathStore]*loopPath { return x.loopPath }
 
 func (x *pathStoreData) setPath(s pathStore, i *routerIntf) {
 	if x.path == nil {
@@ -768,23 +764,17 @@ func (x *pathStoreData) setPath1(s pathStore, i *routerIntf) {
 	}
 	x.path1[s] = i
 }
-func (x *pathStoreData) setLoopEntry(s pathStore, e pathStore) {
-	if x.loopEntry == nil {
-		x.loopEntry = make(map[pathStore]pathStore)
+func (x *pathStoreData) setLoopConn(s pathStore, in, out pathStore) {
+	if x.loopConn == nil {
+		x.loopConn = make(map[pathStore]loopConn)
 	}
-	x.loopEntry[s] = e
+	x.loopConn[s] = loopConn{in, out}
 }
-func (x *routerIntf) setLoopEntryZone(s pathStore, e pathStore) {
-	if x.loopEntryZone == nil {
-		x.loopEntryZone = make(map[pathStore]pathStore)
+func (x *routerIntf) setLoopConnZone(s pathStore, in, out pathStore) {
+	if x.loopConnZone == nil {
+		x.loopConnZone = make(map[pathStore]loopConn)
 	}
-	x.loopEntryZone[s] = e
-}
-func (x *pathStoreData) setLoopExit(s pathStore, e pathStore) {
-	if x.loopExit == nil {
-		x.loopExit = make(map[pathStore]pathStore)
-	}
-	x.loopExit[s] = e
+	x.loopConnZone[s] = loopConn{in, out}
 }
 func (x *pathStoreData) setLoopPath(s pathStore, i *loopPath) {
 	if x.loopPath == nil {

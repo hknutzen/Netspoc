@@ -71,6 +71,11 @@ type loopPath struct {
 	zoneTuples   intfPairs
 }
 
+type loopConn struct {
+	entry pathStore
+	exit  pathStore
+}
+
 // Add element to slice.
 func (a *intfPairs) push(e intfPair) {
 	*a = append(*a, e)
@@ -540,11 +545,10 @@ func connectClusterPath(
 	// information at different objects and at different attributes.
 	if startAtZone {
 		x := store.(*routerIntf)
-		x.setLoopEntryZone(endStore, fromStore)
+		x.setLoopConnZone(endStore, fromStore, toStore)
 	} else {
-		store.setLoopEntry(endStore, fromStore)
+		store.setLoopConn(endStore, fromStore, toStore)
 	}
-	fromStore.setLoopExit(endStore, toStore)
 	return true
 }
 
@@ -732,25 +736,24 @@ PATH:
 // Parameters :
 //   - in - interface the loop is entered at.
 //   - out - interface loop is left at.
-//   - loopEntry - entry object, holding path information.
-//   - loopExit - loop exit node.
+//   - lc - contains entry and exit objects of loop.
 //   - callAtZone - flag for node function is to be called at
 //     (true - zone. false - router)
 //   - rule - rule providing source and destination.
 //   - fun - Function to be applied.
 func loopPathWalk(
 	in, out *routerIntf,
-	loopEntry, loopExit pathStore,
+	lc loopConn,
 	callAtZone bool,
 	rule *groupedRule,
 	fun func(r *groupedRule, i, o *routerIntf),
 ) bool {
 
-	lPath := loopEntry.getLoopPath()[loopExit]
+	lPath := lc.entry.getLoopPath()[lc.exit]
 
 	// Process entry of cyclic graph.
 	isRouter := false
-	switch x := loopEntry.(type) {
+	switch x := lc.entry.(type) {
 	case *router:
 		isRouter = true
 	case *routerIntf:
@@ -760,8 +763,6 @@ func loopPathWalk(
 		}
 	}
 	if isRouter != callAtZone {
-
-		//        debug(" loop_enter");
 		for _, outIntf := range lPath.enter {
 			fun(rule, in, outIntf)
 		}
@@ -775,14 +776,13 @@ func loopPathWalk(
 		pathTuples = lPath.routerTuples
 	}
 
-	// debug(" loop_tuples");
 	for _, tuple := range pathTuples {
 		fun(rule, tuple[0], tuple[1])
 	}
 
 	// Process paths at exit of cyclic graph.
 	isRouter = false
-	switch x := loopExit.(type) {
+	switch x := lc.exit.(type) {
 	case *router:
 		isRouter = true
 	case *routerIntf:
@@ -792,7 +792,6 @@ func loopPathWalk(
 	}
 	callIt := isRouter != callAtZone
 	if callIt {
-		// debug(" loop_leave");
 		for _, inIntf := range lPath.leave {
 			fun(rule, inIntf, out)
 		}
@@ -926,29 +925,28 @@ func (c *spoc) pathWalk(
 	out := fromStore.getPath1()[toStore]
 
 	// Check, if path starts inside or at border of cyclic graph.
-	var loopEntry pathStore
+	var lc loopConn
 
 	// Special case: Path starts at pathrestricted interface of
 	// zone at border of loop and hence this pathrestriction will
 	// not be activated. Use attribute loopEntryZone, to find correct
 	// path in loop.
 	if x, ok := fromStore.(*routerIntf); ok {
-		loopEntry = x.loopEntryZone[toStore]
-		if loopEntry != nil {
+		lc = x.loopConnZone[toStore]
+		if lc.entry != nil {
 			in = x
 			out = x.path[toStore]
 		}
 	}
-	if loopEntry == nil {
+	if lc.entry == nil {
 		// Otherwise use attribute loopEntry, to find possibly
 		// pathrestricted path in loop.
-		loopEntry = fromStore.getLoopEntry()[toStore]
+		lc = fromStore.getLoopConn()[toStore]
 	}
 
 	// Walk loop at beginning of path.
-	if loopEntry != nil {
-		loopExit := loopEntry.getLoopExit()[toStore]
-		callIt = loopPathWalk(in, out, loopEntry, loopExit, atZone, rule, fun)
+	if lc.entry != nil {
+		callIt = loopPathWalk(in, out, lc, atZone, rule, fun)
 
 		// Finish, if end of path has been reached.
 		if out == nil {
@@ -965,14 +963,13 @@ func (c *spoc) pathWalk(
 	for {
 
 		// Path continues with loop: walk whole loop path in this iteration step.
-		var loopEntry pathStore
+		var lc loopConn
 		if in != nil {
-			loopEntry = in.loopEntry[toStore]
+			lc = in.loopConn[toStore]
 		}
-		if loopEntry != nil {
-			loopExit := loopEntry.getLoopExit()[toStore]
+		if lc.entry != nil {
 			callIt = // Was function called on last node of loop?
-				loopPathWalk(in, out, loopEntry, loopExit, atZone, rule, fun)
+				loopPathWalk(in, out, lc, atZone, rule, fun)
 		} else if callIt {
 			// Non-loop path continues - call function, if switch is set.
 			fun(rule, in, out)
@@ -1106,14 +1103,13 @@ func (c *spoc) findAutoInterfaces(
 			// interface at border of loop and corresponding router is located
 			// outside of loop.
 			if x, ok := fromStore.(*routerIntf); ok {
-				if _, found := x.loopEntryZone[toStore]; found {
+				if _, found := x.loopConnZone[toStore]; found {
 					result.push(x)
 					continue
 				}
 			}
-			if entry, found := fromStore.getLoopEntry()[toStore]; found {
-				exit := entry.getLoopExit()[toStore]
-				enter := entry.getLoopPath()[exit].enter
+			if lc, found := fromStore.getLoopConn()[toStore]; found {
+				enter := lc.entry.getLoopPath()[lc.exit].enter
 				switch x := fromStore.(type) {
 				case *zone:
 					for _, intf := range enter {
