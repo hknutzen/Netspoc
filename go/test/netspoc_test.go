@@ -368,7 +368,7 @@ func getBlocks(t *testing.T, data string, blocks []string) string {
 		}
 		line := block[0:end]
 		if line == "" {
-			t.Fatal("Block of expected lines must nut start with empty line")
+			t.Fatal("Block of expected lines must not start with empty line")
 		}
 		find[line] = true
 	}
