@@ -150,54 +150,47 @@ func (c *spoc) setPolicyDistributionIP() {
 			result = slices.Collect(maps.Keys(foundMap))
 		} else if r.managed != "" || r.routingOnly {
 
-			// debug("%s: %d", r.name, len(foundMap))
-			frontList := c.pathRouterInterfaces(r, pdp)
-
-			// If multiple management interfaces were found, take that which is
-			// directed to policy_distribution_point.
-			for _, front := range frontList {
-				if foundMap[front] {
-					result.push(front)
-				}
-			}
-
-			// Take all management interfaces.
-			// Preserve original order of router interfaces.
-			if len(result) == 0 {
-				for _, intf := range r.interfaces {
-					if foundMap[intf] {
-						result.push(intf)
+			// Check for loopback interfaces.
+			// Preserve original order of interfaces.
+			var loopback, other intfList
+			for _, intf := range r.interfaces {
+				if foundMap[intf] {
+					if intf.loopback {
+						loopback.push(intf)
+					} else {
+						other.push(intf)
 					}
 				}
 			}
-
-			// Don't set AdminIP if no address is found.
-			// Warning is printed below.
-			if len(result) == 0 {
-				continue
+			if len(loopback) > 0 {
+				// Prefer loopback interfaces if available.
+				result = loopback
+			} else {
+				// If multiple management interfaces were found, take those
+				// that are directed to policy_distribution_point.
+				for _, front := range c.pathRouterInterfaces(r, pdp) {
+					if foundMap[front] {
+						result.push(front)
+					}
+				}
+				if len(result) == 0 {
+					// Take all management interfaces.
+					result = other
+				}
 			}
 		}
 
 		// Lookup interface address in NAT domain of PDP, because PDP
 		// needs to access the device.
-		// Prefer loopback interface if available.
 		natMap := pdp.network.zone.natDomain.natMap
-		var l, o intfList
 		for _, intf := range result {
-			if intf.loopback {
-				l.push(intf)
-			} else {
-				o.push(intf)
-			}
-		}
-		for _, intf := range append(l, o...) {
 			r.adminIP = append(r.adminIP, intf.address(natMap).Addr().String())
 		}
 	}
 	var unreachable stringerList[router]
 	for _, r := range pdpRouters {
 		if len(r.adminIP) == 0 && r.origRouter == nil {
-			unreachable = append(unreachable, r)
+			unreachable.push(r)
 		}
 	}
 	if len(unreachable) != 0 {
