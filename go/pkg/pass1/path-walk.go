@@ -142,30 +142,7 @@ func clusterPathMark1(
 	isBlocked := func(intf *routerIntf) bool {
 		for _, restrict := range intf.pathRestrict {
 			if restrict.activePath {
-				// Count blocking pathrestriction only once per path attempt.
-				// Since pathfinding is bidirectional, we encounter each
-				// restriction from both sides. To avoid double-counting,
-				// only count when inIntf is in the restriction. We check if
-				// inIntf is one of the restriction's elements to ensure
-				// we're at the right location.
-				for _, intf := range restrict.elements {
-					if intf == inIntf {
-						// Count only from one side: count from the
-						// lexicographically larger router (this is the "second
-						// encounter" side where activePath is set)
-						shouldCount := true
-						for _, other := range restrict.elements {
-							if other != inIntf && other.router.name > inIntf.router.name {
-								shouldCount = false
-								break
-							}
-						}
-						if shouldCount {
-							blockingCount[restrict]++
-						}
-						break
-					}
-				}
+				blockingCount[restrict]++
 				return true
 			}
 		}
@@ -813,9 +790,10 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string, bl
 		// Same partition - check if pathrestrictions are blocking
 		msg = ""
 		if len(blockingCount) > 0 {
-			// Sort pathrestrictions by number of blocked path attempts (ascending).
-			// Restrictions blocking fewer paths appear first, as they typically represent
-			// earlier bottlenecks in the topology and are closer to the source.
+			// Sort pathrestrictions by number of blocked path attempts
+			// (ascending).  Restrictions blocking fewer paths appear
+			// first, as they typically represent earlier bottlenecks in
+			// the topology and are closer to the source.
 			type prInfo struct {
 				pr        *pathRestriction
 				pathCount int

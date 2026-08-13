@@ -1280,21 +1280,33 @@ Error: No valid path
  to router:r3
  for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:restrict1 (blocked 1 path attempt)
+  - pathrestriction:restrict2 (blocked 1 path attempt)
 Error: No valid path
  from any:[network:n2]
  to router:r3
  for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:restrict1 (blocked 1 path attempt)
+  - pathrestriction:restrict2 (blocked 1 path attempt)
 Error: No valid path
  from any:[network:n1]
  to router:r3
  for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:restrict1 (blocked 1 path attempt)
+  - pathrestriction:restrict2 (blocked 1 path attempt)
 Error: No valid path
  from any:[network:n2]
  to router:r3
  for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:restrict1 (blocked 1 path attempt)
+  - pathrestriction:restrict2 (blocked 1 path attempt)
 =WITH_OUTDIR=true
 
 ############################################################

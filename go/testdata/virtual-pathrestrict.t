@@ -28,11 +28,15 @@ Error: No valid path
  to interface:r2.a.virtual
  for rule permit src=interface:r1.a; dst=interface:r2.a; prt=tcp 22; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - auto-virtual:10.1.1.2 (blocked 1 path attempt)
 Error: No valid path
  from interface:r2.a.virtual
  to interface:r1.a.virtual
  for rule permit src=interface:r2.a; dst=interface:r1.a; prt=tcp 22; of service:test
  Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - auto-virtual:10.1.1.2 (blocked 1 path attempt)
 =END=
 
 ############################################################

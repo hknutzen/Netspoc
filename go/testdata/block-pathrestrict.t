@@ -222,9 +222,9 @@ Error: No valid path
  for rule permit src=network:n1; dst=network:n6; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
-  - pathrestriction:block_r1_r2_n2 (blocked 1 path attempt)
   - pathrestriction:block_r2_r3_n4 (blocked 2 path attempts)
   - pathrestriction:block_r2_r3_n5 (blocked 2 path attempts)
+  - pathrestriction:block_r1_r2_n2 (blocked 3 path attempts)
 =END=
 
 ############################################################
@@ -321,10 +321,10 @@ Error: No valid path
  for rule permit src=network:n1; dst=network:n99; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
-  - pathrestriction:z_block_r1_r2 (blocked 1 path attempt)
-  - pathrestriction:a_block_r3_r4 (blocked 2 path attempts)
-  - pathrestriction:block_r2_r3_a (blocked 2 path attempts)
-  - pathrestriction:block_r2_r3_b (blocked 2 path attempts)
   - pathrestriction:block_r4_r5_a (blocked 2 path attempts)
   - pathrestriction:block_r4_r5_b (blocked 2 path attempts)
+  - pathrestriction:z_block_r1_r2 (blocked 3 path attempts)
+  - pathrestriction:a_block_r3_r4 (blocked 4 path attempts)
+  - pathrestriction:block_r2_r3_a (blocked 4 path attempts)
+  - pathrestriction:block_r2_r3_b (blocked 4 path attempts)
 =END=
