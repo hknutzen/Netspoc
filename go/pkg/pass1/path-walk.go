@@ -781,58 +781,51 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string, bl
 	tag2 := findPartitionTag(dstPath)
 
 	var msg string
-	var prMsg string
 	if tag1 != tag2 {
 		// Different partitions
 		msg = fmt.Sprintf(" Source and destination objects are located in "+
 			"different topology partitions: %s, %s.", tag1, tag2)
 	} else {
 		// Same partition - check if pathrestrictions are blocking
-		msg = ""
+		msg = " Check path restrictions and crypto interfaces."
 		if len(blockingCount) > 0 {
 			// Sort pathrestrictions by number of blocked path attempts
-			// (ascending).  Restrictions blocking fewer paths appear
+			// (ascending). Restrictions blocking fewer paths appear
 			// first, as they typically represent earlier bottlenecks in
 			// the topology and are closer to the source.
 			type prInfo struct {
-				pr        *pathRestriction
-				pathCount int
-				name      string
+				count int
+				name  string
 			}
 			sorted := make([]prInfo, 0, len(blockingCount))
-
 			for pr, count := range blockingCount {
 				sorted = append(sorted, prInfo{
-					pr:        pr,
-					pathCount: count,
-					name:      pr.name,
+					count: count,
+					name:  pr.name,
 				})
 			}
 
-			// Sort: primary by path count (ascending), secondary by name (alphabetical)
+			// Sort first by path count (ascending), then by name (alphabetical).
 			slices.SortFunc(sorted, func(a, b prInfo) int {
-				if a.pathCount != b.pathCount {
-					return a.pathCount - b.pathCount
+				if a.count != b.count {
+					return a.count - b.count
 				}
 				return cmp.Compare(a.name, b.name)
 			})
 
-			prMsg = " Possible blocking pathrestrictions:\n"
+			msg += "\n Possible blocking pathrestrictions:\n"
 			for _, item := range sorted {
 				// Use correct singular/plural form
 				attempts := "attempts"
-				if item.pathCount == 1 {
+				if item.count == 1 {
 					attempts = "attempt"
 				}
-				prMsg += fmt.Sprintf("  - %s (blocked %d path %s)\n", item.name, item.pathCount, attempts)
+				msg += fmt.Sprintf("  - %s (blocked %d path %s)\n",
+					item.name, item.count, attempts)
 			}
+			// Show blocking pathrestrictions at the end if present.
+			msg = strings.TrimSuffix(msg, "\n")
 		}
-		msg += " Check path restrictions and crypto interfaces."
-	}
-
-	// Always print blocking pathrestrictions at the end if present
-	if prMsg != "" {
-		msg += "\n" + strings.TrimSuffix(prMsg, "\n")
 	}
 
 	c.err("No valid path\n from %s\n to %s\n %s\n%s",
