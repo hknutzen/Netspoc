@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The Netspoc server or some other policy distribution point accesses
+  managed routers to deploy generated firewall rules. Netspoc writes
+  the IP address that is used to access a router named 'X' into a file
+  'X.info'. If a router has loopback interfaces, these are preferred.
+  But for routers inside a cyclic part of the topology, loopback
+  interfaces have been ignored until now.
+  This has been fixed. The IP address of loopback interfaces are
+  preferred always now.
+- Blocking pathrestrictions are now always shown in error message.
+- For a rule starting or ending at an interface inside a cyclic
+  subgraph, some valid paths were not found and some pathrestrictions
+  were ignored. This has been fixed.
+
 ### Changed
 
 - A pathrestriction must use at most one interface at border of loop.
