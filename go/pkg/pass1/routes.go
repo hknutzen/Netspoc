@@ -865,7 +865,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 					errors.push(
 						fmt.Sprintf(
 							"Two static routes for %s\n via %s and %s",
-							n, intf, intf2))
+							n.vxName(), intf, intf2))
 				}
 			} else {
 				net2intf[n] = intf
@@ -922,7 +922,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 
 			errors.push(
 				fmt.Sprintf("Ambiguous static routes for %s at %s via\n%s",
-					n, intf, hopList.nameList()))
+					n.vxName(), intf, hopList.nameList()))
 		}
 
 		// Show collected error messages.
