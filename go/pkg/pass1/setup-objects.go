@@ -4122,6 +4122,9 @@ func (c *spoc) linkVirtualInterfaces() {
 	}
 	for _, n := range c.symTable.network {
 		process(n)
+		if n6 := n.combined46; n6 != nil {
+			process(n6)
+		}
 	}
 }
 
