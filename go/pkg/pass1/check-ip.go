@@ -83,7 +83,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 
 	// Check address conflicts for collected parts of bridged networks.
 	for prefixV46, l := range prefix2net {
-		dummy := new(network)
+		dummy := &network{}
 		seen := make(map[*routerIntf]bool)
 		for _, n := range l {
 			dummy.interfaces = append(dummy.interfaces, n.interfaces...)

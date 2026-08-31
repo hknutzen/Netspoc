@@ -162,18 +162,19 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 			return agg
 		}
 		// Create new aggregate from aggregate or network and attach it to zone.
-		agg := new(network)
-		agg.name = n.name
-		agg.isAggregate = true
-		agg.ipp = n.ipp
-		agg.ipV6 = n.ipV6
-		agg.invisible = n.invisible
-		agg.owner = n.owner
-		agg.attr = n.attr
-		// Create copy of NAT map for zones in cluster.
-		// Otherwise NAT tags inherited from area would be
-		// added multiple times for each cluster element.
-		agg.nat = maps.Clone(n.nat)
+		agg := &network{
+			name:        n.name,
+			isAggregate: true,
+			ipp:         n.ipp,
+			ipV6:        n.ipV6,
+			invisible:   n.invisible,
+			owner:       n.owner,
+			attr:        n.attr,
+			// Create copy of NAT map for zones in cluster.
+			// Otherwise NAT tags inherited from area would be
+			// added multiple times for each cluster element.
+			nat: maps.Clone(n.nat),
+		}
 		if implicit {
 			c.linkImplicitAggregateToZone(agg, z)
 		} else {
@@ -310,12 +311,13 @@ func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
 					name[:len("any:[")] + attr + "=" + ipp.String() + " & " +
 						name[len("any:["):]
 			}
-			agg := new(network)
-			agg.name = name
-			agg.isAggregate = true
-			agg.ipp = ipp
-			agg.invisible = !visible
-			agg.ipV6 = z.ipV6
+			agg := &network{
+				name:        name,
+				isAggregate: true,
+				ipp:         ipp,
+				invisible:   !visible,
+				ipV6:        z.ipV6,
+			}
 			c.linkImplicitAggregateToZone(agg, z)
 			c.duplicateAggregateToCluster(agg, true)
 		}

@@ -155,15 +155,16 @@ func (p *parser) setPostCmtAt(start int, a ast.Node) {
 }
 
 func (p *parser) user() *ast.User {
-	a := new(ast.User)
+	a := &ast.User{}
 	p.next()
 	return a
 }
 
 func (p *parser) namedRef(typ, name string) ast.Element {
-	a := new(ast.NamedRef)
-	a.Type = typ
-	a.Name = name
+	a := &ast.NamedRef{
+		Type: typ,
+		Name: name,
+	}
 	p.next()
 	return a
 }
@@ -179,8 +180,7 @@ func (p *parser) selector() (string, int) {
 }
 
 func (p *parser) intfRef(typ, name string) ast.Element {
-	a := new(ast.IntfRef)
-	a.Type = typ
+	a := &ast.IntfRef{Type: typ}
 	r, net, found := strings.Cut(name, ".")
 	if !found || r == "" || net == "" {
 		p.syntaxErr("Interface name expected")
@@ -204,8 +204,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 }
 
 func (p *parser) simpleAuto(typ string) ast.Element {
-	a := new(ast.SimpleAuto)
-	a.Type = typ
+	a := &ast.SimpleAuto{Type: typ}
 	p.next()
 	var end int
 	a.Elements, end = p.union("]")
@@ -214,8 +213,7 @@ func (p *parser) simpleAuto(typ string) ast.Element {
 }
 
 func (p *parser) aggAuto(typ string) ast.Element {
-	a := new(ast.AggAuto)
-	a.Type = typ
+	a := &ast.AggAuto{Type: typ}
 	p.next()
 	switch p.tok {
 	case "ip6":
@@ -234,8 +232,7 @@ func (p *parser) aggAuto(typ string) ast.Element {
 }
 
 func (p *parser) intfAuto(typ string) ast.Element {
-	a := new(ast.IntfAuto)
-	a.Type = typ
+	a := &ast.IntfAuto{Type: typ}
 	p.next()
 	if p.check("managed") {
 		a.Managed = true
@@ -309,7 +306,7 @@ func (p *parser) extendedName() ast.Element {
 
 func (p *parser) complement() ast.Element {
 	if p.check("!") {
-		a := new(ast.Complement)
+		a := &ast.Complement{}
 		c := p.readPreCmt("&!")
 		el := p.extendedName()
 		el.SetPreComment(c)
@@ -326,9 +323,7 @@ func (p *parser) intersection() ast.Element {
 		intersection = append(intersection, p.complement())
 	}
 	if len(intersection) > 1 {
-		a := new(ast.Intersection)
-		a.Elements = intersection
-		return a
+		return &ast.Intersection{Elements: intersection}
 	} else {
 		return intersection[0]
 	}
@@ -359,8 +354,7 @@ func (p *parser) description() *ast.Description {
 	if p.check("description") {
 		p.expectLeave("=")
 		p.pos, p.tok = p.scanner.ToEOL()
-		a := new(ast.Description)
-		a.Text = strings.TrimSpace(p.tok)
+		a := &ast.Description{Text: strings.TrimSpace(p.tok)}
 		a.SetPreComment(preCmt)
 		p.next()
 		return a
@@ -375,7 +369,7 @@ func (p *parser) name() string {
 }
 
 func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
-	a := new(ast.Value)
+	a := &ast.Value{}
 	a.SetPreComment(p.readPreCmt(""))
 	a.SetPostComment(p.readPostCmtAfter(",;}"))
 	a.Value = p.getNonSep()
@@ -453,7 +447,7 @@ var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
 }
 
 func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
-	a := new(ast.Attribute)
+	a := &ast.Attribute{}
 	a.SetPreComment(p.readPreCmt(""))
 	a.SetPostComment(p.readPostCmtAfter(";={}"))
 	a.Name = p.name()
@@ -503,21 +497,21 @@ func (p *parser) topListHead() ast.TopBase {
 }
 
 func (p *parser) topList() ast.Toplevel {
-	a := new(ast.TopList)
+	a := &ast.TopList{}
 	a.TopBase = p.topListHead()
 	a.Elements, _ = p.union(";")
 	return a
 }
 
 func (p *parser) protocolgroup() ast.Toplevel {
-	a := new(ast.Protocolgroup)
-	a.TopBase = p.topListHead()
-	a.ValueList = p.valueList((*parser).protocolRef, (*parser).next)
-	return a
+	return &ast.Protocolgroup{
+		TopBase:   p.topListHead(),
+		ValueList: p.valueList((*parser).protocolRef, (*parser).next),
+	}
 }
 
 func (p *parser) protocol() ast.Toplevel {
-	a := new(ast.Protocol)
+	a := &ast.Protocol{}
 	a.TopBase = p.topListHead()
 	wasSep := false
 	for p.tok != ";" && p.tok != "" {
@@ -533,7 +527,7 @@ func (p *parser) protocol() ast.Toplevel {
 }
 
 func (p *parser) namedUnion() *ast.NamedUnion {
-	a := new(ast.NamedUnion)
+	a := &ast.NamedUnion{}
 	a.SetPreComment(p.readPreCmt(""))
 	a.SetPostComment(p.readPostCmtAfter("=;"))
 	a.Name = p.name()
@@ -543,7 +537,7 @@ func (p *parser) namedUnion() *ast.NamedUnion {
 }
 
 func (p *parser) rule() *ast.Rule {
-	a := new(ast.Rule)
+	a := &ast.Rule{}
 	a.SetPreComment(p.readPreCmt(""))
 	switch p.tok {
 	case "deny":
@@ -579,7 +573,7 @@ func (p *parser) topStructHead() ast.TopStruct {
 }
 
 func (p *parser) service() ast.Toplevel {
-	a := new(ast.Service)
+	a := &ast.Service{}
 	a.TopStruct = p.topStructHead()
 	for {
 		if p.tok == "user" {
@@ -587,7 +581,7 @@ func (p *parser) service() ast.Toplevel {
 		}
 		a.Attributes = append(a.Attributes, p.attribute())
 	}
-	u := new(ast.NamedUnion)
+	u := &ast.NamedUnion{}
 	u.SetPreComment(p.readPreCmt(""))
 	u.SetPostComment(p.readPostCmtAfter("=;"))
 	p.expectLeave("user")
@@ -623,19 +617,19 @@ func (p *parser) topStructWithChilds(
 }
 
 func (p *parser) network() ast.Toplevel {
-	a := new(ast.Network)
+	a := &ast.Network{}
 	a.TopStruct, a.Attributes, a.Hosts = p.topStructWithChilds("host:")
 	return a
 }
 
 func (p *parser) router() ast.Toplevel {
-	a := new(ast.Router)
+	a := &ast.Router{}
 	a.TopStruct, a.Attributes, a.Interfaces = p.topStructWithChilds("interface:")
 	return a
 }
 
 func (p *parser) area() ast.Toplevel {
-	a := new(ast.Area)
+	a := &ast.Area{}
 	a.TopStruct = p.topStructHead()
 	for !p.check("}") {
 		if p.tok == "border" {
@@ -721,10 +715,9 @@ func ParseFile(
 	src []byte, fName string, mode Mode) (f *ast.File, err error) {
 
 	err = handlePanic(func() {
-		p := new(parser)
+		p := &parser{}
 		p.init(src, fName, mode)
-		f = new(ast.File)
-		f.Nodes = p.file()
+		f = &ast.File{Nodes: p.file()}
 		if p.parseComments {
 			f.BottomCmt = p.scanner.PreCmt(len(src), "")
 		}
@@ -734,7 +727,7 @@ func ParseFile(
 
 func ParseUnion(src []byte) (l []ast.Element, err error) {
 	err = handlePanic(func() {
-		p := new(parser)
+		p := &parser{}
 		src = append(src, ';')
 		p.init(src, "command line", 0)
 		list, end := p.union(";")

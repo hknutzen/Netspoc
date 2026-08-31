@@ -415,7 +415,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 
 func (c *spoc) normalizeServices() *serviceRules {
 	c.progress("Normalizing services")
-	sRules := new(serviceRules)
+	sRules := &serviceRules{}
 	for _, sv := range c.ascendingServices {
 		c.normalizeServiceRules(sv, sRules)
 	}

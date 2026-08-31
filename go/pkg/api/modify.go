@@ -51,7 +51,7 @@ func Main(d oslink.Data) int {
 		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
 	}
 
-	s := new(state)
+	s := &state{}
 	var err error
 	s.State, err = astset.Read(netspocPath)
 	if err != nil {
@@ -90,7 +90,7 @@ func (s *state) doJobFile(path string) error {
 }
 
 func (s *state) doJob(data json.RawMessage) error {
-	j := new(job)
+	j := &job{}
 	if err := json.Unmarshal(data, j); err != nil {
 		return fmt.Errorf("In JSON input: %s", err)
 	}

@@ -99,7 +99,7 @@ func Main(d oslink.Data) int {
 		return 1
 	}
 
-	s := new(state)
+	s := &state{}
 
 	// Argument processing
 	args := fs.Args()

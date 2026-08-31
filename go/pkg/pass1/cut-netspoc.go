@@ -267,10 +267,7 @@ func (c *spoc) markAndSubstElements(
 		switch x := obj.(type) {
 		case *host, *area:
 			isUsed[name] = true
-			a := new(ast.NamedRef)
-			a.Type = typ
-			a.Name = name
-			result = a
+			result = &ast.NamedRef{Type: typ, Name: name}
 		case *network:
 			if x.isAggregate && name[0] == '[' {
 				name = name[1:]
@@ -280,41 +277,32 @@ func (c *spoc) markAndSubstElements(
 					name = right
 				}
 				name = name[:len(name)-1]
-				a := new(ast.AggAuto)
-				a.Type = typ
-				a.Net = ip
-				a.IPV6 = obj.isIPv6()
+				a := &ast.AggAuto{Type: typ, Net: ip, IPV6: obj.isIPv6()}
 				switch typ2, name2, _ := strings.Cut(name, ":"); typ2 {
 				case "network":
 					obj := c.symTable.network[name2]
 					markUnconnectedObj(obj, isUsed)
-					n := new(ast.NamedRef)
-					n.Type = typ2
-					n.Name = name2
+					n := &ast.NamedRef{Type: typ2, Name: name2}
 					a.Elements = []ast.Element{n}
 				case "interface":
 					isUsed[name] = true
 					r, net, _ := strings.Cut(name2, ".")
-					n := new(ast.IntfRef)
-					n.Type = typ2
-					n.Router = r
-					n.Network = net
+					n := &ast.IntfRef{
+						Type:    typ2,
+						Router:  r,
+						Network: net,
+					}
 					a.Elements = []ast.Element{n}
 				}
 				result = a
 			} else {
 				markUnconnectedObj(x, isUsed)
-				a := new(ast.NamedRef)
-				a.Type = typ
-				a.Name = name
-				result = a
+				result = &ast.NamedRef{Type: typ, Name: name}
 			}
 		case *routerIntf:
 			setIntfUsed(x, isUsed)
 			r, net, _ := strings.Cut(name, ".")
-			a := new(ast.IntfRef)
-			a.Type = typ
-			a.Router = r
+			a := &ast.IntfRef{Type: typ, Router: r}
 			if left, right, found := strings.Cut(net, "."); found {
 				net = left
 				a.Extension = right
@@ -324,22 +312,25 @@ func (c *spoc) markAndSubstElements(
 		case *autoIntf:
 			if r, ok := x.object.(*router); ok {
 				setRouterUsed(r, isUsed)
-				a := new(ast.IntfRef)
-				a.Type = typ
-				a.Router = r.name[len("router:"):]
-				a.Network = "["
-				a.Extension = "auto"
+				a := &ast.IntfRef{
+					Type:      typ,
+					Router:    r.name[len("router:"):],
+					Network:   "[",
+					Extension: "auto",
+				}
 				result = a
 			} else {
 				net := x.object.(*network)
 				markUnconnectedObj(net, isUsed)
-				a := new(ast.IntfAuto)
-				a.Type = typ
-				a.Managed = x.managed
-				a.Selector = "auto"
-				n := new(ast.NamedRef)
-				n.Type = "network"
-				n.Name = net.name[len("network:"):]
+				a := &ast.IntfAuto{
+					Type:     typ,
+					Managed:  x.managed,
+					Selector: "auto",
+				}
+				n := &ast.NamedRef{
+					Type: "network",
+					Name: net.name[len("network:"):],
+				}
 				a.Elements = []ast.Element{n}
 				result = a
 			}
@@ -913,18 +904,17 @@ func (c *spoc) cutNetspoc(
 		for _, nm := range names {
 			typ, rest := splitTypedName(nm)
 			parts := strings.Split(rest, ".")
-			n := new(ast.IntfRef)
-			n.Type = typ
-			n.Router = parts[0]
-			n.Network = parts[1]
+			n := &ast.IntfRef{
+				Type:    typ,
+				Router:  parts[0],
+				Network: parts[1],
+			}
 			if len(parts) == 3 {
 				n.Extension = parts[2]
 			}
 			l = append(l, n)
 		}
-		n := new(ast.TopList)
-		n.Name = pr.name
-		n.Elements = l
+		n := &ast.TopList{Name: pr.name, Elements: l}
 		isUsed[pr.name] = true
 		name2pathrestriction[pr.name] = n
 	}
@@ -1082,8 +1072,7 @@ func (c *spoc) cutNetspoc(
 		}
 		active = append(active, top)
 	}
-	f := new(ast.File)
-	f.Nodes = active
+	f := &ast.File{Nodes: active}
 	out := printer.File(f)
 	stdout.Write(out)
 }

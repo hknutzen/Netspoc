@@ -87,7 +87,7 @@ func (s *State) getFileIndex(file string) int {
 		}
 		idx = len(s.files)
 		s.files = append(s.files, file)
-		s.astFiles = append(s.astFiles, new(ast.File))
+		s.astFiles = append(s.astFiles, &ast.File{})
 	}
 	return idx
 }

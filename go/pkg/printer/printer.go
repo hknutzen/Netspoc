@@ -33,8 +33,7 @@ func (p *printer) emptyLine() {
 
 func (p *printer) preComment(n ast.Node) {
 	if c := n.PreComment(); c != "" {
-		lines := strings.SplitSeq(c, "\n")
-		for l := range lines {
+		for l := range strings.SplitSeq(c, "\n") {
 			p.print(l)
 		}
 	}
@@ -575,7 +574,7 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 }
 
 func File(aF *ast.File) []byte {
-	p := new(printer)
+	p := &printer{}
 
 	list := aF.Nodes
 	var simple []*ast.Network

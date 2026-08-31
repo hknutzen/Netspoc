@@ -586,8 +586,7 @@ func (c *spoc) checkMissingSupernetRules(
 
 		localClusterSeen := make(map[*zone]bool)
 		groupInfo := splitRuleGroup(oList)
-		checkRule := new(groupedRule)
-		checkRule.serviceRule = rule.serviceRule
+		checkRule := &groupedRule{serviceRule: rule.serviceRule}
 		for _, supernet := range supernets {
 			z1 := supernet.zone
 			cl := z1.managedLocalCluster

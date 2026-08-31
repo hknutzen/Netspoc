@@ -169,19 +169,19 @@ func (c *spoc) genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 		}
 		if len(prt) != 0 {
 			rule := template
-			rule.serviceRule = new(serviceRule)
+			rule.serviceRule = &serviceRule{}
 			rule.prt = prt
 			rules.push(&rule)
 		}
 		rule := template
-		rule.serviceRule = new(serviceRule)
+		rule.serviceRule = &serviceRule{}
 		rule.srcRange = c.prt.Ike.modifiers.srcRange
 		rule.prt = []*proto{c.prt.Ike.main}
 		rules.push(&rule)
 	}
 	if natTraversal != "" {
 		rule := template
-		rule.serviceRule = new(serviceRule)
+		rule.serviceRule = &serviceRule{}
 		rule.srcRange = c.prt.Natt.modifiers.srcRange
 		rule.prt = []*proto{c.prt.Natt.main}
 		rules.push(&rule)

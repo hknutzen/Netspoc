@@ -32,23 +32,22 @@ func (c *spoc) initStdProtocols() {
 		c.addProtocolModifiers(nil, &p, pSrc)
 		return &p
 	}
-	prt := new(stdProto)
-	c.prt = prt
-	prt.IP = define("ip")
 	prtTCP := define("tcp")
-	prt.UDP = define("udp")
-	prt.Ike = defineX("udp 500:500")
-	prt.Natt = defineX("udp 4500:4500")
-	prt.Esp = define("proto 50")
-	prt.Ah = define("proto 51")
 	cp := *prtTCP
 	cp.established = true
 	cp.name = "tcp established"
 	cp.up = prtTCP
-	prt.TCPEsta = &cp
-
-	prt.Bootps = define("udp 67")
-	prt.Bootpc = define("udp 68")
+	c.prt = &stdProto{
+		IP:      define("ip"),
+		UDP:     define("udp"),
+		Ike:     defineX("udp 500:500"),
+		Natt:    defineX("udp 4500:4500"),
+		Esp:     define("proto 50"),
+		Ah:      define("proto 51"),
+		TCPEsta: &cp,
+		Bootps:  define("udp 67"),
+		Bootpc:  define("udp 68"),
+	}
 }
 
 // Order protocols. We need this to simplify optimization.

@@ -66,7 +66,7 @@ func Main(d oslink.Data) int {
 	names = append(names, args[1:]...)
 
 	// Change files.
-	s := new(state)
+	s := &state{}
 	var err error
 	s.State, err = astset.Read(path)
 	if err != nil {

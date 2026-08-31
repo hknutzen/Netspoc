@@ -1047,7 +1047,7 @@ func printChains(fd *os.File, routerData *routerData) {
 			srcRange := rule.srcRange
 			prt := rule.prt
 			if prt == nil && srcRange != nil {
-				prt = new(prtBintree)
+				prt = &prtBintree{}
 				switch srcRange.protocol {
 				case "tcp":
 					prt.proto = *prtTCP

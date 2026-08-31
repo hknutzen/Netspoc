@@ -372,7 +372,7 @@ func clusterPathMark(
 	allowed := navi[from.getLoop()]
 
 	// This describes valid paths inside loop.
-	lPath := new(loopPath)
+	lPath := &loopPath{}
 
 	// Mark current path for loop detection.
 	from.setActivePath()

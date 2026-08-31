@@ -77,17 +77,17 @@ func (c *spoc) convertHosts() {
 					c.checkHostCompatibility(&host.netObj, &other.netObj)
 					host.subnets = append(host.subnets, other)
 				} else {
-					s := new(subnet)
-					s.name = host.name
-					s.network = n
-					s.ipp = ipp
-					s.ipV6 = host.ipV6
-					s.nat = host.nat
-					s.owner = host.owner
-					s.id = id
-					s.ldapId = host.ldapId
-					s.vpnAttributes = host.vpnAttributes
-
+					s := &subnet{
+						name:          host.name,
+						network:       n,
+						ipp:           ipp,
+						ipV6:          host.ipV6,
+						nat:           host.nat,
+						owner:         host.owner,
+						id:            id,
+						ldapId:        host.ldapId,
+						vpnAttributes: host.vpnAttributes,
+					}
 					ip2subnet[ipp.Addr()] = s
 					host.subnets = append(host.subnets, s)
 					n.subnets = append(n.subnets, s)
@@ -184,12 +184,13 @@ func (c *spoc) convertHosts() {
 					if up == nil {
 						pos := strings.Index(s.name, ":")
 						name := "autoSubnet" + s.name[pos:]
-						u := new(subnet)
-						u.name = name
-						u.network = n
-						u.ipp = upNet
-						u.ipV6 = s.ipV6
-						u.up = s.up
+						u := &subnet{
+							name:    name,
+							network: n,
+							ipp:     upNet,
+							ipV6:    s.ipV6,
+							up:      s.up,
+						}
 						upIP2subnet := subnetAref[upSubnetSize]
 						if upIP2subnet == nil {
 							upIP2subnet = make(map[netip.Addr]*subnet)
@@ -373,10 +374,11 @@ func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 				}
 				return result
 			}
-			converted := new(groupedRule)
-			converted.serviceRule = rule
-			converted.src = processList(rule.src, rule.srcNet, "src")
-			converted.dst = processList(rule.dst, rule.dstNet, "dst")
+			converted := &groupedRule{
+				serviceRule: rule,
+				src:         processList(rule.src, rule.srcNet, "src"),
+				dst:         processList(rule.dst, rule.dstNet, "dst"),
+			}
 			cRules.push(converted)
 		}
 		return cRules

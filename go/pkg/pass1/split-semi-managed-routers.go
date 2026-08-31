@@ -58,33 +58,37 @@ func (c *spoc) splitSemiManagedRouters() {
 		split := func(intf *routerIntf, i int) *router {
 			// Create new semiManged router with identical name.
 			// Add reference to original router having 'origIntfs'.
-			nr := new(router)
-			nr.name = r.name
-			nr.ipV6 = r.ipV6
-			nr.semiManaged = true
-			nr.origRouter = r
+			nr := &router{
+				name:        r.name,
+				ipV6:        r.ipV6,
+				semiManaged: true,
+				origRouter:  r,
+			}
 			intf.router = nr
 			splitRouters = append(splitRouters, nr)
 
 			// Link current and newly created router by unnumbered network.
 			// Add reference to original interface at internal interface.
 			iName := intf.name
-			n := new(network)
-			n.name = iName + "(split Network)"
-			n.ipType = unnumberedIP
-			n.ipV6 = r.ipV6
-			intf1 := new(routerIntf)
-			intf1.name = iName + "(split1)"
-			intf1.ipType = unnumberedIP
-			intf1.ipV6 = r.ipV6
-			intf1.router = r
-			intf1.network = n
-			intf2 := new(routerIntf)
-			intf2.name = iName + "(split2)"
-			intf2.ipType = unnumberedIP
-			intf2.ipV6 = r.ipV6
-			intf2.router = nr
-			intf2.network = n
+			n := &network{
+				name:   iName + "(split Network)",
+				ipType: unnumberedIP,
+				ipV6:   r.ipV6,
+			}
+			intf1 := &routerIntf{
+				name:    iName + "(split1)",
+				ipType:  unnumberedIP,
+				ipV6:    r.ipV6,
+				router:  r,
+				network: n,
+			}
+			intf2 := &routerIntf{
+				name:    iName + "(split2)",
+				ipType:  unnumberedIP,
+				ipV6:    r.ipV6,
+				router:  nr,
+				network: n,
+			}
 			n.interfaces = intfList{intf1, intf2}
 			nr.interfaces = intfList{intf2, intf}
 

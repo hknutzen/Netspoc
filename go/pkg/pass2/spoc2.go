@@ -284,7 +284,7 @@ type routerData struct {
 }
 
 func readJSON(path string) *routerData {
-	jData := new(jcode.RouterData)
+	jData := &jcode.RouterData{}
 	fd, err := os.Open(path)
 	if err != nil {
 		panic(err)
@@ -294,7 +294,7 @@ func readJSON(path string) *routerData {
 	if err := dec.Decode(&jData); err != nil {
 		panic(err)
 	}
-	rData := new(routerData)
+	rData := &routerData{}
 	if strings.Contains(path, "/ipv6/") {
 		rData.ipv6 = true
 	}

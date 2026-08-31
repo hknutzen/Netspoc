@@ -1904,13 +1904,14 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		}
 
 		process := func(acl *aclInfo) *jcode.ACLInfo {
-			jACL := new(jcode.ACLInfo)
-			jACL.Name = acl.name
-			jACL.AddPermit = acl.addPermit
-			jACL.AddDeny = acl.addDeny
-			jACL.FilterAnySrc = acl.filterAnySrc
-			jACL.IsStdACL = acl.isStdACL
-			jACL.IsCryptoACL = acl.isCryptoACL
+			jACL := &jcode.ACLInfo{
+				Name:         acl.name,
+				AddPermit:    acl.addPermit,
+				AddDeny:      acl.addDeny,
+				FilterAnySrc: acl.filterAnySrc,
+				IsStdACL:     acl.isStdACL,
+				IsCryptoACL:  acl.isCryptoACL,
+			}
 			// Collect networks used in secondary optimization.
 			optAddr := make(map[*network]bool)
 			// Collect objects forbidden in secondary optimization.
@@ -1943,13 +1944,13 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			optRules := func(rules []*groupedRule) []*jcode.Rule {
 				jRules := make([]*jcode.Rule, len(rules))
 				for i, rule := range rules {
-					newRule := new(jcode.Rule)
+					newRule := &jcode.Rule{
+						Deny: rule.deny,
+						// Add code for logging.
+						// This code is machine specific.
+						Log: r.logDefault,
+					}
 					jRules[i] = newRule
-					newRule.Deny = rule.deny
-
-					// Add code for logging.
-					// This code is machine specific.
-					newRule.Log = r.logDefault
 					if activeLog != nil && rule.log != "" {
 						for tag := range strings.SplitSeq(rule.log, " ") {
 							if logCode, found := activeLog[tag]; found {

@@ -109,24 +109,24 @@ type symbolTable struct {
 }
 
 func createSymbolTable() *symbolTable {
-	s := new(symbolTable)
-	s.network = make(map[string]*network)
-	s.host = make(map[string]*host)
-	s.router = make(map[string]*router)
-	s.routerIntf = make(map[string]*routerIntf)
-	s.area = make(map[string]*area)
-	s.service = make(map[string]*service)
-	s.protocol = make(map[string]*proto)
-	s.unnamedProto = make(map[string]*proto)
-	s.protocolgroup = make(map[string]*protoGroup)
-	s.group = make(map[string]*objGroup)
-	s.aggregate = make(map[string]*network)
-	s.owner = make(map[string]*owner)
-	s.crypto = make(map[string]*crypto)
-	s.ipsec = make(map[string]*ipsec)
-	s.isakmp = make(map[string]*isakmp)
-	s.knownLog = make(map[string]bool)
-
+	s := &symbolTable{
+		network:       make(map[string]*network),
+		host:          make(map[string]*host),
+		router:        make(map[string]*router),
+		routerIntf:    make(map[string]*routerIntf),
+		area:          make(map[string]*area),
+		service:       make(map[string]*service),
+		protocol:      make(map[string]*proto),
+		unnamedProto:  make(map[string]*proto),
+		protocolgroup: make(map[string]*protoGroup),
+		group:         make(map[string]*objGroup),
+		aggregate:     make(map[string]*network),
+		owner:         make(map[string]*owner),
+		crypto:        make(map[string]*crypto),
+		ipsec:         make(map[string]*ipsec),
+		isakmp:        make(map[string]*isakmp),
+		knownLog:      make(map[string]bool),
+	}
 	return s
 }
 
@@ -159,19 +159,17 @@ func (c *spoc) setupObjects(l []ast.Toplevel) {
 			}
 			s.protocolgroup[name] = &protoGroup{name: a.GetName(), list: l}
 		case *ast.Network:
-			n := new(network)
-			n.name = x.Name
+			n := &network{name: x.Name}
 			s.network[name] = n
 			networks = append(networks, x)
 		case *ast.Router:
-			r := new(router)
-			r.name = x.Name
+			r := &router{name: x.Name}
 			s.router[name] = r
 			routers = append(routers, x)
 		case *ast.Area:
 			areas = append(areas, x)
 		case *ast.Service:
-			s.service[name] = new(service)
+			s.service[name] = &service{}
 			services = append(services, x)
 		case *ast.TopStruct:
 			switch typ {
@@ -528,11 +526,9 @@ func (c *spoc) getSimpleProtocolAndSrcPort(def string, ctx string,
 ) (*proto, *proto) {
 	var srcP *proto
 
-	p := new(proto)
-	p.name = def
-	proto, details, _ := strings.Cut(def, " ")
-	p.proto = proto
-	switch proto {
+	prt, details, _ := strings.Cut(def, " ")
+	p := &proto{name: def, proto: prt}
+	switch prt {
 	case "ip":
 		if details != "" {
 			c.err("Unexpected details after %s", ctx)
@@ -556,7 +552,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(def string, ctx string,
 		if strings.Contains(ctx, " ") {
 			c.err("Unknown protocol in %s", ctx)
 		} else {
-			c.err("Unknown protocol in %s: %s", ctx, proto)
+			c.err("Unknown protocol in %s: %s", ctx, prt)
 		}
 		p.proto = "ip"
 	}
@@ -662,7 +658,7 @@ func (c *spoc) addProtocolModifiers(l []string, p *proto, srcP *proto) {
 	if len(l) == 0 && srcP == nil {
 		return
 	}
-	m := new(modifiers)
+	m := &modifiers{}
 	for _, s := range l {
 		switch s {
 		case "reversed":
@@ -691,8 +687,7 @@ func (c *spoc) addProtocolModifiers(l []string, p *proto, srcP *proto) {
 
 func (c *spoc) setupOwner(v *ast.TopStruct) {
 	name := v.Name
-	o := new(owner)
-	o.name = name
+	o := &owner{name: name}
 	oName := name[len("owner:"):]
 	c.symTable.owner[oName] = o
 	for _, a := range v.Attributes {
@@ -760,8 +755,7 @@ var isakmpAttr = map[string]attrDescr{
 
 func (c *spoc) setupIsakmp(v *ast.TopStruct) {
 	name := v.Name
-	is := new(isakmp)
-	is.name = name
+	is := &isakmp{name: name}
 	isName := name[len("isakmp:"):]
 	c.symTable.isakmp[isName] = is
 	hasLifetime := false
@@ -848,8 +842,7 @@ var ipsecAttr = map[string]attrDescr{
 
 func (c *spoc) setupIpsec(v *ast.TopStruct) {
 	name := v.Name
-	is := new(ipsec)
-	is.name = name
+	is := &ipsec{name: name}
 	isName := name[len("ipsec:"):]
 	c.symTable.ipsec[isName] = is
 	for _, a := range v.Attributes {
@@ -881,8 +874,7 @@ func (c *spoc) setupIpsec(v *ast.TopStruct) {
 
 func (c *spoc) setupCrypto(v *ast.TopStruct) {
 	name := v.Name
-	cr := new(crypto)
-	cr.name = name
+	cr := &crypto{name: name}
 	crName := name[len("crypto:"):]
 	c.symTable.crypto[crName] = cr
 	for _, a := range v.Attributes {
@@ -1033,7 +1025,7 @@ func (c *spoc) setupNetwork2(n *network, a *ast.Attribute) {
 
 func (c *spoc) setupHost1(v *ast.Attribute, n *network) *host {
 	name := v.Name
-	h := new(host)
+	h := &host{}
 	hName := strings.TrimPrefix(name, "host:")
 	if id, found := strings.CutPrefix(hName, "id:"); found {
 		if !isIdHostname(id) {
@@ -1160,9 +1152,7 @@ func rangeSize(rg netipx.IPRange) []int {
 
 func (c *spoc) setupAggregate(v *ast.TopStruct) {
 	name := v.Name
-	ag := new(network)
-	ag.name = name
-	ag.isAggregate = true
+	ag := &network{name: name, isAggregate: true}
 	agName := name[len("any:"):]
 	c.symTable.aggregate[agName] = ag
 	hasLink := false
@@ -1839,8 +1829,7 @@ func (c *spoc) setupInterface(
 	nName := strings.TrimPrefix(v.Name, "interface:")
 	iName := rName + "." + nName
 	name := "interface:" + iName
-	intf := new(routerIntf)
-	intf.name = name
+	intf := &routerIntf{name: name}
 	var l []*ast.Attribute
 
 	// Allow short form of interface definition.
@@ -1872,9 +1861,7 @@ func (c *spoc) setupInterface(
 				for _, ip := range ipList[1:] {
 					suffix := "." + strconv.Itoa(counter)
 					name := name + suffix
-					intf := new(routerIntf)
-					intf.name = name
-					intf.ip = ip
+					intf := &routerIntf{name: name, ip: ip}
 					secondaryList.push(intf)
 					c.checkVxIP(ip, v6, a.Name, name)
 					counter++
@@ -1928,8 +1915,7 @@ func (c *spoc) setupInterface(
 			if m := c.addIntfNat(a, nat, name); m != nil {
 				nat = m
 			} else if name2, fnd := strings.CutPrefix(a.Name, "secondary:"); fnd {
-				intf := new(routerIntf)
-				intf.name = name + "." + name2
+				intf := &routerIntf{name: name + "." + name2}
 				sCtx := a.Name + " of " + name
 				l := c.getComplexValue(a, name)
 				for _, a2 := range l {
@@ -2014,9 +2000,7 @@ func (c *spoc) setupInterface(
 			if intf.ip.IsValid() {
 
 				// Move main IP to secondary.
-				secondary := new(routerIntf)
-				secondary.name = intf.name
-				secondary.ip = intf.ip
+				secondary := &routerIntf{name: intf.name, ip: intf.ip}
 				secondaryList.push(secondary)
 
 				// But we need the original main interface
@@ -2257,15 +2241,13 @@ func (c *spoc) setupInterface(
 			n = c.symTable.network[shortName]
 		}
 		if n == nil {
-			n = new(network)
-			n.name = fullName
-			n.ipV6 = v6
-			n.ipp = netip.PrefixFrom(intf.ip, intf.ip.BitLen())
-
-			// Mark as automatically created.
-			n.loopback = true
-			n.subnetOf = subnetOf
-
+			n = &network{
+				name:     fullName,
+				ipV6:     v6,
+				ipp:      netip.PrefixFrom(intf.ip, intf.ip.BitLen()),
+				loopback: true, // Mark as automatically created.
+				subnetOf: subnetOf,
+			}
 			// Move NAT definition to loopback network.
 			if !v6 {
 				n.nat = nat
@@ -2373,15 +2355,16 @@ func (c *spoc) setupService(v *ast.Service) {
 	sv.user = v.User.Elements
 	userUserCount := 0
 	for _, v2 := range v.Rules {
-		ru := new(unexpRule)
-		ru.service = sv
+		ru := &unexpRule{
+			service: sv,
+			src:     v2.Src.Elements,
+			dst:     v2.Dst.Elements,
+		}
 		if v2.Deny {
 			ru.action = "deny"
 		} else {
 			ru.action = "permit"
 		}
-		ru.src = v2.Src.Elements
-		ru.dst = v2.Dst.Elements
 		srcUser := c.checkUserInUnion(ru.src, "'src' of "+name)
 		dstUser := c.checkUserInUnion(ru.dst, "'dst' of "+name)
 		if !(srcUser || dstUser) {
@@ -2983,9 +2966,10 @@ func addMcastNetworks(info map[string]*mcastProto) {
 
 func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string,
 ) *routerIntf {
-	virtual := new(routerIntf)
-	virtual.name = ctx + ".virtual"
-	virtual.redundant = true
+	virtual := &routerIntf{
+		name:      ctx + ".virtual",
+		redundant: true,
+	}
 	vCtx := "'" + a.Name + "' of " + ctx
 	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
@@ -3674,7 +3658,7 @@ func (c *spoc) addXNat(
 	if !found {
 		return nil
 	}
-	nat := new(network)
+	nat := &network{}
 	natCtx := a.Name + " of " + ctx
 	ipGiven := false
 	l := c.getComplexValue(a, ctx)
@@ -3896,47 +3880,50 @@ func (c *spoc) createTunnels() {
 				srName := strings.TrimPrefix(sr.name, "router:")
 				// Create tunnel network.
 				netName := "tunnel:" + srName
-				tunnel := &network{}
-				tunnel.name = "network:" + netName
-				tunnel.ipType = tunnelIP
-				tunnel.ipV6 = sr.ipV6
+				tunnel := &network{
+					name:   "network:" + netName,
+					ipType: tunnelIP,
+					ipV6:   sr.ipV6,
+				}
 				cr.tunnels.push(tunnel)
 				// Create spoke interface.
-				spoke := new(routerIntf)
-				spoke.name = "interface:" + srName + "." + netName
-				spoke.ipType = tunnelIP
-				spoke.ipV6 = sr.ipV6
-				spoke.router = sr
-				spoke.network = tunnel
-				spoke.realIntf = realSpoke
-				spoke.routing = realSpoke.routing
-				spoke.natOutgoing = realSpoke.natOutgoing
+				spoke := &routerIntf{
+					name:        "interface:" + srName + "." + netName,
+					ipType:      tunnelIP,
+					ipV6:        sr.ipV6,
+					router:      sr,
+					network:     tunnel,
+					realIntf:    realSpoke,
+					id:          realSpoke.id,
+					routing:     realSpoke.routing,
+					natOutgoing: realSpoke.natOutgoing,
+					natIncoming: realSpoke.natIncoming,
+				}
 				realSpoke.natOutgoing = nil
-				spoke.natIncoming = realSpoke.natIncoming
 				realSpoke.natIncoming = nil
-				spoke.id = realSpoke.id
 				if sr.managed != "" {
 					hw := realSpoke.hardware
 					spoke.hardware = hw
 					hw.interfaces.push(spoke)
 				}
 				sr.interfaces.push(spoke)
-				// Create hub interface.
-				hub := new(routerIntf)
-				hub.name = "interface:" + hrName + "." + netName
-				hub.ipType = tunnelIP
-				hub.ipV6 = realHub.ipV6
 				// Attention: shared hardware between router and origRouter.
 				hw := realHub.hardware
-				hub.hardware = hw
+				// Create hub interface.
+				hub := &routerIntf{
+					name:        "interface:" + hrName + "." + netName,
+					ipType:      tunnelIP,
+					ipV6:        realHub.ipV6,
+					hardware:    hw,
+					isHub:       true,
+					realIntf:    realHub,
+					router:      hr,
+					network:     tunnel,
+					natOutgoing: cr.natOutgoing,
+					routing:     realHub.routing,
+					peer:        spoke,
+				}
 				hw.interfaces.push(hub)
-				hub.isHub = true
-				hub.realIntf = realHub
-				hub.router = hr
-				hub.network = tunnel
-				hub.natOutgoing = cr.natOutgoing
-				hub.routing = realHub.routing
-				hub.peer = spoke
 				spoke.peer = hub
 				hr.interfaces.push(hub)
 				tunnel.interfaces = intfList{spoke, hub}
@@ -4129,9 +4116,7 @@ func (c *spoc) linkVirtualInterfaces() {
 }
 
 func (c *spoc) addPathrestriction(name string, l intfList) *pathRestriction {
-	pr := new(pathRestriction)
-	pr.name = name
-	pr.elements = l
+	pr := &pathRestriction{name: name, elements: l}
 	c.pathrestrictions = append(c.pathrestrictions, pr)
 	for _, intf := range l {
 		// Unmanaged router with pathrestriction is handled specially.

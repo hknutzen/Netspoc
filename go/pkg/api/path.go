@@ -24,9 +24,7 @@ func (s *state) patch(j *job) error {
 		OkIfExists bool `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
-	c := change{val: p.Value, okIfExists: p.OkIfExists,
-		method: j.Method}
-
+	c := change{val: p.Value, okIfExists: p.OkIfExists, method: j.Method}
 	if len(p.Path) == 0 {
 		return fmt.Errorf("Invalid empty path")
 	}
@@ -410,18 +408,14 @@ func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
 		}
 		switch typ {
 		case "network":
-			n := new(ast.Network)
-			n.Name = name
 			l := removeAttrFrom(ts, "host:")
+			n := &ast.Network{Name: name, Hosts: l}
 			n.TopStruct = *ts
-			n.Hosts = l
 			t = n
 		case "router":
-			r := new(ast.Router)
-			r.Name = name
 			l := removeAttrFrom(ts, "interface:")
+			r := &ast.Router{Name: name, Interfaces: l}
 			r.TopStruct = *ts
-			r.Interfaces = l
 			t = r
 		default:
 			t = ts
@@ -488,8 +482,7 @@ func getTopList(name string, m map[string]any) (ast.Toplevel, error) {
 		return nil, fmt.Errorf("Unexpected attribute '%s' in '%s'",
 			ts.Attributes[0].Name, name)
 	}
-	tl := new(ast.TopList)
-	tl.Name = name
+	tl := &ast.TopList{Name: name}
 	tl.TopBase = ts.TopBase
 	tl.Elements, err = getElementList(elements)
 	if err != nil {
@@ -509,7 +502,7 @@ func getService(name string, m map[string]any) (ast.Toplevel, error) {
 		return nil, fmt.Errorf("Missing attribute 'rules' in '%s'", name)
 	}
 	delete(m, "rules")
-	s := new(ast.Service)
+	s := &ast.Service{}
 	t, err := getTopStruct(name, m)
 	if err != nil {
 		return nil, err
@@ -547,7 +540,7 @@ func getRuleDef(v any) (*ast.Rule, error) {
 		return nil, fmt.Errorf(
 			`Rule needs keys "action", "src", "dst", "prt" and optional "log"`)
 	}
-	rule := new(ast.Rule)
+	rule := &ast.Rule{}
 	for key, val := range obj {
 		var err error
 		switch key {
@@ -581,8 +574,7 @@ func getRuleDef(v any) (*ast.Rule, error) {
 func getTopStruct(
 	name string, m map[string]any) (*ast.TopStruct, error) {
 
-	t := new(ast.TopStruct)
-	t.Name = name
+	t := &ast.TopStruct{Name: name}
 	if val, found := m["description"]; found {
 		delete(m, "description")
 		d, ok := val.(string)
