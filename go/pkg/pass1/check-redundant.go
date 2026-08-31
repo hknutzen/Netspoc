@@ -44,11 +44,10 @@ func (ru *expandedRule) print() string {
 	if ru.stateless {
 		extra += " stateless"
 	}
-	origPrt := ru.prt
 	oRule := ru.rule
 	s := oRule.service
 	extra += " of " + s.name
-	origPrt = getOrigPrt(ru)
+	origPrt := getOrigPrt(ru)
 	var action string
 	if ru.deny {
 		action = "deny"
