@@ -150,7 +150,7 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 			}
 		}
 		//fmt.Fprintf(os.Stderr, "root %s/%d\n", root.Addr(), root.Bits())
-		result = &netBintree{ipNet: ipNet{Prefix: root}}
+		result = &netBintree{Prefix: root}
 		if nodeIP.Less(treeIP) {
 			result.lo, result.hi = node, tree
 		} else {
@@ -481,8 +481,8 @@ PRT:
 
 				// Add a node 'icmp type any' as root.
 				node2 = &prtBintree{
-					proto: proto{protocol: "icmp", icmpType: icmpType, icmpCode: -1},
-					seq:   seq3,
+					protocol: "icmp", icmpType: icmpType, icmpCode: -1,
+					seq: seq3,
 				}
 			} else {
 
@@ -509,8 +509,8 @@ PRT:
 			}
 		} else if len(seq2) > 1 {
 			node = &prtBintree{
-				proto: proto{protocol: "icmp", icmpType: -1, icmpCode: -1},
-				seq:   seq2,
+				protocol: "icmp", icmpType: -1, icmpCode: -1,
+				seq: seq2,
 			}
 		} else {
 			node = seq2[0]
@@ -527,7 +527,7 @@ PRT:
 			subtree: tree2bintree[tree[ipPrt]],
 		}
 	} else if len(seq) > 1 {
-		bintree = &prtBintree{proto: proto{protocol: "ip"}, seq: seq}
+		bintree = &prtBintree{protocol: "ip", seq: seq}
 	} else {
 		bintree = seq[0]
 	}

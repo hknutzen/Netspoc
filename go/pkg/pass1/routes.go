@@ -502,16 +502,14 @@ func (c *spoc) generateRoutingTree1(rule *groupedRule, t routingTree) {
 
 			// Generate new pseudo rule otherwise.
 			p = &pseudoRule{
-				groupedRule: groupedRule{
-					serviceRule: &serviceRule{
-						prt:  rule.prt,
-						rule: rule.rule,
-					},
-					src:     src,
-					dst:     dst,
-					srcPath: srcZone,
-					dstPath: dstZone,
+				serviceRule: &serviceRule{
+					prt:  rule.prt,
+					rule: rule.rule,
 				},
+				src:          src,
+				dst:          dst,
+				srcPath:      srcZone,
+				dstPath:      dstZone,
 				srcIntf2nets: make(map[*routerIntf]netMap),
 				dstIntf2nets: make(map[*routerIntf]netMap),
 				srcNetworks:  make(netMap),

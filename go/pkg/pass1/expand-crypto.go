@@ -282,11 +282,7 @@ func (c *spoc) expandCrypto() {
 						}
 						idRules[id] = &idIntf{
 							routerIntf: &routerIntf{
-								netObj: netObj{
-									ipObj: ipObj{
-										name: hub.name + "." + id,
-									},
-								},
+								name:   hub.name + "." + id,
 								ipType: tunnelIP,
 								natMap: natMap,
 							},

@@ -374,7 +374,7 @@ func getBlocks(t *testing.T, data string, blocks []string) string {
 	}
 	out := ""
 	match := false
-	for _, line := range strings.Split(data, "\n") {
+	for line := range strings.SplitSeq(data, "\n") {
 		if find[line] {
 			out += line + "\n"
 			match = true

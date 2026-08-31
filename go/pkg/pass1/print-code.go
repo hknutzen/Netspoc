@@ -406,8 +406,8 @@ func getMergeTunnelAggregates(r *router) netList {
 	var l netList
 	for _, ipp := range r.mergeTunnelSpecified {
 		agg := &network{
-			withStdAddr: withStdAddr{stdAddr: ipp.String()},
-			ipp:         ipp,
+			stdAddr: ipp.String(),
+			ipp:     ipp,
 		}
 		l.push(agg)
 	}
@@ -1951,7 +1951,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 					// This code is machine specific.
 					newRule.Log = r.logDefault
 					if activeLog != nil && rule.log != "" {
-						for _, tag := range strings.Split(rule.log, " ") {
+						for tag := range strings.SplitSeq(rule.log, " ") {
 							if logCode, found := activeLog[tag]; found {
 								// Take first of possibly several matching tags.
 								newRule.Log = logCode

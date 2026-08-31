@@ -242,13 +242,14 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				if len(areEq) != 0 {
 					areEq = append(areEq, s1)
 					if !msgSuppressed(areEq) {
-						msg := "These services have identical rule definitions.\n" +
+						var msg strings.Builder
+						msg.WriteString("These services have identical rule definitions.\n" +
 							" A single service should be created instead," +
-							" with merged users."
+							" with merged users.")
 						for _, svc := range areEq {
-							msg += "\n - " + svc.name
+							msg.WriteString("\n - " + svc.name)
 						}
-						c.warnOrErr(printType, msg)
+						c.warnOrErr(printType, msg.String())
 					}
 				} else if s1.identicalBody != nil {
 					c.uselessSvcAttr("identical_body", s1)

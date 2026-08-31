@@ -33,8 +33,8 @@ func (p *printer) emptyLine() {
 
 func (p *printer) preComment(n ast.Node) {
 	if c := n.PreComment(); c != "" {
-		lines := strings.Split(c, "\n")
-		for _, l := range lines {
+		lines := strings.SplitSeq(c, "\n")
+		for l := range lines {
 			p.print(l)
 		}
 	}
@@ -389,14 +389,14 @@ func getAttr(n *ast.Attribute) (string, string) {
 }
 
 func getAttrList(l []*ast.Attribute) (string, string) {
-	var line string
+	var line strings.Builder
 	var comment string
 	for _, a := range l {
 		var val string
 		val, comment = getAttr(a)
-		line += " " + val
+		line.WriteString(" " + val)
 	}
-	return " = {" + line + " }", comment
+	return " = {" + line.String() + " }", comment
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {

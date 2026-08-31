@@ -24,8 +24,8 @@ func (s *state) patch(j *job) error {
 		OkIfExists bool `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
-	c := change{val: p.Value, okIfExists: p.OkIfExists}
-	c.method = j.Method
+	c := change{val: p.Value, okIfExists: p.OkIfExists,
+		method: j.Method}
 
 	if len(p.Path) == 0 {
 		return fmt.Errorf("Invalid empty path")

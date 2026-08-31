@@ -62,11 +62,12 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 			if gU.count > 1 {
 				return member(n.name)
 			}
-			result := "\n"
+			var result strings.Builder
+			result.WriteString("\n")
 			for _, e := range g.elements {
-				result += getAddress(e) + "\n"
+				result.WriteString(getAddress(e) + "\n")
 			}
-			return result
+			return result.String()
 		}
 		if n.Bits() == 0 {
 			return member("any")
@@ -115,21 +116,21 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		return member(name)
 	}
 	getLog := func(ru *ciscoRule, aclInfo *aclInfo) string {
-		result := ""
+		var result strings.Builder
 		modifiers := ru.log
 		if modifiers == "" && ru.deny {
 			modifiers = aclInfo.logDeny
 		}
 		if modifiers != "" {
-			for _, log := range strings.Split(modifiers, " ") {
+			for log := range strings.SplitSeq(modifiers, " ") {
 				k, v, found := strings.Cut(log, ":")
 				if !found {
 					v = "yes"
 				}
-				result += fmt.Sprintf("<log-%s>%s</log-%s>\n", k, v, k)
+				result.WriteString(fmt.Sprintf("<log-%s>%s</log-%s>\n", k, v, k))
 			}
 		}
-		return result
+		return result.String()
 	}
 	printRules := func(l []*aclInfo) {
 		fmt.Fprintln(fd, "<rulebase><security><rules>")

@@ -2848,9 +2848,9 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 	}
 	info := *orig
 	if len(attributes) != 0 {
-		add := ""
+		var add strings.Builder
 		for _, att := range attributes {
-			add += ", " + att
+			add.WriteString(", " + att)
 			switch m {
 			case "IOS":
 				switch att {
@@ -2885,7 +2885,7 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 		FAIL:
 			c.err("Unknown extension in '%s' of %s: %s", a.Name, ctx, att)
 		}
-		info.name += add
+		info.name += add.String()
 	}
 	return &info
 }
@@ -2970,8 +2970,8 @@ func addMcastNetworks(info map[string]*mcastProto) {
 				ip := netip.MustParseAddr(s)
 				ipp := netip.PrefixFrom(ip, ip.BitLen())
 				l[i] = &network{
-					ipp:         ipp,
-					withStdAddr: withStdAddr{stdAddr: ipp.String()},
+					ipp:     ipp,
+					stdAddr: ipp.String(),
 				}
 			}
 			m.networks = l
@@ -3025,7 +3025,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string,
 }
 
 func isDomain(n string) bool {
-	for _, part := range strings.Split(n, ".") {
+	for part := range strings.SplitSeq(n, ".") {
 		if !isSimpleName(part) {
 			return false
 		}
