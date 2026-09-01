@@ -875,8 +875,18 @@ func (c *spoc) pathWalk(
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
-				c.showErrNoValidPath(fromStore, toStore, "for rule "+rule.print(), blockingCount)
+				if rule.noService {
+					// Show only source and destination, if rule has no service.
+					c.showErrNoValidPath(fromStore, toStore,
+						fmt.Sprintf("from %s to %s",
+							fromStore.vxName(), toStore.vxName()),
+						blockingCount)
+				} else {
+					c.showErrNoValidPath(fromStore, toStore,
+						"for rule "+rule.print(), blockingCount)
+				}
 			}
+
 			// Abort, if path does not exist.
 			return
 		}
@@ -965,10 +975,11 @@ func (c *spoc) singlePathWalk(
 		serviceRule: &serviceRule{
 			prt: []*proto{c.prt.IP},
 		},
-		src:     []someObj{src},
-		dst:     []someObj{dst},
-		srcPath: src.getPathNode(),
-		dstPath: dst.getPathNode(),
+		src:       []someObj{src},
+		dst:       []someObj{dst},
+		srcPath:   src.getPathNode(),
+		dstPath:   dst.getPathNode(),
+		noService: true,
 	}
 	c.pathWalk(rule, f, where)
 }

@@ -165,3 +165,42 @@ network:n2 = { ip6 = 2001:db8:9:2::/64; }
 =OUTPUT=
 ["network:n1","network:n2","router:r1"]
 =END=
+
+############################################################
+=TITLE=No valid path with pathrestriction
+=PARAMS=network:n1 network:n4
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+pathrestriction:pr1 = interface:r1.n2, interface:r2.n2;
+pathrestriction:pr2 = interface:r1.n3, interface:r2.n3;
+
+=ERROR=
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n4]
+ from any:[network:n1] to any:[network:n4]
+ Check path restrictions and crypto interfaces.
+ Possible blocking pathrestrictions:
+  - pathrestriction:pr1 (blocked 1 path attempt)
+  - pathrestriction:pr2 (blocked 1 path attempt)
+=END=

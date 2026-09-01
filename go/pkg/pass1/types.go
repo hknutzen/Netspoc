@@ -704,6 +704,7 @@ type groupedRule struct {
 	dstPath          pathStore
 	someNonSecondary bool
 	somePrimary      bool
+	noService        bool
 }
 type ruleList []*groupedRule
 
