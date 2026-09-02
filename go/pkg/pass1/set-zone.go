@@ -16,6 +16,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	crosslinkRouters := c.checkCrosslink()
 	clusterCrosslinkRouters(crosslinkRouters)
 	objInArea := c.setAreas()
+	c.checkCombined46Areas(objInArea)
 	c.checkAreaSubsetRelations(objInArea)
 	c.processAggregates()
 	c.checkReroutePermit()
@@ -556,6 +557,36 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		}
 	}
 	return nil
+}
+
+func (c *spoc) checkCombined46Areas(objInArea map[pathObj]map[*area]bool) {
+AREA:
+	for _, a := range c.ascendingAreas {
+		if a.ipV6 {
+			continue
+		}
+		a6 := a.combined46
+		if a6 == nil {
+			continue
+		}
+		if an := a.anchor; an != nil && an.combined46 != nil {
+			continue
+		}
+		for _, intf := range slices.Concat(a.border, a.inclusiveBorder) {
+			if intf.combined46 != nil {
+				continue AREA
+			}
+		}
+		for _, z := range a.zones {
+			if z6 := z.combined46; z6 != nil {
+				if objInArea[z6][a6] {
+					continue AREA
+				}
+			}
+		}
+		c.err(
+			"Dual stack %s must contain at least one common dual stack network", a)
+	}
 }
 
 /*
