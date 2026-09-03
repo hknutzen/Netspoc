@@ -11,7 +11,7 @@ import (
 
 // For each device, find the IP address which is used
 // to manage the device from a central policy distribution point (PDP).
-// This address is added as a comment line to each generated code file.
+// This address is added to each generated JSON file named DEVICE.info.
 // This is to be used later when approving the generated code file.
 func (c *spoc) setPolicyDistributionIP() {
 	c.progress("Setting policy distribution IP")
