@@ -227,7 +227,7 @@ func (c *spoc) checkProperPartitionUsage(
 	for _, z := range unconnected {
 		if tags := zone2tags[z]; len(tags) > 1 {
 			c.err("Several partition names in partition %s:\n - %s",
-				z.name, strings.Join(tags, "\n - "))
+				z.vxName(), strings.Join(tags, "\n - "))
 		}
 	}
 
