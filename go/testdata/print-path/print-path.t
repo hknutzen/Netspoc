@@ -198,7 +198,6 @@ pathrestriction:pr2 = interface:r1.n3, interface:r2.n3;
 Error: No valid path
  from any:[network:n1]
  to any:[network:n4]
- from any:[network:n1] to any:[network:n4]
  Check path restrictions and crypto interfaces.
  Possible blocking pathrestrictions:
   - pathrestriction:pr1 (blocked 1 path attempt)

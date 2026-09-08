@@ -828,8 +828,15 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string, bl
 		}
 	}
 
-	c.err("No valid path\n from %s\n to %s\n %s\n%s",
-		srcPath.vxName(), dstPath.vxName(), context, msg)
+	msgText := fmt.Sprintf("No valid path\n from %s\n to %s",
+		srcPath.vxName(), dstPath.vxName())
+	// Show context information, if available.
+	if context != "" {
+		msgText += "\n " + context
+	}
+	msgText += "\n" + msg
+	c.err("%s", msgText)
+
 }
 
 // pathWalk visits every node
@@ -875,16 +882,11 @@ func (c *spoc) pathWalk(
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
-				if rule.noService {
-					// Show only source and destination, if rule has no service.
-					c.showErrNoValidPath(fromStore, toStore,
-						fmt.Sprintf("from %s to %s",
-							fromStore.vxName(), toStore.vxName()),
-						blockingCount)
-				} else {
-					c.showErrNoValidPath(fromStore, toStore,
-						"for rule "+rule.print(), blockingCount)
+				context := ""
+				if rule.rule != nil {
+					context = "for rule " + rule.print()
 				}
+				c.showErrNoValidPath(fromStore, toStore, context, blockingCount)
 			}
 
 			// Abort, if path does not exist.
@@ -975,11 +977,10 @@ func (c *spoc) singlePathWalk(
 		serviceRule: &serviceRule{
 			prt: []*proto{c.prt.IP},
 		},
-		src:       []someObj{src},
-		dst:       []someObj{dst},
-		srcPath:   src.getPathNode(),
-		dstPath:   dst.getPathNode(),
-		noService: true,
+		src:     []someObj{src},
+		dst:     []someObj{dst},
+		srcPath: src.getPathNode(),
+		dstPath: dst.getPathNode(),
 	}
 	c.pathWalk(rule, f, where)
 }
