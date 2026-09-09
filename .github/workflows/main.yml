@@ -14,6 +14,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: stable
+          cache: false # Turns off the broken root-path detection
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Calc coverage
