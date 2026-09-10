@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- If an area contains at least one dual stack area, it is marked as
+  dual stack.
+  This new behaviour is disabled by default and must be enabled by
+  command line flag '--fix_dual_stack_areas' or
+  config option 'fix_dual_stack_areas = 1'.
+  It will be enabled by default in next version of Netspoc.
+- Until now it was possible to define an area with disjoint IPv4 and IPv6 parts.
+  These must be connected by dual-stack network now.
+
 ## [2026-09-01-1028]
 
 ### Fixed
