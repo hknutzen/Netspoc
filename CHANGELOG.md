@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Until now it was possible to define an area with disjoint IPv4 and IPv6 parts.
   These must be connected by dual-stack network now.
 
+### Fixed
+
+- Fixed panic on invalid path in print-path.
+
 ## [2026-09-01-1028]
 
 ### Fixed
