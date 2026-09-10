@@ -249,3 +249,35 @@ router:r1 = {
 2001:db8:1:1::/64	network:n1	owner:o1
 =OPTIONS=--owner
 =PARAM=network:n1
+
+############################################################
+=TITLE=Dual-stack area with v4 zone connected to two v6 zones
+=INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
+owner:o1 = { admins = a1@b.c; }
+area:a = { border = interface:r1.n1; owner = o1; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n2;
+}
+router:r3 = {
+ interface:n1;
+ interface:n3;
+}
+=OUTPUT=
+10.1.2.0/24	network:n2	owner:o1
+2001:db8:1:2::/64	network:n2	owner:o1
+10.1.3.0/24	network:n3	owner:o1
+2001:db8:1:3::/64	network:n3	owner:o1
+=OPTIONS=--owner
+=PARAM=network:n2, network:n3
