@@ -149,28 +149,6 @@ Warning: Useless owner:o1 at IPv6 network:n1,
 =PARAM=network:n1
 
 ############################################################
-=TITLE=Redundant owner at dual stack host
-=INPUT=
-owner:o1 = { admins = a1@b.c; }
-area:a1 = { border = interface:r1.n1; owner = o1; }
-network:n1 = {
- ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
- host:h1 = { ip = 10.1.1.10; ip6 = 2001:db8:1:1::10; owner = o1; }
-}
-router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = 10.1.1.1;  ip6 = 2001:db8:1:1::1; hardware = n1; }
-}
-=WARNING=
-Warning: Useless owner:o1 at IPv4 host:h1,
- it was already inherited from area:a1
-Warning: Useless owner:o1 at IPv6 host:h1,
- it was already inherited from area:a1
-=OPTIONS=--owner
-=PARAM=host:h1
-
-############################################################
 =TITLE=Suppress warning about redundant owner at dual stack network
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
@@ -187,8 +165,11 @@ router:u1 = {
 =PARAM=network:n1
 
 ############################################################
-=TITLE=Suppress warning about redundant owner at dual stack host
+=TITLE=Redundant owner at dual stack host
 =INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
 owner:o1 = { admins = a1@b.c; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
 network:n1 = {
@@ -200,11 +181,51 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
+=WARNING=
+Warning: Useless owner:o1 at IPv4 host:h1,
+ it was already inherited from area:a1
+Warning: Useless owner:o1 at IPv6 host:h1,
+ it was already inherited from area:a1
 =OUTPUT=
 10.1.1.10	host:h1	owner:o1
 2001:db8:1:1::10	host:h1	owner:o1
 =OPTIONS=--owner
 =PARAM=host:h1
+
+############################################################
+=TITLE=Inherit owner from v4 area with embedded v6 part
+=INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
+area:v4 = {
+ owner = o1;
+ router_attributes = { owner = o1; }
+ inclusive_border = interface:r1.n3;
+}
+owner:o1 = { admins = a1@example.com; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = {
+ ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
+ host:h2 = { ip = 10.1.2.10; ip6 = 2001:db8:1:2::10; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+=OUTPUT=
+10.1.2.0/24	network:n2	owner:o1
+2001:db8:1:2::/64	network:n2	owner:o1
+10.1.2.10	host:h2	owner:o1
+2001:db8:1:2::10	host:h2	owner:o1
+10.1.2.1	interface:r1.n2	owner:o1
+2001:db8:1:2::1	interface:r1.n2	owner:o1
+=OPTIONS=--owner
+=PARAM=network:n2, host:h2, interface:r1.n2
 
 ############################################################
 =TITLE=v4 and v6 part inherits different owner
@@ -225,28 +246,6 @@ router:r1 = {
 }
 =OUTPUT=
 10.1.1.0/24	network:n1	owner:o2
-2001:db8:1:1::/64	network:n1	owner:o1
-=OPTIONS=--owner
-=PARAM=network:n1
-
-############################################################
-=TITLE=Suppressed warning even though owner is realy redundant
-=INPUT=
-owner:o1 = { admins = a1@b.c; }
-area:a1 = { border = interface:r1.n1; owner = o1; }
-network:sup = { ip = 10.1.0.0/16; owner = o1; }
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; owner = o1; }
-router:u1 = {
- interface:sup;
- interface:n1;
-}
-router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip6 = 2001:db8:1:1::1; hardware = n1; }
-}
-=OUTPUT=
-10.1.1.0/24	network:n1	owner:o1
 2001:db8:1:1::/64	network:n1	owner:o1
 =OPTIONS=--owner
 =PARAM=network:n1

@@ -183,34 +183,6 @@ Warning: IPv6 area:a1 is empty
 =END=
 
 ############################################################
-=TITLE=Unreachable v6 border of dual stack area
-=INPUT=
-area:a23 =  { border = interface:r1.n2, interface:r3.n3; }
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
-network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
-}
-router:r2 = {
- interface:n2 = { ip = 10.1.2.2; }
- interface:n3 = { ip = 10.1.3.2; }
-}
-router:r3 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
- interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
-}
-=ERROR=
-Error: Unreachable border of IPv6 area:a23:
- - interface:r3.n3
-=END=
-
-############################################################
 =TITLE=Inconsistent definition of v6 area in loop
 =INPUT=
 area:a1 = { border = interface:r1.n1; }
@@ -231,12 +203,13 @@ router:r2 = {
 =ERROR=
 Error: Inconsistent definition of IPv6 area:a1 in loop.
  It is reached from outside via this path:
- - interface:r1.n1
+ - any:[network:n1]
  - interface:r2.n1
  - interface:r2.n2
  - interface:r1.n2
  - interface:r1.n1
 =END=
+=OPTIONS=--fix_dual_stack_areas
 
 ############################################################
 =TITLE=Overlapping v6 areas
@@ -259,11 +232,12 @@ router:r2 = {
  interface:n3 = {                ip6 = 2001:db8:1:3::1; hardware = n3; }
 }
 =ERROR=
-Error: Overlapping IPv6 area:a1 and area:a2
+Error: Overlapping IPv6 area:a1 and IPv6 area:a2
  - both areas contain any:[network:n2],
  - only 1. area contains any:[network:n3],
  - only 2. area contains any:[network:n1]
 =END=
+=OPTIONS=--fix_dual_stack_areas
 
 ############################################################
 =TITLE=IPv4 policy_distribution_point at pure IPv6 area
@@ -300,7 +274,7 @@ router:r1 = {
 =WARNING=NONE
 
 ############################################################
-=TITLE=Useless IPv6 policy_distribution_point
+=TITLE=Useless IPv4 and IPv6 policy_distribution_point
 =INPUT=
 area:all = { anchor = network:n2;
  router_attributes = { policy_distribution_point = host:h1; }
@@ -369,37 +343,3 @@ access-list n1_in extended permit tcp 2001:db8:1:1::/64 2001:db8:1:2::/63 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-
-############################################################
-=TITLE=Missing owner for v6 part
-=INPUT=
-area:v4 = {
- owner = o1;
- router_attributes = { owner = o1; }
- inclusive_border = interface:r1.n3;
-}
-owner:o1 = { admins = a1@example.com; }
-network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
-network:n2 = {
- ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64;
- host:h2 = { ip = 10.1.2.10; ip6 = 2001:db8:1:2::10; }
-}
-network:n3 = { ip = 10.1.3.0/24; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-}
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
- permit src = user; dst = host:h2; prt = tcp 81;
- permit src = user; dst = interface:r1.n2; prt = tcp 82;
-}
-=WARNING=
-Warning: Unknown owner for IPv6 host:h2 in service:s1
-Warning: Unknown owner for IPv6 interface:r1.n2 in service:s1
-Warning: Unknown owner for IPv6 network:n2 in service:s1
-=OPTIONS=--check_service_unknown_owner=warn

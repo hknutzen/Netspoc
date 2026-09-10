@@ -956,10 +956,13 @@ service:s1 = {
 ############################################################
 =TITLE=Show v4 and v6 areas for combined zone
 =INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
 owner:o = { admins = a1@example.com; }
-area:all-v4 = { anchor = network:n1_4; owner = o; }
-area:all-v6 = { anchor = network:n1_6; owner = o; }
-area:a1-v4 = { border = interface:r1.n1_4; }
+# Also contains embedded v4 zones.
+area:all = { anchor = network:n1_6; owner = o; }
+area:a13 = { border = interface:r1.n1_4, interface:r2.n1_6; }
 
 network:n1_4 = { ip = 10.1.1.0/24; }
 network:n2_4 = { ip = 10.1.2.0/24; }
@@ -992,9 +995,9 @@ router:u2 = {
 =OUTPUT=
 --zone2areas
 {
- "any:[network:n2_4]": [ "all-v4" ],
- "any:[network:n2_6]": [ "all-v6" ],
- "any:[network:n3_46]": [ "a1-v4", "all-v4", "all-v6" ]
+ "any:[network:n2_4]": [ "all" ],
+ "any:[network:n2_6]": [ "all" ],
+ "any:[network:n3_46]": [ "a13", "all" ]
 }
 --owner/o/assets
 {

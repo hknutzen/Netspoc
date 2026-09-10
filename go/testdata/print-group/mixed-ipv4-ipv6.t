@@ -250,3 +250,142 @@ router:Internet = {
 10.1.1.0/24	network:n1
 2001:db8:1:1::/64	network:n1
 =PARAM=network:[area:Internet]
+
+############################################################
+=TITLE=Unconnected embedded v6 partition in dual stack area
+=INPUT=
+area:a =  { border = interface:r1.n1, interface:r2.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+network:n4 = { ip = 10.1.4.0/24; ip6 = 2001:db8:1:4::/64; }
+network:u3 = { unnumbered6; partition = n3; }
+network:u4 = { unnumbered6; partition = n4; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip6 = 2001:db8:1:2::2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; ip6 = 2001:db8:1:3::3; hardware = n3; }
+}
+router:u3 = { interface:n3; interface:u3; }
+router:r4 = {
+ interface:n1;
+ interface:n4;
+}
+router:u4 = { interface:n4; interface:u4; }
+=OUTPUT=
+10.1.1.0/24	network:n1
+10.1.4.0/24	network:n4
+2001:db8:1:4::/64	network:n4
+10.1.3.0/24	network:n3
+2001:db8:1:3::/64	network:n3
+2001:db8:1:2::/64	network:n2
+=PARAM=network:[area:a]
+
+############################################################
+=TITLE=Unconnected embedded v4 partition in dual stack area
+=INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
+area:a =  { border = interface:r1.n1, interface:r2.n2; }
+network:n1 = { ip = 10.1.1.0/24; partition = n1; }
+network:n2 = { ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+network:u3 = { unnumbered6; }
+network:n4 = { ip = 10.1.4.0/24; ip6 = 2001:db8:1:4::/64; }
+network:n5 = { ip = 10.1.5.0/24; partition = n5; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip6 = 2001:db8:1:2::2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip6 = 2001:db8:1:2::3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; ip6 = 2001:db8:1:3::3; hardware = n3; }
+}
+router:u3 = { interface:n3; interface:u3; }
+router:r4 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:u3 = { unnumbered6; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.4; ip6 = 2001:db8:1:4::4; hardware = n4; }
+}
+router:r5 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.5; ip6 = 2001:db8:1:4::5; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.5; hardware = n5; }
+}
+=OUTPUT=
+10.1.1.0/24	network:n1
+10.1.3.0/24	network:n3
+2001:db8:1:3::/64	network:n3
+10.1.4.0/24	network:n4
+2001:db8:1:4::/64	network:n4
+10.1.5.0/24	network:n5
+2001:db8:1:2::/64	network:n2
+=PARAM=network:[area:a]
+
+############################################################
+=TITLE=Unconnected v6 parts of dual stack area
+=INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
+area:a23 =  { border = interface:r1.n2, interface:r3.n3; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+=OUTPUT=
+10.1.2.0/24	network:n2
+2001:db8:1:2::/64	network:n2
+10.1.3.0/24	network:n3
+2001:db8:1:3::/64	network:n3
+=PARAM=network:[area:a23]

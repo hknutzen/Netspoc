@@ -125,6 +125,7 @@ Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
       --debug_pass2 string
+      --fix_dual_stack_areas
   -m, --max_errors int                              (default 10)
   -q, --quiet
   -t, --time_stamps

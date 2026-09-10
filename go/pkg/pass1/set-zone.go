@@ -9,15 +9,15 @@ import (
 )
 
 // setZone create zones and areas.
-func (c *spoc) setZone() map[pathObj]map[*area]bool {
+func (c *spoc) setZone() objInArea {
 	c.progress("Preparing security zones and areas")
 	c.setZones()
 	c.clusterZones()
 	crosslinkRouters := c.checkCrosslink()
 	clusterCrosslinkRouters(crosslinkRouters)
-	objInArea := c.setAreas()
-	c.checkCombined46Areas(objInArea)
-	c.checkAreaSubsetRelations(objInArea)
+	inArea := c.setAreas()
+	c.checkCombined46Areas(inArea)
+	c.checkAreaSubsetRelations(inArea)
 	c.processAggregates()
 	c.checkReroutePermit()
 	c.findSubnetsInZoneCluster()
@@ -26,7 +26,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
 	c.markSubnetsInZoneCluster()
 	c.updateSubnetRelation()
-	return objInArea // For use in cut-netspoc
+	return inArea // For use in cut-netspoc
 }
 
 // setZones creates new zone for every network without a zone.
@@ -380,85 +380,104 @@ const (
 
 type borderType int
 type bLookup map[*routerIntf]borderType
+type objInArea map[pathObj]map[*area]bool
 
 // setAreas sets up areas, assure proper border definitions.
-func (c *spoc) setAreas() map[pathObj]map[*area]bool {
-	objInArea := make(map[pathObj]map[*area]bool)
+func (c *spoc) setAreas() objInArea {
+	inArea := make(objInArea)
 	c.ascendingAreas.sortByName()
 	for _, a := range c.ascendingAreas {
-		if n := a.anchor; n != nil {
-			c.setArea(n.zone, a, nil, nil, objInArea)
-		} else {
-
-			// For efficient look up if some interface is a border of current area.
-			lookup := make(bLookup)
-
-			var start *routerIntf
-			var obj1 pathObj
-
-			// Collect all area delimiting interfaces in lookup.
-			for _, intf := range a.border {
-				lookup[intf] = normalBorder
-			}
-			for _, intf := range a.inclusiveBorder {
-				if _, found := lookup[intf]; found {
-					c.err("%s is used as 'border' and 'inclusive_border' in %s",
-						intf, a)
-				}
-				lookup[intf] = inclusiveBorder
-			}
-			// Identify start interface and direction for area traversal.
-			if len(a.border) >= 1 {
-				start = a.border[0]
-				obj1 = start.zone
-			} else if len(a.inclusiveBorder) >= 1 {
-				start = a.inclusiveBorder[0]
-				obj1 = start.router
-			}
-
-			// Collect zones and routers of area and keep track of borders found.
-			lookup[start] = foundBorder
-			err := c.setArea(obj1, a, start, lookup, objInArea)
-			if err {
+		lookup := c.getBorderLookup(a)
+		var lookup46 bLookup
+		a6 := a.combined46
+		if a6 != nil {
+			if a.ipV6 {
+				// IPv6 area has already been processed together with IPv4 area.
 				continue
-			}
-
-			// Assert that all borders were found.
-			// Remove invalid borders.
-			check := func(l []*routerIntf, attr string) []*routerIntf {
-				var badIntf intfList
-				j := 0
-				for _, intf := range l {
-					if lookup[intf] != foundBorder {
-						badIntf.push(intf)
-					} else {
-						l[j] = intf
-						j++
-					}
-				}
-				l = l[:j]
-				if badIntf != nil {
-					c.err("Unreachable %s of %s:\n%s",
-						attr, a.vxName(), badIntf.nameList())
-				}
-				return l
-			}
-			a.border = check(a.border, "border")
-			a.inclusiveBorder = check(a.inclusiveBorder, "inclusive_border")
-
-			// Check whether area is empty (= consist of a single router)
-			if len(a.zones) == 0 {
-				c.warn("%s is empty", a.vxName())
+			} else {
+				lookup46 = c.getBorderLookup(a6)
 			}
 		}
 
-		//var names stringList
-		//for _, z := range a.zones {
-		//	names.push(z.name)
-		//}
-		//debug("%s:\n %s", a.name, strings.Join(names, "\n "))
+		process := func(a *area, m1, m2 bLookup) {
+			if n := a.anchor; n != nil {
+				c.setArea(n.zone, a, nil, m1, m2, inArea)
+			} else {
+
+				var start *routerIntf
+				var obj1 pathObj
+
+				// Identify start interface and direction for area traversal.
+				if len(a.border) >= 1 {
+					start = a.border[0]
+					obj1 = start.zone
+				} else if len(a.inclusiveBorder) >= 1 {
+					start = a.inclusiveBorder[0]
+					obj1 = start.router
+				}
+
+				// Collect zones and routers of area and keep track of borders found.
+				m1[start] = foundBorder
+				failed := c.setArea(obj1, a, start, m1, m2, inArea)
+				if failed {
+					return
+				}
+
+				// Assert that all borders were found.
+				// Remove invalid borders.
+				check := func(l []*routerIntf, attr string) []*routerIntf {
+					var badIntf intfList
+					j := 0
+					for _, intf := range l {
+						if m1[intf] != foundBorder {
+							badIntf.push(intf)
+						} else {
+							l[j] = intf
+							j++
+						}
+					}
+					l = l[:j]
+					if badIntf != nil {
+						c.err("Unreachable %s of %s:\n%s",
+							attr, a.vxName(), badIntf.nameList())
+					}
+					return l
+				}
+				a.border = check(a.border, "border")
+				a.inclusiveBorder = check(a.inclusiveBorder, "inclusive_border")
+
+				// Check whether area is empty (= consist of a single router)
+				if len(a.zones) == 0 {
+					c.warn("%s is empty", a.vxName())
+				}
+			}
+		}
+		process(a, lookup, lookup46)
+		if a6 != nil {
+			process(a6, lookup46, lookup)
+		}
 	}
-	return objInArea
+	return inArea
+}
+
+// For efficient look up if some interface is a border of current area.
+func (c *spoc) getBorderLookup(a *area) bLookup {
+	if a.anchor != nil {
+		return nil
+	}
+	// Collect all area delimiting interfaces in lookup.
+	lookup := make(bLookup)
+	for _, intf := range a.border {
+		lookup[intf] = normalBorder
+	}
+	for _, intf := range a.inclusiveBorder {
+		if _, found := lookup[intf]; found {
+			c.err("%s is used as 'border' and 'inclusive_border' in %s",
+				intf, a)
+		}
+		lookup[intf] = inclusiveBorder
+	}
+	return lookup
 }
 
 /*
@@ -466,19 +485,25 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 setArea collects zones and routers of an area.
 Returns false if no error was found, or true if error was found.
 */
-func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
-	lookup bLookup, objInArea map[pathObj]map[*area]bool) bool {
-	errPath := setArea1(obj, a, in, lookup, objInArea)
+func (c *spoc) setArea(
+	obj pathObj, a *area, in *routerIntf, m1, m2 bLookup, inArea objInArea,
+) bool {
+	errPath := c.setArea1(obj, a, in, m1, m2, inArea)
 	if errPath == nil {
 		return false
 	}
 
 	// Print error path, if errors occurred
-	errPath.push(in)
+	var first string
+	if in != nil {
+		first = in.name
+	} else {
+		first = obj.String()
+	}
 	slices.Reverse(errPath)
 	c.err("Inconsistent definition of %s in loop.\n"+
-		" It is reached from outside via this path:\n%s",
-		a.vxName(), errPath.nameList())
+		" It is reached from outside via this path:\n - %s\n%s",
+		a.vxName(), first, errPath.nameList())
 	return true
 }
 
@@ -489,19 +514,20 @@ reference to the area in its zones and routers.
 Keep track of area borders found during area traversal.
 Returns  : nil or list of interfaces, if invalid path was found.
 */
-func setArea1(obj pathObj, a *area, in *routerIntf,
-	lookup bLookup, objInArea map[pathObj]map[*area]bool) intfList {
+func (c *spoc) setArea1(
+	obj pathObj, a *area, in *routerIntf, m1, m2 bLookup, inArea objInArea,
+) intfList {
 
 	// Found a loop.
-	if objInArea[obj][a] {
+	if inArea[obj][a] {
 		return nil
 	}
 
 	// Find duplicate/overlapping areas or loops
-	m := objInArea[obj]
+	m := inArea[obj]
 	if m == nil {
 		m = make(map[*area]bool)
-		objInArea[obj] = m
+		inArea[obj] = m
 	}
 	m[a] = true
 
@@ -513,6 +539,32 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		if !x.isTunnel() {
 			a.zones = append(a.zones, x)
 		}
+		// Collect embedded combined46 zones in corresponding combined46 area.
+		collect := func(z *zone) {
+			a46 := a.combined46
+			if a46 == nil {
+				a46 = &area{
+					name:             a.name,
+					combined46:       a,
+					ipV6:             !a.ipV6,
+					owner:            a.owner,
+					attr:             a.attr,
+					routerAttributes: a.routerAttributes,
+					autoIPv6Hosts:    a.autoIPv6Hosts,
+				}
+				a46.routerAttributes.policyDistributionPoint = nil
+				a.combined46 = a46
+				c.ascendingAreas = append(c.ascendingAreas, a46)
+			}
+			// Collect all objects reachable by z.
+			c.setArea(z, a46, nil, m2, m1, inArea)
+		}
+		if z := x.combined46; z != nil && c.conf.FixDualStackAreas {
+			collect(z)
+			for _, z := range x.combined46Other {
+				collect(z)
+			}
+		}
 	case *router:
 		if x.managed != "" || x.routingOnly {
 			a.managedRouters = append(a.managedRouters, x)
@@ -520,14 +572,12 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 			a.managementInstances = append(a.managementInstances, x)
 		}
 	}
-
 	for _, intf := range obj.intfList() {
 		if intf == in {
 			continue
 		}
-
 		// For areas with defined borders, check if border was found...
-		if t, found := lookup[intf]; found {
+		if t, found := m1[intf]; found {
 			// Reached border from wrong side or border classification wrong.
 			// Collect interfaces to show invalid path
 			if t == foundBorder {
@@ -538,10 +588,9 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 				// Border classification wrong
 				return intfList{intf}
 			}
-			lookup[intf] = foundBorder
+			m1[intf] = foundBorder
 			continue
 		}
-
 		// Proceed traversal with next element.
 		var next pathObj
 		if isZone {
@@ -549,7 +598,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		} else {
 			next = intf.zone
 		}
-		errPath := setArea1(next, a, intf, lookup, objInArea)
+		errPath := c.setArea1(next, a, intf, m1, m2, inArea)
 		if errPath != nil {
 			// Collect interfaces of invalid path.
 			errPath.push(intf)
@@ -559,7 +608,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	return nil
 }
 
-func (c *spoc) checkCombined46Areas(objInArea map[pathObj]map[*area]bool) {
+func (c *spoc) checkCombined46Areas(inArea objInArea) {
 AREA:
 	for _, a := range c.ascendingAreas {
 		if a.ipV6 {
@@ -579,7 +628,7 @@ AREA:
 		}
 		for _, z := range a.zones {
 			if z6 := z.combined46; z6 != nil {
-				if objInArea[z6][a6] {
+				if inArea[z6][a6] {
 					continue AREA
 				}
 			}
@@ -594,7 +643,7 @@ AREA:
 checkAreaSubsetRelations checks subset relation between areas, assure
 that no duplicate or overlapping areas exist
 */
-func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
+func (c *spoc) checkAreaSubsetRelations(inArea objInArea) {
 
 	size := func(a *area) int {
 		return len(a.zones) + len(a.managedRouters)
@@ -624,7 +673,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 	// Process all elements contained by one or more areas.
 	process := func(obj pathObj) {
-		m := objInArea[obj]
+		m := inArea[obj]
 		if len(m) == 0 {
 			return
 		}
@@ -654,11 +703,11 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 			// Check that each zone and managed router of small is part of next.
 			for _, obj2 := range smallList {
-				if objInArea[obj2][next] {
+				if inArea[obj2][next] {
 					continue
 				}
 				for _, obj3 := range nextList {
-					if objInArea[obj3][small] {
+					if inArea[obj3][small] {
 						continue
 					}
 					c.err("Overlapping %s and %s\n"+

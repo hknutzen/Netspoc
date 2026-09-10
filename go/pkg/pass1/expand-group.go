@@ -259,7 +259,7 @@ func (c *spoc) expandGroup1(
 	withCombinedZones := func(a *area, f func(*zone)) {
 		for _, z := range a.zones {
 			f(z)
-			if !a.isCombined46() {
+			if !c.conf.FixDualStackAreas && !a.isCombined46() {
 				if z6 := z.combined46; z6 != nil {
 					f(z6)
 				}

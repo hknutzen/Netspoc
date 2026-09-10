@@ -81,6 +81,7 @@ type Config struct {
 	Quiet                        bool `flag:"quiet q"`
 	TimeStamps                   bool `flag:"time_stamps t"`
 	DebugPass2                   string
+	FixDualStackAreas            bool
 }
 
 func DefaultOptions(fs *pflag.FlagSet) *Config {
@@ -162,6 +163,8 @@ func DefaultOptions(fs *pflag.FlagSet) *Config {
 
 		// Debug pass2, argument is filename of device, e.g. NAME or ipv6/NAME.
 		DebugPass2: "",
+
+		FixDualStackAreas: false,
 	}
 	gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	return cfg
