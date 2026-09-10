@@ -394,9 +394,8 @@ func (c *spoc) setAreas() objInArea {
 			if a.ipV6 {
 				// IPv6 area has already been processed together with IPv4 area.
 				continue
-			} else {
-				lookup46 = c.getBorderLookup(a6)
 			}
+			lookup46 = c.getBorderLookup(a6)
 		}
 
 		process := func(a *area, m1, m2 bLookup) {
