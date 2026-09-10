@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-09-10-1319]
+
 ### Changed
 
 - If an area contains at least one dual stack area, it is marked as
