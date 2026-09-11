@@ -387,7 +387,6 @@ func (c *spoc) setAreas() objInArea {
 	inArea := make(objInArea)
 	c.ascendingAreas.sortByName()
 	for _, a := range c.ascendingAreas {
-		lookup := c.getBorderLookup(a)
 		var lookup46 bLookup
 		a6 := a.combined46
 		if a6 != nil {
@@ -397,6 +396,7 @@ func (c *spoc) setAreas() objInArea {
 			}
 			lookup46 = c.getBorderLookup(a6)
 		}
+		lookup := c.getBorderLookup(a)
 
 		process := func(a *area, m1, m2 bLookup) {
 			if n := a.anchor; n != nil {
