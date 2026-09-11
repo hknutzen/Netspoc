@@ -293,6 +293,8 @@ func runTest(t *testing.T, tc test, d descr) {
 		stderr = re.ReplaceAllString(stderr, "")
 		re = regexp.MustCompile(`\nUsage: .*(?:\n\s.*)*`)
 		stderr = re.ReplaceAllString(stderr, "")
+		// Normalize non-deterministic error messages of encoding/json/v2.
+		stderr = strings.Replace(stderr, "json: unable to ", "json: cannot ", 1)
 		countEq(t, d.Error, stderr)
 	}
 	if d.Output != "" {
