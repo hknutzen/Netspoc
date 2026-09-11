@@ -133,7 +133,7 @@ END
 cat <<END > old/r1.config
 END
 cat <<END > old/r1.rules
-{"model":"ASA","acls":null,"do_objectgroup":true}
+{"model":"ASA","acls":[],"do_objectgroup":true}
 END
 cp old/r1.config old/r1
 mkdir out/r1

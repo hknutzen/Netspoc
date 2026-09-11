@@ -55,7 +55,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "params": { "value": x }
 }
 =ERROR=
-Error: In JSON input: invalid character 'x' looking for beginning of value
+Error: In JSON input: jsontext: invalid character 'x' at start of value within "/params/value" after offset 48
 =END=
 
 ############################################################

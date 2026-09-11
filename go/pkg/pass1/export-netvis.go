@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -60,7 +60,7 @@ type visBase struct {
 type visNeighbor struct {
 	Id            string `json:"id"`
 	NeighborCount int    `json:"neighbor_count"`
-	IsTunnel      bool   `json:"is_tunnel,omitempty"`
+	IsTunnel      bool   `json:"is_tunnel,omitzero"`
 }
 type visNetwork struct {
 	visBase
@@ -87,8 +87,11 @@ func (c *spoc) exportNetvis(stdout io.Writer, path string) {
 	}{
 		networks, routers,
 	}
-	out, _ := json.Marshal(data)
-	fmt.Fprintln(stdout, string(out))
+	json.MarshalWrite(stdout, data,
+		json.Deterministic(true),
+		json.FormatNilSliceAsNull(true),
+	)
+	fmt.Fprintln(stdout)
 
 }
 

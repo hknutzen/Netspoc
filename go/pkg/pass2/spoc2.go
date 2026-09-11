@@ -25,7 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"cmp"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -290,8 +290,7 @@ func readJSON(path string) *routerData {
 		panic(err)
 	}
 	defer fd.Close()
-	dec := json.NewDecoder(fd)
-	if err := dec.Decode(&jData); err != nil {
+	if err := json.UnmarshalRead(fd, &jData); err != nil {
 		panic(err)
 	}
 	rData := &routerData{}

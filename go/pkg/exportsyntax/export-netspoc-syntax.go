@@ -1,7 +1,8 @@
 package exportsyntax
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 
@@ -63,9 +64,11 @@ func Main(d oslink.Data) int {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	enc := json.NewEncoder(d.Stdout)
-	enc.SetEscapeHTML(false)
-	enc.Encode(definitions)
+	json.MarshalWrite(d.Stdout, definitions,
+		json.Deterministic(true),
+		json.FormatNilSliceAsNull(true),
+		jsontext.EscapeForHTML(false))
+	fmt.Fprintln(d.Stdout)
 	return 0
 }
 

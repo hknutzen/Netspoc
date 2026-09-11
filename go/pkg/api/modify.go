@@ -1,7 +1,8 @@
 package api
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"os"
@@ -69,9 +70,9 @@ func Main(d oslink.Data) int {
 }
 
 type job struct {
-	Method string
-	Params json.RawMessage
-	Crq    string
+	Method string         `json:"method"`
+	Params jsontext.Value `json:"params"`
+	Crq    string         `json:"crq"`
 }
 
 var handler = map[string]func(*state, *job) error{
@@ -89,7 +90,7 @@ func (s *state) doJobFile(path string) error {
 	return s.doJob(data)
 }
 
-func (s *state) doJob(data json.RawMessage) error {
+func (s *state) doJob(data jsontext.Value) error {
 	j := &job{}
 	if err := json.Unmarshal(data, j); err != nil {
 		return fmt.Errorf("In JSON input: %s", err)
@@ -115,7 +116,7 @@ func (s *state) doJob(data json.RawMessage) error {
 
 func (s *state) multiJob(j *job) error {
 	var p struct {
-		Jobs []json.RawMessage
+		Jobs []jsontext.Value `json:"jobs"`
 	}
 	getParams(j, &p)
 	for _, raw := range p.Jobs {
@@ -128,11 +129,11 @@ func (s *state) multiJob(j *job) error {
 
 func (s *state) createHost(j *job) error {
 	var p struct {
-		Network string
-		Name    string
-		IP      string
-		Mask    string
-		Owner   string
+		Network string `json:"network"`
+		Name    string `json:"name"`
+		IP      string `json:"ip"`
+		Mask    string `json:"mask"`
+		Owner   string `json:"owner"`
 	}
 	getParams(j, &p)
 	network := p.Network

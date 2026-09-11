@@ -2,7 +2,8 @@ package netspoc_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"io"
 	"os"
 	"os/exec"
@@ -489,10 +490,10 @@ func jsonEq(t *testing.T, expected string, got []byte) {
 			t.Fatal(err)
 		}
 		var b bytes.Buffer
-		enc := json.NewEncoder(&b)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", " ")
-		enc.Encode(v)
+		json.MarshalWrite(&b, v,
+			json.Deterministic(true),
+			jsontext.EscapeForHTML(false),
+			jsontext.WithIndent(" "))
 		return b.String()
 	}
 	countEq(t, normalize([]byte(expected)), normalize(got))

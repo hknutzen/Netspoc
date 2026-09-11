@@ -4083,7 +4083,7 @@ router:r1 = {
 }
 =OUTPUT=
 --owner/all/nat_set
-null
+[]
 --owner/n23/nat_set
 [ "n2" ]
 --owner/n4/nat_set
@@ -4110,7 +4110,7 @@ router:r1 = {
 }
 =OUTPUT=
 --owner/all/nat_set
-null
+[]
 =END=
 
 ############################################################
@@ -4141,7 +4141,7 @@ router:r1 = {
 }
 =OUTPUT=
 --owner/o/nat_set
-null
+[]
 =END=
 
 ############################################################
@@ -4175,7 +4175,7 @@ router:r1 =  {
 }
 =OUTPUT=
 --owner/o1/nat_set
-null
+[]
 --owner/o2/nat_set
 [ "h1" ]
 =END=

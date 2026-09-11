@@ -65,7 +65,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
 =ERROR=
-Error: In JSON input: unexpected end of JSON input
+Error: In JSON input: jsontext: unexpected EOF after offset 2
 =END=
 
 ############################################################
@@ -138,7 +138,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 { "params": 42 }
 =ERROR=
-Error: In "params" of JSON input: json: cannot unmarshal number into Go value of type map[string]interface {}
+Error: In "params" of JSON input: json: cannot unmarshal JSON number into Go map[string]interface {}
 =END=
 
 ############################################################
@@ -151,7 +151,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "params": "foo"
 }
 =ERROR=
-Error: In "params" of JSON input: json: cannot unmarshal string into Go value of type map[string]interface {}
+Error: In "params" of JSON input: json: cannot unmarshal JSON string into Go map[string]interface {}
 =END=
 
 ############################################################

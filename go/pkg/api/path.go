@@ -19,9 +19,9 @@ type change struct {
 
 func (s *state) patch(j *job) error {
 	var p struct {
-		Path       string
-		Value      any
-		OkIfExists bool `json:"ok_if_exists"`
+		Path       string `json:"path"`
+		Value      any    `json:"value"`
+		OkIfExists bool   `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
 	c := change{val: p.Value, okIfExists: p.OkIfExists, method: j.Method}

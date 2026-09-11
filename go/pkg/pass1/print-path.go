@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -123,6 +123,6 @@ func (c *spoc) printPath(stdout io.Writer, path string, params []string) {
 	}
 	slices.Sort(used)
 	used = slices.Compact(used)
-	out, _ := json.Marshal(used)
-	fmt.Fprintln(stdout, string(out))
+	json.MarshalWrite(stdout, used)
+	fmt.Fprintln(stdout)
 }

@@ -1,7 +1,8 @@
 package pass2
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"os"
@@ -267,10 +268,11 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		"services": s,
 		"policies": p,
 	}
-	enc := json.NewEncoder(fd)
-	enc.SetIndent("", " ")
-	enc.SetEscapeHTML(false)
-	enc.Encode(result)
+	json.MarshalWrite(fd, result,
+		json.Deterministic(true),
+		json.FormatNilSliceAsNull(true),
+		jsontext.EscapeForHTML(false),
+		jsontext.WithIndent(" "))
 	fmt.Fprintln(fd)
 }
 

@@ -4,7 +4,8 @@ import (
 	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"os"
@@ -34,9 +35,8 @@ func (c *spoc) writeJson(path string, data any) {
 		c.abort("Can't %v", err)
 	}
 	defer fd.Close()
-	enc := json.NewEncoder(fd)
-	enc.SetEscapeHTML(false)
-	enc.Encode(data)
+	json.MarshalWrite(fd, data, jsontext.EscapeForHTML(false))
+	fmt.Fprintln(fd)
 }
 
 func (c *spoc) exportJson(dir, path string, data any) {
@@ -327,7 +327,7 @@ func findVisibility(owners, uowners stringList) string {
 // Collisions would occur with probability of 0.5 for 2^24 different ids.
 // We should be extremely safe for up to 2^14 different ids.
 func calcRulesKey(rules []jsonMap) string {
-	b, _ := json.Marshal(rules)
+	b, _ := json.Marshal(rules, json.Deterministic(true))
 	sum := sha1.Sum(b)
 	b = sum[:6]
 	digest := base64.StdEncoding.EncodeToString(b)
