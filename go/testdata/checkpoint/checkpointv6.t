@@ -47,6 +47,12 @@ service:test = {
 =OUTPUT=
 --ipv6/r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
     "name": "test",
