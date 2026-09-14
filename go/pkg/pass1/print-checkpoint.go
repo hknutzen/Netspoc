@@ -12,16 +12,23 @@ import (
 )
 
 type chkpConfig struct {
-	TargetRules map[string][]*chkpRule
-	Networks    []*chkpNetwork
-	Hosts       []*chkpHost
-	Groups      []*chkpGroup
-	TCP         []*chkpTCPUDP
-	UDP         []*chkpTCPUDP
-	ICMP        []*chkpICMP
+	TargetPolicy map[string]*chkpPolicy
+	TargetRules  map[string][]*chkpRule
+	Networks     []*chkpNetwork
+	Hosts        []*chkpHost
+	Groups       []*chkpGroup
+	TCP          []*chkpTCPUDP
+	UDP          []*chkpTCPUDP
+	ICMP         []*chkpICMP
 	//ICMP6 []*chkpICMP
 	//SvOther       []*chkpSvOther
 	GatewayRoutes map[string][]*chkpRoute
+}
+
+type chkpPolicy struct {
+	Name    string
+	Layer   string
+	Comment string `json:",omitempty"`
 }
 
 // Default value of attribute 'enabled' is true.
@@ -157,7 +164,13 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 	tcpudp := make(map[*proto]*chkpTCPUDP)
 	icmp := make(map[*proto]*chkpICMP)
 	config.TargetRules = make(map[string][]*chkpRule)
+	config.TargetPolicy = make(map[string]*chkpPolicy)
 	for _, r := range vrfMembers {
+		config.TargetPolicy[r.vrf] = &chkpPolicy{
+			Name:    r.vrf,
+			Layer:   "Network",
+			Comment: "",
+		}
 		var targetRules []*chkpRule
 		rules := make(map[string]*chkpRule)
 		for _, hw := range r.hardware {

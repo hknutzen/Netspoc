@@ -117,6 +117,16 @@ service:test = {
 {"generated_by":"devel","model":"Checkpoint","ip_list":["10.0.0.10"],"name_list":["r1"]}
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  },
+  "v2": {
+   "Layer": "Network",
+   "Name": "v2"
+  }
+ },
  "TargetRules": {
   "v1": [
    {
@@ -277,6 +287,12 @@ service:s2 = {
 =OUTPUT=
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules":{"v1":[{"name":"s1","action":"Accept","source":["network_n4"],"destination":["network_n1"],"service":["tcp_22"],"install-on":["Policy Targets"]},{"name":"s2","action":"Accept","source":["network_n4"],"destination":["network_n2"],"service":["tcp_23"],"install-on":["Policy Targets"]}, [[cleanup]] ]},
  "Networks": [
    {
@@ -395,6 +411,12 @@ service:test = {
 =OUTPUT=
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
     "name": "test",
@@ -503,6 +525,12 @@ service:test2 = {
 =OUTPUT=
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
@@ -612,6 +640,12 @@ service:test = {
 =OUTPUT=
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
@@ -771,6 +805,12 @@ service:test = {
 =OUTPUT=
 -- r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
@@ -852,6 +892,12 @@ service:test = {
 =OUTPUT=
 -- r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
@@ -971,6 +1017,12 @@ service:b = {
 =OUTPUT=
 --r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "a",
@@ -1074,6 +1126,12 @@ service:test = {
 =OUTPUT=
 -- r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
@@ -1163,6 +1221,12 @@ service:test = {
 =OUTPUT=
 -- r1
 {
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
  "TargetRules": {"v1": [
   {
    "name": "test",
