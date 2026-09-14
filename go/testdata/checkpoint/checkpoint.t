@@ -211,6 +211,7 @@ service:test = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -316,6 +317,7 @@ service:s2 = {
  "TCP":[{"name":"tcp_22","port":"22"},{"name":"tcp_23","port":"23"}],
  "UDP":null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
     "v1": [
       {
@@ -493,6 +495,7 @@ service:test = {
   }
  ],
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -596,6 +599,7 @@ service:test2 = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -756,6 +760,80 @@ service:test = {
    "icmp-type": 9
   }
  ],
+ "ICMP6": null,
+ "GatewayRoutes": {
+  "v1": [
+   {
+    "address": "10.1.3.0",
+    "mask-length": 24,
+    "type": "gateway",
+    "next-hop": [
+     {
+      "gateway": "10.1.2.4"
+     }
+    ]
+   }
+  ]
+ }
+}
+=END=
+
+############################################################
+=TITLE=icmp service dest-unreach
+=INPUT=
+[[topology]]
+service:test = {
+ user = host:h3;
+ permit src = user;
+        dst = network:n1;
+        prt = icmp 3;
+}
+=OUTPUT=
+--r1
+{
+ "TargetPolicy": {
+  "v1": {
+   "Layer": "Network",
+   "Name": "v1"
+  }
+ },
+ "TargetRules": {"v1": [
+  {
+   "name": "test",
+   "action": "Accept",
+   "source": [
+    "host_h3"
+   ],
+   "destination": [
+    "network_n1"
+   ],
+   "service": [
+    "dest-unreach"
+   ],
+   "install-on": [
+    "Policy Targets"
+   ]
+  },
+  [[cleanup]]
+ ]},
+ "Networks": [
+  {
+   "name": "network_n1",
+   "subnet4": "10.1.1.0",
+   "mask-length4": 24
+  }
+ ],
+ "Hosts": [
+  {
+   "name": "host_h3",
+   "ipv4-address": "10.1.3.10"
+  }
+ ],
+ "Groups": null,
+ "TCP": null,
+ "UDP": null,
+ "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -852,6 +930,7 @@ service:test = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": [
    {
@@ -968,6 +1047,7 @@ service:test = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1091,6 +1171,7 @@ service:b = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1173,6 +1254,7 @@ service:test = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": null
  }
@@ -1284,6 +1366,7 @@ service:test = {
  ],
  "UDP": null,
  "ICMP": null,
+ "ICMP6": null,
  "GatewayRoutes": {
   "v1": null
  }
