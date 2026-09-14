@@ -20,7 +20,7 @@ type chkpConfig struct {
 	TCP          []*chkpTCPUDP
 	UDP          []*chkpTCPUDP
 	ICMP         []*chkpICMP
-	//ICMP6 []*chkpICMP
+	ICMP6        []*chkpICMP
 	//SvOther       []*chkpSvOther
 	GatewayRoutes map[string][]*chkpRoute
 }
@@ -103,6 +103,7 @@ type chkpICMP struct {
 	chkpObject
 	IcmpType *int `json:"icmp-type"`
 	IcmpCode *int `json:"icmp-code,omitempty"`
+	proto    string
 }
 
 type chkpSvOther struct {
@@ -201,7 +202,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 					Name:      name,
 					Comments:  srv.description,
 					Action:    chkpName(action),
-					InstallOn: []chkpName{chkpName("Policy Targets")},
+					InstallOn: []chkpName{"Policy Targets"},
 				}
 
 				handleRuleObject := func(obj someObj) string {
@@ -261,50 +262,66 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 					rules[name].Destination = append(rules[name].Destination, chkpName(objName))
 				}
 
-				checkName := func(prtType int) string {
-					switch prtType {
-					case 0:
-						return "echo-reply"
-					case 3:
-						return "dest-unreach"
-					case 4:
-						return "source-quench"
-					case 5:
-						return "redirect"
-					case 8:
-						return "echo-request"
-					case 11:
-						return "time-exceeded"
-					case 12:
-						return "param-prblm"
-					case 13:
-						return "timestamp"
-					case 14:
-						return "timestamp-reply"
-					case 15:
-						return "info-req"
-					case 16:
-						return "info-reply"
-					case 17:
-						return "mask-request"
-					case 18:
-						return "mask-reply"
-					}
-					return ""
+				var icmpNames = map[int]string{
+					0:  "echo-reply",
+					3:  "dest-unreach",
+					4:  "source-quench",
+					5:  "redirect",
+					8:  "echo-request",
+					11: "time-exceeded",
+					12: "param-prblm",
+					13: "timestamp",
+					14: "timestamp-reply",
+					15: "info-req",
+					16: "info-reply",
+					17: "mask-request",
+					18: "mask-reply",
+				}
+
+				var icmpv6Names = map[int]string{
+					1:   "destination-unreachable",
+					2:   "packet_too-big",
+					3:   "time-exceeded6",
+					4:   "parameter-problem",
+					128: "echo-request6",
+					129: "echo-reply6",
+					130: "multicast-listener-query",
+					131: "multicast-listener-report",
+					132: "multicast-listener-done",
+					133: "router-solicitation",
+					134: "router-advertisement",
+					135: "neighbor-solicitation",
+					136: "neighbor-advertisement",
+					137: "redirect6",
+					138: "router-renumbering",
+					139: "ICMP-node-information-query",
+					140: "ICMP-node-information-response",
+					141: "inverse-neighbor-discovery",
+					142: "inverse-neighbor-discovery2",
+					144: "home-agent-address-discovery",
+					145: "home-agent-address-discovery2",
+					146: "mobile-prefix-solicitation",
+					147: "mobile-prefix-advertisement",
 				}
 
 				for _, prt := range rule.prt {
 					prtName := strings.ReplaceAll(prt.name, " ", "_")
-					if prt.proto == "icmp" {
+					if strings.HasPrefix(prt.proto, "icmp") {
 						rulePrt := &chkpICMP{}
 						rulePrt.Name = prtName
 						rulePrt.IcmpType = &prt.icmpType
+						rulePrt.proto = prt.proto
 
 						if prt.icmpCode != -1 {
 							rulePrt.IcmpCode = &prt.icmpCode
 						} else {
 							// If no code is given, we can use the already existing name of the type as service name.
-							name := checkName(prt.icmpType)
+							var name string
+							if prt.proto == "icmp" {
+								name = icmpNames[prt.icmpType]
+							} else {
+								name = icmpv6Names[prt.icmpType]
+							}
 							if name != "" {
 								prtName = name
 								goto ADDPRT
@@ -362,7 +379,7 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 			Source:      []chkpName{"Any"},
 			Destination: []chkpName{"Any"},
 			Service:     []chkpName{"Any"},
-			InstallOn:   []chkpName{chkpName("Policy Targets")},
+			InstallOn:   []chkpName{"Policy Targets"},
 		})
 		config.TargetRules[r.vrf] = targetRules
 	}
@@ -391,7 +408,11 @@ func (c *spoc) collectCheckpointACLs(vrfMembers []*router, config *chkpConfig) {
 		}
 		return cmp.Compare(a.icmpCode, b.icmpCode)
 	}) {
-		config.ICMP = append(config.ICMP, icmp[k])
+		if icmp[k].proto == "icmp" {
+			config.ICMP = append(config.ICMP, icmp[k])
+		} else {
+			config.ICMP6 = append(config.ICMP6, icmp[k])
+		}
 	}
 }
 
