@@ -40,8 +40,8 @@ func (c *spoc) setZones() {
 		z := &zone{
 			name:               "any:[" + n.name + "]",
 			ipPrefix2aggregate: make(map[netip.Prefix]*network),
+			ipV6:               n.ipV6,
 		}
-		z.ipV6 = n.ipV6
 		c.allZones = append(c.allZones, z)
 
 		// Collect zone elements...
