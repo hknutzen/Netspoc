@@ -48,9 +48,13 @@ func (c *spoc) propagateOwners() {
 		o2, upper := inheritOwner(getUp(obj))
 		if o != nil {
 			if o2 == o {
-				if !obj.isCombined46() || upper.isCombined46() {
-					c.warn("Useless %s at %s,\n it was already inherited from %s",
-						o, obj.vxName(), upper)
+				// No warning is shown for loopback interface, since it
+				// always has same owner as loopback network.
+				if x, ok := obj.(*routerIntf); !ok || !x.loopback {
+					if !obj.isCombined46() || upper.isCombined46() {
+						c.warn("Useless %s at %s,\n it was already inherited from %s",
+							o, obj.vxName(), upper)
+					}
 				}
 			}
 			inherited[obj] = obj
@@ -75,7 +79,20 @@ func (c *spoc) propagateOwners() {
 	}
 
 	for _, n := range c.allNetworks {
-		processSubnets(n)
+		if n6 := n.combined46; n6 != nil {
+			if n.ipV6 {
+				// IPv6 net has already been processed together with IPv4 net.
+				continue
+			}
+			processSubnets(n)
+			processSubnets(n6)
+			if n.owner != n6.owner {
+				c.err("Dual stack %s inherits different IPv4 %s and IPv6 %s",
+					n, n.owner, n6.owner)
+			}
+		} else {
+			processSubnets(n)
+		}
 	}
 
 	// Collect list of owners and watchingOwners from areas at

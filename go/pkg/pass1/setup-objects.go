@@ -2246,6 +2246,7 @@ func (c *spoc) setupInterface(
 				ipV6:     v6,
 				ipp:      netip.PrefixFrom(intf.ip, intf.ip.BitLen()),
 				loopback: true, // Mark as automatically created.
+				owner:    intf.owner,
 				subnetOf: subnetOf,
 			}
 			// Move NAT definition to loopback network.

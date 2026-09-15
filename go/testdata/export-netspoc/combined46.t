@@ -554,6 +554,9 @@ service:s1 = {
 ############################################################
 =TITLE=IPv4 only network to dual stack auto interface
 =INPUT=
+--config
+fix_dual_stack_areas = 1
+--input
 area:all = { anchor = network:n1; owner = o; }
 owner:o = { admins = a1@example.com; }
 network:n1 = { ip = 10.1.1.0/24; }
