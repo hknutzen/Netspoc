@@ -299,9 +299,6 @@ router:u4 = { interface:n4; interface:u4; }
 ############################################################
 =TITLE=Unconnected embedded v4 partition in dual stack area
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 area:a =  { border = interface:r1.n1, interface:r2.n2; }
 network:n1 = { ip = 10.1.1.0/24; partition = n1; }
 network:n2 = { ip6 = 2001:db8:1:2::/64; }
@@ -358,9 +355,6 @@ router:r5 = {
 ############################################################
 =TITLE=Unconnected v6 parts of dual stack area
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 area:a23 =  { border = interface:r1.n2, interface:r3.n3; }
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
 network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }

@@ -209,7 +209,6 @@ Error: Inconsistent definition of IPv6 area:a1 in loop.
  - interface:r1.n2
  - interface:r1.n1
 =END=
-=OPTIONS=--fix_dual_stack_areas
 
 ############################################################
 =TITLE=Overlapping v6 areas
@@ -237,7 +236,6 @@ Error: Overlapping IPv6 area:a1 and IPv6 area:a2
  - only 1. area contains any:[network:n3],
  - only 2. area contains any:[network:n1]
 =END=
-=OPTIONS=--fix_dual_stack_areas
 
 ############################################################
 =TITLE=IPv4 policy_distribution_point at pure IPv6 area

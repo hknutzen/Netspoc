@@ -167,9 +167,6 @@ router:u1 = {
 ############################################################
 =TITLE=Redundant owner at dual stack host
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 owner:o1 = { admins = a1@b.c; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
 network:n1 = {
@@ -195,9 +192,6 @@ Warning: Useless owner:o1 at IPv6 host:h1,
 ############################################################
 =TITLE=Inherit owner from v4 area with embedded v6 part
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 area:v4 = {
  owner = o1;
  router_attributes = { owner = o1; }
@@ -252,9 +246,6 @@ Error: Dual stack network:n1 inherits different IPv4 owner:o2 and IPv6 owner:o1
 ############################################################
 =TITLE=v4 and v6 part of loopback interface inherit different owner
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a1@b.c; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
@@ -299,9 +290,6 @@ Warning: Useless owner:o1 at interface:u1.lo,
 ############################################################
 =TITLE=Dual-stack area with v4 zone connected to two v6 zones
 =INPUT=
---config
-fix_dual_stack_areas = 1
---input
 owner:o1 = { admins = a1@b.c; }
 area:a = { border = interface:r1.n1; owner = o1; }
 network:n1 = { ip = 10.1.1.0/24; }
