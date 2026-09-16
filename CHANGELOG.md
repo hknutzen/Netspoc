@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Dual-Stack networks that inherit different owners are rejected now.
+- Aggregates inside a managed=local cluster that don't match
+  attribute 'filter_only' are rejected now.
+- Program "export-netspoc" no longer exports visible services.
+  Lists are empty now.
+- Config option 'fix_dual_stack_areas' has been changed to default value 1.
+  It will be removed completely in next version of Netspoc.
+
 ## [2026-09-10-1319]
 
 ### Changed
