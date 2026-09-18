@@ -87,13 +87,74 @@ network:n1 = { ip = 10.62.1.32/27; }
 router:r1 = {
  model = ASA;
  managed = local;
- filter_only =  10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24;
+ filter_only =  10.62.1.0/24, 10.62.2.0/24, 10.62.9.0/24;
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
  interface:n2 = { ip = 10.62.2.33; hardware = n2; }
 }
 network:n2 = { ip = 10.62.2.32/27; }
 =WARNING=
-Warning: Useless 'filter_only = 10.62.3.0/24' at router:r1
+Warning: Useless 'filter_only = 10.62.9.0/24' at router:r1
+=END=
+
+############################################################
+=TITLE=Duplicate value in attribute filter_only
+=INPUT=
+network:n1 = { ip = 10.62.1.32/27; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.1.0/24, 10.62.1.0/24, 10.62.1.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+=WARNING=
+Warning: Duplicate value 10.62.1.0/24 in filter_only of router:r1
+Warning: Duplicate value 10.62.1.0/24 in filter_only of router:r1
+=END=
+
+############################################################
+=TITLE=Redundant value in attribute filter_only
+=INPUT=
+network:n1 = { ip = 10.62.1.32/27; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.1.32/27, 10.62.1.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+=WARNING=
+Warning: Useless 'filter_only = 10.62.1.32/27' at router:r1
+=END=
+
+############################################################
+=TITLE=Value should be combined in attribute filter_only
+=INPUT=
+network:n0 = { ip = 10.62.0.0/24; }
+network:n1 = { ip = 10.62.1.0/24; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.0.0/24, 10.62.1.0/24;
+ interface:n0 = { ip = 10.62.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.62.1.1; hardware = n1; }
+}
+=WARNING=
+Warning: 10.62.0.0/24 and 10.62.1.0/24 should be combined to 10.62.0.0/23 in filter_only of router:r1
+=END=
+
+############################################################
+=TITLE=Redundant value inhibits other warning about combined
+=INPUT=
+network:n0 = { ip = 10.62.0.0/24; }
+network:n1 = { ip = 10.62.1.0/24; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.0.0/24, 10.62.1.0/24, 10.62.0.128/25;
+ interface:n0 = { ip = 10.62.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.62.1.1; hardware = n1; }
+}
+=WARNING=
+Warning: Useless 'filter_only = 10.62.0.128/25' at router:r1
 =END=
 
 ############################################################
@@ -137,14 +198,14 @@ router:r1 = {
 router:r2 = {
  model = IOS;
  managed = local;
- filter_only =  10.62.240.0/21, 10.62.0.0/19,;
+ filter_only =  10.62.0.0/19, 10.62.240.0/21,;
  interface:n4 = { ip = 10.62.242.2; hardware = n4; }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 router:r3 = {
  model = IOS;
  managed = local;
- filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.62.32.0/19;
+ filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.63.0.0/16;
  interface:n4 = { ip = 10.62.242.3; hardware = n4; }
  interface:n3 = { ip = 10.62.3.65; hardware = n3; }
 }
@@ -152,6 +213,26 @@ router:r3 = {
 Error: router:r1 and router:r2 must have identical values in attribute 'filter_only'
 Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
 =END=
+
+############################################################
+=TITLE=Values of filter_only are sorted before compare
+=INPUT=
+network:n1 = { ip = 10.62.1.32/27; }
+network:n2 = { ip = 10.62.2.0/27; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.1.0/24, 10.62.2.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.2.0/24, 10.62.1.0/24;
+ interface:n1 = { ip = 10.62.1.34; hardware = n1; }
+ interface:n2 = { ip = 10.62.2.2; hardware = n2; }
+}
+=WARNING=NONE
 
 ############################################################
 # Shared topology

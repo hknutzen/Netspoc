@@ -1669,10 +1669,10 @@ tunnel-group-map default-group VPN-single
 =TITLE=Merge split tunnel lists
 =INPUT=
 [[crypto_vpn]]
-network:work1 = { ip6 = ::a00:100/120; host:h1 = { ip6 = ::a00:10a; } }
-network:work2 = { ip6 = ::a00:200/120; host:h2 = { ip6 = ::a00:20a; } }
-network:work3 = { ip6 = ::a00:300/120; host:h3 = { ip6 = ::a00:30a; } }
-network:work4 = { ip6 = ::a09:400/120; host:h4 = { ip6 = ::a09:40a; } }
+network:work1 = { ip6 = ::a00:100/120;   host:h1 = { ip6 = ::a00:10a; } }
+network:work2 = { ip6 = ::a00:200/120;   host:h2 = { ip6 = ::a00:20a; } }
+network:work3 = { ip6 = ::a00:8200/120; host:h3 = { ip6 = ::a00:820a; } }
+network:work4 = { ip6 = ::a09:400/120;   host:h4 = { ip6 = ::a09:40a; } }
 router:u = {
  interface:work1;
  interface:work2;
@@ -1684,7 +1684,7 @@ network:intern = { ip6 = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- merge_tunnelspecified = ::a00:0/112, ::a09:400/118;
+ merge_tunnelspecified = ::a00:0/113, ::a00:8000/113, ::a09:400/118;
  vpn_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1751,7 +1751,8 @@ service:s4 = {
 =OUTPUT=
 --ipv6/asavpn
 ! split-tunnel-1
-access-list split-tunnel-1 standard permit ::a00:0/112
+access-list split-tunnel-1 standard permit ::a00:0/113
+access-list split-tunnel-1 standard permit ::a00:8000/113
 --
 ! vpn-filter-u1@domain.x
 access-list vpn-filter-u1@domain.x extended permit ip host ::a63:10a any6
@@ -1768,13 +1769,16 @@ username u1@domain.x attributes
  vpn-filter value vpn-filter-u1@domain.x
  vpn-group-policy VPN-group-u1@domain.x
 --
+! split-tunnel-2
+access-list split-tunnel-2 standard permit ::a00:0/113
+--
 ! vpn-filter-u2@domain.x
 access-list vpn-filter-u2@domain.x extended permit ip host ::a63:10b any6
 access-list vpn-filter-u2@domain.x extended deny ip any6 any6
 group-policy VPN-group-u2@domain.x internal
 group-policy VPN-group-u2@domain.x attributes
  banner value Willkommen
- split-tunnel-network-list value split-tunnel-1
+ split-tunnel-network-list value split-tunnel-2
  split-tunnel-policy tunnelspecified
 username u2@domain.x nopassword
 username u2@domain.x attributes
@@ -1783,9 +1787,9 @@ username u2@domain.x attributes
  vpn-filter value vpn-filter-u2@domain.x
  vpn-group-policy VPN-group-u2@domain.x
 --
-! split-tunnel-2
-access-list split-tunnel-2 standard permit ::a00:0/112
-access-list split-tunnel-2 standard permit ::a09:400/118
+! split-tunnel-3
+access-list split-tunnel-3 standard permit ::a00:8000/113
+access-list split-tunnel-3 standard permit ::a09:400/118
 --
 ! vpn-filter-u3@domain.x
 access-list vpn-filter-u3@domain.x extended permit ip host ::a63:10c any6
@@ -1793,7 +1797,7 @@ access-list vpn-filter-u3@domain.x extended deny ip any6 any6
 group-policy VPN-group-u3@domain.x internal
 group-policy VPN-group-u3@domain.x attributes
  banner value Willkommen
- split-tunnel-network-list value split-tunnel-2
+ split-tunnel-network-list value split-tunnel-3
  split-tunnel-policy tunnelspecified
 username u3@domain.x nopassword
 username u3@domain.x attributes
@@ -1802,8 +1806,8 @@ username u3@domain.x attributes
  vpn-filter value vpn-filter-u3@domain.x
  vpn-group-policy VPN-group-u3@domain.x
 --
-! split-tunnel-3
-access-list split-tunnel-3 standard deny any6
+! split-tunnel-4
+access-list split-tunnel-4 standard deny any6
 --
 ! vpn-filter-u4@domain.x
 access-list vpn-filter-u4@domain.x extended permit ip host ::a63:1fe any6
@@ -1811,7 +1815,7 @@ access-list vpn-filter-u4@domain.x extended deny ip any6 any6
 group-policy VPN-group-u4@domain.x internal
 group-policy VPN-group-u4@domain.x attributes
  banner value Willkommen
- split-tunnel-network-list value split-tunnel-3
+ split-tunnel-network-list value split-tunnel-4
  split-tunnel-policy tunnelspecified
 username u4@domain.x nopassword
 username u4@domain.x attributes
@@ -1819,6 +1823,8 @@ username u4@domain.x attributes
  service-type remote-access
  vpn-filter value vpn-filter-u4@domain.x
  vpn-group-policy VPN-group-u4@domain.x
+=WARNING=
+Warning: ::a00:0/113 and ::a00:8000/113 should be combined to ::a00:0/112 in merge_tunnelspecified of router:asavpn
 =END=
 
 ############################################################

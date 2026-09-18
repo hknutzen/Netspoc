@@ -3059,6 +3059,23 @@ func (c *spoc) getIpPrefixList(a *ast.Attribute, ctx string) []netip.Prefix {
 	for _, v := range c.getValueList(a, ctx) {
 		result = append(result, c.convIpPrefix(v, a.Name, ctx))
 	}
+	slices.SortFunc(result, func(a, b netip.Prefix) int { return a.Compare(b) })
+	// Compare addresses pairwise.
+	v1 := result[0]
+	for _, v2 := range result[1:] {
+		if v1 == v2 {
+			c.warn("Duplicate value %s in %s of %s", v1, a.Name, ctx)
+		} else if b := v1.Bits(); b == v2.Bits() {
+			ip := v1.Addr()
+			if combined, _ := ip.Prefix(b - 1); combined.Addr() == ip {
+				if v2.Addr() == netipx.RangeOfPrefix(v1).To().Next() {
+					c.warn("%s and %s should be combined to %s in %s of %s",
+						v1, v2, combined, a.Name, ctx)
+				}
+			}
+		}
+		v1 = v2
+	}
 	return result
 }
 
