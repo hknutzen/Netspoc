@@ -558,7 +558,7 @@ func (c *spoc) setArea1(
 			// Collect all objects reachable by z.
 			c.setArea(z, a46, nil, m2, m1, inArea)
 		}
-		if z := x.combined46; z != nil && c.conf.FixDualStackAreas {
+		if z := x.combined46; z != nil {
 			collect(z)
 			for _, z := range x.combined46Other {
 				collect(z)

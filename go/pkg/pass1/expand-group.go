@@ -256,16 +256,6 @@ func (c *spoc) expandGroup1(
 		return !(intf.ipType == tunnelIP ||
 			visible && (intf.ipType == unnumberedIP || intf.ipType == bridgedIP))
 	}
-	withCombinedZones := func(a *area, f func(*zone)) {
-		for _, z := range a.zones {
-			f(z)
-			if !c.conf.FixDualStackAreas && !a.isCombined46() {
-				if z6 := z.combined46; z6 != nil {
-					f(z6)
-				}
-			}
-		}
-	}
 	if len(list) == 0 {
 		c.warn("%s is empty", ctx)
 	}
@@ -380,7 +370,7 @@ func (c *spoc) expandGroup1(
 
 						// Add managed routers at border of security zones
 						// inside current area.
-						withCombinedZones(x, func(z *zone) {
+						for _, z := range x.zones {
 							for _, intf := range z.interfaces {
 								r := intf.router
 								if !seen[r] && (r.managed != "" || r.routingOnly) {
@@ -388,9 +378,9 @@ func (c *spoc) expandGroup1(
 									routers = append(routers, r)
 								}
 							}
-						})
+						}
 					} else {
-						withCombinedZones(x, func(z *zone) {
+						for _, z := range x.zones {
 							processWithSubnetworks(z.networks, func(n *network) {
 								for _, intf := range n.interfaces {
 									r := intf.router
@@ -400,7 +390,7 @@ func (c *spoc) expandGroup1(
 									}
 								}
 							})
-						})
+						}
 					}
 					if selector == "all" {
 						for _, r := range routers {
@@ -473,13 +463,13 @@ func (c *spoc) expandGroup1(
 				switch x := obj.(type) {
 				case *area:
 					seen := make(map[*zone]bool)
-					withCombinedZones(x, func(z *zone) {
+					for _, z := range x.zones {
 						z = z.cluster[0]
 						if !seen[z] {
 							seen[z] = true
 							zones = append(zones, z)
 						}
-					})
+					}
 				case *network:
 					if x.isAggregate {
 						zones = append(zones, x.zone)
