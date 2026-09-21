@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- If IP/prefix values in 'filter_only' should be combined a warning is shown.
+
 ## [2026-09-16-1647]
 
 ### Changed
