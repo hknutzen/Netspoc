@@ -629,6 +629,7 @@ service:test = {
               icmp 4,
               icmp 5,
               icmp 6/0,
+              icmp 6/10,
               icmp 8,
               icmp 9,
               icmp 11,
@@ -664,6 +665,7 @@ service:test = {
     "source-quench",
     "redirect",
     "icmp_6/0",
+    "icmp_6/10",
     "echo-request",
     "icmp_9",
     "param-prblm",
@@ -754,6 +756,11 @@ service:test = {
    "name": "icmp_6/0",
    "icmp-type": 6,
    "icmp-code": 0
+  },
+  {
+   "name": "icmp_6/10",
+   "icmp-type": 6,
+   "icmp-code": 10
   },
   {
    "name": "icmp_9",
