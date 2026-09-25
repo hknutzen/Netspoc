@@ -774,12 +774,12 @@ func (c *spoc) processAggregates() {
 		if agg.ipp == unset {
 			// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
 			z = agg.link.zone.cluster[0]
-			c.checkDualStackZone(z)
 			agg.ipp = c.getNetwork00(z.ipV6).ipp
 			agg.ipV6 = z.ipV6
 			process(agg, z)
 			// Add non matching aggregate to combined zone.
 			if z2 := z.combined46; z2 != nil {
+				c.checkDualStackZone(z)
 				agg2 := *agg
 				agg2.ipV6 = z2.ipV6
 				agg2.ipp = c.getNetwork00(agg2.ipV6).ipp
