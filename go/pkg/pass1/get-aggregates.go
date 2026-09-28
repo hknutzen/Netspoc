@@ -221,8 +221,6 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 }
 
 // getZone finds or creates an aggregate in given zone.
-// If zone is dual-stack and if ipp is unset, result is pair of
-// dual-stack aggregates.
 func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 ) netList {
 	var unset netip.Prefix
@@ -230,9 +228,6 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 		// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
 		if z0 := z.cluster[0]; z0.combined46 != nil {
 			z = z0
-			if z.ipV6 {
-				z = z.combined46
-			}
 		}
 		ipp = c.getNetwork00(z.ipV6).ipp
 		result := c.getAny1(z, ipp, visible, ctx)
@@ -245,7 +240,7 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 			// Process only once if called from different part of zone cluster
 			// or from combined46 zone.
 			firstRun := z2.ipPrefix2aggregate[ipp2] == nil
-			result = append(result, c.getAny1(z2, ipp2, visible, ctx)...)
+			c.getAny1(z2, ipp2, visible, ctx)
 			if firstRun {
 				a4 := z.ipPrefix2aggregate[ipp]
 				a6 := z2.ipPrefix2aggregate[ipp2]

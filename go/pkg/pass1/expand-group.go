@@ -649,11 +649,25 @@ func (c *spoc) expandGroup1(
 							}
 						}
 					} else if l := getNetworks(obj, false); l != nil {
+						var unset netip.Prefix
 						for _, n := range l {
-							for _, a := range c.getAny(n.zone, ipp, visible, ctx) {
-								if !seen[a] {
-									seen[a] = true
-									result.push(a)
+							add := func(z *zone) {
+								for _, a := range c.getAny(z, ipp, visible, ctx) {
+									if !seen[a] {
+										seen[a] = true
+										result.push(a)
+									}
+								}
+							}
+							z := n.zone
+							add(z)
+							// If network is single-stack and
+							// if zone is dual-stack and ipp is unset,
+							// then also add IPv6 aggregate.
+							z0 := z.cluster[0]
+							if ipp == unset && n.combined46 == nil {
+								if z6 := z0.combined46; z6 != nil {
+									add(z6)
 								}
 							}
 						}

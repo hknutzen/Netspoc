@@ -2269,3 +2269,43 @@ service:s1 = {
 =WARNING=
 Warning: Ignoring 'ipv4_only' in service:s1, because no combined IPv4/IPv6 objects are in use
 =END=
+
+############################################################
+=TITLE=Unconnected v6 parts of dual stack area
+=INPUT=
+area:a23 =  { border = interface:r1.n2, interface:r3.n3; }
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; ip6 = 2001:db8:1:1::2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; hardware = n3; }
+}
+service:s1 = {
+ user = network:[area:a23];
+ permit src = user; dst = user; prt = icmp, icmpv6;
+}
+=OUTPUT=
+--ipv6/r1
+! n2_in
+access-list n2_in extended permit icmp6 2001:db8:1:2::/64 2001:db8:1:3::/64
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+--ipv6/r3
+! n1_in
+access-list n1_in extended permit icmp6 2001:db8:1:2::/64 2001:db8:1:3::/64
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=

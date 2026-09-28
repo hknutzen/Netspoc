@@ -270,8 +270,8 @@ router:Internet = {
 }
 =OUTPUT=
 0.0.0.0/0	network:Internet
-::/0	network:Internet
 10.1.1.0/24	network:n1
+::/0	network:Internet
 2001:db8:1:1::/64	network:n1
 =PARAM=network:[area:Internet]
 
@@ -314,8 +314,8 @@ router:u4 = { interface:n4; interface:u4; }
 =OUTPUT=
 10.1.1.0/24	network:n1
 10.1.4.0/24	network:n4
-2001:db8:1:4::/64	network:n4
 10.1.3.0/24	network:n3
+2001:db8:1:4::/64	network:n4
 2001:db8:1:3::/64	network:n3
 2001:db8:1:2::/64	network:n2
 =PARAM=network:[area:a]
@@ -369,11 +369,11 @@ router:r5 = {
 =OUTPUT=
 10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
-2001:db8:1:3::/64	network:n3
 10.1.4.0/24	network:n4
-2001:db8:1:4::/64	network:n4
 10.1.5.0/24	network:n5
+2001:db8:1:3::/64	network:n3
 2001:db8:1:2::/64	network:n2
+2001:db8:1:4::/64	network:n4
 =PARAM=network:[area:a]
 
 ############################################################
@@ -403,7 +403,7 @@ router:r3 = {
 }
 =OUTPUT=
 10.1.2.0/24	network:n2
-2001:db8:1:2::/64	network:n2
 10.1.3.0/24	network:n3
+2001:db8:1:2::/64	network:n2
 2001:db8:1:3::/64	network:n3
 =PARAM=network:[area:a23]
