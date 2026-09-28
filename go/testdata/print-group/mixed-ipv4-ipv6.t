@@ -157,6 +157,30 @@ short	interface:r1.n2
 =PARAM=interface:[area:all].[all]
 
 ############################################################
+=TITLE=Dual-stack network of v4 host
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64;
+ host:h4 = { ip = 10.1.1.4; }
+}
+=OUTPUT=
+10.1.1.0/24	network:n1
+2001:db8:1:1::/64	network:n1
+=PARAM=network:[host:h4]
+
+############################################################
+=TITLE=Dual-stack network of v4 interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+}
+=OUTPUT=
+10.1.1.0/24	network:n1
+2001:db8:1:1::/64	network:n1
+=PARAM=network:[interface:r1.[all]]
+
+############################################################
 =TEMPL=topo
 area:all = { anchor = network:n1; }
 network:n1 = { ip = 10.1.1.0/24;

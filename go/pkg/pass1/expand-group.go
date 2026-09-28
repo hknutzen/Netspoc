@@ -497,15 +497,21 @@ func (c *spoc) expandGroup1(
 				result := netList{}
 				switch x := obj.(type) {
 				case *host:
-					return netList{x.network}
+					n := x.network
+					if n6 := n.combined46; n6 != nil && x.combined46 == nil {
+						return netList{n, n6}
+					}
+					return netList{n}
 				case *routerIntf:
-
 					// Ignore network at managed loopback interface.
 					if x.loopback && x.router.managed != "" {
 						return netList{}
-					} else {
-						return netList{x.network}
 					}
+					n := x.network
+					if n6 := n.combined46; n6 != nil && x.combined46 == nil {
+						return netList{n, n6}
+					}
+					return netList{n}
 				case *network:
 					if !x.isAggregate {
 						result.push(x)
