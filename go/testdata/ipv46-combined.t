@@ -1701,11 +1701,27 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; hardware = n2; }
 }
 router:r2 = {
- interface:n1 = { ip = 10.1.1.2; }
- interface:n2 = { ip = 10.1.2.2; }
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
 pathrestriction:p = interface:r1.n1, interface:r1.n2;
-=WARNING=NONE
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = icmp, icmpv6;
+}
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--ipv6/r1
+! n1_in
+access-list n1_in extended permit icmp6 2001:db8:1:1::/64 2001:db8:1:2::/64
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=
 
 ############################################################
 =TITLE=Only one v4 or v6 name in combined zone
