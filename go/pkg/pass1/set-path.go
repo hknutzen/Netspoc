@@ -449,7 +449,7 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(
 			continue
 		}
 
-		// At most most one interface must be located at border of loop.
+		// At most one interface must be located at border of loop.
 		if intf.loop == nil {
 			if firstBorder != nil {
 				showWarn("Ignoring %s of %s.\n Pathrestriction must not have"+
