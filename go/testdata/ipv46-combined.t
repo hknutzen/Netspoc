@@ -813,6 +813,71 @@ Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zone
 =END=
 
 ############################################################
+=TITLE=Two v4 zones with single v6 zone referenced from area
+=INPUT=
+[[INPUT]]
+area:a126 = { border = interface:r0.n1; }
+network:n0 = { ip = 10.1.0.0/24; ip6 = 2001:db8:1:0::/64; }
+router:r0 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n0 = { ip = 10.1.0.1; ip6 = 2001:db8:1:0::1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+service:s1 = {
+ user = network:[area:a126];
+ permit src = network:n0; dst = user; prt = tcp 80;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Two v4 zones with single v6 zone, with aggregate referenced from area
+=INPUT=
+[[INPUT]]
+area:a126 = { border = interface:r0.n1; }
+network:n0 = { ip = 10.1.0.0/24; ip6 = 2001:db8:1:0::/64; }
+router:r0 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n0 = { ip = 10.1.0.1; ip6 = 2001:db8:1:0::1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+service:s1 = {
+ user = network:[any:[area:a126]];
+ permit src = network:n0; dst = user; prt = tcp 80;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Two v4 zones with single v6 zone, with area and aggregate
+=INPUT=
+[[INPUT]]
+area:a126 = { border = interface:r0.n1; }
+network:n0 = { ip = 10.1.0.0/24; ip6 = 2001:db8:1:0::/64; }
+router:r0 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n0 = { ip = 10.1.0.1; ip6 = 2001:db8:1:0::1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; hardware = n1; }
+}
+service:s1 = {
+ user = network:[area:a126];
+ permit src = network:n0; dst = user; prt = tcp 80;
+}
+service:s2 = {
+ user = any:[network:n1];
+ permit src = network:n0; dst = user; prt = icmp 8;
+}
+=ERROR=
+Error: IPv6 zone "any:[network:n1]" must not be connected to different IPv4 zones:
+- any:[network:n1]
+- any:[network:n2]
+=END=
+
+############################################################
 =TITLE=Two v6 zones combined with single v4 zone, with named aggregate
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }

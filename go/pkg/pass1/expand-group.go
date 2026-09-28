@@ -458,7 +458,8 @@ func (c *spoc) expandGroup1(
 			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, false, false)
 
-			getAggregates := func(obj groupObj, ipp netip.Prefix) netList {
+			getAggregates := func(obj groupObj, ipp netip.Prefix, visible bool,
+			) netList {
 				var zones []*zone
 				switch x := obj.(type) {
 				case *area:
@@ -517,7 +518,7 @@ func (c *spoc) expandGroup1(
 					}
 				case *area:
 					unset := netip.Prefix{}
-					list := getAggregates(obj, unset)
+					list := getAggregates(obj, unset, false)
 					for _, agg := range list {
 
 						// Check type, because getAggregates potentially
@@ -634,7 +635,7 @@ func (c *spoc) expandGroup1(
 						}
 						continue
 					}
-					if l := getAggregates(obj, ipp); l != nil {
+					if l := getAggregates(obj, ipp, visible); l != nil {
 						for _, agg := range l {
 							if !seen[agg] {
 								seen[agg] = true

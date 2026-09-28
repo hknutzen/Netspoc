@@ -814,11 +814,11 @@ func (c *spoc) checkDualStackZone(z *zone) {
 					ipvx(z.ipV6), z.name, ipvx(z2.ipV6), z.combined46.name, z2.name)
 			}
 		}
+		// Show error message only once.
+		z.combined46Other = nil
 	}
-	if z2 := z.combined46; z2 != nil {
-		check(z)
-		check(z2)
-	}
+	check(z)
+	check(z.combined46)
 }
 
 func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {

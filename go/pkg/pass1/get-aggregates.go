@@ -238,13 +238,15 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 		result := c.getAny1(z, ipp, visible, ctx)
 		// Add non matching aggregate to dual stack zone.
 		if z2 := z.combined46; z2 != nil {
+			if visible {
+				c.checkDualStackZone(z)
+			}
 			ipp2 := c.getNetwork00(z2.ipV6).ipp
 			// Process only once if called from different part of zone cluster
 			// or from combined46 zone.
 			firstRun := z2.ipPrefix2aggregate[ipp2] == nil
 			result = append(result, c.getAny1(z2, ipp2, visible, ctx)...)
 			if firstRun {
-				c.checkDualStackZone(z2)
 				a4 := z.ipPrefix2aggregate[ipp]
 				a6 := z2.ipPrefix2aggregate[ipp2]
 				if a4.name != a6.name {

@@ -174,7 +174,7 @@ router:r1 = {
 =END=
 
 ############################################################
-=TITLE=Combined non matching aggregates of v4 area
+=TITLE=Combined non matching aggregates of combined area with v4 anchor
 =INPUT=[[topo]]
 =OUTPUT=
 0.0.0.0/0	any:[network:n1]
@@ -183,7 +183,7 @@ router:r1 = {
 =PARAM=any:[area:all]
 
 ############################################################
-=TITLE=Combined networks of v4 area
+=TITLE=Combined networks of combined area with v4 anchor
 =INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24	network:n1
@@ -192,7 +192,7 @@ router:r1 = {
 =PARAM=network:[area:all]
 
 ############################################################
-=TITLE=Combined hosts of v4 area
+=TITLE=Combined hosts of combined area with v4 anchor
 =INPUT=[[topo]]
 =OUTPUT=
 10.1.1.4	host:h4
@@ -201,7 +201,7 @@ router:r1 = {
 =PARAM=host:[area:all]
 
 ############################################################
-=TITLE=Combined interfaces of v4 area
+=TITLE=Combined interfaces of combined area with v4 anchor
 =INPUT=[[topo]]
 =OUTPUT=
 10.1.1.1	interface:r1.n1
