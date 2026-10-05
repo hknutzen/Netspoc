@@ -395,7 +395,7 @@ service:s2 = {
 # Only first error is shown.
 =ERROR=
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:s1
+ permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:s1
 =END=
 
 ############################################################
@@ -4575,6 +4575,8 @@ service:s1 = {
  permit src = user; dst = network:n3; prt = tcp 80;
 }
 =ERROR=
+Error: Must not use any:[ip = 10.1.1.0/26 & ..] in user of service:s1
+ because it is subnet of network:n1 which is translated by nat:a
 Error: Must not use any:[ip = 10.1.1.0/26 & ..] in user of service:s1
  because it has address of network:n1s which is translated by nat:a
 =END=

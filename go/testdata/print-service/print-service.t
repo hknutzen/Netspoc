@@ -197,7 +197,7 @@ service:s2 = {
  permit src = user; dst = any:[ip=10.1.1.0/24 & network:n2]; prt = tcp 81;
 }
 =OUTPUT=
-s1:permit network:n3 any:[network:n2] tcp 80
+s1:permit network:n3 any:[network:n1] tcp 80
 s2:permit network:n3 network:n1 tcp 81
 =OPTIONS=--name
 

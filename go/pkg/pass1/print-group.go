@@ -171,6 +171,11 @@ func (c *spoc) printGroup(
 			result.push(printAddress(ob, natMap))
 		}
 		if showName {
+			if n, ok := ob.(*network); ok && n.isAggregate {
+				if n.zone != n.zone.cluster[0] {
+					continue
+				}
+			}
 			result.push(ob.String())
 		}
 		if showOwner || showAdmins {

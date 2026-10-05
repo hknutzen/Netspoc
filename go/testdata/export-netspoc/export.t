@@ -387,24 +387,30 @@ service:s1 = {
   "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "clients",
-  "zone": "any:[network:tunnel:vpn1]"
+  "zone": "any:[network:clients]"
  },
  "interface:vpn1.clients": {
   "ip": "short",
   "nat": { "clients": "short" },
   "owner": "clients",
-  "zone": "any:[network:tunnel:vpn1]"
+  "zone": "any:[network:clients]"
  },
  "network:clients": {
   "ip": "10.99.1.0/24",
   "nat": { "clients": "10.9.9.0/24" },
   "owner": "clients",
-  "zone": "any:[network:tunnel:vpn1]"
+  "zone": "any:[network:clients]"
  },
  "network:n1": {
   "ip": "10.1.1.0/24",
   "zone": "any:[network:n1]"
  }
+}
+--owner/clients/users
+{
+ "s1": [
+  "any:[network:clients]"
+ ]
 }
 =END=
 
@@ -1015,7 +1021,7 @@ service:s2 = {
    {
     "action": "permit",
     "dst": [
-     "any:[network:n2]"
+     "any:[network:n1]"
     ],
     "has_user": "src",
     "prt": [
@@ -1071,6 +1077,10 @@ router:inet = {
  interface:Internet = { nat_out = inet; }
 }
 network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+service:s1 = {
+ user = network:Big;
+ permit src = user; dst = any:[network:Internet]; prt = tcp 80;
+}
 =OUTPUT=
 -- objects
 {
@@ -1083,17 +1093,17 @@ network:Internet = { ip = 0.0.0.0/0; has_subnets; }
  },
  "interface:asa.DMZ": {
   "ip": "10.9.9.1",
-  "zone": "any:[network:DMZ]"
+  "zone": "network:Internet"
  },
  "interface:inet.DMZ": {
   "ip": "short",
   "owner": "x",
-  "zone": "any:[network:DMZ]"
+  "zone": "network:Internet"
  },
  "interface:inet.Internet": {
   "ip": "short",
   "owner": "x",
-  "zone": "any:[network:DMZ]"
+  "zone": "network:Internet"
  },
  "network:Big": {
   "ip": "10.1.0.0/16",
@@ -1106,13 +1116,32 @@ network:Internet = { ip = 0.0.0.0/0; has_subnets; }
  "network:DMZ": {
   "ip": "10.9.9.0/24",
   "owner": "x",
-  "zone": "any:[network:DMZ]"
+  "zone": "network:Internet"
  },
  "network:Internet": {
   "ip": "0.0.0.0/0",
   "is_supernet": 1,
   "owner": "x",
-  "zone": "any:[network:DMZ]"
+  "zone": "network:Internet"
+ }
+}
+-- services
+{
+ "s1": {
+  "details": {"owner": ["x"]},
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:Internet"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
+   }
+  ]
  }
 }
 =END=
@@ -2335,6 +2364,91 @@ service:s2 = {
  "s2": [
   "any:[network:n1]"
  ]
+}
+=END=
+
+############################################################
+=TITLE=Network in zone cluster used as network and as aggregate
+=INPUT=
+owner:o = {admins = a@b.c;}
+network:n1 = {ip = 10.1.1.0/24; owner = o;}
+network:n2 = {ip = 10.1.2.0/24; owner = o;}
+network:n3 = {ip = 10.1.3.0/24; owner = o;}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2;}
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.2; hardware = n1;}
+ interface:n3 = {ip = 10.1.3.2; hardware = n3;}
+}
+router:r3 = {
+ interface:n2 = {ip = 10.1.2.3;}
+ interface:n3 = {ip = 10.1.3.3;}
+}
+pathrestriction:p = interface:r2.n3, interface:r3.n3;
+service:s1 = {
+ user = any:[ip=10.1.2.0/24 & network:n2];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = network:n1; dst = user; prt = tcp 81;
+}
+=OUTPUT=
+-- objects
+{
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "zone": "any:[network:n1]"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1",
+  "zone": "any:[network:n2]"
+ },
+ "interface:r2.n1": {
+  "ip": "10.1.1.2",
+  "zone": "any:[network:n1]"
+ },
+ "interface:r2.n3": {
+  "ip": "10.1.3.2",
+  "zone": "any:[network:n2]"
+ },
+ "interface:r3.n2": {
+  "ip": "10.1.2.3",
+  "owner": "o",
+  "zone": "any:[network:n2]"
+ },
+ "interface:r3.n3": {
+  "ip": "10.1.3.3",
+  "owner": "o",
+  "zone": "any:[network:n2]"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/24",
+  "owner": "o",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/24",
+  "is_supernet": 1,
+  "owner": "o",
+  "zone": "any:[network:n2]"
+ },
+ "network:n3": {
+  "ip": "10.1.3.0/24",
+  "owner": "o",
+  "zone": "any:[network:n2]"
+ }
+}
+--owner/o/users
+{
+ "s1": [ "network:n2" ],
+ "s2": [ "network:n2" ]
 }
 =END=
 

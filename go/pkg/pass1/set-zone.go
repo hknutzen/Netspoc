@@ -163,6 +163,13 @@ func (c *spoc) clusterZones() {
 					cluster[0], cluster[i] = cluster[i], cluster[0]
 				}
 			}
+			// cluster[0] must not be tunnel zone, since its name is used
+			// in export-netspoc.
+			if strings.HasPrefix(cluster[0].name, "any:[network:tunnel:") {
+				if len(cluster) >= 2 {
+					cluster[0], cluster[1] = cluster[1], cluster[0]
+				}
+			}
 		}
 	}
 }

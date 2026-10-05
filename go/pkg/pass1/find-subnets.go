@@ -594,7 +594,7 @@ func markSupernetsOfAggregates(
 	identical map[*network]netList,
 ) {
 	for _, a := range networks {
-		if a.isAggregate && !a.invisible {
+		if a.isAggregate && a.visible {
 			ipp := a.ipp
 			ip := ipp.Addr()
 			bits := ipp.Bits()

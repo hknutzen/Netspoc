@@ -191,7 +191,7 @@ func (c *spoc) markManagedLocal() {
 				if agg.ipp.Bits() == 0 && !strings.HasPrefix(agg.name, "any:[") {
 					m := getMap(agg)
 					m[cl.mark] = true
-				} else if !agg.invisible {
+				} else if agg.visible {
 					c.err("%s doesn't match attribute 'filter_only' of %s",
 						agg.vxName(), cl.router.vxName())
 				}

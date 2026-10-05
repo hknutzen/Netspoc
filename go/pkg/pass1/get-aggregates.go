@@ -119,6 +119,8 @@ func propagateOwnerToAggregates(agg *network) {
 			}
 		}
 		processWithSubnetworks(z.networks, inherit)
+		// Inversed inherit from named aggregate or from unnamed aggregate
+		// that just inherited an owner.
 		for _, agg3 := range z.ipPrefix2aggregate {
 			if !strings.HasPrefix(agg3.name, "any:[") {
 				inherit(agg3)
@@ -167,7 +169,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 			isAggregate: true,
 			ipp:         n.ipp,
 			ipV6:        n.ipV6,
-			invisible:   n.invisible,
+			visible:     n.visible,
 			owner:       n.owner,
 			attr:        n.attr,
 			// Create copy of NAT map for zones in cluster.
@@ -201,8 +203,6 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 //            networks inside a zone. Therefore, every zone inside a cluster
 //            gets its own copy of the defined aggregate to collect the zones
 //            networks matching the aggregates IP address.
-// TODD     : Aggregate may be a non aggregate network,
-//            e.g. a network with ip/mask 0/0. ??
 */
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	// Process every zone of the zone cluster, v4 and dual stack.
@@ -220,15 +220,18 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	}
 }
 
-// getZone finds or creates an aggregate in given zone.
+// getAny finds or creates an aggregate in given zone.
+// As a special case, the result may be a network if
+// a network having the requested IP/prefix already exists in the zone.
+//
+// If zone is part of a zone cluster, aggregates are created in each
+// zone of the cluster and all of them get the same name.
+// This is used later in programs 'print-group' and 'export-netspoc'
+// to remove duplicate occurrences of aggregates in zone clusters.
 func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
-) netList {
+) *network {
 	var unset netip.Prefix
 	if ipp == unset {
-		// Make sure to get dual stack zone in mixed v4, v6, v46 cluster.
-		if z0 := z.cluster[0]; z0.combined46 != nil {
-			z = z0
-		}
 		ipp = c.getNetwork00(z.ipV6).ipp
 		result := c.getAny1(z, ipp, visible, ctx)
 		// Add non matching aggregate to dual stack zone.
@@ -256,11 +259,11 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 				}
 				for _, z4 := range z.cluster {
 					if z6 := z4.combined46; z6 != nil {
-						n4 := z4.ipPrefix2aggregate[ipp]
-						n6 := z6.ipPrefix2aggregate[ipp2]
-						if n4.name == n6.name {
-							n4.combined46 = n6
-							n6.combined46 = n4
+						a4 := z4.ipPrefix2aggregate[ipp]
+						a6 := z6.ipPrefix2aggregate[ipp2]
+						if a4.name == a6.name {
+							a4.combined46 = a6
+							a6.combined46 = a4
 						}
 					}
 				}
@@ -273,9 +276,8 @@ func (c *spoc) getAny(z *zone, ipp netip.Prefix, visible bool, ctx string,
 }
 
 func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
-) netList {
+) *network {
 	if z.ipPrefix2aggregate[ipp] == nil {
-
 		// Check, if there is a network with same IP as the requested
 		// aggregate. If found, don't create a new aggregate in zone,
 		// but use the network instead. Otherwise .up relation
@@ -291,18 +293,15 @@ func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
 			return nil
 		}
 		if n := findNet(); n != nil {
-
 			// Handle network like an aggregate.
 			n.zone.ipPrefix2aggregate[ipp] = n
 			if n6 := n.combined46; n6 != nil {
 				// Must also use IPv6 network as aggregate.
 				n6.zone.ipPrefix2aggregate[n6.ipp] = n6
 			}
-
 			// Create aggregates in cluster, using the name of the network.
 			c.duplicateAggregateToCluster(n, true)
 		} else {
-
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
 			if ipp.Bits() != 0 {
@@ -315,50 +314,44 @@ func (c *spoc) getAny1(z *zone, ipp netip.Prefix, visible bool, ctx string,
 				name:        name,
 				isAggregate: true,
 				ipp:         ipp,
-				invisible:   !visible,
 				ipV6:        z.ipV6,
 			}
 			c.linkImplicitAggregateToZone(agg, z)
 			c.duplicateAggregateToCluster(agg, true)
 		}
 	}
-	var result netList
-	var super *network
-	for _, z := range z.cluster {
-		aggOrNet := z.ipPrefix2aggregate[ipp]
-		result.push(aggOrNet)
-		if visible {
-			// Mark aggregate as visible for findZoneNetworks.
-			aggOrNet.invisible = false
-			// Find smallest non aggregate supernet of aggregates in
-			// cluster for checking error condition.
-			// Only needed if result will be visible.
-			s := aggOrNet
+	result := z.ipPrefix2aggregate[ipp]
+	if visible {
+		// Find smallest non aggregate supernet of aggregates in
+		// zone for checking error condition.
+		// Only needed if result changes from invisible to visible.
+		if !result.visible {
+			s := result
 			for s.isAggregate {
 				s = s.up
 				if s == nil {
 					break
 				}
 			}
-			if s != nil && (super == nil || super.ipp.Bits() < s.ipp.Bits()) {
-				super = s
-			}
-		}
-	}
-	// Check error condition.
-	if super != nil {
-		for tag, nat := range super.nat {
-			if !nat.hidden {
-				relation := "has address"
-				if super.ipp.Bits() != ipp.Bits() {
-					relation = "is subnet"
+			// Check error condition.
+			if s != nil {
+				for tag, nat := range s.nat {
+					if !nat.hidden {
+						relation := "has address"
+						if s.ipp.Bits() != ipp.Bits() {
+							relation = "is subnet"
+						}
+						c.err("Must not use any:[%s = %s & ..] in %s\n"+
+							" because it %s of %s which is translated by nat:%s",
+							v6Attr("ip", s.ipV6),
+							ipp, ctx, relation, s, tag)
+					}
 				}
-				c.err("Must not use any:[%s = %s & ..] in %s\n"+
-					" because it %s of %s which is translated by nat:%s",
-					v6Attr("ip", super.ipV6),
-					ipp, ctx, relation, super, tag)
 			}
 		}
+		// Mark aggregate as visible for findZoneNetworks
+		// and show error above only once.
+		result.visible = true
 	}
 	return result
 }

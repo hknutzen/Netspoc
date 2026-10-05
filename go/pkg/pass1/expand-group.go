@@ -463,17 +463,10 @@ func (c *spoc) expandGroup1(
 				var zones []*zone
 				switch x := obj.(type) {
 				case *area:
-					seen := make(map[*zone]bool)
-					for _, z := range x.zones {
-						z = z.cluster[0]
-						if !seen[z] {
-							seen[z] = true
-							zones = append(zones, z)
-						}
-					}
+					zones = x.zones
 				case *network:
 					if x.isAggregate {
-						zones = append(zones, x.zone)
+						zones = []*zone{x.zone}
 					}
 				}
 				if zones == nil {
@@ -481,15 +474,14 @@ func (c *spoc) expandGroup1(
 				}
 				result := netList{}
 				for _, z := range zones {
-
-					// Silently ignore loopback aggregate.
+					// Silently ignore loopback zone.
 					if len(z.networks) == 1 {
 						n := z.networks[0]
 						if n.loopback && n.interfaces[0].router.managed != "" {
 							continue
 						}
 					}
-					result = append(result, c.getAny(z, ipp, visible, ctx)...)
+					result = append(result, c.getAny(z, ipp, visible, ctx))
 				}
 				return result
 			}
@@ -649,10 +641,10 @@ func (c *spoc) expandGroup1(
 							}
 						}
 					} else if l := getNetworks(obj, false); l != nil {
-						var unset netip.Prefix
 						for _, n := range l {
 							add := func(z *zone) {
-								for _, a := range c.getAny(z, ipp, visible, ctx) {
+								for _, z1 := range z.cluster {
+									a := c.getAny(z1, ipp, visible, ctx)
 									if !seen[a] {
 										seen[a] = true
 										result.push(a)
@@ -662,10 +654,10 @@ func (c *spoc) expandGroup1(
 							z := n.zone
 							add(z)
 							// If network is single-stack and
-							// if zone is dual-stack and ipp is unset,
+							// if zone is dual-stack and IP is unset,
 							// then also add IPv6 aggregate.
 							z0 := z.cluster[0]
-							if ipp == unset && n.combined46 == nil {
+							if x.Net == "" && n.combined46 == nil {
 								if z6 := z0.combined46; z6 != nil {
 									add(z6)
 								}

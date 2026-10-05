@@ -1152,7 +1152,7 @@ func rangeSize(rg netipx.IPRange) []int {
 
 func (c *spoc) setupAggregate(v *ast.TopStruct) {
 	name := v.Name
-	ag := &network{name: name, isAggregate: true}
+	ag := &network{name: name, isAggregate: true, visible: true}
 	agName := name[len("any:"):]
 	c.symTable.aggregate[agName] = ag
 	hasLink := false

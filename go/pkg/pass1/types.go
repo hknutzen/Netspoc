@@ -171,7 +171,7 @@ type network struct {
 	hosts                []*host
 	identity             bool
 	interfaces           intfList
-	invisible            bool
+	visible              bool
 	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool

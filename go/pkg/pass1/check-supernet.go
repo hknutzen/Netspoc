@@ -103,7 +103,7 @@ func findZoneNetworks(
 		}
 	}
 	agg := z.ipPrefix2aggregate[ipp]
-	if agg != nil && !agg.invisible {
+	if agg != nil && agg.visible {
 		if inNetMap(agg) {
 			return nil, nil
 		}
@@ -150,7 +150,7 @@ func findZoneNetworks(
 		for _, agg := range z.ipPrefix2aggregate {
 			// Igore aggregate with networks, because these networks
 			// have already been checked above.
-			if !agg.invisible && len(agg.networks) == 0 && !inNetMap(agg) {
+			if agg.visible && len(agg.networks) == 0 && !inNetMap(agg) {
 				if agg.ipp.Bits() >= bits && ipp.Contains(agg.ipp.Addr()) {
 					l.push(agg)
 				}
