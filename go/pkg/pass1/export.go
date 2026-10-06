@@ -150,11 +150,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 }
 
 func (c *spoc) getZoneName(z *zone) string {
-	// Ignore IPv6 part of dual stack zone.
-	// This must match check in exportZone2Areas.
-	if z.ipV6 && z.combined46 != nil {
-		z = z.combined46
-	}
 	ipp := c.getNetwork00(z.ipV6).ipp
 	agg := z.ipPrefix2aggregate[ipp]
 	if agg != nil && !strings.HasPrefix(agg.name, "any:[") {
