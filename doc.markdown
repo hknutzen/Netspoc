@@ -20,6 +20,8 @@ layout: default
 
 [remove-from-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/removefrom/remove-from-netspoc.1.md)
 
+[remove-service](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/removeservice/remove-service.1.md)
+
 [rename-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/rename/rename-netspoc.1.md)
 
 [expand-group](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/expand/expand-group.1.md)
@@ -39,3 +41,9 @@ layout: default
 [cut-netspoc](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/cut-netspoc.1.md)
 
 [check-acl](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass2/check-acl.1.md)
+
+[transpose-service](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/transposeservice/transpose-service.1.md)
+
+[print-path](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/print-path.1.md)
+
+[export-netvis](https://github.com/hknutzen/Netspoc/blob/master/go/pkg/pass1/export-netvis.1.md)
