@@ -62,6 +62,28 @@ Error: IPv6 address expected in any:[ip6 = 10.1.0.0/16 & ..] of group:g1
 =PARAM=group:g1
 
 ############################################################
+=TITLE=Networks of named matching v4 and v6 aggregates
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; ip6 = 2001:db8:1:1::/64; }
+network:n2 = { ip = 10.1.2.0/24; ip6 = 2001:db8:1:2::/64; }
+network:n3 = { ip = 10.1.3.0/24; ip6 = 2001:db8:1:3::/64; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; ip6 = 2001:db8:1:1::1; }
+ interface:n2 = { ip = 10.1.2.1; ip6 = 2001:db8:1:2::1; }
+ interface:n3 = { ip = 10.1.3.1; ip6 = 2001:db8:1:3::1; }
+}
+any:10_1-20 = { ip = 10.1.0.0/20; link = network:n1; }
+any:2001_db8_1-48 = { ip6 = 2001:db8:1::/48; link = network:n1; }
+=OUTPUT=
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+2001:db8:1:1::/64	network:n1
+2001:db8:1:2::/64	network:n2
+2001:db8:1:3::/64	network:n3
+=PARAM=network:[any:[ip=10.1.0.0/20 & network:n1], any:[ip6=2001:db8:1::/48 & network:n1]]
+
+############################################################
 =TITLE=Combined area from anchor
 =INPUT=
 area:all = { anchor = network:n1; }
