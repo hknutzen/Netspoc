@@ -65,13 +65,13 @@ Show IP addresses of all hosts inside `area:x`:
 
 `print-group --ip netspoc/ 'host:[area:x]'`
 
-Show IP address and name of IPv6 networks inside `area:x`:
+Show IP address and name of networks inside `area:x` matching given IPv6 prefix:
 
-`print-group netspoc/ 'network:[any:[ip6=::/0 & area:x]]'`
+`print-group netspoc/ 'network:[any:[ip6=DEAD:BEEF::/16 & area:x]]'`
 
 # COPYRIGHT AND DISCLAIMER
 
-(c) 2025 by Heinz Knutzen, heinz.knutzen@googlemail.com
+(c) 2026 by Heinz Knutzen, heinz.knutzen@googlemail.com
 
 This program is part of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
