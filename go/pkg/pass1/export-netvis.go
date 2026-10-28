@@ -110,20 +110,6 @@ func getVisNetwork(net *network, networks map[string]visNetwork) {
 		node.InArea = a.name
 	}
 
-	routerNeighborCount := func(r *router) int {
-		seen := make(map[string]bool)
-		add := func(r *router) {
-			for _, intf := range r.interfaces {
-				seen[intf.network.name] = true
-			}
-		}
-		add(r)
-		if r.isCombined46() {
-			add(r.combined46)
-		}
-		return len(seen)
-	}
-
 	getVisNeigh := func(net *network, ignoreCombined bool) {
 		for _, intf := range net.interfaces {
 			if !(ignoreCombined && intf.isCombined46()) {
@@ -146,6 +132,20 @@ func getVisNetwork(net *network, networks map[string]visNetwork) {
 		node.Hosts = append(node.Hosts, h.name)
 	}
 	networks[net.name] = node
+}
+
+func routerNeighborCount(r *router) int {
+	seen := make(map[string]bool)
+	add := func(r *router) {
+		for _, intf := range r.interfaces {
+			seen[intf.network.name] = true
+		}
+	}
+	add(r)
+	if r.isCombined46() {
+		add(r.combined46)
+	}
+	return len(seen)
 }
 
 func getVisRouter(r *router, routers map[string]visRouter) {
@@ -177,39 +177,51 @@ func getVisRouter(r *router, routers map[string]visRouter) {
 
 	seen := make(map[string]bool)
 
-	addNeighbors := func(intf *routerIntf, ignoreCombined bool) {
-		if !(ignoreCombined && intf.isCombined46()) {
-			if intf.network.ipType == tunnelIP {
-				for _, intf2 := range intf.network.interfaces {
-					if intf2.router != r {
-						node.Neighbors = append(node.Neighbors,
-							visNeighbor{Id: intf2.router.name, NeighborCount: len(intf2.router.interfaces), IsTunnel: true})
+	networkNeighborCount := func(net *network) int {
+		seen := make(map[string]bool)
+		add := func(net *network) {
+			for _, intf := range net.interfaces {
+				seen[intf.router.name] = true
+			}
+		}
+		add(net)
+		if net.isCombined46() {
+			add(net.combined46)
+		}
+		return len(seen)
+	}
+
+	addNeighbors := func(r *router, ignoreCombined bool) {
+		for _, intf := range getIntf(r) {
+			if !(ignoreCombined && intf.isCombined46()) {
+				if intf.network.ipType == tunnelIP {
+					for _, intf2 := range intf.network.interfaces {
+						if intf2.router != r {
+							node.Neighbors = append(node.Neighbors,
+								visNeighbor{Id: intf2.router.name, NeighborCount: routerNeighborCount(intf2.router), IsTunnel: true})
+						}
 					}
-				}
-			} else {
-				node.Neighbors = append(node.Neighbors,
-					visNeighbor{Id: intf.network.name, NeighborCount: len(intf.network.interfaces)})
-				a := intf.network.zone.inArea
-				if a != routerArea {
-					routerArea = nil
-				}
-				if a != nil && !seen[a.name] && r.managed != "" {
+				} else {
 					node.Neighbors = append(node.Neighbors,
-						visNeighbor{Id: a.name, NeighborCount: len(a.border) + len(a.inclusiveBorder)})
-					seen[a.name] = true
+						visNeighbor{Id: intf.network.name, NeighborCount: networkNeighborCount(intf.network)})
+					a := intf.network.zone.inArea
+					if a != routerArea {
+						routerArea = nil
+					}
+					if a != nil && !seen[a.name] && r.managed != "" {
+						node.Neighbors = append(node.Neighbors,
+							visNeighbor{Id: a.name, NeighborCount: len(a.border) + len(a.inclusiveBorder)})
+						seen[a.name] = true
+					}
 				}
 			}
 		}
 	}
 
-	for _, intf := range intfs {
-		addNeighbors(intf, false)
-	}
+	addNeighbors(r, false)
 
 	if r.isCombined46() {
-		for _, intf := range getIntfs(r.combined46) {
-			addNeighbors(intf, true)
-		}
+		addNeighbors(r.combined46, true)
 	}
 
 	if routerArea != nil {
