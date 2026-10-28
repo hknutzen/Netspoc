@@ -381,3 +381,46 @@ router:r1 = {
   }
 }
 =END=
+
+############################################################
+=TITLE=Dualstack Network with one v4 and one v6 Router/Interface
+=INPUT=
+network:combined = { ip = 10.1.2.0/24; ip6 = 2001:db8:2::/64; }
+
+router:r_v4 = {
+ interface:combined = { ip = 10.1.2.1; }
+}
+
+router:r_v6 = {
+ interface:combined = { ip6 = 2001:db8:2::1; }
+}
+
+=OUTPUT=
+{
+  "network": {
+    "network:combined": {
+      "id": "network:combined",
+      "type": "network",
+      "address": "10.1.2.0/24",
+      "address2": "2001:db8:2::/64",
+      "neighbors": [
+	    {"id": "router:r_v4","neighbor_count": 1},
+        {"id": "router:r_v6","neighbor_count": 1}
+      ],
+      "hosts": null
+    }
+  },
+  "router": {
+    "router:r_v4": {
+      "id": "router:r_v4",
+      "type": "router",
+      "neighbors": [{"id": "network:combined","neighbor_count": 1}]
+    },
+    "router:r_v6": {
+      "id": "router:r_v6",
+      "type": "router",
+      "neighbors": [{"id": "network:combined","neighbor_count": 1}]
+    }
+  }
+}
+=END=
