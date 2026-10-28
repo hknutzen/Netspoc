@@ -148,9 +148,9 @@ type groupWithPath struct {
 	group []someObj
 }
 
-// Collect elements into groups of elements from identical zone.
-// Put multiple interfaces of managed router always into different
-// groups, even if router is identical.
+// Collect elements into groups of elements from identical zone or
+// from identical router. But interfaces with pathrestriction are
+// always put into different groups, even if router is identical.
 func splitRuleGroup(group []someObj) []groupWithPath {
 	group = addSubnetsInZoneCluster(group)
 	// Check if group has elements from different zones and must be split.
