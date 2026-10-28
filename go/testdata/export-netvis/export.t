@@ -354,21 +354,21 @@ router:r1 = {
       "type": "network",
       "address": "10.1.2.0/24",
       "address2": "2001:db8:2::/64",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     },
     "network:v4": {
       "id": "network:v4",
       "type": "network",
       "address": "10.1.1.0/24",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     },
     "network:v6": {
       "id": "network:v6",
       "type": "network",
       "address": "2001:db8:1::/64",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     }
   },
@@ -404,7 +404,7 @@ router:r_v6 = {
       "address": "10.1.2.0/24",
       "address2": "2001:db8:2::/64",
       "neighbors": [
-	    {"id": "router:r_v4","neighbor_count": 1},
+        {"id": "router:r_v4","neighbor_count": 1},
         {"id": "router:r_v6","neighbor_count": 1}
       ],
       "hosts": null

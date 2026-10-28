@@ -110,6 +110,20 @@ func getVisNetwork(net *network, networks map[string]visNetwork) {
 		node.InArea = a.name
 	}
 
+	routerNeighborCount := func(r *router) int {
+		seen := make(map[string]bool)
+		add := func(r *router) {
+			for _, intf := range r.interfaces {
+				seen[intf.network.name] = true
+			}
+		}
+		add(r)
+		if r.isCombined46() {
+			add(r.combined46)
+		}
+		return len(seen)
+	}
+
 	getVisNeigh := func(net *network, ignoreCombined bool) {
 		for _, intf := range net.interfaces {
 			if !(ignoreCombined && intf.isCombined46()) {
@@ -117,7 +131,7 @@ func getVisNetwork(net *network, networks map[string]visNetwork) {
 				if r.origRouter != nil {
 					r = r.origRouter
 				}
-				node.Neighbors = append(node.Neighbors, visNeighbor{Id: r.name, NeighborCount: len(r.interfaces)})
+				node.Neighbors = append(node.Neighbors, visNeighbor{Id: r.name, NeighborCount: routerNeighborCount(r)})
 			}
 		}
 	}
