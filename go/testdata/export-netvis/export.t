@@ -354,21 +354,21 @@ router:r1 = {
       "type": "network",
       "address": "10.1.2.0/24",
       "address2": "2001:db8:2::/64",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     },
     "network:v4": {
       "id": "network:v4",
       "type": "network",
       "address": "10.1.1.0/24",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     },
     "network:v6": {
       "id": "network:v6",
       "type": "network",
       "address": "2001:db8:1::/64",
-      "neighbors": [{"id": "router:r1","neighbor_count": 2}],
+      "neighbors": [{"id": "router:r1","neighbor_count": 3}],
       "hosts": null
     }
   },
@@ -377,6 +377,74 @@ router:r1 = {
       "id": "router:r1",
       "type": "router: standard",
       "neighbors": [{"id": "network:v4","neighbor_count": 1},{"id": "network:combined","neighbor_count": 1},{"id": "network:v6","neighbor_count": 1}]
+    }
+  }
+}
+=END=
+
+############################################################
+=TITLE=Dualstack Network with one v4 and one v6 Router/Interface
+=INPUT=
+network:combined = { ip = 10.1.2.0/24; ip6 = 2001:db8:2::/64; }
+network:v4       = { ip = 10.2.2.0/24; }
+network:v6       = { ip6 = 2001:db8:3::/64; }
+
+router:r_v4 = {
+ interface:combined = { ip = 10.1.2.1; }
+ interface:v4       = { ip = 10.2.2.1; }
+}
+
+router:r_v6 = {
+ interface:combined = { ip6 = 2001:db8:2::1; }
+ interface:v6       = { ip6 = 2001:db8:3::1; }
+}
+
+=OUTPUT=
+{
+  "network": {
+    "network:combined": {
+      "id": "network:combined",
+      "type": "network",
+      "address": "10.1.2.0/24",
+      "address2": "2001:db8:2::/64",
+      "neighbors": [
+        {"id": "router:r_v4","neighbor_count": 2},
+        {"id": "router:r_v6","neighbor_count": 2}
+      ],
+      "hosts": null
+    },
+    "network:v4": {
+      "id": "network:v4",
+      "type": "network",
+      "address": "10.2.2.0/24",
+      "neighbors": [{"id": "router:r_v4","neighbor_count": 2}],
+      "hosts": null
+    },
+    "network:v6": {
+      "id": "network:v6",
+      "type": "network",
+      "address": "2001:db8:3::/64",
+      "neighbors": [{"id": "router:r_v6","neighbor_count": 2}],
+      "hosts": null
+    }
+
+  },
+  "router": {
+    "router:r_v4": {
+      "id": "router:r_v4",
+      "type": "router",
+      "neighbors": [
+      {"id": "network:combined","neighbor_count": 2},
+      {"id": "network:v4","neighbor_count": 1}
+      ]
+    },
+    "router:r_v6": {
+      "id": "router:r_v6",
+      "type": "router",
+      "neighbors": [
+      {"id": "network:combined","neighbor_count": 2},
+      {"id": "network:v6","neighbor_count": 1}
+      ]
     }
   }
 }
