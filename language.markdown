@@ -591,11 +591,6 @@ Netspoc needs to know about NAT for these reasons:
 
 But the actual NAT commands have to be configured manually.
 
-### Attribute acl_use_real_ip
-
-Use attribute `acl_use_real_ip` for ASA from version 8.3 or later.
-Netspoc uses real IP and not translated IP when creating ACLs.
-
 ## Secondary packet filters
 
 In a given topology we can get chains of managed packet filters on the
