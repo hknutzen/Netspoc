@@ -216,17 +216,19 @@ func (c *spoc) checkManagedLocalSupernets(
 	mark := cl.mark
 	// Check other side of rule.
 	// Other side is located in same cluster and hence is filtered.
-	switch z := gi.path.getZone().(type) {
+	switch x := gi.path.getZone().(type) {
 	case *zone:
-		if cl2 := z.managedLocalCluster; cl2 != nil && z0 == cl2.zones[0] {
+		if cl2 := x.managedLocalCluster; cl2 != nil && z0 == cl2.zones[0] {
 			return
 		}
 	case *router:
-		if z.localMark == mark {
+		if x.localMark == mark {
 			return
 		}
 	}
 	// Other side is not filtered inside cluster.
+	// But even external object may be filtered if it uses IP address
+	// matching filter_only.
 	var externObj someObj
 	for _, obj := range gi.group {
 		if !obj.getNetwork().filterAt[mark] {
