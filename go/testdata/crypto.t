@@ -2150,6 +2150,7 @@ router:softclients = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  vpn_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+ host:id:büro@domain.x = { ip = 10.99.1.9; }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
@@ -2189,6 +2190,15 @@ tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
 --
+! vpn-filter-1
+access-list vpn-filter-1 extended permit ip host 10.99.1.9 any4
+access-list vpn-filter-1 extended deny ip any4 any4
+username büro@domain.x nopassword
+username büro@domain.x attributes
+ vpn-framed-ip-address 10.99.1.9 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-1
+--
 ! vpn-filter-foo@domain.x
 access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
 access-list vpn-filter-foo@domain.x extended deny ip any4 any4
@@ -2198,18 +2208,18 @@ username foo@domain.x attributes
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
 --
-! vpn-filter-1
-access-list vpn-filter-1 extended permit ip host 10.99.1.11 any4
-access-list vpn-filter-1 extended deny ip any4 any4
-group-policy VPN-group-1 internal
-group-policy VPN-group-1 attributes
+! vpn-filter-2
+access-list vpn-filter-2 extended permit ip host 10.99.1.11 any4
+access-list vpn-filter-2 extended deny ip any4 any4
+group-policy VPN-group-2 internal
+group-policy VPN-group-2 attributes
  banner value Willkommen zu Hause
 username long-first-name.long-second-name@long-domain.xyz nopassword
 username long-first-name.long-second-name@long-domain.xyz attributes
  vpn-framed-ip-address 10.99.1.11 255.255.255.0
  service-type remote-access
- vpn-filter value vpn-filter-1
- vpn-group-policy VPN-group-1
+ vpn-filter value vpn-filter-2
+ vpn-group-policy VPN-group-2
 --
 crypto ca certificate map ca-map-@domain.x 10
  subject-name attr ea co @domain.x

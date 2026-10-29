@@ -642,6 +642,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	genIdName := func(id string) string {
 		if len(id) <= 46 {
 			for _, c := range id {
+				if c > unicode.MaxASCII {
+					goto BAD
+				}
 				if unicode.IsDigit(c) || unicode.IsLetter(c) {
 					continue
 				}
